@@ -106,6 +106,9 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
 def run_industry_evidence_maintenance(
     run_id: Optional[str] = None,
     trigger: str = "schedule",
+    proposal_ids: Optional[list[str]] = None,
+    requests: Optional[list[dict[str, Any]]] = None,
+    mode: Optional[str] = None,
 ) -> bool:
     """Research open proposals and refresh due approved sources.
 
@@ -134,7 +137,13 @@ def run_industry_evidence_maintenance(
         run_industry_evidence_maintenance as _run,
     )
 
-    return _run(run_id=run_id, trigger=trigger)
+    return _run(
+        run_id=run_id,
+        trigger=trigger,
+        proposal_ids=proposal_ids,
+        requests=requests,
+        mode=mode,
+    )
 
 
 def run_research_parity(

@@ -65,7 +65,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
-import { requireAdmin } from "../middleware/auth.js";
+import { getAuthenticatedActorId, requireAdmin } from "../middleware/auth.js";
 
 import { CURRENT_INGEST_COMPUTE_EPOCH, isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
@@ -76,6 +76,10 @@ import {
   callConvexAction,
   isConvexPaginatedQueryPage,
 } from "../services/convex-utils.js";
+import {
+  IndustryEvidenceResearchError,
+  resolveExactResumeResearchTargets,
+} from "../services/industry-evidence-research-service.js";
 import {
   buildResumeIngestData,
   toOptionalNumber,
@@ -121,6 +125,7 @@ app.use("/api/resumes/audit-outcome", requireAdmin);
 // narrower than the ordinary resume-detail route: admin only, then pinned to
 // the dev system workspace in the handler below.
 app.use("/api/resumes/:resumeId/industry-review-targets", requireAdmin);
+app.use("/api/resumes/industry-research-requests", requireAdmin);
 const resumeService = new ResumeService(config.projectRoot);
 const aiService = new AIMatchingService();
 const matchStorage = new MatchStorage(config.projectRoot);
@@ -1293,6 +1298,70 @@ app.openapi(getResumeIndustryReviewTargetsRoute, async (c) => {
   }
 
   return c.json({ success: true as const, data: parsed.data }, 200);
+});
+
+const enqueueResumeIndustryResearchBatchRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/industry-research-requests",
+  tags: ["resumes"],
+  summary: "Queue exact industry-evidence research for a resume result set",
+  description:
+    "Admin-only batch orchestration. Resume IDs are resolved by exact workspace/fingerprint identity; employer names are never accepted as selectors.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            resumeIds: z.array(z.string().min(1)).min(1).max(50),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            queued: z.number(),
+            alreadyQueued: z.number(),
+            notLinked: z.number(),
+            notEligible: z.number(),
+            requestIds: z.array(z.string()),
+            proposalIds: z.array(z.string()),
+            dispatch: z.object({ runId: z.string().nullable(), coalesced: z.boolean() }),
+          }),
+        },
+      },
+      description: "Exact research requests queued for eligible resume targets",
+    },
+    409: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }),
+        },
+      },
+      description: "Targeted queue disabled or batch rejected",
+    },
+  },
+});
+
+app.openapi(enqueueResumeIndustryResearchBatchRoute, async (c) => {
+  try {
+    const result = await resolveExactResumeResearchTargets({
+      workspaceSlug: c.var.workspaceSlug,
+      resumeIds: c.req.valid("json").resumeIds,
+      requestedBy: getAuthenticatedActorId(c),
+      maxTargets: config.industryEvidenceResearchMaxBatch,
+    });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (error instanceof IndustryEvidenceResearchError) {
+      return c.json({ success: false as const, code: error.code, error: error.message }, 409);
+    }
+    throw error;
+  }
 });
 
 const triggerReingestRoute = createRoute({

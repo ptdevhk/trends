@@ -69,6 +69,7 @@ const {
 
 const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
+  industryEvidenceTargetedQueueEnabled: false,
 }))
 
 const routeMock = vi.hoisted(() => ({
@@ -93,6 +94,7 @@ const authMock = vi.hoisted((): { value: AuthMockValue } => ({
 
 vi.mock('@/lib/feature-flags', () => ({
   isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
+  isIndustryEvidenceTargetedQueueEnabled: () => featureFlagsMock.industryEvidenceTargetedQueueEnabled,
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({

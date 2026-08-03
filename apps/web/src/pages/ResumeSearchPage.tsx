@@ -1,5 +1,6 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +30,8 @@ import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { rawApiClient } from '@/lib/api-helpers'
-import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+import { hasSystemAdminAccess } from '@/lib/workspace-access'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 type PublicShareCreateResponse = {
@@ -41,13 +43,14 @@ type PublicShareCreateResponse = {
 
 export function ResumeSearchPage() {
   const { t } = useTranslation()
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, memberships = [] } = useAuth()
   const { resumeId: detailResumeId } = useParams<{ resumeId?: string }>()
   const { search } = useLocation()
   const navigate = useNavigate()
   const { slug: workspaceSlug, isPublicSurface } = useWorkspace()
   const workspaceResumePath = `/${workspaceSlug}/resumes`
   const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
+  const industryResearchQueueEnabled = isIndustryEvidenceTargetedQueueEnabled() && hasSystemAdminAccess(memberships)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
@@ -487,6 +490,21 @@ export function ResumeSearchPage() {
   })
   const canManageCandidateData = isAuthenticated
   const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
+  const queueIndustryResearch = useCallback(async (resumeIds: string[]) => {
+    if (!industryResearchQueueEnabled || resumeIds.length === 0) return
+    const { data, error, response } = await rawApiClient.POST('/api/resumes/industry-research-requests', {
+      body: { resumeIds },
+    })
+    if (error || !data) {
+      toast.error(`Unable to queue exact industry research (${response?.status ?? 'request failed'})`)
+      return
+    }
+    const result = data as { queued?: number; alreadyQueued?: number; notLinked?: number; notEligible?: number }
+    toast.success(`Queued ${result.queued ?? 0} exact target(s); ${result.alreadyQueued ?? 0} already active`)
+    if ((result.notLinked ?? 0) > 0 || (result.notEligible ?? 0) > 0) {
+      toast.message(`${result.notLinked ?? 0} result(s) had no exact industry target; ${result.notEligible ?? 0} were not eligible`)
+    }
+  }, [industryResearchQueueEnabled])
 
   return (
     <div className="space-y-6">
@@ -672,6 +690,8 @@ export function ResumeSearchPage() {
                   onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
                   onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
                   searchQuery={queryInput}
+                  onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
+                  industryResearchQueueEnabled={industryResearchQueueEnabled}
                 />
               </ErrorBoundary>
             </div>

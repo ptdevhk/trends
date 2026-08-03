@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
+import type { IndustryMaintenanceRunMode } from "@trends/shared";
 
 /**
  * Industry maintenance trigger pipeline.
@@ -23,6 +24,9 @@ export interface EnqueueMaintenanceInput {
   workspaceSlug: string;
   triggerSource: MaintenanceTriggerSource;
   triggerContext?: string;
+  mode?: IndustryMaintenanceRunMode;
+  proposalIds?: string[];
+  requestIds?: string[];
 }
 
 export interface EnqueueMaintenanceResult {
@@ -31,12 +35,20 @@ export interface EnqueueMaintenanceResult {
 }
 
 export interface MaintenancePipelineDeps {
-  findActiveRun: (workspaceSlug: string) => Promise<{ runId: string } | null>;
+  findActiveRun: (workspaceSlug: string) => Promise<{ runId: string; mode?: IndustryMaintenanceRunMode } | null>;
   startRun: (input: {
     workspaceSlug: string;
     triggerSource: MaintenanceTriggerSource;
     triggerContext?: string;
-  }) => Promise<{ runId: string }>;
+    mode?: IndustryMaintenanceRunMode;
+    proposalIds?: string[];
+    requestIds?: string[];
+    limit?: number;
+  }) => Promise<{
+    runId: string;
+    proposalIds?: string[];
+    requests?: Array<{ requestId: string; proposalId: string; leaseId: string }>;
+  }>;
   patchTriggerContext: (input: {
     runId: string;
     triggerContext: string;
@@ -50,6 +62,12 @@ export interface MaintenancePipelineDeps {
     status: "completed" | "failed" | "skipped";
     failureMessage?: string;
     operatorSummary: string;
+  }) => Promise<unknown>;
+  releaseRequests?: (input: {
+    runId: string;
+    requests: Array<{ requestId: string; proposalId?: string; leaseId: string }>;
+    failureCode: "worker_unreachable" | "timeout";
+    outcome: string;
   }) => Promise<unknown>;
 }
 
@@ -71,10 +89,37 @@ function defaultDeps(): MaintenancePipelineDeps {
           writeSecret: config.auth.convexWriteSecret,
         },
       );
-      return (result as { runId: string } | null) ?? null;
+      const parsed = result as { runId?: string; mode?: IndustryMaintenanceRunMode } | null;
+      return parsed?.runId ? { runId: parsed.runId, ...(parsed.mode ? { mode: parsed.mode } : {}) } : null;
     },
     startRun: async (input) => {
       const runId = generateRunId();
+      if (input.mode === "targeted") {
+        const result = await callConvexMutation(
+          "companies:startAndClaimIndustryEvidenceMaintenanceRun",
+          {
+            runId,
+            workspaceSlug: input.workspaceSlug,
+            triggerSource: input.triggerSource,
+            ...(input.triggerContext ? { triggerContext: input.triggerContext } : {}),
+            mode: input.mode,
+            ...(input.proposalIds?.length ? { proposalIds: input.proposalIds } : {}),
+            ...(input.requestIds?.length ? { requestIds: input.requestIds } : {}),
+            limit: Math.max(input.proposalIds?.length ?? 0, input.requestIds?.length ?? 0, 1),
+            writeSecret: config.auth.convexWriteSecret,
+          },
+        );
+        const parsed = result as {
+          runId?: string;
+          proposalIds?: string[];
+          requests?: Array<{ requestId: string; proposalId: string; leaseId: string }>;
+        };
+        return {
+          runId: parsed.runId ?? runId,
+          proposalIds: parsed.proposalIds ?? [],
+          requests: parsed.requests ?? [],
+        };
+      }
       await callConvexMutation("companies:startIndustryMaintenanceRun", {
         runId,
         workspaceSlug: input.workspaceSlug,
@@ -85,18 +130,11 @@ function defaultDeps(): MaintenancePipelineDeps {
       return { runId };
     },
     patchTriggerContext: async (input) => {
-      // Best-effort context append: there is no dedicated patch mutation for
-      // triggerContext, so we read the active run, merge the context, and rely
-      // on the worker/operator reading the run history. This is intentionally
-      // best-effort - coalescing correctness does not depend on it.
-      const existing = (await callConvexQuery("companies:getIndustryMaintenanceRun", {
+      return callConvexMutation("companies:patchIndustryMaintenanceRunContext", {
         runId: input.runId,
+        triggerContext: input.triggerContext,
         writeSecret: config.auth.convexWriteSecret,
-      })) as { triggerContext?: string } | null;
-      const prior = existing?.triggerContext?.trim() ?? "";
-      return prior
-        ? `${prior}; ${input.triggerContext}`
-        : input.triggerContext;
+      });
     },
     postToWorker: async (path, body) => {
       const response = await fetch(`${config.workerUrl}${path}`, {
@@ -115,6 +153,17 @@ function defaultDeps(): MaintenancePipelineDeps {
         operatorSummary: input.operatorSummary,
         writeSecret: config.auth.convexWriteSecret,
       }),
+    releaseRequests: async (input) =>
+      callConvexMutation("companies:releaseIndustryEvidenceResearchRequests", {
+        runId: input.runId,
+        requests: input.requests.map((request) => ({
+          requestId: request.requestId,
+          leaseId: request.leaseId,
+        })),
+        failureCode: input.failureCode,
+        outcome: input.outcome,
+        writeSecret: config.auth.convexWriteSecret,
+      }),
   };
 }
 
@@ -129,7 +178,12 @@ export async function enqueueIndustryMaintenance(
 ): Promise<EnqueueMaintenanceResult> {
   try {
     const active = await deps.findActiveRun(input.workspaceSlug);
-    if (active) {
+    // Targeted requests must retain their exact proposal/lease payload. A
+    // broad legacy run cannot safely absorb them because the worker would
+    // otherwise lose the target selector. Start a bounded targeted run even
+    // when a sweep is already active; Convex coalescing still deduplicates the
+    // individual request row and only one run can claim its lease.
+    if (active && input.mode !== "targeted" && active.mode !== "targeted") {
       if (input.triggerContext) {
         try {
           await deps.patchTriggerContext({
@@ -146,14 +200,18 @@ export async function enqueueIndustryMaintenance(
       return { runId: active.runId, coalesced: true };
     }
 
-    const runId = await deps.startRun({
+    const started = await deps.startRun({
       workspaceSlug: input.workspaceSlug,
       triggerSource: input.triggerSource,
       ...(input.triggerContext ? { triggerContext: input.triggerContext } : {}),
-    }).then((r) => r.runId);
+      ...(input.mode ? { mode: input.mode } : {}),
+      ...(input.proposalIds ? { proposalIds: input.proposalIds } : {}),
+      ...(input.requestIds ? { requestIds: input.requestIds } : {}),
+    });
+    const runId = started.runId;
 
     // Fire-and-forget advance; never blocks the caller or throws.
-    void advanceRun(runId, input, deps);
+    void advanceRun(runId, input, deps, started);
 
     return { runId, coalesced: false };
   } catch (error) {
@@ -170,13 +228,28 @@ async function advanceRun(
   runId: string,
   input: EnqueueMaintenanceInput,
   deps: MaintenancePipelineDeps,
+  started: {
+    proposalIds?: string[];
+    requests?: Array<{ requestId: string; proposalId: string; leaseId: string }>;
+  },
 ): Promise<void> {
   try {
     const result = await deps.postToWorker("/worker/industry/maintenance", {
       runId,
       trigger: input.triggerSource,
+      ...(input.mode ? { mode: input.mode } : {}),
+      ...(started.proposalIds?.length ? { proposalIds: started.proposalIds } : {}),
+      ...(started.requests?.length ? { requests: started.requests } : {}),
     });
     if (!result.ok) {
+      if (started.requests?.length && deps.releaseRequests) {
+        await deps.releaseRequests({
+          runId,
+          requests: started.requests,
+          failureCode: "worker_unreachable",
+          outcome: `worker responded ${result.status}`,
+        });
+      }
       await deps.finishRun({
         runId,
         status: "failed",
@@ -192,6 +265,14 @@ async function advanceRun(
       { route: "industry-maintenance-pipeline", runId },
     );
     try {
+      if (started.requests?.length && deps.releaseRequests) {
+        await deps.releaseRequests({
+          runId,
+          requests: started.requests,
+          failureCode: "worker_unreachable",
+          outcome: error instanceof Error ? error.message : String(error),
+        });
+      }
       await deps.finishRun({
         runId,
         status: "failed",

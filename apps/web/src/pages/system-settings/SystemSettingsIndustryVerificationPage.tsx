@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
+  isIndustryEvidenceResearchFailureCode,
+  isIndustryEvidenceResearchOrigin,
+  isIndustryEvidenceResearchState,
   isExplicitCncEvidenceSource,
   type IndustryReviewAttestation,
   type IndustryReviewRecommendation,
@@ -21,6 +24,7 @@ import { reportUiError } from '@/lib/ui-error-reporting'
 import { SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { IndustryAdvancedTools } from './IndustryAdvancedTools'
 import { IndustryReviewInbox } from './IndustryReviewInbox'
+import { EvidenceRecoveryPanel } from './EvidenceRecoveryPanel'
 import {
   isTerminalIndustryProposalStatus,
   type ReviewInboxItem,
@@ -41,7 +45,7 @@ type ReviewQueueStatus = IndustryProposal['status']
 
 type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
 type ReviewContext = Pick<ReviewPacketResponse['reviewContext'], 'profile' | 'revisions'>
-type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'reviewContext' | 'recomputeRuns'>
+type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'reviewContext' | 'recomputeRuns' | 'research' | 'identityCandidates'>
 type DetailBundle = ReviewContext
 
 const REVIEW_RISK_FLAG_LABELS: Record<string, string> = {
@@ -82,6 +86,70 @@ function parseReviewContext(value: unknown): DetailBundle {
   }
 }
 
+function parseResearchSummary(value: unknown): ReviewPacketResponse['research'] {
+  const fallback: ReviewPacketResponse['research'] = { featureEnabled: false, active: null, history: [] }
+  if (!isRecord(value)) return fallback
+  const parseRequest = (item: unknown): NonNullable<ReviewPacketResponse['research']['active']> | null => {
+    if (!isRecord(item)) return null
+    if (
+      typeof item.requestId !== 'string'
+      || typeof item.proposalId !== 'string'
+      || !isIndustryEvidenceResearchOrigin(item.origin)
+      || !isIndustryEvidenceResearchState(item.state)
+      || typeof item.priority !== 'number'
+      || typeof item.requestedAt !== 'number'
+      || typeof item.demandCount !== 'number'
+      || typeof item.attemptCount !== 'number'
+      || typeof item.updatedAt !== 'number'
+    ) return null
+    return {
+      requestId: item.requestId,
+      proposalId: item.proposalId,
+      origin: item.origin,
+      state: item.state,
+      priority: item.priority,
+      requestedAt: item.requestedAt,
+      demandCount: item.demandCount,
+      attemptCount: item.attemptCount,
+      ...(typeof item.nextAttemptAt === 'number' ? { nextAttemptAt: item.nextAttemptAt } : {}),
+      ...(typeof item.leaseExpiresAt === 'number' ? { leaseExpiresAt: item.leaseExpiresAt } : {}),
+      ...(typeof item.lastRunId === 'string' ? { lastRunId: item.lastRunId } : {}),
+      ...(typeof item.lastOutcome === 'string' ? { lastOutcome: item.lastOutcome } : {}),
+      ...(isIndustryEvidenceResearchFailureCode(item.lastErrorCode) ? { lastErrorCode: item.lastErrorCode } : {}),
+      updatedAt: item.updatedAt,
+      canRetry: item.canRetry === true,
+      canCancel: item.canCancel === true,
+    }
+  }
+  const history = Array.isArray(value.history)
+    ? value.history.map(parseRequest).filter((item): item is NonNullable<typeof item> => item !== null)
+    : []
+  return {
+    featureEnabled: value.featureEnabled === true,
+    active: parseRequest(value.active),
+    history,
+  }
+}
+
+function parseIdentityCandidates(value: unknown): ReviewPacketResponse['identityCandidates'] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is ReviewPacketResponse['identityCandidates'][number] => (
+    isRecord(item)
+    && typeof item.candidateFingerprint === 'string'
+    && typeof item.proposalId === 'string'
+    && typeof item.normalizedLegalName === 'string'
+    && Array.isArray(item.sourceIds)
+    && item.sourceIds.every((sourceId) => typeof sourceId === 'string')
+    && typeof item.confidence === 'number'
+    && Array.isArray(item.conflictCodes)
+    && item.conflictCodes.every((code) => typeof code === 'string')
+    && (item.reviewState === 'candidate' || item.reviewState === 'reviewed' || item.reviewState === 'rejected' || item.reviewState === 'needs_more_evidence')
+    && typeof item.extractionVersion === 'string'
+    && typeof item.createdAt === 'number'
+    && typeof item.updatedAt === 'number'
+  )) as ReviewPacketResponse['identityCandidates']
+}
+
 function parseReviewPacket(value: unknown): ReviewPacket | null {
   if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
   if (!isRecord(value.dataset) || typeof value.dataset.inputFingerprint !== 'string') return null
@@ -103,6 +171,8 @@ function parseReviewPacket(value: unknown): ReviewPacket | null {
     sources: parseItems<EvidenceSource>({ items: value.sources }),
     reviewContext: parseReviewContext(value.reviewContext ?? value.bundle),
     recomputeRuns: parseItems<IndustryRecomputeRun>({ items: value.recomputeRuns }),
+    research: parseResearchSummary(value.research),
+    identityCandidates: parseIdentityCandidates(value.identityCandidates),
   }
 }
 
@@ -163,6 +233,7 @@ type CoverageMaintenanceRun = {
   triggerContext?: string
   operatorSummary?: string
   failureMessage?: string
+  partial?: boolean
   startedAt?: number
   finishedAt?: number
   counts: {
@@ -197,6 +268,23 @@ type IndustryCoverageSummary = {
     latest: CoverageMaintenanceRun | null
     lastUseful: CoverageMaintenanceRun | null
     lastFailed: CoverageMaintenanceRun | null
+  }
+  researchQueue: {
+    active: number
+    queued: number
+    leased: number
+    retryWait: number
+    needsIdentityReview: number
+    failed: number
+    byOrigin: Record<string, number>
+    oldestRequestedAt: number | null
+    oldestPriority: number | null
+    alerts: {
+      oldestDirectDemandAgeMs: number
+      highRetryRate: boolean
+      providerLimitedBacklog: number
+      workerUnreachableRuns: number
+    }
   }
 }
 
@@ -233,7 +321,29 @@ function parseCoverageSummary(value: unknown): IndustryCoverageSummary | null {
   if (!isRecord(item)) return null
   if (typeof item.generatedAt !== 'number' || typeof item.openTotal !== 'number') return null
   if (!isRecord(item.resumes) || !isRecord(item.profiles) || !isRecord(item.maintenance)) return null
-  return item as unknown as IndustryCoverageSummary
+  const queue = isRecord(item.researchQueue) ? item.researchQueue : {}
+  return {
+    ...(item as unknown as Omit<IndustryCoverageSummary, 'researchQueue'>),
+    researchQueue: {
+      active: typeof queue.active === 'number' ? queue.active : 0,
+      queued: typeof queue.queued === 'number' ? queue.queued : 0,
+      leased: typeof queue.leased === 'number' ? queue.leased : 0,
+      retryWait: typeof queue.retryWait === 'number' ? queue.retryWait : 0,
+      needsIdentityReview: typeof queue.needsIdentityReview === 'number' ? queue.needsIdentityReview : 0,
+      failed: typeof queue.failed === 'number' ? queue.failed : 0,
+      byOrigin: isRecord(queue.byOrigin)
+        ? Object.fromEntries(Object.entries(queue.byOrigin).filter(([, value]) => typeof value === 'number')) as Record<string, number>
+        : {},
+      oldestRequestedAt: typeof queue.oldestRequestedAt === 'number' ? queue.oldestRequestedAt : null,
+      oldestPriority: typeof queue.oldestPriority === 'number' ? queue.oldestPriority : null,
+      alerts: {
+        oldestDirectDemandAgeMs: isRecord(queue.alerts) && typeof queue.alerts.oldestDirectDemandAgeMs === 'number' ? queue.alerts.oldestDirectDemandAgeMs : 0,
+        highRetryRate: isRecord(queue.alerts) && queue.alerts.highRetryRate === true,
+        providerLimitedBacklog: isRecord(queue.alerts) && typeof queue.alerts.providerLimitedBacklog === 'number' ? queue.alerts.providerLimitedBacklog : 0,
+        workerUnreachableRuns: isRecord(queue.alerts) && typeof queue.alerts.workerUnreachableRuns === 'number' ? queue.alerts.workerUnreachableRuns : 0,
+      },
+    },
+  }
 }
 
 function formatRunLine(run: CoverageMaintenanceRun | null | undefined): string {
@@ -569,12 +679,36 @@ function CoverageHealthPanel({
                 <p className="mt-1 font-mono text-xs">
                   {formatRunLine(summary.maintenance.latest)}
                 </p>
+                {summary.maintenance.latest?.partial ? <p className="mt-1 text-xs font-medium text-amber-800">Partial result — review failed/timeout targets before retrying.</p> : null}
                 {summary.maintenance.latest?.operatorSummary ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {summary.maintenance.latest.operatorSummary}
                   </p>
                 ) : null}
               </div>
+            </div>
+
+            <div className="rounded-lg border p-3" data-testid="industry-coverage-research-queue">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Targeted research queue</p>
+                <Badge variant={summary.researchQueue.needsIdentityReview > 0 ? 'secondary' : 'outline'}>
+                  {summary.researchQueue.active} active
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+                <span><strong>{summary.researchQueue.queued}</strong> queued</span>
+                <span><strong>{summary.researchQueue.leased}</strong> researching</span>
+                <span><strong>{summary.researchQueue.needsIdentityReview}</strong> identity review</span>
+                <span><strong>{summary.researchQueue.failed}</strong> failed</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Priority lanes: {Object.entries(summary.researchQueue.byOrigin).map(([origin, count]) => `${origin.replace(/_/g, ' ')} ${count}`).join(' · ') || 'none'}.
+              </p>
+              {(summary.researchQueue.alerts.highRetryRate || summary.researchQueue.alerts.providerLimitedBacklog > 0 || summary.researchQueue.alerts.workerUnreachableRuns > 0) ? (
+                <p className="mt-2 text-xs font-medium text-amber-800">
+                  Queue alert: {summary.researchQueue.alerts.highRetryRate ? 'high retry rate · ' : ''}{summary.researchQueue.alerts.providerLimitedBacklog > 0 ? `${summary.researchQueue.alerts.providerLimitedBacklog} provider-limited · ` : ''}{summary.researchQueue.alerts.workerUnreachableRuns > 0 ? `${summary.researchQueue.alerts.workerUnreachableRuns} worker-unreachable run(s)` : ''}
+                </p>
+              ) : null}
             </div>
 
             <p className="text-xs text-muted-foreground">
@@ -1031,6 +1165,8 @@ export function SystemSettingsIndustryVerificationPage() {
   const recommendation = directReviewPacket?.recommendation ?? null
   const reviewWarnings = directReviewPacket?.warnings ?? []
   const reviewDataset = directReviewPacket?.dataset ?? null
+  const research = directReviewPacket?.research ?? { featureEnabled: false, active: null, history: [] }
+  const identityCandidates = directReviewPacket?.identityCandidates ?? []
   const selectedProposalIsTerminal = selectedProposal
     ? isTerminalIndustryProposalStatus(selectedProposal.status)
     : false
@@ -1395,6 +1531,18 @@ export function SystemSettingsIndustryVerificationPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <EvidenceRecoveryPanel
+                proposalId={selectedProposal.proposalId}
+                proposalUpdatedAt={reviewDataset?.proposalUpdatedAt ?? selectedProposal.updatedAt}
+                companyKey={selectedProposal.companyKey}
+                employerSurface={selectedProposal.normalizedEmployerSurface}
+                research={research}
+                identityCandidates={identityCandidates}
+                requestJson={requestJson}
+                onReload={async () => { await reloadDirectReviewPacket() }}
+                disabled={selectedProposalIsTerminal}
+              />
 
               {recommendation && (
                 <Card data-testid="industry-review-recommendation">
@@ -1776,6 +1924,9 @@ export function SystemSettingsIndustryVerificationPage() {
                       Reject proposal
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    “Request more evidence” records the human review disposition only. Use “Research &amp; verify employer” above to queue the guarded worker.
+                  </p>
                 </CardContent>
               </Card>
 

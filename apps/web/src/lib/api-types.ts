@@ -4657,6 +4657,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/industry-research-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue exact industry-evidence research for a resume result set
+         * @description Admin-only batch orchestration. Resume IDs are resolved by exact workspace/fingerprint identity; employer names are never accepted as selectors.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Exact research requests queued for eligible resume targets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            queued: number;
+                            alreadyQueued: number;
+                            notLinked: number;
+                            notEligible: number;
+                            requestIds: string[];
+                            proposalIds: string[];
+                            dispatch: {
+                                runId: string | null;
+                                coalesced: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Targeted queue disabled or batch rejected */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/trigger-reingest": {
         parameters: {
             query?: never;
@@ -8986,6 +9058,7 @@ export interface paths {
                                     triggerContext?: string;
                                     operatorSummary?: string;
                                     failureMessage?: string;
+                                    partial?: boolean;
                                     startedAt?: number;
                                     finishedAt?: number;
                                     counts: {
@@ -9004,6 +9077,7 @@ export interface paths {
                                     triggerContext?: string;
                                     operatorSummary?: string;
                                     failureMessage?: string;
+                                    partial?: boolean;
                                     startedAt?: number;
                                     finishedAt?: number;
                                     counts: {
@@ -9413,6 +9487,7 @@ export interface paths {
                                     triggerContext?: string;
                                     operatorSummary?: string;
                                     failureMessage?: string;
+                                    partial?: boolean;
                                     startedAt?: number;
                                     finishedAt?: number;
                                     counts: {
@@ -9431,6 +9506,7 @@ export interface paths {
                                     triggerContext?: string;
                                     operatorSummary?: string;
                                     failureMessage?: string;
+                                    partial?: boolean;
                                     startedAt?: number;
                                     finishedAt?: number;
                                     counts: {
@@ -9443,6 +9519,66 @@ export interface paths {
                                     };
                                 } | null;
                             };
+                            research: {
+                                featureEnabled: boolean;
+                                active: {
+                                    requestId: string;
+                                    proposalId: string;
+                                    /** @enum {string} */
+                                    origin: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                                    /** @enum {string} */
+                                    state: "queued" | "leased" | "completed" | "needs_identity_review" | "needs_more_evidence" | "retry_wait" | "failed" | "cancelled";
+                                    priority: number;
+                                    requestedAt: number;
+                                    demandCount: number;
+                                    attemptCount: number;
+                                    nextAttemptAt?: number;
+                                    leaseExpiresAt?: number;
+                                    lastRunId?: string;
+                                    lastOutcome?: string;
+                                    /** @enum {string} */
+                                    lastErrorCode?: "worker_unreachable" | "timeout" | "provider_limited" | "fetch_failed" | "identity_ambiguous" | "proposal_terminal";
+                                    updatedAt: number;
+                                    canRetry: boolean;
+                                    canCancel: boolean;
+                                } | null;
+                                history: {
+                                    requestId: string;
+                                    proposalId: string;
+                                    /** @enum {string} */
+                                    origin: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                                    /** @enum {string} */
+                                    state: "queued" | "leased" | "completed" | "needs_identity_review" | "needs_more_evidence" | "retry_wait" | "failed" | "cancelled";
+                                    priority: number;
+                                    requestedAt: number;
+                                    demandCount: number;
+                                    attemptCount: number;
+                                    nextAttemptAt?: number;
+                                    leaseExpiresAt?: number;
+                                    lastRunId?: string;
+                                    lastOutcome?: string;
+                                    /** @enum {string} */
+                                    lastErrorCode?: "worker_unreachable" | "timeout" | "provider_limited" | "fetch_failed" | "identity_ambiguous" | "proposal_terminal";
+                                    updatedAt: number;
+                                    canRetry: boolean;
+                                    canCancel: boolean;
+                                }[];
+                            };
+                            identityCandidates: {
+                                candidateFingerprint: string;
+                                proposalId: string;
+                                normalizedLegalName: string;
+                                jurisdiction?: string;
+                                registrationNumber?: string;
+                                sourceIds: string[];
+                                confidence: number;
+                                conflictCodes: string[];
+                                /** @enum {string} */
+                                reviewState: "candidate" | "reviewed" | "rejected" | "needs_more_evidence";
+                                extractionVersion: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
                         };
                     };
                 };
@@ -9463,6 +9599,398 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/research-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read exact industry evidence research progress */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current-workspace research request summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                featureEnabled: boolean;
+                                active: {
+                                    requestId: string;
+                                    proposalId: string;
+                                    /** @enum {string} */
+                                    origin: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                                    /** @enum {string} */
+                                    state: "queued" | "leased" | "completed" | "needs_identity_review" | "needs_more_evidence" | "retry_wait" | "failed" | "cancelled";
+                                    priority: number;
+                                    requestedAt: number;
+                                    demandCount: number;
+                                    attemptCount: number;
+                                    nextAttemptAt?: number;
+                                    leaseExpiresAt?: number;
+                                    lastRunId?: string;
+                                    lastOutcome?: string;
+                                    /** @enum {string} */
+                                    lastErrorCode?: "worker_unreachable" | "timeout" | "provider_limited" | "fetch_failed" | "identity_ambiguous" | "proposal_terminal";
+                                    updatedAt: number;
+                                    canRetry: boolean;
+                                    canCancel: boolean;
+                                } | null;
+                                history: {
+                                    requestId: string;
+                                    proposalId: string;
+                                    /** @enum {string} */
+                                    origin: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                                    /** @enum {string} */
+                                    state: "queued" | "leased" | "completed" | "needs_identity_review" | "needs_more_evidence" | "retry_wait" | "failed" | "cancelled";
+                                    priority: number;
+                                    requestedAt: number;
+                                    demandCount: number;
+                                    attemptCount: number;
+                                    nextAttemptAt?: number;
+                                    leaseExpiresAt?: number;
+                                    lastRunId?: string;
+                                    lastOutcome?: string;
+                                    /** @enum {string} */
+                                    lastErrorCode?: "worker_unreachable" | "timeout" | "provider_limited" | "fetch_failed" | "identity_ambiguous" | "proposal_terminal";
+                                    updatedAt: number;
+                                    canRetry: boolean;
+                                    canCancel: boolean;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Queue exact industry evidence research for one proposal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @default admin_review
+                         * @enum {string}
+                         */
+                        origin?: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                    };
+                };
+            };
+            responses: {
+                /** @description Research request queued or coalesced */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            request: {
+                                requestId: string;
+                                proposalId: string;
+                                /** @enum {string} */
+                                origin: "resume_detail" | "resume_search_batch" | "admin_review" | "refresh" | "scheduled_sweep";
+                                /** @enum {string} */
+                                state: "queued" | "leased" | "completed" | "needs_identity_review" | "needs_more_evidence" | "retry_wait" | "failed" | "cancelled";
+                                priority: number;
+                                requestedAt: number;
+                                demandCount: number;
+                                attemptCount: number;
+                                nextAttemptAt?: number;
+                                leaseExpiresAt?: number;
+                                lastRunId?: string;
+                                lastOutcome?: string;
+                                /** @enum {string} */
+                                lastErrorCode?: "worker_unreachable" | "timeout" | "provider_limited" | "fetch_failed" | "identity_ambiguous" | "proposal_terminal";
+                                updatedAt: number;
+                                canRetry: boolean;
+                                canCancel: boolean;
+                            };
+                            /** @enum {string} */
+                            disposition: "created" | "already_queued" | "reprioritized";
+                            dispatch: {
+                                runId: string | null;
+                                coalesced: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Proposal was not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Feature disabled or proposal is not requestable */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/research-requests/:requestId/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry one failed industry evidence research request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Request returned to the queue */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Request was not found for this proposal */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Request cannot be retried */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/research-requests/:requestId/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel one queued industry evidence research request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Request cancelled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            cancelled: boolean;
+                        };
+                    };
+                };
+                /** @description Request was not found for this proposal */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Request is no longer active */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/:proposalId/identity-resolution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attend an evidence-backed industry proposal identity mapping */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposalId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        expectedProposalUpdatedAt: number;
+                        candidateFingerprint: string;
+                        /** @enum {string} */
+                        mappingMode: "existing" | "create_provisional";
+                        companyKey?: string;
+                        provisionalDisplayName?: string;
+                        provisionalAlias?: string;
+                        sourceIds: string[];
+                        reviewNote?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Identity mapping recorded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            proposalId: string;
+                            companyKey: string;
+                            auditId: string;
+                        };
+                    };
+                };
+                /** @description Proposal changed during identity review */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            /** @enum {string} */
+                            code: "INDUSTRY_REVIEW_STALE";
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -10265,6 +10793,25 @@ export interface paths {
                                             errors: number;
                                         };
                                     } | null;
+                                };
+                                researchQueue: {
+                                    active: number;
+                                    queued: number;
+                                    leased: number;
+                                    retryWait: number;
+                                    needsIdentityReview: number;
+                                    failed: number;
+                                    byOrigin: {
+                                        [key: string]: number;
+                                    };
+                                    oldestRequestedAt: number | null;
+                                    oldestPriority: number | null;
+                                    alerts: {
+                                        oldestDirectDemandAgeMs: number;
+                                        highRetryRate: boolean;
+                                        providerLimitedBacklog: number;
+                                        workerUnreachableRuns: number;
+                                    };
                                 };
                             };
                         };

@@ -40,6 +40,18 @@ export const config = {
       ) || 300_000,
     ),
   ),
+  industryEvidenceTargetedQueueEnabled:
+    process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED === "true",
+  industryEvidenceResearchMaxBatch: Math.min(
+    50,
+    Math.max(
+      1,
+      Number.parseInt(
+        process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH || "20",
+        10,
+      ) || 20,
+    ),
+  ),
   projectRoot,
   timezone,
   version: "0.4.22",

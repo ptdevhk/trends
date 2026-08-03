@@ -125,6 +125,50 @@ function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, 
   )
 }
 
+function IndustryResearchQueueCard({ requestJson }: { requestJson: (path: string, init?: RequestInit) => Promise<unknown> }) {
+  const [queue, setQueue] = useState<{ active: number; queued: number; leased: number; needsIdentityReview: number; failed: number } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const pending = requestJson('/api/company-industry-coverage')
+    if (!pending || typeof (pending as Promise<unknown>).then !== 'function') {
+      setLoading(false)
+      return () => { cancelled = true }
+    }
+    void pending
+      .then((payload) => {
+        if (cancelled) return
+        const value = payload as { item?: { researchQueue?: typeof queue } }
+        const next = value?.item?.researchQueue
+        if (next) setQueue(next)
+      })
+      .catch((error) => reportUiError('Failed to load targeted industry research queue', error))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [requestJson])
+
+  return (
+    <Card data-testid="ops-industry-research-queue-card">
+      <CardHeader>
+        <CardTitle>Targeted research queue</CardTitle>
+        <CardDescription>Exact user requests are leased and retried independently from broad maintenance sweeps.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? <p className="text-sm text-muted-foreground">Loading queue health…</p> : queue ? (
+          <div className="grid gap-2 text-sm sm:grid-cols-5">
+            <span><strong>{queue.active}</strong> active</span>
+            <span><strong>{queue.queued}</strong> queued</span>
+            <span><strong>{queue.leased}</strong> leased</span>
+            <span><strong>{queue.needsIdentityReview}</strong> identity review</span>
+            <span><strong>{queue.failed}</strong> failed</span>
+          </div>
+        ) : <p className="text-sm text-muted-foreground">Queue health is unavailable.</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function SystemSettingsOperationsPage() {
   const { t } = useTranslation()
   const { apiBaseUrl, requestJson } = useSettingsRequestJson()
@@ -191,6 +235,7 @@ export function SystemSettingsOperationsPage() {
       )}
 
       <IndustryMaintenanceCard requestJson={requestJson} />
+      <IndustryResearchQueueCard requestJson={requestJson} />
 
       <Card>
         <CardHeader>

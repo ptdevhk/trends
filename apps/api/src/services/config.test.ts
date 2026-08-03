@@ -10,6 +10,8 @@ async function loadConfig() {
   return config as {
     auth: { adminResetEnabled: boolean };
     industryMaintenanceWorkerTimeoutMs: number;
+    industryEvidenceTargetedQueueEnabled: boolean;
+    industryEvidenceResearchMaxBatch: number;
   };
 }
 
@@ -89,5 +91,33 @@ describe("industry maintenance worker timeout", () => {
     process.env.INDUSTRY_MAINTENANCE_WORKER_TIMEOUT_MS = "1";
     const floored = await loadConfig();
     expect(floored.industryMaintenanceWorkerTimeoutMs).toBe(30_000);
+  });
+});
+
+describe("targeted industry evidence queue rollout controls", () => {
+  const originalFlag = process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED;
+  const originalBatch = process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH;
+
+  afterEach(() => {
+    if (originalFlag === undefined) delete process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED;
+    else process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED = originalFlag;
+    if (originalBatch === undefined) delete process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH;
+    else process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH = originalBatch;
+  });
+
+  it("defaults the server authorization gate off and caps the batch", async () => {
+    delete process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED;
+    delete process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH;
+    const config = await loadConfig();
+    expect(config.industryEvidenceTargetedQueueEnabled).toBe(false);
+    expect(config.industryEvidenceResearchMaxBatch).toBe(20);
+  });
+
+  it("accepts an explicit flag and clamps an unsafe batch", async () => {
+    process.env.INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED = "true";
+    process.env.INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH = "999";
+    const config = await loadConfig();
+    expect(config.industryEvidenceTargetedQueueEnabled).toBe(true);
+    expect(config.industryEvidenceResearchMaxBatch).toBe(50);
   });
 });

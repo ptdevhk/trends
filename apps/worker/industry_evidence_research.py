@@ -50,6 +50,28 @@ TRUST_ORDER = {
     "discovery": 3,
 }
 
+IDENTITY_LEGAL_SUFFIX_RE = re.compile(
+    r"\b(?:SDN\.?\s+BHD\.?|PTE\.?\s+LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|CORPORATION|CO\.?\s*,?\s*LTD\.?)\b",
+    re.IGNORECASE,
+)
+IDENTITY_NAME_RE = re.compile(
+    r"\b([A-Za-z0-9][A-Za-z0-9&.,'()\-/ ]{2,100}?\s+"
+    + IDENTITY_LEGAL_SUFFIX_RE.pattern
+    + r")",
+    re.IGNORECASE,
+)
+
+
+def _normalize_identity_name(value: str) -> str:
+    """Normalize a legal-name candidate without claiming canonical identity."""
+    normalized = re.sub(r"\s+", " ", value.replace("\u00a0", " ")).strip(" ,;:-")
+    normalized = re.sub(r"\s+\.", ".", normalized)
+    normalized = re.sub(r"\.\s+", ". ", normalized)
+    normalized = re.sub(r"\s*,\s*", ", ", normalized)
+    if re.search(r"\b(?:SDN\. BHD|PTE\. LTD)$", normalized, re.IGNORECASE):
+        normalized += "."
+    return normalized.upper()
+
 
 def employer_surface_for_search(proposal: Dict[str, Any]) -> str:
     """Return the best human-readable employer surface for discovery.
@@ -492,6 +514,9 @@ class IndustryEvidenceMaintenanceJob:
         freshness_limit: int = 50,
         discovery_job: Optional[Any] = None,
         run_id: Optional[str] = None,
+        mode: Optional[str] = None,
+        target_proposal_ids: Optional[Sequence[str]] = None,
+        claimed_requests: Optional[Sequence[Dict[str, Any]]] = None,
     ):
         self.client = client or ResearchConvexClient()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
@@ -499,6 +524,21 @@ class IndustryEvidenceMaintenanceJob:
         self.proposal_limit = max(1, min(50, int(proposal_limit)))
         self.freshness_limit = max(1, min(100, int(freshness_limit)))
         self.discovery_job = discovery_job
+        self.mode = mode or "sweep"
+        self.target_proposal_ids = list(
+            dict.fromkeys(
+                str(proposal_id).strip()
+                for proposal_id in (target_proposal_ids or [])
+                if str(proposal_id).strip()
+            )
+        )
+        self.claimed_requests = [
+            dict(request)
+            for request in (claimed_requests or [])
+            if str(request.get("requestId") or "").strip()
+            and str(request.get("proposalId") or "").strip()
+            and str(request.get("leaseId") or "").strip()
+        ]
         # When run_id is set, the job emits a per-proposal ledger row at each
         # decision point and finishes the run with accumulated counts. Ledger
         # writes are best-effort (see ResearchConvexClient._safe_mutation).
@@ -511,6 +551,164 @@ class IndustryEvidenceMaintenanceJob:
             "freshnessRefreshed": 0,
             "errors": 0,
         }
+
+    def _complete_claimed_requests(
+        self,
+        proposal_id: str,
+        *,
+        state: str,
+        outcome: str,
+        failure_code: Optional[str] = None,
+    ) -> None:
+        """Release exact leases after one proposal reaches a durable outcome."""
+        for request in self.claimed_requests:
+            if str(request.get("proposalId") or "") != proposal_id:
+                continue
+            payload: Dict[str, Any] = {
+                "requestId": str(request["requestId"]),
+                "leaseId": str(request["leaseId"]),
+                "runId": self.run_id,
+                "state": state,
+                "outcome": outcome[:300],
+            }
+            if failure_code:
+                payload["failureCode"] = failure_code
+            try:
+                self.client.complete_industry_research_request(payload)
+            except Exception as error:  # noqa: BLE001 - queue completion is best effort
+                logger.warning(
+                    "[IndustryEvidenceMaintenance] request completion failed: %s",
+                    error,
+                )
+
+    def _renew_claimed_requests(self, proposal_id: str) -> bool:
+        """Renew the exact leases before doing potentially slow source work.
+
+        Direct/local jobs may use a lightweight fake client without the queue
+        wrapper; in that case there is no lease to renew. A real Convex false
+        response means ownership was lost and the proposal must not be
+        mutated by this worker.
+        """
+        renew = getattr(self.client, "renew_industry_research_request_lease", None)
+        if not callable(renew):
+            return True
+        for request in self.claimed_requests:
+            if str(request.get("proposalId") or "") != proposal_id:
+                continue
+            try:
+                result = renew(
+                    {
+                        "requestId": str(request["requestId"]),
+                        "leaseId": str(request["leaseId"]),
+                        "leaseMs": 15 * 60 * 1_000,
+                    }
+                )
+            except Exception as error:  # noqa: BLE001 - lease renewal is a guard
+                logger.warning(
+                    "[IndustryEvidenceMaintenance] lease renewal failed for %s: %s",
+                    proposal_id,
+                    error,
+                )
+                return False
+            if isinstance(result, dict) and result.get("renewed") is False:
+                return False
+        return True
+
+    def _identity_candidates_for_sources(
+        self,
+        proposal: Dict[str, Any],
+        sources: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Extract review-only legal-name candidates from fetched evidence.
+
+        This deliberately accepts only fetched, non-discovery proposal sources.
+        It creates a candidate row for an administrator to review; it never
+        writes a company mapping or changes approval truth.
+        """
+        grouped: Dict[str, Dict[str, Any]] = {}
+        employer_surface = employer_surface_for_search(proposal)
+        for source in sources:
+            if (
+                source.get("fetchStatus") != "fetched"
+                or source.get("sourceType") == "search_result"
+                or source.get("trustTier") == "discovery"
+                or source.get("domainGuardPassed") is False
+            ):
+                continue
+            match = None
+            for field in ("evidenceExcerpt", "title"):
+                field_text = str(source.get(field) or "")
+                match = IDENTITY_NAME_RE.search(field_text)
+                if match:
+                    break
+            if not match:
+                continue
+            legal_name = _normalize_identity_name(match.group(1))
+            if len(legal_name) < 8 or len(legal_name) > 80:
+                continue
+            # A legal suffix alone is not enough to infer the employer. Require
+            # meaningful overlap with the exact employer surface; a primary
+            # source can still be retained as evidence without creating a
+            # misleading identity candidate.
+            surface_tokens = re.findall(r"[a-z0-9]+", employer_surface.lower())
+            name_tokens = re.findall(r"[a-z0-9]+", legal_name.lower())
+            overlap = sum(token in name_tokens for token in surface_tokens if len(token) > 2)
+            required_overlap = 1 if len(surface_tokens) <= 1 else 2
+            if employer_surface and surface_tokens and overlap < required_overlap:
+                continue
+            item = grouped.setdefault(
+                legal_name,
+                {
+                    "normalizedLegalName": legal_name,
+                    "sourceIds": [],
+                    "confidence": 0.0,
+                    "conflictCodes": [],
+                    "jurisdiction": str(proposal.get("jurisdiction") or "MY")[:80],
+                },
+            )
+            source_id = str(source.get("sourceId") or "").strip()
+            if source_id and source_id not in item["sourceIds"]:
+                item["sourceIds"].append(source_id)
+            tier_confidence = {"primary": 0.88, "authoritative": 0.82, "corroborating": 0.68}.get(
+                str(source.get("trustTier") or ""), 0.6
+            )
+            item["confidence"] = max(float(item["confidence"]), tier_confidence)
+
+        candidates: List[Dict[str, Any]] = []
+        for item in grouped.values():
+            source_ids = sorted(item["sourceIds"])
+            if not source_ids:
+                continue
+            fingerprint_input = "|".join(
+                [
+                    item["normalizedLegalName"],
+                    item.get("jurisdiction") or "",
+                    "\0".join(source_ids),
+                ]
+            )
+            candidate = {
+                **item,
+                "proposalId": str(proposal.get("proposalId") or ""),
+                "candidateFingerprint": hashlib.sha256(
+                    fingerprint_input.encode("utf-8")
+                ).hexdigest(),
+                "extractionVersion": "legal-name-v1",
+            }
+            try:
+                self.client.upsert_industry_identity_candidate(candidate)
+            except Exception as error:  # noqa: BLE001 - evidence research can still finish safely
+                logger.warning(
+                    "[IndustryEvidenceMaintenance] identity candidate upsert failed: %s",
+                    error,
+                )
+                # Do not tell the queue that human identity review is ready
+                # when the candidate was not persisted and therefore cannot be
+                # shown or selected by an administrator. The evidence outcome
+                # remains valid, while the next explicit request can retry the
+                # candidate write.
+                continue
+            candidates.append(candidate)
+        return candidates
 
     def _ledger(
         self,
@@ -557,6 +755,7 @@ class IndustryEvidenceMaintenanceJob:
             "runId": self.run_id,
             "status": status,
             "counts": dict(self._counts),
+            "partial": bool(status == "completed" and self._counts["errors"] > 0),
             "operatorSummary": summary,
         }
         if failure_message:
@@ -565,6 +764,76 @@ class IndustryEvidenceMaintenanceJob:
             self.client.finish_maintenance_run(payload)
         except Exception as error:  # noqa: BLE001 - best-effort observability
             logger.warning("[MaintenanceLedger] finish failed: %s", error)
+
+    def _research_one_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """Research one exact proposal and return its governed outcome."""
+        proposal_id = str(proposal.get("proposalId") or "")
+        if not proposal_id:
+            raise ValueError("proposal is missing proposalId")
+        self.client.set_industry_proposal_research_state(
+            {"proposalId": proposal_id, "status": "researching"}
+        )
+        candidates = self.client.list_industry_evidence_sources(
+            proposal_id=proposal_id
+        )
+        if not candidates and self.discovery_job is not None:
+            discovered = self.discovery_job.discover_for_proposal(proposal)
+            candidates = discovered.get("sources") or []
+        # Relevance tightening also gates re-enrichment: recycled candidates
+        # whose employer cannot be proven from existing content are demoted to
+        # discovery tier before fetch/classify.
+        employer_surface = employer_surface_for_search(proposal)
+        demoted_count = 0
+        for candidate in candidates:
+            if candidate.get("trustTier") == "discovery":
+                continue
+            if not employer_surface:
+                continue
+            if not _candidate_content_proves_employer(employer_surface, candidate):
+                candidate["trustTier"] = "discovery"
+                candidate["relevanceDemoted"] = True
+                demoted_count += 1
+        result = self.researcher.enrich_proposal(proposal, candidates)
+        for source in result["sources"]:
+            source.pop("domainGuardPassed", None)
+            source.pop("errorCode", None)
+            self.client.upsert_industry_evidence_source(source)
+        identity_candidates = self._identity_candidates_for_sources(
+            proposal, result["sources"]
+        )
+        self.client.set_industry_proposal_research_state(
+            {
+                "proposalId": proposal_id,
+                "status": result["status"],
+                # Explicitly clear stale suggestions when a later collection
+                # no longer finds a bounded industry class. The Convex
+                # validator accepts `unknown` as the neutral value.
+                "suggestedIndustryClass": result.get("suggestedIndustryClass") or "unknown",
+                "suggestedVerificationLevel": "candidate",
+                "materialChangeSummary": result["materialChangeSummary"],
+            }
+        )
+        self._counts["proposalsResearched"] += 1
+        self._counts["sourcesDemoted"] += demoted_count
+        if result["status"] == "ready_for_review":
+            self._counts["readyCreated"] += 1
+            self._ledger(
+                proposal_id,
+                "ready",
+                "ready_for_review",
+                company_key=str(proposal.get("companyKey") or "") or None,
+            )
+        else:
+            self._ledger(
+                proposal_id,
+                "needs_more_evidence",
+                str(result.get("materialChangeSummary") or "needs_more_evidence"),
+                company_key=str(proposal.get("companyKey") or "") or None,
+            )
+        return {
+            "result": result,
+            "identityCandidates": identity_candidates,
+        }
 
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
@@ -581,71 +850,70 @@ class IndustryEvidenceMaintenanceJob:
             ),
         )[: self.proposal_limit]
         for proposal in proposals:
-            proposal_id = str(proposal.get("proposalId") or "")
-            if not proposal_id:
-                continue
-            self.client.set_industry_proposal_research_state(
-                {"proposalId": proposal_id, "status": "researching"}
-            )
-            candidates = self.client.list_industry_evidence_sources(
-                proposal_id=proposal_id
-            )
-            if not candidates and self.discovery_job is not None:
-                discovered = self.discovery_job.discover_for_proposal(proposal)
-                candidates = discovered.get("sources") or []
-            # Relevance tightening also gates re-enrichment: recycled
-            # candidates whose employer cannot be proven from their existing
-            # content are demoted to discovery tier before fetch/classify,
-            # so homepage rows from earlier noisy runs cannot re-flip a
-            # proposal to ready_for_review.
-            employer_surface = employer_surface_for_search(proposal)
-            demoted_count = 0
-            for candidate in candidates:
-                if candidate.get("trustTier") == "discovery":
+            self._research_one_proposal(proposal)
+
+    def _research_targeted_proposals(self) -> None:
+        """Process only the leased target IDs; never fall back to a sweep."""
+        for proposal_id in self.target_proposal_ids[: self.proposal_limit]:
+            proposal: Optional[Dict[str, Any]] = None
+            try:
+                proposal = self.client.get_industry_proposal(proposal_id)
+                status = str(proposal.get("status") or "") if proposal else "missing"
+                if not proposal:
+                    self._complete_claimed_requests(
+                        proposal_id,
+                        state="cancelled",
+                        outcome="proposal no longer exists",
+                        failure_code="proposal_terminal",
+                    )
                     continue
-                if not employer_surface:
+                if not self._renew_claimed_requests(proposal_id):
+                    logger.info(
+                        "[IndustryEvidenceMaintenance] lease no longer owned for %s",
+                        proposal_id,
+                    )
                     continue
-                if not _candidate_content_proves_employer(
-                    employer_surface, candidate
-                ):
-                    candidate["trustTier"] = "discovery"
-                    candidate["relevanceDemoted"] = True
-                    demoted_count += 1
-            result = self.researcher.enrich_proposal(proposal, candidates)
-            for source in result["sources"]:
-                source.pop("domainGuardPassed", None)
-                source.pop("errorCode", None)
-                self.client.upsert_industry_evidence_source(source)
-            self.client.set_industry_proposal_research_state(
-                {
-                    "proposalId": proposal_id,
-                    "status": result["status"],
-                    **(
-                        {"suggestedIndustryClass": result["suggestedIndustryClass"]}
-                        if result.get("suggestedIndustryClass")
-                        else {}
-                    ),
-                    "suggestedVerificationLevel": "candidate",
-                    "materialChangeSummary": result["materialChangeSummary"],
-                }
-            )
-            self._counts["proposalsResearched"] += 1
-            self._counts["sourcesDemoted"] += demoted_count
-            # Ledger: record the proposal outcome.
-            if result["status"] == "ready_for_review":
-                self._counts["readyCreated"] += 1
-                self._ledger(
-                    proposal_id,
-                    "ready",
-                    "ready_for_review",
-                    company_key=str(proposal.get("companyKey") or "") or None,
+                if status not in {"new", "researching", "ready_for_review", "needs_more_evidence"}:
+                    self._complete_claimed_requests(
+                        proposal_id,
+                        state="cancelled",
+                        outcome=f"proposal is terminal ({status})",
+                        failure_code="proposal_terminal",
+                    )
+                    continue
+                outcome = self._research_one_proposal(proposal)
+                result = outcome["result"]
+                identity_candidates = outcome["identityCandidates"]
+                request_state = (
+                    "needs_identity_review"
+                    if identity_candidates and not proposal.get("companyKey")
+                    else (
+                        "completed"
+                        if result["status"] == "ready_for_review"
+                        else "needs_more_evidence"
+                    )
                 )
-            else:
-                self._ledger(
+                self._complete_claimed_requests(
                     proposal_id,
-                    "needs_more_evidence",
-                    str(result.get("materialChangeSummary") or "needs_more_evidence"),
-                    company_key=str(proposal.get("companyKey") or "") or None,
+                    state=request_state,
+                    outcome=(
+                        "identity candidate(s) require human mapping"
+                        if request_state == "needs_identity_review"
+                        else str(result.get("materialChangeSummary") or result["status"])
+                    ),
+                )
+            except Exception as error:  # noqa: BLE001 - isolate one target
+                self._counts["errors"] += 1
+                logger.warning(
+                    "[IndustryEvidenceMaintenance] targeted proposal %s failed: %s",
+                    proposal_id,
+                    error,
+                )
+                self._complete_claimed_requests(
+                    proposal_id,
+                    state="failed",
+                    outcome=str(error),
+                    failure_code="fetch_failed",
                 )
 
     def _freshness_checks(self) -> None:
@@ -829,8 +1097,16 @@ class IndustryEvidenceMaintenanceJob:
 
     def run(self) -> bool:
         try:
-            self._research_open_proposals()
-            self._freshness_checks()
+            if self.mode == "targeted":
+                self._research_targeted_proposals()
+            elif self.mode == "freshness":
+                pass
+            else:
+                if self.target_proposal_ids:
+                    self._research_targeted_proposals()
+                self._research_open_proposals()
+            if self.mode != "targeted":
+                self._freshness_checks()
             self._finish_run("completed")
             return True
         except Exception as error:  # noqa: BLE001
@@ -870,6 +1146,9 @@ def build_discovery_job_from_env() -> Optional[Any]:
 def run_industry_evidence_maintenance(
     run_id: Optional[str] = None,
     trigger: str = "schedule",
+    proposal_ids: Optional[Sequence[str]] = None,
+    requests: Optional[Sequence[Dict[str, Any]]] = None,
+    mode: Optional[str] = None,
 ) -> bool:
     """Run governed industry-evidence maintenance.
 
@@ -935,6 +1214,20 @@ def run_industry_evidence_maintenance(
             )
             return True
 
+        # Materialize only a bounded low-priority lane. The worker still
+        # receives an ordinary sweep run, so user-targeted leases are claimed
+        # by priority first and are not replaced by this producer.
+        try:
+            client.enqueue_scheduled_industry_research(
+                os.environ.get("WORKSPACE_SLUG", "dev").strip() or "dev",
+                limit=20,
+            )
+        except Exception as error:  # noqa: BLE001 - producer is best effort
+            logger.warning(
+                "[IndustryEvidenceMaintenance] scheduled queue producer failed: %s",
+                error,
+            )
+
     if not run_id:
         run_id = str(uuid.uuid4())
         client.start_maintenance_run(
@@ -947,11 +1240,41 @@ def run_industry_evidence_maintenance(
     # API-triggered runs are created as queued. Claim both entry paths before
     # research so the operator surface reflects the actual worker state while
     # the long-running batch is in progress.
-    client.claim_maintenance_run(run_id)
+    claimed_run = client.claim_maintenance_run(run_id)
+    if claimed_run is False:
+        logger.info(
+            "[IndustryEvidenceMaintenance] run %s is already owned or finished; aborting stale delivery",
+            run_id,
+        )
+        return False
+
+    claimed_proposal_ids = list(proposal_ids or [])
+    claimed_requests = list(requests or [])
+    if not claimed_proposal_ids and trigger == "schedule":
+        claimed = client.claim_industry_research_requests(
+            run_id=run_id,
+            workspace_slug=os.environ.get("WORKSPACE_SLUG", "dev").strip() or "dev",
+            limit=20,
+        )
+        claimed_proposal_ids = [
+            str(item).strip()
+            for item in (claimed.get("proposalIds") or [])
+            if str(item).strip()
+        ]
+        claimed_requests = [
+            dict(item)
+            for item in (claimed.get("requests") or [])
+            if isinstance(item, dict)
+        ]
 
     discovery_job = build_discovery_job_from_env()
     return IndustryEvidenceMaintenanceJob(
-        client=client, discovery_job=discovery_job, run_id=run_id
+        client=client,
+        discovery_job=discovery_job,
+        run_id=run_id,
+        mode=mode or ("targeted" if proposal_ids else "sweep"),
+        target_proposal_ids=claimed_proposal_ids,
+        claimed_requests=claimed_requests,
     ).run()
 
 

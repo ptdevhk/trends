@@ -307,6 +307,12 @@ async def trigger_research_ingest(body: ResearchIngestRequest = ResearchIngestRe
     )
 
 
+class IndustryMaintenanceLease(BaseModel):
+    requestId: str = Field(min_length=1, max_length=200)
+    proposalId: str = Field(min_length=1, max_length=200)
+    leaseId: str = Field(min_length=1, max_length=200)
+
+
 class IndustryMaintenanceRequest(BaseModel):
     """Optional body for operator industry-evidence maintenance trigger."""
 
@@ -317,6 +323,20 @@ class IndustryMaintenanceRequest(BaseModel):
     trigger: str = Field(
         default="manual",
         description="Trigger source label when self-registering (manual/schedule).",
+    )
+    mode: Optional[Literal["targeted", "sweep", "freshness"]] = Field(
+        default=None,
+        description="Targeted runs process only proposalIds; omitted preserves legacy sweep behavior.",
+    )
+    proposalIds: List[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Exact proposal IDs leased by the API queue.",
+    )
+    requests: List[IndustryMaintenanceLease] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Exact request/lease tuples returned by the queue claim.",
     )
 
 
@@ -336,11 +356,23 @@ async def trigger_industry_maintenance(body: IndustryMaintenanceRequest = Indust
     previous = os.environ.get("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED")
     os.environ["INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED"] = "1"
     try:
-        success = await asyncio.to_thread(
-            run_industry_evidence_maintenance,
-            body.runId,
-            body.trigger,
-        )
+        if body.mode or body.proposalIds or body.requests:
+            success = await asyncio.to_thread(
+                run_industry_evidence_maintenance,
+                body.runId,
+                body.trigger,
+                body.proposalIds,
+                [item.model_dump() for item in body.requests],
+                body.mode,
+            )
+        else:
+            # Preserve the two positional arguments used by the legacy
+            # scheduler/operator path and its compatibility tests.
+            success = await asyncio.to_thread(
+                run_industry_evidence_maintenance,
+                body.runId,
+                body.trigger,
+            )
     finally:
         if previous is None:
             os.environ.pop("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", None)

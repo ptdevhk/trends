@@ -49,6 +49,10 @@ import {
   type CompanyIndustryRecomputeRun,
 } from "./company-industry-recompute-service.js";
 import {
+  getIndustryEvidenceResearchSummary,
+  listIndustryIdentityCandidates,
+} from "./industry-evidence-research-service.js";
+import {
   getCachedIndustryReviewIndex,
   paginateIndustryReviewIndex,
   setCachedIndustryReviewIndex,
@@ -102,6 +106,8 @@ export interface IndustryReviewPacket {
   reviewContext: IndustryReviewContext;
   recomputeRuns: CompanyIndustryRecomputeRun[];
   maintenance: IndustryReviewMaintenanceContext;
+  research: Awaited<ReturnType<typeof getIndustryEvidenceResearchSummary>>;
+  identityCandidates: Awaited<ReturnType<typeof listIndustryIdentityCandidates>>;
 }
 
 export interface IndustryReviewQueueItem {
@@ -505,7 +511,7 @@ export async function getIndustryReviewPacket(
 ): Promise<IndustryReviewPacket | null> {
   const proposal = await getIndustryProposal(proposalId);
   if (!proposal) return null;
-  const [sources, reviewContext, maintenance, recomputeRuns] = await Promise.all([
+  const [sources, reviewContext, maintenance, recomputeRuns, research, identityCandidates] = await Promise.all([
     listIndustryEvidenceSources({ proposalId: proposal.proposalId }),
     proposal.companyKey
       ? getCompanyIndustryReviewContext(proposal.companyKey)
@@ -518,6 +524,11 @@ export async function getIndustryReviewPacket(
           limit: 10,
         })
       : Promise.resolve([] as CompanyIndustryRecomputeRun[]),
+    getIndustryEvidenceResearchSummary({
+      workspaceSlug: workspaceSlug ?? "dev",
+      proposalId: proposal.proposalId,
+    }),
+    listIndustryIdentityCandidates(proposal.proposalId),
   ]);
   const { recommendation, dataset, warnings } = await buildRecommendationForProposal({
     proposal,
@@ -542,6 +553,8 @@ export async function getIndustryReviewPacket(
     reviewContext,
     recomputeRuns,
     maintenance,
+    research,
+    identityCandidates,
   };
 }
 

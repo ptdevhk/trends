@@ -989,6 +989,103 @@ export default defineSchema({
         .index("by_surface_status", ["normalizedEmployerSurface", "status"])
         .index("by_status_priority", ["status", "priority"]),
 
+    // Durable, exact user/scheduler demand for industry evidence research.
+    // Proposal truth and evidence remain globally reusable; workspaceSlug is
+    // retained for authorization, audit, and queue visibility.
+    industry_evidence_research_requests: defineTable({
+        requestId: v.string(),
+        workspaceSlug: v.string(),
+        proposalId: v.string(),
+        origin: v.union(
+            v.literal("resume_detail"),
+            v.literal("resume_search_batch"),
+            v.literal("admin_review"),
+            v.literal("refresh"),
+            v.literal("scheduled_sweep"),
+        ),
+        state: v.union(
+            v.literal("queued"),
+            v.literal("leased"),
+            v.literal("completed"),
+            v.literal("needs_identity_review"),
+            v.literal("needs_more_evidence"),
+            v.literal("retry_wait"),
+            v.literal("failed"),
+            v.literal("cancelled"),
+        ),
+        priority: v.number(),
+        requestedAt: v.number(),
+        requestedBy: v.optional(v.string()),
+        demandCount: v.number(),
+        attemptCount: v.number(),
+        nextAttemptAt: v.optional(v.number()),
+        leaseId: v.optional(v.string()),
+        leaseExpiresAt: v.optional(v.number()),
+        lastRunId: v.optional(v.string()),
+        lastOutcome: v.optional(v.string()),
+        lastErrorCode: v.optional(v.union(
+            v.literal("worker_unreachable"),
+            v.literal("timeout"),
+            v.literal("provider_limited"),
+            v.literal("fetch_failed"),
+            v.literal("identity_ambiguous"),
+            v.literal("proposal_terminal"),
+        )),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_request_id", ["requestId"])
+        .index("by_workspace_proposal", ["workspaceSlug", "proposalId"])
+        .index("by_proposal_state", ["proposalId", "state"])
+        .index("by_state", ["state"])
+        .index("by_lease_expiry", ["state", "leaseExpiresAt"])
+        .index("by_workspace_created", ["workspaceSlug", "createdAt"]),
+
+    // Evidence-backed identity suggestions are candidates, never canonical
+    // company rows. Mapping is a separate attended admin mutation.
+    company_identity_candidates: defineTable({
+        candidateFingerprint: v.string(),
+        proposalId: v.string(),
+        normalizedLegalName: v.string(),
+        jurisdiction: v.optional(v.string()),
+        registrationNumber: v.optional(v.string()),
+        sourceIds: v.array(v.string()),
+        confidence: v.number(),
+        conflictCodes: v.array(v.string()),
+        reviewState: v.union(
+            v.literal("candidate"),
+            v.literal("reviewed"),
+            v.literal("rejected"),
+            v.literal("needs_more_evidence"),
+        ),
+        extractionVersion: v.string(),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_candidate_fingerprint", ["candidateFingerprint"])
+        .index("by_proposal", ["proposalId"])
+        .index("by_proposal_fingerprint", ["proposalId", "candidateFingerprint"])
+        .index("by_review_state", ["reviewState"]),
+
+    // Narrow audit trail for attended identity decisions. It contains no raw
+    // resume text and records the selected candidate/source IDs explicitly.
+    industry_identity_resolution_audits: defineTable({
+        auditId: v.string(),
+        proposalId: v.string(),
+        workspaceSlug: v.string(),
+        actor: v.string(),
+        candidateFingerprint: v.string(),
+        mappingMode: v.union(v.literal("existing"), v.literal("create_provisional")),
+        targetCompanyKey: v.string(),
+        sourceIds: v.array(v.string()),
+        previousProposalUpdatedAt: v.number(),
+        reviewNote: v.optional(v.string()),
+        createdAt: v.number(),
+    })
+        .index("by_proposal", ["proposalId"])
+        .index("by_workspace_created", ["workspaceSlug", "createdAt"])
+        .index("by_audit_id", ["auditId"]),
+
     company_industry_refresh_requests: defineTable({
         requestId: v.string(),
         proposalId: v.string(),
@@ -1273,6 +1370,14 @@ export default defineSchema({
             v.literal("manual"),
         ),
         triggerContext: v.optional(v.string()),
+        mode: v.optional(v.union(
+            v.literal("targeted"),
+            v.literal("sweep"),
+            v.literal("freshness"),
+        )),
+        claimedRequestCount: v.optional(v.number()),
+        targetProposalCount: v.optional(v.number()),
+        partial: v.optional(v.boolean()),
         status: v.union(
             v.literal("queued"),
             v.literal("running"),

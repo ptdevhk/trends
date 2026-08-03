@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   INDUSTRY_CLASSES,
+  INDUSTRY_EVIDENCE_RESEARCH_ORIGINS,
   INDUSTRY_EVIDENCE_FRESHNESS_STATES,
   INDUSTRY_EVIDENCE_SOURCE_TYPES,
   INDUSTRY_EVIDENCE_TRUST_TIERS,
@@ -54,6 +55,15 @@ import {
 import { requestCompanyIndustryEvidenceRefresh } from "../services/company-industry-refresh-request-service.js";
 import { getIndustryCoverageSummary } from "../services/company-industry-coverage-service.js";
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
+import {
+  cancelIndustryEvidenceResearch,
+  enqueueIndustryEvidenceResearch,
+  getIndustryEvidenceResearchSummary,
+  IndustryEvidenceResearchError,
+  listIndustryIdentityCandidates,
+  resolveIndustryProposalIdentity,
+  retryIndustryEvidenceResearch,
+} from "../services/industry-evidence-research-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
@@ -737,6 +747,7 @@ const IndustryReviewMaintenanceRunSchema = z.object({
   triggerContext: z.string().optional(),
   operatorSummary: z.string().optional(),
   failureMessage: z.string().optional(),
+  partial: z.boolean().optional(),
   startedAt: z.number().optional(),
   finishedAt: z.number().optional(),
   counts: z.object({
@@ -751,6 +762,59 @@ const IndustryReviewMaintenanceRunSchema = z.object({
 const IndustryReviewMaintenanceContextSchema = z.object({
   latest: IndustryReviewMaintenanceRunSchema.nullable(),
   lastFailed: IndustryReviewMaintenanceRunSchema.nullable(),
+});
+const IndustryResearchRequestSummarySchema = z.object({
+  requestId: z.string(),
+  proposalId: z.string(),
+  origin: z.enum(INDUSTRY_EVIDENCE_RESEARCH_ORIGINS),
+  state: z.enum([
+    "queued",
+    "leased",
+    "completed",
+    "needs_identity_review",
+    "needs_more_evidence",
+    "retry_wait",
+    "failed",
+    "cancelled",
+  ]),
+  priority: z.number(),
+  requestedAt: z.number(),
+  demandCount: z.number(),
+  attemptCount: z.number(),
+  nextAttemptAt: z.number().optional(),
+  leaseExpiresAt: z.number().optional(),
+  lastRunId: z.string().optional(),
+  lastOutcome: z.string().optional(),
+  lastErrorCode: z.enum([
+    "worker_unreachable",
+    "timeout",
+    "provider_limited",
+    "fetch_failed",
+    "identity_ambiguous",
+    "proposal_terminal",
+  ]).optional(),
+  updatedAt: z.number(),
+  canRetry: z.boolean(),
+  canCancel: z.boolean(),
+});
+const IndustryResearchSummarySchema = z.object({
+  featureEnabled: z.boolean(),
+  active: IndustryResearchRequestSummarySchema.nullable(),
+  history: z.array(IndustryResearchRequestSummarySchema),
+});
+const IndustryIdentityCandidateSchema = z.object({
+  candidateFingerprint: z.string(),
+  proposalId: z.string(),
+  normalizedLegalName: z.string(),
+  jurisdiction: z.string().optional(),
+  registrationNumber: z.string().optional(),
+  sourceIds: z.array(z.string()),
+  confidence: z.number(),
+  conflictCodes: z.array(z.string()),
+  reviewState: z.enum(["candidate", "reviewed", "rejected", "needs_more_evidence"]),
+  extractionVersion: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
 });
 const IndustryReviewEnvelopeFields = {
   success: z.literal(true),
@@ -956,6 +1020,8 @@ const getIndustryReviewPacketRoute = createRoute({
             }),
             recomputeRuns: z.array(IndustryRecomputeRunSchema),
             maintenance: IndustryReviewMaintenanceContextSchema,
+            research: IndustryResearchSummarySchema,
+            identityCandidates: z.array(IndustryIdentityCandidateSchema),
           }),
         },
       },
@@ -982,6 +1048,235 @@ app.openapi(getIndustryReviewPacketRoute, async (c) => {
     return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
   }
   return c.json(packet, 200);
+});
+
+const enqueueIndustryResearchRequestRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/:proposalId/research-requests",
+  tags: ["company-industry-evidence"],
+  summary: "Queue exact industry evidence research for one proposal",
+  request: {
+    params: z.object({ proposalId: z.string().min(1) }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            origin: z.enum(INDUSTRY_EVIDENCE_RESEARCH_ORIGINS).default("admin_review"),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            request: IndustryResearchRequestSummarySchema,
+            disposition: z.enum(["created", "already_queued", "reprioritized"]),
+            dispatch: z.object({ runId: z.string().nullable(), coalesced: z.boolean() }),
+          }),
+        },
+      },
+      description: "Research request queued or coalesced",
+    },
+    409: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }),
+        },
+      },
+      description: "Feature disabled or proposal is not requestable",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }),
+        },
+      },
+      description: "Proposal was not found",
+    },
+  },
+});
+
+app.openapi(enqueueIndustryResearchRequestRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  const body = c.req.valid("json");
+  try {
+    const result = await enqueueIndustryEvidenceResearch({
+      workspaceSlug: c.var.workspaceSlug,
+      proposalId,
+      origin: body.origin,
+      requestedBy: getAuthenticatedActorId(c),
+    });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (error instanceof IndustryEvidenceResearchError) {
+      return c.json({ success: false as const, code: error.code, error: error.message }, error.status as 404 | 409);
+    }
+    throw error;
+  }
+});
+
+const listIndustryResearchRequestsRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-proposals/:proposalId/research-requests",
+  tags: ["company-industry-evidence"],
+  summary: "Read exact industry evidence research progress",
+  request: {
+    params: z.object({ proposalId: z.string().min(1) }),
+    query: z.object({ limit: z.coerce.number().int().min(1).max(20).optional() }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), item: IndustryResearchSummarySchema }),
+        },
+      },
+      description: "Current-workspace research request summary",
+    },
+  },
+});
+
+app.openapi(listIndustryResearchRequestsRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  const { limit } = c.req.valid("query");
+  const item = await getIndustryEvidenceResearchSummary({
+    workspaceSlug: c.var.workspaceSlug,
+    proposalId,
+    limit,
+  });
+  return c.json({ success: true as const, item }, 200);
+});
+
+const retryIndustryResearchRequestRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/:proposalId/research-requests/:requestId/retry",
+  tags: ["company-industry-evidence"],
+  summary: "Retry one failed industry evidence research request",
+  request: { params: z.object({ proposalId: z.string().min(1), requestId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: { "application/json": { schema: z.object({ success: z.literal(true) }) } },
+      description: "Request returned to the queue",
+    },
+    404: {
+      content: { "application/json": { schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }) } },
+      description: "Request was not found for this proposal",
+    },
+    409: {
+      content: { "application/json": { schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }) } },
+      description: "Request cannot be retried",
+    },
+  },
+});
+
+app.openapi(retryIndustryResearchRequestRoute, async (c) => {
+  const { proposalId, requestId } = c.req.valid("param");
+  try {
+    await retryIndustryEvidenceResearch({ workspaceSlug: c.var.workspaceSlug, proposalId, requestId });
+    return c.json({ success: true as const }, 200);
+  } catch (error) {
+    if (error instanceof IndustryEvidenceResearchError) {
+      return c.json({ success: false as const, code: error.code, error: error.message }, error.status as 404 | 409);
+    }
+    throw error;
+  }
+});
+
+const cancelIndustryResearchRequestRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/:proposalId/research-requests/:requestId/cancel",
+  tags: ["company-industry-evidence"],
+  summary: "Cancel one queued industry evidence research request",
+  request: { params: z.object({ proposalId: z.string().min(1), requestId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: { "application/json": { schema: z.object({ success: z.literal(true), cancelled: z.boolean() }) } },
+      description: "Request cancelled",
+    },
+    404: {
+      content: { "application/json": { schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }) } },
+      description: "Request was not found for this proposal",
+    },
+    409: {
+      content: { "application/json": { schema: z.object({ success: z.literal(false), code: z.string(), error: z.string() }) } },
+      description: "Request is no longer active",
+    },
+  },
+});
+
+app.openapi(cancelIndustryResearchRequestRoute, async (c) => {
+  const { proposalId, requestId } = c.req.valid("param");
+  try {
+    const result = await cancelIndustryEvidenceResearch({ workspaceSlug: c.var.workspaceSlug, proposalId, requestId });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (error instanceof IndustryEvidenceResearchError) {
+      return c.json({ success: false as const, code: error.code, error: error.message }, error.status as 404 | 409);
+    }
+    throw error;
+  }
+});
+
+const resolveIndustryProposalIdentityRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/:proposalId/identity-resolution",
+  tags: ["company-industry-evidence"],
+  summary: "Attend an evidence-backed industry proposal identity mapping",
+  request: {
+    params: z.object({ proposalId: z.string().min(1) }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            expectedProposalUpdatedAt: z.number(),
+            candidateFingerprint: z.string().min(1),
+            mappingMode: z.enum(["existing", "create_provisional"]),
+            companyKey: z.string().optional(),
+            provisionalDisplayName: z.string().optional(),
+            provisionalAlias: z.string().optional(),
+            sourceIds: z.array(z.string()).max(20),
+            reviewNote: z.string().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), proposalId: z.string(), companyKey: z.string(), auditId: z.string() }),
+        },
+      },
+      description: "Identity mapping recorded",
+    },
+    409: {
+      content: { "application/json": { schema: IndustryReviewConflictSchema } },
+      description: "Proposal changed during identity review",
+    },
+  },
+});
+
+app.openapi(resolveIndustryProposalIdentityRoute, async (c) => {
+  const { proposalId } = c.req.valid("param");
+  try {
+    const result = await resolveIndustryProposalIdentity({
+      proposalId,
+      ...c.req.valid("json"),
+      workspaceSlug: c.var.workspaceSlug,
+      actor: getAuthenticatedActorId(c),
+    });
+    return c.json({ success: true as const, ...result }, 200);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("INDUSTRY_REVIEW_STALE:")) {
+      return c.json({ success: false as const, error: error.message, code: INDUSTRY_REVIEW_STALE_CODE }, 409);
+    }
+    throw error;
+  }
 });
 
 const upsertIndustryProposalRoute = createRoute({
@@ -1585,6 +1880,23 @@ const IndustryCoverageSummarySchema = z.object({
     latest: IndustryCoverageMaintenanceRunSchema.nullable(),
     lastUseful: IndustryCoverageMaintenanceRunSchema.nullable(),
     lastFailed: IndustryCoverageMaintenanceRunSchema.nullable(),
+  }),
+  researchQueue: z.object({
+    active: z.number(),
+    queued: z.number(),
+    leased: z.number(),
+    retryWait: z.number(),
+    needsIdentityReview: z.number(),
+    failed: z.number(),
+    byOrigin: z.record(z.string(), z.number()),
+    oldestRequestedAt: z.number().nullable(),
+    oldestPriority: z.number().nullable(),
+    alerts: z.object({
+      oldestDirectDemandAgeMs: z.number(),
+      highRetryRate: z.boolean(),
+      providerLimitedBacklog: z.number(),
+      workerUnreachableRuns: z.number(),
+    }),
   }),
 });
 

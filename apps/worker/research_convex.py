@@ -273,6 +273,16 @@ class ResearchConvexClient:
         )
         return result if isinstance(result, list) else []
 
+    def get_industry_proposal(self, proposal_id: str) -> Optional[Dict[str, Any]]:
+        """Load one proposal for an exact targeted maintenance request."""
+        self.require_ready()
+        result = self._querier(
+            self.convex_url,
+            "companies:getIndustryProposal",
+            self._args({"proposalId": proposal_id}),
+        )
+        return result if isinstance(result, dict) else None
+
     def set_industry_proposal_research_state(self, payload: Dict[str, Any]) -> Any:
         self.require_ready()
         return self._mutator(
@@ -358,6 +368,41 @@ class ResearchConvexClient:
             "companies:recordIndustryEvidenceFreshnessCheck",
             self._args(payload),
         )
+
+    def upsert_industry_identity_candidate(self, payload: Dict[str, Any]) -> Any:
+        """Persist a review-only identity candidate (never a mapping/approval)."""
+        return self._safe_mutation(
+            "companies:upsertIndustryIdentityCandidate", payload
+        )
+
+    def complete_industry_research_request(self, payload: Dict[str, Any]) -> Any:
+        return self._safe_mutation(
+            "companies:completeIndustryEvidenceResearchRequest", payload
+        )
+
+    def renew_industry_research_request_lease(self, payload: Dict[str, Any]) -> Any:
+        return self._safe_mutation(
+            "companies:renewIndustryEvidenceResearchRequestLease", payload
+        )
+
+    def enqueue_scheduled_industry_research(self, workspace_slug: str, limit: int = 20) -> Any:
+        return self._safe_mutation(
+            "companies:enqueueScheduledIndustryEvidenceResearchSweep",
+            {"workspaceSlug": workspace_slug, "limit": limit},
+        )
+
+    def claim_industry_research_requests(
+        self,
+        *,
+        run_id: str,
+        workspace_slug: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        value = self._safe_mutation(
+            "companies:claimIndustryEvidenceResearchRequests",
+            {"runId": run_id, "workspaceSlug": workspace_slug, "limit": limit},
+        )
+        return value if isinstance(value, dict) else {}
 
     def get_web_research_quota(self, provider: str) -> Dict[str, Any]:
         self.require_ready()

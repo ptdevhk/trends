@@ -13,6 +13,7 @@ export interface IndustryCoverageMaintenanceRun {
   triggerContext?: string;
   operatorSummary?: string;
   failureMessage?: string;
+  partial?: boolean;
   startedAt?: number;
   finishedAt?: number;
   counts: {
@@ -48,6 +49,23 @@ export interface IndustryCoverageSummary {
     lastUseful: IndustryCoverageMaintenanceRun | null;
     lastFailed: IndustryCoverageMaintenanceRun | null;
   };
+  researchQueue: {
+    active: number;
+    queued: number;
+    leased: number;
+    retryWait: number;
+    needsIdentityReview: number;
+    failed: number;
+    byOrigin: Record<string, number>;
+    oldestRequestedAt: number | null;
+    oldestPriority: number | null;
+    alerts: {
+      oldestDirectDemandAgeMs: number;
+      highRetryRate: boolean;
+      providerLimitedBacklog: number;
+      workerUnreachableRuns: number;
+    };
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +96,7 @@ function parseRun(value: unknown): IndustryCoverageMaintenanceRun | null {
     ...(typeof value.failureMessage === "string"
       ? { failureMessage: value.failureMessage }
       : {}),
+    ...(typeof value.partial === "boolean" ? { partial: value.partial } : {}),
     ...(finiteNumber(value.startedAt) !== undefined
       ? { startedAt: finiteNumber(value.startedAt) }
       : {}),
@@ -110,6 +129,7 @@ export function parseIndustryCoverageSummary(
   const resumes = isRecord(value.resumes) ? value.resumes : {};
   const profiles = isRecord(value.profiles) ? value.profiles : {};
   const maintenance = isRecord(value.maintenance) ? value.maintenance : {};
+  const researchQueue = isRecord(value.researchQueue) ? value.researchQueue : {};
   const generatedAt = finiteNumber(value.generatedAt);
   const openTotal = finiteNumber(value.openTotal);
   const openWithSources = finiteNumber(value.openWithSources);
@@ -145,6 +165,25 @@ export function parseIndustryCoverageSummary(
       latest: parseRun(maintenance.latest),
       lastUseful: parseRun(maintenance.lastUseful),
       lastFailed: parseRun(maintenance.lastFailed),
+    },
+    researchQueue: {
+      active: finiteNumber(researchQueue.active) ?? 0,
+      queued: finiteNumber(researchQueue.queued) ?? 0,
+      leased: finiteNumber(researchQueue.leased) ?? 0,
+      retryWait: finiteNumber(researchQueue.retryWait) ?? 0,
+      needsIdentityReview: finiteNumber(researchQueue.needsIdentityReview) ?? 0,
+      failed: finiteNumber(researchQueue.failed) ?? 0,
+      byOrigin: isRecord(researchQueue.byOrigin)
+        ? Object.fromEntries(Object.entries(researchQueue.byOrigin).map(([key, count]) => [key, finiteNumber(count) ?? 0]))
+        : {},
+      oldestRequestedAt: finiteNumber(researchQueue.oldestRequestedAt) ?? null,
+      oldestPriority: finiteNumber(researchQueue.oldestPriority) ?? null,
+      alerts: {
+        oldestDirectDemandAgeMs: finiteNumber(isRecord(researchQueue.alerts) ? researchQueue.alerts.oldestDirectDemandAgeMs : undefined) ?? 0,
+        highRetryRate: isRecord(researchQueue.alerts) && researchQueue.alerts.highRetryRate === true,
+        providerLimitedBacklog: finiteNumber(isRecord(researchQueue.alerts) ? researchQueue.alerts.providerLimitedBacklog : undefined) ?? 0,
+        workerUnreachableRuns: finiteNumber(isRecord(researchQueue.alerts) ? researchQueue.alerts.workerUnreachableRuns : undefined) ?? 0,
+      },
     },
   };
 }

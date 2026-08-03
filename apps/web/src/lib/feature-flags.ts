@@ -18,3 +18,7 @@ export function isResumeAiSummaryEnabled(): boolean {
 export function isHeadlessCollectorEnabled(): boolean {
   return import.meta.env.VITE_ENABLE_HEADLESS_COLLECTOR === 'true'
 }
+
+export function isIndustryEvidenceTargetedQueueEnabled(): boolean {
+  return import.meta.env.VITE_ENABLE_INDUSTRY_EVIDENCE_TARGETED_QUEUE === 'true'
+}

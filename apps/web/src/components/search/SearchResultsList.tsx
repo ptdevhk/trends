@@ -12,12 +12,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { SearchCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 
 const loadResumeDetail = () => import('@/components/ResumeDetail')
+const MAX_INDUSTRY_RESEARCH_BATCH = 20
 
 const ResumeDetail = lazy(async () => {
   const module = await loadResumeDetail()
@@ -59,6 +62,9 @@ type SearchResultsListProps = {
   getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
   /** Raw search query text for highlighting matches in result cards */
   searchQuery?: string
+  /** Admin-only exact resume target orchestration for the loaded result page. */
+  onQueueIndustryResearch?: (resumeIds: string[]) => Promise<void>
+  industryResearchQueueEnabled?: boolean
 }
 
 function SearchResultsSkeleton() {
@@ -101,6 +107,8 @@ export function SearchResultsList({
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
+  onQueueIndustryResearch,
+  industryResearchQueueEnabled = false,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -109,6 +117,7 @@ export function SearchResultsList({
   const [scrollMargin, setScrollMargin] = useState(0)
   const [localDetailItem, setLocalDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const [queueingIndustryResearch, setQueueingIndustryResearch] = useState(false)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
   const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
   const hasLegacyIndustryEvidence = useMemo(() =>
@@ -125,6 +134,18 @@ export function SearchResultsList({
   const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
   const expandedResumeId = expandedSourceItem?.resume?.resumeId ?? null
   const { resume: expandedResumeFromConvex } = useConvexResumeDetail(expandedResumeId)
+  const queueableIndustryResearchItems = items.slice(0, MAX_INDUSTRY_RESEARCH_BATCH)
+  const queueIndustryResearch = useCallback(async () => {
+    if (!onQueueIndustryResearch || queueableIndustryResearchItems.length === 0 || queueingIndustryResearch) return
+    setQueueingIndustryResearch(true)
+    try {
+      await onQueueIndustryResearch(
+        queueableIndustryResearchItems.map((item) => String(item.resume.resumeId)).filter(Boolean),
+      )
+    } finally {
+      setQueueingIndustryResearch(false)
+    }
+  }, [onQueueIndustryResearch, queueableIndustryResearchItems, queueingIndustryResearch])
   const routeDetailItem = useMemo(() => {
     if (!detailResumeId) {
       return null
@@ -351,6 +372,29 @@ export function SearchResultsList({
 
   return (
     <div ref={listRef} className="space-y-4">
+      {onQueueIndustryResearch && industryResearchQueueEnabled ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="resume-industry-research-bulk-control">
+          <div>
+            <p className="font-medium">Verify employer evidence for these results</p>
+            <p className="text-xs text-muted-foreground">
+              Queues exact resume identity targets only; {items.length > MAX_INDUSTRY_RESEARCH_BATCH
+                ? `the first ${MAX_INDUSTRY_RESEARCH_BATCH} loaded results are queued per batch limit.`
+                : hasMore
+                  ? 'more results are still loading.'
+                  : 'all loaded results are visible.'}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void queueIndustryResearch()}
+            disabled={loading || loadingMore || queueingIndustryResearch || queueableIndustryResearchItems.length === 0}
+          >
+            <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+            {queueingIndustryResearch ? 'Queueing…' : `Queue ${queueableIndustryResearchItems.length} exact targets`}
+          </Button>
+        </div>
+      ) : null}
       {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
         <LegacyIndustryEvidenceNotice showReviewAction />
       ) : null}

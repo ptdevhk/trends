@@ -233,6 +233,64 @@ approve, reject, or bulk-mutate industry truth.
 - `INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED=1` enables scheduled maintenance. The manual trigger and API pipeline force-enable the gate for their call (mirroring `/worker/research/ingest`), so manual/restore/approval runs work even when the scheduled gate is off.
 - When the gate is off at schedule time the job is not registered; the Operations card shows the disabled hint.
 
+## Targeted evidence research queue (2026-08-03)
+
+Targeted research is a durable, admin-only demand lane for a proposal that
+needs a fresh employer/evidence collection. It is deliberately separate from
+proposal status and from approval truth.
+
+### Enablement and safety
+
+The server gate is off by default and is the authorization boundary:
+
+```bash
+INDUSTRY_EVIDENCE_TARGETED_QUEUE_ENABLED=true
+INDUSTRY_EVIDENCE_RESEARCH_MAX_BATCH=20
+```
+
+The web-only companion flag (`VITE_ENABLE_INDUSTRY_EVIDENCE_TARGETED_QUEUE=true`)
+controls whether the resume-search bulk affordance is visible; it cannot grant
+access to the API. Keep both flags local during rollout. The queue is capped at
+100 active requests per workspace and 1,000 queued rows globally; a batch is
+bounded to 50 targets. Direct resume-detail demand has priority 100, while the
+scheduled lane starts at 10 and receives bounded age-based priority uplift.
+
+### Guided workflow
+
+1. Open the canonical Industry Verification proposal route. The recovery panel
+   distinguishes canonical identity, durable evidence, and the final human CNC
+   claim.
+2. Use **Research & verify employer** to create/coalesce one exact proposal
+   request. Retry and cancel operate on that request only.
+3. Review fetched sources and any identity candidate. A candidate is extracted
+   only from permitted fetched proposal sources; search snippets, discovery URLs,
+   and directory labels are never identity truth.
+4. If needed, map the selected candidate to an existing registry row or create a
+   provisional row. The identity mutation is audited and patches only the
+   selected proposal/source IDs. It does not approve an industry verdict.
+5. Complete the existing approval attestation only after approval-safe evidence,
+   explicit CNC proof, and canonical mapping are all present.
+
+The result-set control on `/dev/resumes` sends opaque resume IDs only. The API
+resolves exact workspace/fingerprint proposal links, deduplicates targets, and
+reports queued/already-queued/not-linked/not-eligible counts. Employer names and
+company keys are never accepted as selectors.
+
+### Operations and recovery
+
+Coverage and Operations show active/queued/leased/identity-review/failed counts,
+priority lanes, oldest direct-demand age, and alerts for high retry rate,
+provider-limited backlog, or worker-unreachable runs. Worker HTTP failures and
+timeouts release leases into bounded retry backoff; expired leases are recovered
+by the queue mutation. A run with isolated target errors is marked `partial`,
+not as an unqualified success. Schedule pause suppresses the background
+producer; manual targeted demand remains available when the feature gate is on.
+
+Never treat a queued/retried request as evidence, and never treat a candidate
+identity as a confirmed company without an attended mapping decision. Discovery
+is a lead, not proof; retrying research cannot approve or alter current verdict
+revisions.
+
 ## Industry data central management (2026-07-31)
 
 Phase A: Convex is the canonical store for CN industry data (`industry_data_entries` + append-only `industry_data_change_log`). Edits regenerate `config/industry-data/` files (`brands.json`, `keywords-structured.md`, `company-urls.md`) and best-effort git-commit them. Ingest and public `/api/industry/*` keep reading the files unchanged. `keywords-raw.md` is out of scope.

@@ -38,6 +38,12 @@ class FakeIndustryClient:
         self.due: List[Dict[str, Any]] = []
         self.operations: List[tuple[str, Dict[str, Any]]] = []
 
+    def get_industry_proposal(self, proposal_id):
+        return next(
+            (proposal for proposal in self.proposals if proposal.get("proposalId") == proposal_id),
+            None,
+        )
+
     def list_industry_proposals(self, status=None):
         return list(self.proposals)
 
@@ -66,6 +72,14 @@ class FakeIndustryClient:
     def record_industry_evidence_freshness_check(self, payload):
         self.operations.append(("record_check", dict(payload)))
         return {"checkId": payload["checkId"], "created": True}
+
+    def upsert_industry_identity_candidate(self, payload):
+        self.operations.append(("identity_candidate", dict(payload)))
+        return {"candidateFingerprint": payload["candidateFingerprint"], "created": True}
+
+    def complete_industry_research_request(self, payload):
+        self.operations.append(("complete_request", dict(payload)))
+        return {"completed": True, "state": payload["state"]}
 
 
 def _page(
@@ -464,3 +478,98 @@ def test_scheduler_registers_hybrid_maintenance_only_when_enabled():
         assert kwargs["id"] == "industry_evidence_maintenance"
 
     assert industry_evidence_maintenance_enabled({}) is False
+
+
+def test_targeted_job_processes_only_leased_exact_proposal_and_completes_request():
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "target", "companyKey": "target-cnc", "status": "new"},
+        {"proposalId": "other", "companyKey": "other-cnc", "status": "new"},
+    ]
+    target_url = "https://target.example/products"
+    other_url = "https://other.example/products"
+    client.sources_by_proposal["target"] = [
+        {"sourceId": "target-source", "url": target_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    client.sources_by_proposal["other"] = [
+        {"sourceId": "other-source", "url": other_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    client.due = [{"companyKey": "unrelated", "verdictRevisionId": "rev-1"}]
+    fetcher = StaticFetcher(
+        {
+            target_url: _page(final_url=target_url, excerpt="Target CNC machine tools"),
+            other_url: _page(final_url=other_url, excerpt="Other CNC machine tools"),
+        }
+    )
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["target"],
+        claimed_requests=[{"requestId": "request-target", "proposalId": "target", "leaseId": "lease-1"}],
+    )
+
+    assert job.run() is True
+    assert fetcher.calls == [target_url]
+    assert any(name == "complete_request" and payload["state"] == "completed" for name, payload in client.operations)
+    assert not any(name == "set_research_state" and payload.get("proposalId") == "other" for name, payload in client.operations)
+    assert not any(name == "mark_checking" for name, _ in client.operations)
+
+
+def test_targeted_job_marks_identity_candidate_request_for_unmapped_employer():
+    client = FakeIndustryClient()
+    client.proposals = [{"proposalId": "vision", "normalizedEmployerSurface": "Vision Machine Tools", "status": "new"}]
+    source_url = "https://vision.example/about"
+    client.sources_by_proposal["vision"] = [
+        {"sourceId": "vision-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher(
+        {
+            source_url: _page(
+                final_url=source_url,
+                excerpt="VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+            )
+        }
+    )
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["vision"],
+        claimed_requests=[{"requestId": "request-vision", "proposalId": "vision", "leaseId": "lease-2"}],
+    )
+
+    assert job.run() is True
+    candidate_ops = [payload for name, payload in client.operations if name == "identity_candidate"]
+    assert candidate_ops and candidate_ops[0]["normalizedLegalName"] == "VISION MACHINE TOOLS SDN. BHD."
+    assert any(name == "complete_request" and payload["state"] == "needs_identity_review" for name, payload in client.operations)
+
+
+def test_identity_persistence_failure_does_not_claim_review_ready_candidate():
+    class CandidateWriteFailureClient(FakeIndustryClient):
+        def upsert_industry_identity_candidate(self, payload):
+            raise RuntimeError("candidate store unavailable")
+
+    client = CandidateWriteFailureClient()
+    client.proposals = [{"proposalId": "vision", "normalizedEmployerSurface": "Vision Machine Tools", "status": "new"}]
+    source_url = "https://vision.example/about"
+    client.sources_by_proposal["vision"] = [
+        {"sourceId": "vision-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt="VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["vision"],
+        claimed_requests=[{"requestId": "request-vision", "proposalId": "vision", "leaseId": "lease-2"}],
+    )
+
+    assert job.run() is True
+    assert not any(name == "identity_candidate" for name, _ in client.operations)
+    assert any(name == "complete_request" and payload["state"] == "completed" for name, payload in client.operations)

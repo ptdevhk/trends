@@ -42,6 +42,34 @@ class TestIndustryMaintenanceEndpoint:
                 response = client.post("/worker/industry/maintenance")
         assert response.status_code == 500
 
+    def test_targeted_payload_threads_exact_targets_and_leases(self, monkeypatch):
+        monkeypatch.delenv("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", raising=False)
+        with patch(
+            "apps.worker.api.run_industry_evidence_maintenance",
+            return_value=True,
+        ) as mock_run:
+            with _client() as client:
+                response = client.post(
+                    "/worker/industry/maintenance",
+                    json={
+                        "runId": "run-targeted",
+                        "trigger": "manual",
+                        "mode": "targeted",
+                        "proposalIds": ["proposal-1"],
+                        "requests": [
+                            {"requestId": "request-1", "proposalId": "proposal-1", "leaseId": "lease-1"}
+                        ],
+                    },
+                )
+        assert response.status_code == 200
+        mock_run.assert_called_once_with(
+            "run-targeted",
+            "manual",
+            ["proposal-1"],
+            [{"requestId": "request-1", "proposalId": "proposal-1", "leaseId": "lease-1"}],
+            "targeted",
+        )
+
     def test_env_restored_when_preset(self, monkeypatch):
         """If the env gate was already set, the endpoint restores it (not clears)."""
         monkeypatch.setenv("INDUSTRY_EVIDENCE_MAINTENANCE_ENABLED", "0")

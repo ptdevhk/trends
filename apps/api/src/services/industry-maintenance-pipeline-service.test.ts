@@ -80,4 +80,43 @@ describe("enqueueIndustryMaintenance", () => {
       ),
     ).resolves.toEqual({ runId: null, coalesced: false });
   });
+
+  it("does not coalesce an exact targeted request onto a broad active sweep", async () => {
+    const deps = makeDeps({
+      findActiveRun: vi.fn().mockResolvedValue({ runId: "r-sweep" }),
+      startRun: vi.fn().mockResolvedValue({
+        runId: "r-target",
+        proposalIds: ["proposal-1"],
+        requests: [{ requestId: "request-1", proposalId: "proposal-1", leaseId: "lease-1" }],
+      }),
+    });
+    const result = await enqueueIndustryMaintenance(
+      {
+        workspaceSlug: "dev",
+        triggerSource: "manual",
+        mode: "targeted",
+        proposalIds: ["proposal-1"],
+        requestIds: ["request-1"],
+      },
+      deps,
+    );
+    expect(result).toEqual({ runId: "r-target", coalesced: false });
+    expect(deps.startRun).toHaveBeenCalledWith(expect.objectContaining({ mode: "targeted" }));
+    expect(deps.postToWorker).toHaveBeenCalledWith(
+      "/worker/industry/maintenance",
+      expect.objectContaining({ mode: "targeted", proposalIds: ["proposal-1"], requests: expect.any(Array) }),
+    );
+  });
+
+  it("does not hide a broad trigger behind an active targeted run", async () => {
+    const deps = makeDeps({
+      findActiveRun: vi.fn().mockResolvedValue({ runId: "r-target", mode: "targeted" }),
+    });
+    const result = await enqueueIndustryMaintenance(
+      { workspaceSlug: "dev", triggerSource: "schedule" },
+      deps,
+    );
+    expect(result).toEqual({ runId: "r-1", coalesced: false });
+    expect(deps.startRun).toHaveBeenCalled();
+  });
 });
