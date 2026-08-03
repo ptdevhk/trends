@@ -74,10 +74,8 @@ jobs:
       - name: Run blacklist E2E gate
         run: npm --workspace @trends/web run test:e2e:blacklist
 
-      - name: Run agent governance checks
-        run: |
-          make check-agent-policy
-          make check-agent-skill
+      - name: Run agent policy checks
+        run: make check-agent-policy
 
       - name: Verify critical path (seeded mode)
         run: make verify-critical-path MODE=seeded JSON=1 || echo "Advisory verification failed, skipping block"

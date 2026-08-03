@@ -103,17 +103,14 @@ From `/home/ubuntu/trends-preview`, `make deploy` routes to `deploy/preview-upgr
 
 Do **not** raw-copy `convex_local_backend.sqlite3` between deployments.
 
-## Governance Sync
-Only needed when the policy block changes.
+## Policy and Project Skill Sync
+Only needed when the policy block or project skill sources change.
 
 ```bash
 make sync-agent-policy
 make check-agent-policy
 make sync-project-skills
 make check-project-skills
-make check-agent-skill
-make check-agent-skill TARGET=all
-TARGET=all make sync-agent-governance
 ```
 
 ## Code Style & Safety

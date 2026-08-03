@@ -20,7 +20,7 @@
 		backup-resumes restore-resumes remote-backup-prod backup-prod local-restore-from-prod restore-from-prod restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
 		clear-resumes \
 		cli-build cli-install cli-test \
-		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
+		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills \
 		check-route-auth check-mutation-entry-points check-local-convex-write-secret auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
@@ -901,10 +901,6 @@ check-search-profile-templates:
 		npx tsx scripts/resume/sync-search-profile-templates.ts --check; \
 	fi
 
-# Install repo governance skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
-install-agent-skill:
-	@./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)"
-
 # Sync committed repo project skills into .agents/skills and .claude/skills
 sync-project-skills:
 	@./scripts/skills/sync-project-skills.sh
@@ -919,19 +915,6 @@ install-global-skills:
 		bunx tsx scripts/skills/install-global-skills.ts; \
 	else \
 		npx tsx scripts/skills/install-global-skills.ts; \
-	fi
-
-# Validate repo governance skill structure + installed skill sync for the selected local target
-check-agent-skill:
-	@if command -v bun > /dev/null 2>&1; then \
-		bunx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
-	else \
-		npx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
-	fi
-	@if [ "$$CI" = "true" ] || [ "$$CI" = "1" ]; then \
-		echo "Skipping installed skill drift check in CI"; \
-	else \
-		./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)" --check; \
 	fi
 
 # Install any repo skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
@@ -979,9 +962,6 @@ install-browser-ext-skill:
 check-browser-ext-skill:
 	@$(MAKE) validate-skill SKILL=browser-extension-dev
 	@$(MAKE) check-skill-install SKILL=browser-extension-dev TARGET="$(or $(TARGET),codex)"
-
-# Sync all governance artifacts
-sync-agent-governance: sync-agent-policy install-agent-skill
 
 # =============================================================================
 # Utilities
@@ -1355,8 +1335,8 @@ fresh-env: clean clean-db
 	$(MAKE) install-deps
 	@echo "Fresh environment ready."
 
-# Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
-check: check-python check-node check-project-skills check-agent-policy check-agent-skill check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins check-local-convex-write-secret
+# Run all validation checks (Python + Node.js + project skill sync + canonical policy validation)
+check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins check-local-convex-write-secret
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware

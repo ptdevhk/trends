@@ -11,7 +11,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 
 ## Workflow
 
-1. Bootstrap local dependencies and default governance skill setup when the environment may be stale:
+1. Bootstrap local dependencies and project skill setup when the environment may be stale:
    - `make install-deps`
    - `CONVEX_MIRROR_MODE=mirror-first make install-deps`
    - `make sync-project-skills`

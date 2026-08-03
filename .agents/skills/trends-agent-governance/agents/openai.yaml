@@ -1,3 +1,0 @@
-display_name: Trends Agent Governance
-short_description: Route Trends work to dev-loop config or canonical AGENTS governance policy.
-default_prompt: Use @dev-loop and .claude/dev-loop.config.md for implementation pipeline work. For non-trivial technical recommendations, apply AGENTS.md source/evidence policy and keep reusable guidance repo-relative.

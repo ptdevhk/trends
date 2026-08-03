@@ -8,7 +8,6 @@ project:
     - browser-extension-dev
     - resume-qa-hybrid-mcp
     - resume-ai-scoring-audit
-    - trends-agent-governance
     - trends-cli
     - refresh-sample-snapshots
 

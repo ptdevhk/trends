@@ -51,7 +51,6 @@
 ### Enforcement
 - Sync generated policy mirror with `make sync-agent-policy`.
 - Validate policy drift with `make check-agent-policy`.
-- Validate governance skill package and installed copy with `make check-agent-skill` (or `make check-agent-skill TARGET=all` when both skill roots matter).
-- `make check` must fail if policy or governance skill checks fail.
+- `make check` must fail if policy checks fail.
 -->
 <!-- AGENT_POLICY:END -->
