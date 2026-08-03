@@ -18,6 +18,7 @@ function createMockDeps(overrides: Record<string, unknown> = {}): AutoSyncRunner
     setSeekAutoSyncWindowAttributes: vi.fn(),
     setSeekAutoSyncSelectionAttributes: vi.fn(),
     isSeekProfileMode: vi.fn(() => false),
+    getCurrentSeekMode: vi.fn(() => null),
     resolveSeekAutoSyncPageWindow: vi.fn(() => null),
     isSeekAutoSyncPageWindowReached: vi.fn(() => false),
     shouldStopSeekAutoSyncForPageWindow: vi.fn(({
@@ -237,7 +238,8 @@ describe("auto-sync-runner", () => {
       const submittedBatches: unknown[][] = [];
       const deps = createMockDeps({
         getCurrentSourceKey: vi.fn(() => "seek"),
-        window: { location: { pathname: "/talentsearch" } },
+        getCurrentSeekMode: vi.fn(() => "talentsearch"),
+        window: { location: { pathname: "/talentsearch/profiles/search" } },
         extractResumes: vi.fn(() => [
           { name: "Detailed", workHistory: [{ description: "" }] },
           { name: "Sparse", workHistory: [{ description: "" }] },
@@ -277,7 +279,8 @@ describe("auto-sync-runner", () => {
       let currentPage = 1;
       const deps = createMockDeps({
         getCurrentSourceKey: vi.fn(() => "seek"),
-        window: { location: { pathname: "/talentsearch" } },
+        getCurrentSeekMode: vi.fn(() => "talentsearch"),
+        window: { location: { pathname: "/talentsearch/profiles/search" } },
         getCollectionLimits: vi.fn(() => Promise.resolve({ limit: 100, maxPages: 25 })),
         extractResumes: vi.fn(() => [
           { workHistory: [{ description: "" }] },

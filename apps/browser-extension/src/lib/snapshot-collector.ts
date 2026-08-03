@@ -294,15 +294,61 @@ export function createSnapshotCollector(deps: SnapshotCollectorDeps) {
     }
     if (kind === "seekTalentSearch") {
       const data = getSeekPayloadData(payload, kind);
-      const tsResult = data?.talentSearchProfilesNaturalLanguageSearch as Record<string, unknown> | undefined;
-      const result = tsResult?.result as Record<string, unknown> | undefined;
-      const edges = Array.isArray(result?.edges) ? result.edges : null;
-      if (edges) {
+      const naturalLanguageResult =
+        (data?.talentSearchProfilesNaturalLanguageSearch as Record<string, unknown> | undefined)
+          ?.result as Record<string, unknown> | undefined;
+      const nameSearchResult =
+        (data?.talentSearchProfilesSearchByName as Record<string, unknown> | undefined)
+          ?.result as Record<string, unknown> | undefined;
+      const edges = Array.isArray(naturalLanguageResult?.edges)
+        ? naturalLanguageResult.edges
+        : null;
+      const matchNodes = (matches: unknown) => {
+        const unwrapNode = (value: unknown) => {
+          if (!value || typeof value !== "object") return value;
+          const nested = (value as Record<string, unknown>).node;
+          return nested && typeof nested === "object" ? nested : value;
+        };
+        if (Array.isArray(matches)) {
+          return matches
+            .map(unwrapNode)
+            .filter((node) => node && typeof node === "object");
+        }
+        if (!matches || typeof matches !== "object") return [];
+        const record = matches as Record<string, unknown>;
+        if (Array.isArray(record.node)) {
+          return record.node
+            .map(unwrapNode)
+            .filter((node) => node && typeof node === "object");
+        }
+        if (record.node && typeof record.node === "object") {
+          return [unwrapNode(record.node)];
+        }
+        if (Array.isArray(record.nodes)) {
+          return record.nodes
+            .map(unwrapNode)
+            .filter((node) => node && typeof node === "object");
+        }
+        if (Array.isArray(record.edges)) {
+          return record.edges
+            .map(unwrapNode)
+            .filter((node) => node && typeof node === "object");
+        }
+        return [];
+      };
+      const nodes = edges
+        ? edges
+            .map((edge) => edge?.node)
+            .filter((node) => node && typeof node === "object")
+        : nameSearchResult
+          ? [
+              ...matchNodes(nameSearchResult.exactMatches),
+              ...matchNodes(nameSearchResult.partialMatches),
+            ]
+          : null;
+      if (nodes) {
         // Unwrap Relay edges into bare nodes — downstream code expects an array
         // of candidate objects, same shape contract as seekRecommendedCandidates.
-        const nodes = edges
-          .map((edge) => edge?.node)
-          .filter((node) => node && typeof node === "object");
         apiSnapshot.seekTalentSearch = nodes;
         apiSnapshot.seekTalentSearchRequest = request || null;
         apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;

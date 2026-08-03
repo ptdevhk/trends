@@ -205,7 +205,7 @@ describe("seek-extractor", () => {
     });
   });
 
-  describe("current talentsearch profile paths", () => {
+  describe("current talentsearch paths", () => {
     it("treats /talentsearch/profiles/<guid> as profile mode", () => {
       const extractor = createSeekExtractor(
         createMockDeps({
@@ -223,6 +223,80 @@ describe("seek-extractor", () => {
       expect(extractor.isSeekProfilePage()).toBe(true);
       expect(extractor.isSeekTalentSearchListPage()).toBe(false);
       expect(extractor.getCurrentSeekMode()).toBe("profile");
+    });
+
+    it("treats the generated name-search route as talentsearch list mode", () => {
+      const urlBuilder = createSeekExtractor(createMockDeps());
+      const generatedUrl = urlBuilder.buildSeekNameSearchUrl(
+        "John Doe",
+        "MY",
+        "Sales Engineer",
+      );
+      const parsedUrl = new URL(generatedUrl);
+      expect(parsedUrl.pathname).toBe("/talentsearch/profiles/search");
+
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          win: {
+            location: {
+              pathname: parsedUrl.pathname,
+              href: generatedUrl,
+              hostname: parsedUrl.hostname,
+              search: parsedUrl.search,
+            },
+          },
+          apiSnapshot: {
+            seekTalentSearch: [
+              {
+                id: "relay-john-doe",
+                profileGuid: "john-doe-guid",
+                firstName: "John",
+                lastName: "Doe",
+                currentJobTitle: "Sales Engineer",
+                currentLocation: "Kuala Lumpur, MY",
+              },
+            ],
+            seekTalentSearchRequest: {
+              variables: {
+                language: "en",
+                input: {
+                  pageNumber: 1,
+                  originalNaturalLanguageQuery: "John Doe",
+                  searchMode: "NAME",
+                },
+              },
+            },
+          },
+        }),
+      );
+
+      expect(extractor.isSeekProfilePage()).toBe(false);
+      expect(extractor.isSeekTalentSearchListPage()).toBe(true);
+      expect(extractor.getCurrentSeekMode()).toBe("talentsearch");
+      expect(extractor.extractSeekTalentSearchResumes()).toHaveLength(1);
+      expect(extractor.buildSeekCollectionContext()).toMatchObject({
+        seekMode: "talentsearch",
+        captureMode: "graphql-talentsearch",
+      });
+    });
+
+    it("accepts a trailing slash on the name-search route", () => {
+      const extractor = createSeekExtractor(
+        createMockDeps({
+          win: {
+            location: {
+              pathname: "/talentsearch/profiles/search/",
+              href: "https://hk.employer.seek.com/talentsearch/profiles/search/?searchQuery=John%20Doe&market=MY",
+              hostname: "hk.employer.seek.com",
+              search: "?searchQuery=John%20Doe&market=MY",
+            },
+          },
+        }),
+      );
+
+      expect(extractor.isSeekProfilePage()).toBe(false);
+      expect(extractor.isSeekTalentSearchListPage()).toBe(true);
+      expect(extractor.getCurrentSeekMode()).toBe("talentsearch");
     });
   });
 
@@ -442,6 +516,21 @@ describe("seek-extractor", () => {
       const result = extractor.getSeekPayloadData(payload, "seekTalentSearch");
       expect(result).toEqual({
         talentSearchProfilesNaturalLanguageSearch: { result: {} },
+      });
+    });
+
+    it("extracts data from array payload for the MY name-search operation", () => {
+      const extractor = createSeekExtractor(createMockDeps());
+      const payload = [
+        {
+          data: {
+            talentSearchProfilesSearchByName: { result: {} },
+          },
+        },
+      ];
+      const result = extractor.getSeekPayloadData(payload, "seekTalentSearch");
+      expect(result).toEqual({
+        talentSearchProfilesSearchByName: { result: {} },
       });
     });
 

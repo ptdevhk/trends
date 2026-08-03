@@ -307,6 +307,51 @@ describe("snapshot-collector", () => {
       });
       expect(apiSnapshot.insightInfo).toEqual({ score: 95 });
     });
+
+    it("flattens exact and partial matches for the MY name-search operation", () => {
+      const apiSnapshot = {
+        seekTalentSearch: [],
+      } as Record<string, unknown>;
+      const payloadData = {
+          talentSearchProfilesSearchByName: {
+            result: {
+              exactMatches: [
+                { node: { profileGuid: "guid-exact" }, __typename: "ExactMatch" },
+              ],
+              partialMatches: [
+                { node: { profileGuid: "guid-partial" }, __typename: "PartialMatch" },
+              ],
+            },
+          },
+      };
+      const collector = createSnapshotCollector(
+        createMockDeps({
+          apiSnapshot,
+          getCurrentSourceKey: vi.fn(() => "seek"),
+          getSeekSnapshotCount: vi.fn(
+            () => (apiSnapshot.seekTalentSearch as unknown[]).length,
+          ),
+          getSeekPayloadData: vi.fn(() => payloadData),
+        }),
+      );
+
+      collector.updateApiSnapshot({
+        kind: "seekTalentSearch",
+        sourceKey: "seek",
+        operationName: "SearchProfilesByName",
+        request: { operationName: "SearchProfilesByName" },
+        payload: { data: payloadData },
+      });
+
+      expect(apiSnapshot.seekTalentSearch).toEqual([
+        { profileGuid: "guid-exact" },
+        { profileGuid: "guid-partial" },
+      ]);
+      expect(apiSnapshot.seekTalentSearchRequest).toEqual({
+        operationName: "SearchProfilesByName",
+      });
+      expect(apiSnapshot.lastOperationName).toBe("SearchProfilesByName");
+    });
   });
 
   describe("installApiHook", () => {

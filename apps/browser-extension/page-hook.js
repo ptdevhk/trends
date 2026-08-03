@@ -104,9 +104,17 @@
   const isSeekTalentSearchOperation = (entry) => {
     const operationName =
       typeof entry?.operationName === "string" ? entry.operationName : "";
-    if (operationName === "SearchProfilesByNaturalLanguage") return true;
+    if (
+      operationName === "SearchProfilesByNaturalLanguage" ||
+      operationName === "SearchProfilesByName"
+    ) {
+      return true;
+    }
     const query = typeof entry?.query === "string" ? entry.query : "";
-    return /talentSearchProfilesNaturalLanguageSearch\s*\(/i.test(query);
+    return (
+      /talentSearchProfilesNaturalLanguageSearch\s*\(/i.test(query) ||
+      /talentSearchProfilesSearchByName\s*\(/i.test(query)
+    );
   };
 
   const isSeekProfileV3Operation = (entry) => {
@@ -377,6 +385,59 @@
       };
     }
 
+    if (opName === "SearchProfilesByName") {
+      const input = operation.variables?.input;
+      if (!input || typeof input !== "object") {
+        return {
+          operationName: opName,
+          variables: {
+            language: typeof language === "string" ? language : undefined,
+            locale: typeof locale === "string" ? locale : undefined,
+          },
+        };
+      }
+
+      const filter = (value) =>
+        value && typeof value === "object"
+          ? {
+              values: Array.isArray(value.values) ? value.values : undefined,
+              matchLatestOnly:
+                typeof value.matchLatestOnly === "boolean"
+                  ? value.matchLatestOnly
+                  : undefined,
+            }
+          : undefined;
+      const locations =
+        Array.isArray(input.locations)
+          ? input.locations
+          : input.locations && typeof input.locations === "object"
+            ? {
+                values: Array.isArray(input.locations.values)
+                  ? input.locations.values
+                  : undefined,
+              }
+            : undefined;
+
+      return {
+        operationName: opName,
+        variables: {
+          input: {
+            searchQuery:
+              typeof input.searchQuery === "string" ? input.searchQuery : undefined,
+            market: typeof input.market === "string" ? input.market : undefined,
+            roleTitles: filter(input.roleTitles),
+            companies: filter(input.companies),
+            companyNames: filter(input.companyNames),
+            locations,
+            pageNumber: typeof input.pageNumber === "number" ? input.pageNumber : undefined,
+            pageSize: typeof input.pageSize === "number" ? input.pageSize : undefined,
+          },
+          language: typeof language === "string" ? language : undefined,
+          locale: typeof locale === "string" ? locale : undefined,
+        },
+      };
+    }
+
     // Recommended (V2) and profile (V2/V3) keep the existing shape:
     const input = operation.variables?.input;
     return {
@@ -402,7 +463,7 @@
   };
 
   /**
-   * Inject roleTitles from sessionStorage into a SearchProfilesByNaturalLanguage
+   * Inject roleTitles from sessionStorage into a SEEK talent-search
    * request body when SEEK's SPA strips the URL parameter before the first
    * GraphQL request fires. Reads `tr_seek_param_roleTitles` (comma-separated)
    * captured from the initial URL in the MAIN world at document_start.

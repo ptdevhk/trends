@@ -5,6 +5,9 @@
 
 import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
 
+const SEEK_TALENTSEARCH_LIST_PATH = "/talentsearch";
+const SEEK_TALENTSEARCH_SEARCH_PATH = "/talentsearch/profiles/search";
+
 /**
  * Seek GetTalentSearchProfileCompleteV3 returns
  * `{ __typename, result: { profileGuid, workHistories, ... } }` (sometimes
@@ -144,9 +147,20 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     );
   }
 
-  function isSeekProfilePath(pathname: string) {
+  function normalizeSeekPathname(pathname: string) {
+    return pathname.trim().replace(/\/+$/, "") || "/";
+  }
+
+  function isSeekProfilePathNormalized(pathname: string) {
+    // The operator-visitable name-search endpoint shares the plural profile
+    // prefix but is a list route, not an individual profile page.
+    if (pathname === SEEK_TALENTSEARCH_SEARCH_PATH) return false;
     return pathname.includes("/talentsearch/profile/")
       || pathname.includes("/talentsearch/profiles/");
+  }
+
+  function isSeekProfilePath(pathname: string) {
+    return isSeekProfilePathNormalized(normalizeSeekPathname(pathname));
   }
 
   function isSeekProfilePage() {
@@ -156,8 +170,12 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
   function isSeekTalentSearchListPage() {
     if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
     const { pathname, search } = win.location;
-    if (isSeekProfilePath(pathname)) return false;
-    return pathname === "/talentsearch" && search.length > 0;
+    const normalizedPathname = normalizeSeekPathname(pathname);
+    if (isSeekProfilePathNormalized(normalizedPathname)) return false;
+    return (
+      normalizedPathname === SEEK_TALENTSEARCH_LIST_PATH
+      || normalizedPathname === SEEK_TALENTSEARCH_SEARCH_PATH
+    ) && search.length > 0;
   }
 
   function getCurrentSeekMode() {
@@ -238,7 +256,7 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
     if (!trimmed) return "";
     const trimmedRoleTitles = typeof roleTitles === "string" ? roleTitles.trim() : "";
     const roleTitlesParam = trimmedRoleTitles ? `&roleTitles=${encodeURIComponent(trimmedRoleTitles)}` : "";
-    return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
+    return `https://${window.location.hostname.toLowerCase()}${SEEK_TALENTSEARCH_SEARCH_PATH}?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
   }
 
   function normalizeSeekLocationLabel(value: unknown) {
@@ -704,7 +722,10 @@ export function createSeekExtractor(deps: SeekExtractorDeps) {
           );
         }
         if (kind === "seekTalentSearch") {
-          return !!data.talentSearchProfilesNaturalLanguageSearch;
+          return !!(
+            data.talentSearchProfilesNaturalLanguageSearch ||
+            data.talentSearchProfilesSearchByName
+          );
         }
         if (kind === "seekProfile") {
           return !!(

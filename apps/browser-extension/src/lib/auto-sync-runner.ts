@@ -21,6 +21,7 @@ export interface AutoSyncRunnerDeps extends Record<string, unknown> {
   setSeekAutoSyncWindowAttributes: (attrs: unknown) => void;
   setSeekAutoSyncSelectionAttributes: (attrs: unknown) => void;
   isSeekProfileMode: () => boolean;
+  getCurrentSeekMode: () => string | null;
   resolveSeekAutoSyncPageWindow: (options?: unknown) => unknown;
   isSeekAutoSyncPageWindowReached: (pageWindow?: unknown, currentPage?: number) => boolean;
   shouldStopSeekAutoSyncForPageWindow: (options: {
@@ -72,7 +73,6 @@ export interface AutoSyncRunnerDeps extends Record<string, unknown> {
   isJob51DetailPage: () => boolean;
   SyncStatusWidget: { show: (options: Record<string, unknown>) => void; hide: () => void };
   document: Document;
-  window: Window;
   chrome: Record<string, unknown>;
   state: Record<string, unknown>;
 }
@@ -91,6 +91,7 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     setSeekAutoSyncWindowAttributes,
     setSeekAutoSyncSelectionAttributes,
     isSeekProfileMode,
+    getCurrentSeekMode,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
     shouldStopSeekAutoSyncForPageWindow,
@@ -166,7 +167,6 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
 
     // DOM globals
     document,
-    window,
 
     // Browser API
     chrome,
@@ -176,7 +176,7 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     return (
       getCurrentSourceKey() === SOURCE_KEYS.SEEK &&
       !isSeekProfileMode() &&
-      window.location?.pathname === "/talentsearch"
+      getCurrentSeekMode() === "talentsearch"
     );
   }
 

@@ -168,7 +168,7 @@ let isJob51DetailReady: () => boolean;
 let isJob5156DetailReady: () => boolean;
 let getSeekPaginationInfo: () => { currentPage: number; totalPages: number; totalItems: number; hasNextPage: boolean };
 let getSeekNextPageLinkForMode: () => HTMLElement | null;
-let getCurrentSeekMode: () => string;
+let getCurrentSeekMode: () => string | null;
 let makeRandomId: () => string;
 let getSeekCardCount: () => number;
 let isDisabledPaginationControl: (el: unknown) => boolean;
@@ -845,6 +845,7 @@ const _autoSyncRunner = createAutoSyncRunner({
   setSeekAutoSyncWindowAttributes,
   setSeekAutoSyncSelectionAttributes,
   isSeekProfileMode,
+  getCurrentSeekMode,
   resolveSeekAutoSyncPageWindow,
   isSeekAutoSyncPageWindowReached,
   shouldStopSeekAutoSyncForPageWindow,
@@ -920,7 +921,6 @@ const _autoSyncRunner = createAutoSyncRunner({
 
   // DOM globals
   document,
-  window,
 
   // Browser API
   chrome: chrome as Record<string, unknown>,

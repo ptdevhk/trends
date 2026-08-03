@@ -828,6 +828,8 @@
   __name(isMeaningfulSeekWorkHistoryDescription, "isMeaningfulSeekWorkHistoryDescription");
 
   // src/lib/seek-extractor.ts
+  var SEEK_TALENTSEARCH_LIST_PATH = "/talentsearch";
+  var SEEK_TALENTSEARCH_SEARCH_PATH = "/talentsearch/profiles/search";
   function unwrapSeekProfileSnapshot(raw) {
     if (!raw || typeof raw !== "object") return null;
     let current = raw;
@@ -922,8 +924,17 @@
       );
     }
     __name(noteSeekTalentSearchRateLimit, "noteSeekTalentSearchRateLimit");
-    function isSeekProfilePath(pathname) {
+    function normalizeSeekPathname(pathname) {
+      return pathname.trim().replace(/\/+$/, "") || "/";
+    }
+    __name(normalizeSeekPathname, "normalizeSeekPathname");
+    function isSeekProfilePathNormalized(pathname) {
+      if (pathname === SEEK_TALENTSEARCH_SEARCH_PATH) return false;
       return pathname.includes("/talentsearch/profile/") || pathname.includes("/talentsearch/profiles/");
+    }
+    __name(isSeekProfilePathNormalized, "isSeekProfilePathNormalized");
+    function isSeekProfilePath(pathname) {
+      return isSeekProfilePathNormalized(normalizeSeekPathname(pathname));
     }
     __name(isSeekProfilePath, "isSeekProfilePath");
     function isSeekProfilePage2() {
@@ -933,8 +944,9 @@
     function isSeekTalentSearchListPage2() {
       if (getCurrentSourceKey2() !== SOURCE_KEYS2.SEEK) return false;
       const { pathname, search } = win.location;
-      if (isSeekProfilePath(pathname)) return false;
-      return pathname === "/talentsearch" && search.length > 0;
+      const normalizedPathname = normalizeSeekPathname(pathname);
+      if (isSeekProfilePathNormalized(normalizedPathname)) return false;
+      return (normalizedPathname === SEEK_TALENTSEARCH_LIST_PATH || normalizedPathname === SEEK_TALENTSEARCH_SEARCH_PATH) && search.length > 0;
     }
     __name(isSeekTalentSearchListPage2, "isSeekTalentSearchListPage");
     function getCurrentSeekMode2() {
@@ -1007,7 +1019,7 @@
       if (!trimmed) return "";
       const trimmedRoleTitles = typeof roleTitles === "string" ? roleTitles.trim() : "";
       const roleTitlesParam = trimmedRoleTitles ? `&roleTitles=${encodeURIComponent(trimmedRoleTitles)}` : "";
-      return `https://${window.location.hostname.toLowerCase()}/talentsearch/profiles/search?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
+      return `https://${window.location.hostname.toLowerCase()}${SEEK_TALENTSEARCH_SEARCH_PATH}?searchQuery=${encodeURIComponent(trimmed)}&market=${encodeURIComponent(market || "MY")}&pageNumber=1${roleTitlesParam}`;
     }
     __name(buildSeekNameSearchUrl2, "buildSeekNameSearchUrl");
     function normalizeSeekLocationLabel2(value) {
@@ -1333,7 +1345,7 @@
             return !!(data.talentSearchRecommendedCandidatesV2 || data.getTalentSearchRecommendedCandidates);
           }
           if (kind === "seekTalentSearch") {
-            return !!data.talentSearchProfilesNaturalLanguageSearch;
+            return !!(data.talentSearchProfilesNaturalLanguageSearch || data.talentSearchProfilesSearchByName);
           }
           if (kind === "seekProfile") {
             return !!(data.talentSearchProfileV2 || data.talentSearchProfileCompleteV2 || data.getTalentSearchProfileCompleteV2 || data.talentSearchProfileV3);
@@ -4584,11 +4596,39 @@
       }
       if (kind === "seekTalentSearch") {
         const data = getSeekPayloadData2(payload, kind);
-        const tsResult = data?.talentSearchProfilesNaturalLanguageSearch;
-        const result = tsResult?.result;
-        const edges = Array.isArray(result?.edges) ? result.edges : null;
-        if (edges) {
-          const nodes = edges.map((edge) => edge?.node).filter((node) => node && typeof node === "object");
+        const naturalLanguageResult = data?.talentSearchProfilesNaturalLanguageSearch?.result;
+        const nameSearchResult = data?.talentSearchProfilesSearchByName?.result;
+        const edges = Array.isArray(naturalLanguageResult?.edges) ? naturalLanguageResult.edges : null;
+        const matchNodes = /* @__PURE__ */ __name((matches) => {
+          const unwrapNode = /* @__PURE__ */ __name((value) => {
+            if (!value || typeof value !== "object") return value;
+            const nested = value.node;
+            return nested && typeof nested === "object" ? nested : value;
+          }, "unwrapNode");
+          if (Array.isArray(matches)) {
+            return matches.map(unwrapNode).filter((node) => node && typeof node === "object");
+          }
+          if (!matches || typeof matches !== "object") return [];
+          const record = matches;
+          if (Array.isArray(record.node)) {
+            return record.node.map(unwrapNode).filter((node) => node && typeof node === "object");
+          }
+          if (record.node && typeof record.node === "object") {
+            return [unwrapNode(record.node)];
+          }
+          if (Array.isArray(record.nodes)) {
+            return record.nodes.map(unwrapNode).filter((node) => node && typeof node === "object");
+          }
+          if (Array.isArray(record.edges)) {
+            return record.edges.map(unwrapNode).filter((node) => node && typeof node === "object");
+          }
+          return [];
+        }, "matchNodes");
+        const nodes = edges ? edges.map((edge) => edge?.node).filter((node) => node && typeof node === "object") : nameSearchResult ? [
+          ...matchNodes(nameSearchResult.exactMatches),
+          ...matchNodes(nameSearchResult.partialMatches)
+        ] : null;
+        if (nodes) {
           apiSnapshot2.seekTalentSearch = nodes;
           apiSnapshot2.seekTalentSearchRequest = request || null;
           apiSnapshot2.lastSearchAt = apiSnapshot2.lastUpdatedAt;
@@ -7219,6 +7259,7 @@
       setSeekAutoSyncWindowAttributes: setSeekAutoSyncWindowAttributes2,
       setSeekAutoSyncSelectionAttributes: setSeekAutoSyncSelectionAttributes2,
       isSeekProfileMode: isSeekProfileMode2,
+      getCurrentSeekMode: getCurrentSeekMode2,
       resolveSeekAutoSyncPageWindow: resolveSeekAutoSyncPageWindow2,
       isSeekAutoSyncPageWindowReached: isSeekAutoSyncPageWindowReached2,
       shouldStopSeekAutoSyncForPageWindow: shouldStopSeekAutoSyncForPageWindow2,
@@ -7280,12 +7321,11 @@
       SyncStatusWidget: SyncStatusWidget2,
       // DOM globals
       document: document2,
-      window: window2,
       // Browser API
       chrome: chrome2
     } = deps;
     function isSeekTalentSearchListWorkflow() {
-      return getCurrentSourceKey2() === SOURCE_KEYS2.SEEK && !isSeekProfileMode2() && window2.location?.pathname === "/talentsearch";
+      return getCurrentSourceKey2() === SOURCE_KEYS2.SEEK && !isSeekProfileMode2() && getCurrentSeekMode2() === "talentsearch";
     }
     __name(isSeekTalentSearchListWorkflow, "isSeekTalentSearchListWorkflow");
     function resumeHasWorkHistoryDescription(resume) {
@@ -8506,6 +8546,7 @@
     setSeekAutoSyncWindowAttributes,
     setSeekAutoSyncSelectionAttributes,
     isSeekProfileMode,
+    getCurrentSeekMode,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
     shouldStopSeekAutoSyncForPageWindow,
@@ -8567,7 +8608,6 @@
     SyncStatusWidget,
     // DOM globals
     document,
-    window,
     // Browser API
     chrome
   });
