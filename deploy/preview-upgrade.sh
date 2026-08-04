@@ -158,6 +158,7 @@ rsync -a --delete \
     --exclude 'docker-compose.preview.yml' \
     --exclude 'start-convex.sh' \
     --exclude 'prod-convex-export.zip' \
+    --exclude '.digest-restore-epoch' \
     "$REPO_MIRROR/" "$PREVIEW_DIR/"
 
 # Restore env first

@@ -573,6 +573,22 @@ describe("preview release helpers", () => {
     expect(upgradeScript).toContain("DIGEST_REBUILD_BATCH_SIZE");
   });
 
+  it("preview-upgrade does not wipe the digest-restore-epoch marker during tree sync", () => {
+    // The marker is local-only (written by restore-preview-from-prod.sh). The
+    // mirror-to-preview rsync uses --delete, so without an explicit exclude the
+    // marker is removed on every upgrade and the digest-rebuild-on-epoch-change
+    // drift check below can never trigger. Regression: marker vanished in the
+    // ebe46ae7 upgrade (log showed "restore-epoch=none").
+    const deleteSyncStart = upgradeScript.indexOf("rsync -a --delete");
+    expect(deleteSyncStart).toBeGreaterThan(-1);
+    const deleteSyncEnd = upgradeScript.indexOf('"$REPO_MIRROR/" "$PREVIEW_DIR/"', deleteSyncStart);
+    expect(deleteSyncEnd).toBeGreaterThan(deleteSyncStart);
+    const deleteSyncBlock = upgradeScript.slice(deleteSyncStart, deleteSyncEnd);
+    expect(deleteSyncBlock).toContain("--exclude '.digest-restore-epoch'");
+    // The epoch check must read the marker the sync preserved.
+    expect(upgradeScript).toMatch(/RESTORE_EPOCH_MARKER=.*\.digest-restore-epoch/);
+  });
+
   it("search-freshness-gate uses capacity-safe reingest defaults", () => {
     const gateScript = readFileSync(new URL("../deploy/search-freshness-gate.sh", import.meta.url), "utf8");
     expect(gateScript).toContain("REINGEST_BATCH");
