@@ -39,12 +39,14 @@ services:
     image: node:25-slim
     container_name: trends-preview-convex
     restart: unless-stopped
-    # 8GB required when serving prod-restored data (~5500 resumes).
+    # 12GB required when serving prod-restored data (~9k resumes, 1.5 GiB SQLite).
     # History: 2g → OOM on import; 4g → OOM under steady query load (RSS hits 4.0 GiB
-    # exactly, see dmesg + queries/2026-05-29-convex-local-backend-memory-oom.md).
-    # 8g gives 2x margin above observed RSS ceiling and matches community sizing for
-    # self-hosted backends with active export/import cycles.
-    mem_limit: 8g
+    # exactly, see dmesg + queries/2026-05-29-convex-local-backend-memory-oom.md);
+    # 8g → OOM-killed at ~8.1 GiB anon-rss during compute reingest bursts (three
+    # kills on 2026-08-05 while draining 2,300 stale rows — backend crash-looped,
+    # jobs resumed after each restart and re-killed it). 12g gives ~50% margin
+    # above the observed ceiling and fits the ~24 GiB preview host.
+    mem_limit: 12g
     ports:
       - "127.0.0.1:4210:3210"
       - "127.0.0.1:4211:3211"

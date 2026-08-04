@@ -665,4 +665,16 @@ describe("preview Convex container", () => {
     expect(previewConvexStartScript).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
     expect(previewCompose).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
   });
+
+  it("sizes preview Convex mem_limit above the observed OOM ceiling for prod-restored data", () => {
+    // Observed (2026-08-05, preview ptcloud): convex-local-backend OOM-killed at
+    // ~8.1 GiB anon-rss against mem_limit 8g while reingesting a prod-restored
+    // 1.5 GiB SQLite (8,958 resumes) — three kills in one hour. Host has ~24 GiB.
+    // The limit must leave margin above the kill ceiling, or every reingest
+    // burst crash-loops the backend (jobs resume after each restart and re-kill).
+    const match = previewCompose.match(/mem_limit:\s*(\d+)g/);
+    expect(match).not.toBeNull();
+    const memLimitGiB = Number(match![1]!);
+    expect(memLimitGiB).toBeGreaterThanOrEqual(12);
+  });
 });
