@@ -54,7 +54,7 @@ export const config = {
   ),
   projectRoot,
   timezone,
-  version: "0.4.22",
+  version: "0.4.23",
   auth: {
     sessionCookieName: process.env.AUTH_SESSION_COOKIE_NAME || "trends_session",
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME || "trends_csrf",
