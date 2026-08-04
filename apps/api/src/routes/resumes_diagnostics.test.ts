@@ -907,6 +907,67 @@ describe("resumes_diagnostics", () => {
   });
 
   describe("GET /api/resumes/search-freshness", () => {
+    it("retries transient Convex failures on the freshness lag scan", async () => {
+      const originalBffApiUrl = process.env.BFF_API_URL;
+      const originalApiUrl = process.env.API_URL;
+      delete process.env.BFF_API_URL;
+      delete process.env.API_URL;
+
+      let actionCalls = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/api/action")) {
+          actionCalls += 1;
+          if (actionCalls < 3) {
+            return new Response("server error", { status: 500 });
+          }
+          return convexSuccess({
+            scheduled: 0,
+            batches: 0,
+            currentVersion: 9,
+            currentIngestComputeEpoch: 2,
+            hasMore: false,
+            cursor: null,
+            mode: "compute",
+            dryRun: true,
+            skillsStaleCount: 0,
+            computeStaleCount: 0,
+            matchedCount: 0,
+          });
+        }
+
+        if (url.startsWith("http://127.0.0.1:3001/api/resumes?")) {
+          const location = new URL(url).searchParams.get("location");
+          return new Response(JSON.stringify({
+            success: true,
+            summary: { total: location === "China" ? 150 : 2 },
+            data: [],
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("http://127.0.0.1:3001/api/resumes/search-freshness", {
+        headers: {
+          cookie: "trends-session=local-worktree",
+          "x-workspace-slug": "dev",
+        },
+      });
+
+      process.env.BFF_API_URL = originalBffApiUrl;
+      process.env.API_URL = originalApiUrl;
+
+      // The lag scan must retry transient 5xx Convex responses (connection
+      // resets under load) instead of failing the scan on the first error.
+      expect(response.status).toBe(200);
+      expect(actionCalls).toBe(3);
+      const payload = await parseJsonBody<{ lagScanFailed?: boolean }>(response);
+      expect(payload.lagScanFailed).toBe(false);
+    });
+
     it("uses the current request origin for golden queries when no BFF env override is set", async () => {
       const originalBffApiUrl = process.env.BFF_API_URL;
       const originalApiUrl = process.env.API_URL;
