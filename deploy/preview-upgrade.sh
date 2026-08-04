@@ -299,6 +299,101 @@ if [[ -x "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" ]]; then
     PREVIEW_DIR="$PREVIEW_DIR" bash "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh" --sync-only || true
 fi
 
+log_step "Digest rebuild after code upgrade (stale-digest drift prevention)"
+# When a production→preview data restore (DIGEST_BACKFILL_MODE=skip or
+# if-epoch-changed) preserves old production digests, a subsequent code upgrade
+# may change the role-year algorithm (e.g. verified-only gate at epoch 2/3).
+# The imported digests still carry stale roleYearsByType computed by the old
+# algorithm, causing inconsistent search results. Rebuild digests when the
+# code epoch has changed since the restore.
+SKIP_DIGEST_REBUILD="${SKIP_DIGEST_REBUILD:-0}"
+DIGEST_REBUILD_BATCH_SIZE="${DIGEST_REBUILD_BATCH_SIZE:-50}"
+RESTORE_EPOCH_MARKER="$PREVIEW_DIR/.digest-restore-epoch"
+NEW_CODE_EPOCH=0
+if [[ -f "$PREVIEW_DIR/packages/shared/dist/ingest-compute-epoch.js" ]]; then
+    NEW_CODE_EPOCH="$(cd "$PREVIEW_DIR" && node -e \
+        "console.log(require('./packages/shared/dist/ingest-compute-epoch.js').CURRENT_INGEST_COMPUTE_EPOCH)" \
+        2>/dev/null || echo 0)"
+elif [[ -f "$PREVIEW_DIR/packages/shared/src/ingest-compute-epoch.ts" ]]; then
+    NEW_CODE_EPOCH="$(cd "$PREVIEW_DIR" && npx tsx -e \
+        "process.stdout.write(String(require('./packages/shared/src/ingest-compute-epoch.ts').CURRENT_INGEST_COMPUTE_EPOCH))" \
+        2>/dev/null || echo 0)"
+fi
+RESTORE_EPOCH=""
+if [[ -f "$RESTORE_EPOCH_MARKER" ]]; then
+    RESTORE_EPOCH="$(cat "$RESTORE_EPOCH_MARKER" 2>/dev/null | tr -d '[:space:]' || echo "")"
+fi
+log_info "Code epoch=$NEW_CODE_EPOCH restore-epoch=${RESTORE_EPOCH:-none}"
+SHOULD_REBUILD_DIGESTS=0
+if [[ "$SKIP_DIGEST_REBUILD" == "1" ]]; then
+    log_info "SKIP_DIGEST_REBUILD=1 — skipping digest rebuild"
+elif [[ -z "$RESTORE_EPOCH" ]]; then
+    log_info "No restore-epoch marker — skipping digest rebuild (no prior restore or marker removed)"
+elif [[ "$RESTORE_EPOCH" != "$NEW_CODE_EPOCH" ]]; then
+    SHOULD_REBUILD_DIGESTS=1
+    log_warn "Epoch changed since restore ($RESTORE_EPOCH → $NEW_CODE_EPOCH) — rebuilding digests"
+else
+    log_info "Epoch unchanged — digests are current"
+fi
+if [[ "$SHOULD_REBUILD_DIGESTS" -eq 1 ]]; then
+    DIGEST_CURSOR=""
+    DIGEST_TOTAL=0
+    DIGEST_ITERATION=1
+    while true; do
+        DIGEST_CALL_ARGS="$(CURSOR="$DIGEST_CURSOR" DIGEST_REBUILD_BATCH_SIZE="$DIGEST_REBUILD_BATCH_SIZE" python3 <<'PYEOF'
+import json, os
+args = {"limit": int(os.environ["DIGEST_REBUILD_BATCH_SIZE"])}
+cursor = os.environ.get("CURSOR")
+if cursor:
+    args["cursor"] = cursor
+print(json.dumps(args))
+PYEOF
+)"
+        log_info "Backfilling resume_digests batch $DIGEST_ITERATION..."
+        if ! DIGEST_OUTPUT="$(docker exec trends-preview-convex bash -c \
+            "cd /app/packages/convex && npx convex run resumes_search:backfillResumeDigests '$DIGEST_CALL_ARGS'" 2>&1)"; then
+            printf '%s\n' "$DIGEST_OUTPUT"
+            log_warn "resume_digests backfill failed — search totals may be inconsistent until manual rebuild"
+            break
+        fi
+        DIGEST_PARSED="$(OUTPUT="$DIGEST_OUTPUT" python3 <<'PYEOF'
+import json, os
+source = os.environ["OUTPUT"]
+start = source.find("{")
+end = source.rfind("}")
+if start == -1 or end == -1 or end < start:
+    raise SystemExit(f"Could not parse Convex response: {source}")
+value = json.loads(source[start : end + 1])
+processed = int(value.get("processed") or 0)
+is_done = 1 if value.get("isDone") else 0
+cursor = value.get("cursor") or ""
+print(f"{processed}\t{is_done}\t{cursor}")
+PYEOF
+)"
+        DIGEST_PROCESSED="${DIGEST_PARSED%%$'\t'*}"
+        DIGEST_REST="${DIGEST_PARSED#*$'\t'}"
+        DIGEST_IS_DONE="${DIGEST_REST%%$'\t'*}"
+        DIGEST_CURSOR="${DIGEST_REST#*$'\t'}"
+        DIGEST_TOTAL=$((DIGEST_TOTAL + DIGEST_PROCESSED))
+        if [[ "$DIGEST_IS_DONE" == "1" ]]; then
+            break
+        fi
+        if [[ -z "$DIGEST_CURSOR" ]]; then
+            log_warn "resume_digests backfill did not finish but returned no cursor"
+            break
+        fi
+        DIGEST_ITERATION=$((DIGEST_ITERATION + 1))
+    done
+    log_info "Backfilled resume_digests for $DIGEST_TOTAL resumes"
+    # Remove the marker so a subsequent upgrade without a new restore doesn't re-trigger
+    rm -f "$RESTORE_EPOCH_MARKER"
+fi
+# Restart API to pick up rebuilt digests
+if [[ "$SHOULD_REBUILD_DIGESTS" -eq 1 ]]; then
+    systemctl restart "$PREVIEW_API_SERVICE"
+    wait_for_http "$PREVIEW_API_URL/health" 120
+fi
+
 log_step "Search-data freshness gate (code deploy ≠ computed role years)"
 # GATE_STRICT=0 for lag after schedule: upgrade succeeds but golden floor hard-fails.
 # Operators re-run gate after reingest. Set PREVIEW_FRESHNESS_STRICT=1 to fail upgrade on floor miss.

@@ -564,6 +564,36 @@ describe("preview release helpers", () => {
     expect(upgradeScript).toContain("Production was not modified");
   });
 
+  it("preview-upgrade rebuilds digests when compute epoch changed since restore", () => {
+    expect(upgradeScript).toContain("Digest rebuild after code upgrade");
+    expect(upgradeScript).toContain("backfillResumeDigests");
+    expect(upgradeScript).toContain("CURRENT_INGEST_COMPUTE_EPOCH");
+    expect(upgradeScript).toContain(".digest-restore-epoch");
+    expect(upgradeScript).toContain("SKIP_DIGEST_REBUILD");
+    expect(upgradeScript).toContain("DIGEST_REBUILD_BATCH_SIZE");
+  });
+
+  it("search-freshness-gate uses capacity-safe reingest defaults", () => {
+    const gateScript = readFileSync(new URL("../deploy/search-freshness-gate.sh", import.meta.url), "utf8");
+    expect(gateScript).toContain("REINGEST_BATCH");
+    expect(gateScript).toContain("REINGEST_SLEEP_SECS");
+    // Capacity-safe defaults: batch ≤25, sleep ≥8
+    expect(gateScript).toMatch(/REINGEST_BATCH.*\b25\b/);
+    expect(gateScript).toMatch(/REINGEST_SLEEP_SECS.*\b8\b/);
+    // CLI flags for overrides
+    expect(gateScript).toContain("--reingest-batch");
+    expect(gateScript).toContain("--reingest-sleep");
+    // Cursor-paced loop with sleep between calls
+    expect(gateScript).toContain("time.sleep");
+    expect(gateScript).toContain("cursor");
+  });
+
+  it("restore-preview-from-prod supports if-epoch-changed digest mode", () => {
+    expect(restorePreviewScript).toContain("if-epoch-changed");
+    expect(restorePreviewScript).toContain(".digest-restore-epoch");
+    expect(restorePreviewScript).toContain("DIGEST_BACKFILL_MODE:-skip");
+  });
+
   it("isolate script clears telegram and forces preview URLs", () => {
     expect(isolateScript).toContain("TELEGRAM_BOT_TOKEN");
     expect(isolateScript).toContain("AUTH_ALLOWED_ORIGINS");

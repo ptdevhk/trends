@@ -37,7 +37,7 @@ Environment overrides:
   CONVEX_RESTORE_SCRIPT default: \$PROD_DIR/deploy/restore-preview-from-prod.sh
   SKIP_PREVIEW_AI_SMOKE set to 1/true/yes to skip the bounded AI analysis smoke
   RUN_PREVIEW_AI_SMOKE  set to 1 to run AI smoke (default off for data restore)
-  DIGEST_BACKFILL_MODE  skip|if-empty|always (default skip — preserves prod search digests)
+  DIGEST_BACKFILL_MODE  skip|if-empty|if-epoch-changed|always (default skip — preserves prod search digests; use if-epoch-changed when an upgrade follows)
   RESTORE_STRICT        set to 1 to hard-fail on admin login check
 EOF
 }

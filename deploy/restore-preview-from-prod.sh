@@ -304,9 +304,17 @@ docker exec trends-preview-convex bash -c "
 echo ""
 echo "=== Step 4: Resume digests (parity-preserving policy) ==="
 # DIGEST_BACKFILL_MODE:
-#   skip     — never recompute (default). Preserve production digests for search parity.
-#   if-empty — only backfill when digests appear empty after import
-#   always   — recompute all digests (destroys prod digest text/score fields; search can drift)
+#   skip              — never recompute (default). Preserve production digests for search parity.
+#   if-empty          — only backfill when digests appear empty after import
+#   if-epoch-changed  — backfill when the code's CURRENT_INGEST_COMPUTE_EPOCH differs from
+#                       the epoch stamped in the imported data (prevents stale roleYearsByType
+#                       after a code upgrade that changes the compute algorithm)
+#   always            — recompute all digests (destroys prod digest text/score fields; search can drift)
+# Note: skip is unsafe when a code upgrade follows the restore. The upgraded code
+# may compute roleYearsByType with a different algorithm (e.g. verified-only gate),
+# but the imported digests still carry the old production values. This causes
+# inconsistent search results — some rows match old digest logic, others new.
+# Use if-epoch-changed or always when restoring before an upgrade.
 DIGEST_BACKFILL_MODE="${DIGEST_BACKFILL_MODE:-skip}"
 DIGEST_IMPORTED_COUNT="$(unzip -l /tmp/prod-convex-export-fixed.zip 2>/dev/null | awk '/resume_digests\/documents\.jsonl/ {print $1; found=1} END{if(!found) print 0}' || echo 0)"
 # Heuristic: documents.jsonl size > 100 bytes means digests were exported
@@ -324,9 +332,29 @@ case "$DIGEST_BACKFILL_MODE" in
             should_backfill_digests=1
         fi
         ;;
+    if-epoch-changed)
+        # Record the code epoch at restore time. preview-upgrade.sh compares
+        # this marker against the post-upgrade epoch and rebuilds digests
+        # if they differ. This defers the rebuild decision to the upgrade
+        # script where the new code is already available.
+        CODE_EPOCH=0
+        if [ -f "$PREVIEW_DIR/packages/shared/dist/ingest-compute-epoch.js" ]; then
+            CODE_EPOCH="$(cd "$PREVIEW_DIR" && node -e \
+                "console.log(require('./packages/shared/dist/ingest-compute-epoch.js').CURRENT_INGEST_COMPUTE_EPOCH)" \
+                2>/dev/null || echo 0)"
+        elif [ -f "$PREVIEW_DIR/packages/shared/src/ingest-compute-epoch.ts" ]; then
+            CODE_EPOCH="$(cd "$PREVIEW_DIR" && npx tsx -e \
+                "process.stdout.write(String(require('./packages/shared/src/ingest-compute-epoch.ts').CURRENT_INGEST_COMPUTE_EPOCH))" \
+                2>/dev/null || echo 0)"
+        fi
+        echo "$CODE_EPOCH" > "$PREVIEW_DIR/.digest-restore-epoch"
+        echo "Recorded restore-time code epoch=$CODE_EPOCH in .digest-restore-epoch"
+        # Do not backfill now — preview-upgrade.sh will decide after code sync.
+        should_backfill_digests=0
+        ;;
     skip|never|0|false|no|"") should_backfill_digests=0 ;;
     *)
-        echo "Unknown DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE (use skip|if-empty|always)" >&2
+        echo "Unknown DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE (use skip|if-empty|if-epoch-changed|always)" >&2
         exit 2
         ;;
 esac
