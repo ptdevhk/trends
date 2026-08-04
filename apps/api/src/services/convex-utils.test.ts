@@ -91,7 +91,7 @@ describe("callConvexQuery", () => {
       text: async () => "server error",
     }));
 
-    await expect(callConvexQuery("resumes:list", {})).rejects.toThrow("Convex query failed (500)");
+    await expect(callConvexQuery("resumes:list", {})).rejects.toThrow("Convex query returned 500");
   });
 
   it("throws on Convex API error status", async () => {
@@ -154,7 +154,7 @@ describe("callConvexAction", () => {
       text: async () => "gateway timeout",
     }));
 
-    await expect(callConvexAction("analyze:analyzeResume", {})).rejects.toThrow("Convex action failed (502)");
+    await expect(callConvexAction("analyze:analyzeResume", {})).rejects.toThrow("Convex action returned 502");
   });
 
   it("throws with default message when no errorMessage provided", async () => {
@@ -164,5 +164,59 @@ describe("callConvexAction", () => {
     }));
 
     await expect(callConvexAction("analyze:analyzeResume", {})).rejects.toThrow("Convex action failed for analyze:analyzeResume");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Retry on transient 5xx / connection errors
+// ---------------------------------------------------------------------------
+
+describe("fetchWithRetry (via callConvexQuery)", () => {
+  it("retries on 5xx and succeeds on second attempt", async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, statusText: "Internal Server Error", text: async () => "server error" })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "success", value: "ok" }) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await callConvexQuery("resumes:list", {});
+    expect(result).toBe("ok");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries on connection reset (fetch throws) and succeeds on retry", async () => {
+    const mockFetch = vi.fn()
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "success", value: "ok" }) });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await callConvexQuery("resumes:list", {});
+    expect(result).toBe("ok");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry on 4xx responses", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      text: async () => "bad request",
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(callConvexQuery("resumes:list", {})).rejects.toThrow("Convex query failed (400)");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after 3 retries on persistent 5xx", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => "unavailable",
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(callConvexQuery("resumes:list", {})).rejects.toThrow("Convex query returned 503");
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 });
