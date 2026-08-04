@@ -463,12 +463,31 @@ PREV_CA="$(sqlite3 "$PREVIEW_DB" "SELECT count(*) FROM candidate_actions;")"
 echo "prod_candidate_actions=$PROD_CA preview_candidate_actions=$PREV_CA"
 [[ "$PROD_CA" == "$PREV_CA" ]] || { echo "FAIL: SQLite count mismatch"; exit 1; }
 
-curl -sS -o /dev/null -w "blocks=%{http_code}\n" --max-time 10 http://127.0.0.1:3002/api/blocks | tee /dev/stderr | grep -q 200
-curl -sS -o /dev/null -w "resumes=%{http_code}\n" --max-time 15 \
-  "http://127.0.0.1:3002/api/resumes?source=convex&paged=true&limit=1" | tee /dev/stderr | grep -q 200
+for endpoint in \
+  http://127.0.0.1:3002/api/blocks \
+  "http://127.0.0.1:3002/api/resumes?source=convex&paged=true&limit=1"; do
+  status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$endpoint")"
+  printf '%s=%s\n' "$endpoint" "$status"
+  # 200 is the legacy/open-API response; 401 means the protected route is
+  # reachable and auth is enforced. Neither response proves data parity.
+  [[ "$status" == 200 || "$status" == 401 ]] || {
+    echo "FAIL: preview endpoint returned $status" >&2
+    exit 1
+  }
+done
+
+# The authenticated parity gate is the data check: it requires production and
+# preview HR-demo login, authenticated 200 responses, and matching SQLite
+# candidate_actions counts. Search totals/status counts are compared too; a
+# data-only sync intentionally keeps preview's newer code, so a total mismatch
+# is a warning when API versions differ. Use PARITY_STRICT_SEARCH=1 (or pin
+# preview code to production) when exact search-semantic parity is required.
+bash deploy/preview-parity-check.sh
 ```
 
-**Stop if:** import errors, count mismatch, or API not 200.
+**Stop if:** import errors, count mismatch, an endpoint returns neither 200 nor
+401, or the authenticated parity check fails. A version-drift search warning
+is expected to be reviewed, not silently treated as identical behavior.
 
 ---
 

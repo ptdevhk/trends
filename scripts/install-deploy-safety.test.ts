@@ -428,6 +428,21 @@ describe("preview full-state restore", () => {
     expect(restorePreviewFullStateScript).toContain("/api/resumes?source=convex&paged=true&limit=1");
     expect(restorePreviewFullStateScript).not.toContain("ssh ");
   });
+
+  it("treats an auth-protected 401 as readiness, while leaving parity authenticated", () => {
+    const fullStateWait = extractShellFunction(restorePreviewFullStateScript, "wait_for_preview_api");
+    const fullStateVerify = extractShellFunction(restorePreviewFullStateScript, "verify_preview");
+    const convexRestoreWait = extractShellFunction(restorePreviewScript, "wait_for_preview_api");
+    const endpointCheck = extractShellFunction(restorePreviewScript, "check_preview_endpoint");
+
+    expect(fullStateWait).toContain("200|401");
+    expect(fullStateVerify).toContain('status" = "401"');
+    expect(convexRestoreWait).toContain("200|401");
+    expect(endpointCheck).toContain('status" = "401"');
+
+    expect(restorePreviewScript).toContain("authenticated parity is still required");
+    expect(restorePreviewFullStateScript).toContain("authenticated parity is still required");
+  });
 });
 
 describe("preview AI env sync", () => {
@@ -582,6 +597,12 @@ describe("preview release helpers", () => {
     expect(parityScript).toContain("candidate_actions");
     expect(parityScript).toContain("summary");
     expect(parityScript).toContain("PARITY OK");
+    expect(parityScript).toContain("Production AUTH_HR_DEMO_PASSWORD unset");
+    expect(parityScript).toContain("preview_auth_login_at");
+    expect(parityScript).toContain('fetch_summary_prod "$PROD_JAR"');
+    expect(parityScript).toContain('preview_auth_curl "$PROD_JAR" "$PROD_HR_WS"');
+    expect(parityScript).toContain("PARITY_STRICT_SEARCH");
+    expect(parityScript).toContain("API version drift");
   });
 });
 

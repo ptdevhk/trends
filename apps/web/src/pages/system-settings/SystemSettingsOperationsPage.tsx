@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -52,18 +52,18 @@ function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, 
   const [lastRun, setLastRun] = useState<{ status: string; operatorSummary?: string; triggerSource?: string; startedAt?: number } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const loadLastRun = async () => {
+  const loadLastRun = useCallback(async () => {
     try {
       const result = await requestJson('/api/company-industry-maintenance-runs?limit=1') as { items?: Array<{ status: string; operatorSummary?: string; triggerSource?: string; startedAt?: number }> }
       setLastRun(result?.items?.[0] ?? null)
     } catch (error) {
       reportUiError('Failed to load industry maintenance last run', error)
     }
-  }
+  }, [requestJson])
 
   useEffect(() => {
     void loadLastRun()
-  }, [])
+  }, [loadLastRun])
 
   const handleRunNow = async () => {
     setBusy(true)

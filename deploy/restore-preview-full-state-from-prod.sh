@@ -92,27 +92,40 @@ start_preview_api_on_error() {
 wait_for_preview_api() {
     local max_wait=120
     local waited=0
+    local status=""
 
     log "Waiting for preview API to become ready at $PREVIEW_API_URL..."
-    while ! curl -fsS "$PREVIEW_API_URL/" >/dev/null 2>&1; do
+    while true; do
+        if ! status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$PREVIEW_API_URL/" 2>/dev/null)"; then
+            status="000"
+        fi
+        case "$status" in
+            200|401)
+                log "Preview API ready after ${waited}s (http=$status)"
+                return 0
+                ;;
+        esac
         sleep 2
         waited=$((waited + 2))
         if [ "$waited" -ge "$max_wait" ]; then
-            echo "Preview API did not become ready after ${max_wait}s" >&2
+            echo "Preview API did not become ready after ${max_wait}s (last http=$status)" >&2
             systemctl status "$PREVIEW_API_SERVICE" --no-pager -l >&2 || true
             exit 1
         fi
     done
-    log "Preview API ready after ${waited}s"
 }
 
 check_endpoint() {
     local path="$1"
     local status=""
 
-    status="$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW_API_URL$path" || echo 000)"
+    if ! status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL$path" 2>/dev/null)"; then
+        status="000"
+    fi
     printf '%s: %s\n' "$path" "$status"
-    if [ "$status" != "200" ]; then
+    if [ "$status" = "401" ]; then
+        log "  -> auth enforced; unauthenticated readiness accepted (authenticated parity is still required)"
+    elif [ "$status" != "200" ]; then
         echo "Preview endpoint failed: $path returned $status" >&2
         exit 1
     fi
@@ -283,9 +296,15 @@ verify_preview() {
     local i=0
     local status="000"
     for i in $(seq 1 "$attempts"); do
-        status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL$path" || echo 000)"
+        if ! status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL$path" 2>/dev/null)"; then
+            status="000"
+        fi
         printf '  try %s %s → %s\n' "$i" "$path" "$status"
         if [ "$status" = "200" ]; then
+            return 0
+        fi
+        if [ "$status" = "401" ]; then
+            log "  -> auth enforced; unauthenticated readiness accepted (authenticated parity is still required)"
             return 0
         fi
         sleep 3

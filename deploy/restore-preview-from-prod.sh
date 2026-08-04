@@ -30,27 +30,40 @@ DIGEST_BACKFILL_BATCH_SIZE="${DIGEST_BACKFILL_BATCH_SIZE:-50}"
 wait_for_preview_api() {
     local max_wait=120
     local waited=0
+    local status=""
 
     echo "Waiting for preview API to become ready..."
-    while ! curl -fsS "$PREVIEW_API_URL/" >/dev/null 2>&1; do
+    while true; do
+        if ! status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$PREVIEW_API_URL/" 2>/dev/null)"; then
+            status="000"
+        fi
+        case "$status" in
+            200|401)
+                echo "Preview API ready after ${waited}s (http=$status)"
+                return 0
+                ;;
+        esac
         sleep 2
         waited=$((waited + 2))
         if [ "$waited" -ge "$max_wait" ]; then
-            echo "Preview API did not become ready after ${max_wait}s" >&2
+            echo "Preview API did not become ready after ${max_wait}s (last http=$status)" >&2
             systemctl status trends-preview-api --no-pager -l >&2 || true
             exit 1
         fi
     done
-    echo "Preview API ready after ${waited}s"
 }
 
 check_preview_endpoint() {
     local path="$1"
     local status=""
 
-    status="$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW_API_URL$path" || echo 000)"
+    if ! status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$PREVIEW_API_URL$path" 2>/dev/null)"; then
+        status="000"
+    fi
     printf '%s: %s\n' "$path" "$status"
-    if [ "$status" != "200" ]; then
+    if [ "$status" = "401" ]; then
+        echo "  -> auth enforced; unauthenticated readiness accepted (authenticated parity is still required)"
+    elif [ "$status" != "200" ]; then
         echo "Preview endpoint failed: $path returned $status" >&2
         exit 1
     fi
