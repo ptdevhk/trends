@@ -130,7 +130,11 @@ make check-project-skills
 
 ## Known Gotchas
 - `EMBEDDING_ENABLED` gates embedding/vector operations; default is OFF.
-- Protected `/dev/*` routes are authenticated. Use `bun run auth:bootstrap-demo` and sign in at `/dev/login` when needed.
+- Protected `/dev/*` routes are authenticated. Seed a local account with `npm run auth:bootstrap-demo` (or `npm run auth:bootstrap-hr-demo`) and sign in at `/dev/login`.
+- Never `bun run scripts/auth/manage-user.ts` directly — it opens SQLite via `better-sqlite3`, which the Bun runtime cannot load (`Fatal error: 'better-sqlite3' is not yet supported in Bun`). `bun run <npm-script>` is fine (the script shells out to `tsx` on Node); otherwise use `npx tsx scripts/auth/manage-user.ts ...` or `bunx tsx ...`.
+- `AUTH_BOOTSTRAP_PASSWORD` / `AUTH_HR_DEMO_PASSWORD` are **seed-time only**: read by `scripts/auth/manage-user.ts` and `deploy/preview-seed-auth.sh`, never by the login endpoint (`apps/api/src/routes/auth.ts` verifies against the stored scrypt hash in SQLite). Editing the env file does NOT change the stored password — re-run the seed to apply (idempotent upsert).
+- Local dev credentials are independent of preview: `hr-demo`'s local password is whatever the local seed used, not the preview bootstrap password. If in doubt, re-run the seed and restart the API.
+- Login lockout: 5 failed attempts per username+IP within 15 min → 15-min in-memory lock (`429 Account temporarily locked`, see `apps/api/src/middleware/login-rate-limit.ts`). Cleared by API restart or `POST /api/admin/auth/unlock`.
 - After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too.
 - After changing shared generated search-profile templates or YAML profiles, rebuild `@trends/shared`.
 - `make clear-resumes` may hit `OptimisticConcurrencyControlFailure`; rerun until `partial:false`.
