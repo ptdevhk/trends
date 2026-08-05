@@ -1589,15 +1589,17 @@ export const listIndustryProposals = query({
   args: {
     writeSecret: v.optional(v.string()),
     status: v.optional(industryProposalStatusValidator),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     requireReadSecret(args.writeSecret);
+    const maxLimit = args.limit ?? 500;
     const rows = args.status
       ? await ctx.db
           .query("company_industry_review_proposals")
           .withIndex("by_status_priority", (q) => q.eq("status", args.status!))
-          .collect()
-      : await ctx.db.query("company_industry_review_proposals").collect();
+          .take(maxLimit)
+      : await ctx.db.query("company_industry_review_proposals").take(maxLimit);
     return rows.sort(
       (left, right) =>
         right.priority - left.priority ||
