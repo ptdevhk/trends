@@ -483,6 +483,8 @@ remote-backup-prod:
 	ssh -f -N -L "$$TUNNEL_PORT:127.0.0.1:3000" "$$SSH_HOST" || { echo "ssh tunnel failed"; exit 1; }; \
 	trap "kill $$(lsof -ti:$$TUNNEL_PORT) 2>/dev/null || true" EXIT; \
 	API_URL="http://127.0.0.1:$$TUNNEL_PORT" WORKSPACE="$$WORKSPACE" OUT="$$OUT" \
+		TRENDS_AUTH_USERNAME="$${TRENDS_AUTH_USERNAME:-}" \
+		TRENDS_AUTH_PASSWORD="$${TRENDS_AUTH_PASSWORD:-}" \
 		$(MAKE) --no-print-directory backup-resumes
 
 backup-prod: remote-backup-prod
@@ -495,7 +497,10 @@ local-restore-from-prod:
 	@echo "→ clearing dev resumes (loop until partial:false)"
 	@while $(MAKE) --no-print-directory clear-resumes 2>&1 | tee /tmp/clear-resumes.out | grep -q '"partial": true'; do :; done
 	@$(MAKE) --no-print-directory restore-resumes FILE="$(FILE)" MODE=replace YES=1 \
-		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}"
+		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}" \
+		TRENDS_AUTH_USERNAME="$${TRENDS_AUTH_USERNAME:-}" \
+		TRENDS_AUTH_PASSWORD="$${TRENDS_AUTH_PASSWORD:-}" \
+		SKIP_AUTO_BACKUP="$${SKIP_AUTO_BACKUP:-1}"
 	@echo "→ backfilling derived fields and resume digests"
 	@$(MAKE) --no-print-directory backfill-derived-fields
 	@echo "→ checking derived field coverage"

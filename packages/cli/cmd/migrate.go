@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -149,7 +150,13 @@ func newMigrateValidateConsistencyCmd() *cobra.Command {
 				}
 				extraArgs = append(extraArgs, string(payload))
 			}
-			output, err := runConvexCommand(context.Background(), migrationValidateConsistency, extraArgs...)
+			// validateDataConsistency processes all resumes and can take >5min
+			// for large datasets (8K+ resumes). Use a 15min timeout to avoid
+			// the npx convex run default ~5min action timeout killing the
+			// process before the migration completes.
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+			output, err := runConvexCommand(ctx, migrationValidateConsistency, extraArgs...)
 			if err != nil {
 				return err
 			}
