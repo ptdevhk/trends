@@ -109,3 +109,4 @@ resume-backup-*.json
 .env*.bak.*
 *.env.bak.*
 .worktrees
+uat-search-results.yml
