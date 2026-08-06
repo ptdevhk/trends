@@ -36,6 +36,7 @@ import type { paths } from '@/lib/api-types'
 import { cn } from '@/lib/utils'
 import {
   selectPrimaryIndustryEvidence,
+  getOfficialSiteUrl,
 } from '@/components/industry-evidence/industry-evidence'
 
 const sourceTypeLabels: Record<
@@ -324,6 +325,40 @@ function IndustryEvidenceSourceChip({
   )
 }
 
+/**
+ * Small clickable external-link anchor that opens the company's official
+ * homepage in a new tab. Rendered alongside the verified badge in work
+ * history lists so recruiters can jump directly to the company site.
+ */
+export function OfficialSiteLink({
+  url,
+  companyName,
+  className,
+}: {
+  url: string
+  companyName: string
+  className?: string
+}) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open official website for ${companyName}`}
+      title={url}
+      onClick={stopCardInteraction}
+      className={cn(
+        'inline-flex items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 shadow-sm transition-colors',
+        'hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1',
+        'h-5 w-5 shrink-0',
+        className,
+      )}
+    >
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
+  )
+}
+
 export function VerifiedCompanyBadge({
   summary,
   onCompanyClick,
@@ -343,50 +378,67 @@ export function VerifiedCompanyBadge({
   const verificationPathExplanation = summary.reviewedBy
     ? `Human-verified by ${summary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${summary.sourceCount} approved evidence source(s).`
     : `Auto-verified ${indLabel} industry employer based on ${summary.sourceCount} corroborating evidence source(s).`
+  const officialSiteUrl = getOfficialSiteUrl(summary)
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge
-            className={cn(
-              'inline-flex items-center gap-0.5 border border-emerald-700 bg-emerald-700 text-white text-[10px] py-0 px-1.5 font-medium transition-colors shrink-0',
-              onCompanyClick ? 'cursor-pointer hover:bg-emerald-800' : 'cursor-help hover:bg-emerald-800',
-              className,
-            )}
-            onClick={(e) => {
-              if (onCompanyClick) {
-                e.stopPropagation()
-                onCompanyClick(summary.companyName)
-              }
-            }}
-          >
-            <Check className="h-3 w-3" aria-hidden="true" />
-            {badgeLabel}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs p-3 text-xs bg-slate-900 text-white space-y-1.5 shadow-xl">
-          <div className="flex items-center justify-between border-b border-white/20 pb-1 gap-2">
-            <span className="font-semibold text-emerald-400">{summary.companyName}</span>
-            <Badge variant="outline" className="border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[10px]">
+    <div className="inline-flex items-center gap-1 shrink-0">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              className={cn(
+                'inline-flex items-center gap-0.5 border border-emerald-700 bg-emerald-700 text-white text-[10px] py-0 px-1.5 font-medium transition-colors shrink-0',
+                onCompanyClick ? 'cursor-pointer hover:bg-emerald-800' : 'cursor-help hover:bg-emerald-800',
+                className,
+              )}
+              onClick={(e) => {
+                if (onCompanyClick) {
+                  e.stopPropagation()
+                  onCompanyClick(summary.companyName)
+                }
+              }}
+            >
+              <Check className="h-3 w-3" aria-hidden="true" />
               {badgeLabel}
             </Badge>
-          </div>
-          <p>{verificationPathExplanation}</p>
-          {summary.evidenceSummary ? (
-            <p className="text-[11px] text-slate-300 line-clamp-2">
-              {summary.evidenceSummary}
-            </p>
-          ) : null}
-          {onCompanyClick ? (
-            <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
-              <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              Click to filter candidate search by this company
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs p-3 text-xs bg-slate-900 text-white space-y-1.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-white/20 pb-1 gap-2">
+              <span className="font-semibold text-emerald-400">{summary.companyName}</span>
+              <Badge variant="outline" className="border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[10px]">
+                {badgeLabel}
+              </Badge>
             </div>
-          ) : null}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+            <p>{verificationPathExplanation}</p>
+            {summary.evidenceSummary ? (
+              <p className="text-[11px] text-slate-300 line-clamp-2">
+                {summary.evidenceSummary}
+              </p>
+            ) : null}
+            {officialSiteUrl ? (
+              <a
+                href={officialSiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1 hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                {officialSiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            ) : null}
+            {onCompanyClick ? (
+              <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                Click to filter candidate search by this company
+              </div>
+            ) : null}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {officialSiteUrl ? (
+        <OfficialSiteLink url={officialSiteUrl} companyName={summary.companyName} />
+      ) : null}
+    </div>
   )
 }
 
@@ -422,6 +474,7 @@ export function IndustryEvidenceSummary({
   const verificationPathExplanation = primary.reviewedBy
     ? `Human-verified by ${primary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${primary.sourceCount} approved evidence source(s).`
     : `Auto-verified ${indLabel} industry employer based on ${primary.sourceCount} corroborating evidence source(s).`
+  const primaryOfficialSiteUrl = getOfficialSiteUrl(primary)
 
   return (
     <section
@@ -497,6 +550,17 @@ export function IndustryEvidenceSummary({
                   </div>
                 ) : null}
               </div>
+              {primaryOfficialSiteUrl ? (
+                <a
+                  href={primaryOfficialSiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  {primaryOfficialSiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                </a>
+              ) : null}
               {onCompanyClick ? (
                 <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -506,6 +570,10 @@ export function IndustryEvidenceSummary({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
+        {primaryOfficialSiteUrl ? (
+          <OfficialSiteLink url={primaryOfficialSiteUrl} companyName={primary.companyName} />
+        ) : null}
 
         {typeof primary.verifiedYears === 'number' && primary.verifiedYears > 0 ? (
           <TooltipProvider>
@@ -612,6 +680,7 @@ export function IndustryEvidenceDetail({
       {approvedSummaries.map((summary) => {
         const refreshStatus = refreshStatuses[summary.verdictRevisionId] ?? 'idle'
         const reviewDate = formatDate(summary.reviewedAt)
+        const detailOfficialSiteUrl = getOfficialSiteUrl(summary)
         return (
           <article
             key={summary.verdictRevisionId}
@@ -625,6 +694,17 @@ export function IndustryEvidenceDetail({
                     {industryLabel(summary.industryClass)} 行业验证
                   </Badge>
                   <span className="font-semibold text-slate-950">{summary.companyName}</span>
+                  {detailOfficialSiteUrl ? (
+                    <a
+                      href={detailOfficialSiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      {detailOfficialSiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  ) : null}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
                   {summary.evidenceSummary}

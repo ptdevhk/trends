@@ -251,6 +251,23 @@ export function selectPrimaryIndustryEvidence(
   }
 }
 
+/**
+ * Derive the official company homepage URL from the evidence source previews.
+ *
+ * Sources are sorted by trust tier (primary first) then source type rank
+ * (official_site = 0), so an official_site source is guaranteed to be in the
+ * bounded previews slice when one exists. Returns the first match, or
+ * undefined when no official_site source is available.
+ */
+export function getOfficialSiteUrl(
+  summary: Pick<VerifiedIndustryEvidenceSummary, 'sourcePreviews'>,
+): string | undefined {
+  const officialSource = summary.sourcePreviews.find(
+    (source) => source.sourceType === 'official_site',
+  )
+  return officialSource?.url
+}
+
 export function normalizeCompanyNameForMatching(name: string | undefined): string {
   if (!name || !name.trim()) {
     return ''

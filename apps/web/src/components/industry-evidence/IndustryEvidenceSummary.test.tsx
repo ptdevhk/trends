@@ -6,7 +6,7 @@ import {
   IndustryEvidenceSummary,
   VerifiedCompanyBadge,
 } from '@/components/industry-evidence/IndustryEvidenceSummary'
-import { findVerifiedIndustrySummaryForCompany } from '@/components/industry-evidence/industry-evidence'
+import { findVerifiedIndustrySummaryForCompany, getOfficialSiteUrl } from '@/components/industry-evidence/industry-evidence'
 import { rawApiClient } from '@/lib/api-helpers'
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -163,6 +163,34 @@ describe('VerifiedCompanyBadge', () => {
 
     const noMatch = findVerifiedIndustrySummaryForCompany('Unknown Corp', testSummaries)
     expect(noMatch).toBeUndefined()
+  })
+
+  it('renders an official site link when an official_site source preview exists', () => {
+    render(<VerifiedCompanyBadge summary={summaries[0]} />)
+    const officialLink = screen.getByRole('link', { name: /Open official website for Acme CNC/i })
+    expect(officialLink).toHaveAttribute('href', 'https://acme.example/about')
+    expect(officialLink).toHaveAttribute('target', '_blank')
+    expect(officialLink).toHaveAttribute('rel', expect.stringContaining('noopener'))
+  })
+
+  it('does not render an official site link when no official_site source preview exists', () => {
+    // summaries[1] (Beta CNC) has empty sourcePreviews
+    render(<VerifiedCompanyBadge summary={summaries[1]} />)
+    expect(screen.queryByRole('link', { name: /Open official website/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('getOfficialSiteUrl', () => {
+  it('extracts the URL from an official_site source preview', () => {
+    expect(getOfficialSiteUrl(summaries[0])).toBe('https://acme.example/about')
+  })
+
+  it('returns undefined when no official_site source preview exists', () => {
+    expect(getOfficialSiteUrl(summaries[1])).toBeUndefined()
+  })
+
+  it('returns undefined for empty source previews', () => {
+    expect(getOfficialSiteUrl({ sourcePreviews: [] })).toBeUndefined()
   })
 })
 
