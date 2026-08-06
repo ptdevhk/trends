@@ -407,6 +407,7 @@
       "manager": "管理"
     },
     "card": {
+      "industryVerifiedBadge": "{{industry}} 產業驗證",
       "industryVerifiedSuffix": "（產業驗證）",
       "relatedYears": "相關年限：{{years}}",
       "industryVerified": "產業驗證：{{years}}",

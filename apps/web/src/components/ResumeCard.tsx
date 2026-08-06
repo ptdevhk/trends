@@ -45,9 +45,10 @@ import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
-import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
 import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
 import {
+  findVerifiedIndustrySummaryForCompany,
   getRoleSignalApprovedIndustryYears,
   getRoleSignalIndustryEvidenceProvenance,
   getVerifiedIndustryEvidenceSummaries,
@@ -637,6 +638,7 @@ export const ResumeCard = memo(function ResumeCard({
           <IndustryEvidenceSummary
             summaries={verifiedIndustryEvidenceSummaries}
             preferredRoleTypes={activeRoleFilterType ? [activeRoleFilterType] : undefined}
+            onCompanyClick={onCompanyClick}
           />
         </div>
       ) : null}
@@ -830,14 +832,27 @@ export const ResumeCard = memo(function ResumeCard({
 
         {workHistory.length > 0 ? (
           <div className="min-w-0 space-y-1 text-sm lg:w-[420px]">
-            {workHistory.map(({ item, text }, index) => (
-              <div key={`${resume.name}-${index}`} className="flex gap-2">
-                <span className="text-muted-foreground">●</span>
-                <span className="truncate" title={item.raw || text}>
-                  {text}
-                </span>
-              </div>
-            ))}
+            {workHistory.map(({ item, text }, index) => {
+              const verifiedSummary = findVerifiedIndustrySummaryForCompany(
+                item.companyName,
+                verifiedIndustryEvidenceSummaries,
+                { roleSignals: roleSignals ?? resume.ingestData?.roleSignals, jobTitle: item.jobTitle, rawText: text },
+              )
+              return (
+                <div key={`${resume.name}-${index}`} className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-muted-foreground shrink-0">●</span>
+                  <span className="truncate" title={item.raw || text}>
+                    {text}
+                  </span>
+                  {verifiedSummary ? (
+                    <VerifiedCompanyBadge
+                      summary={verifiedSummary}
+                      onCompanyClick={onCompanyClick}
+                    />
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         ) : null}
       </div>

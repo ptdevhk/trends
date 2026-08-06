@@ -34,8 +34,8 @@ import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
-import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
-import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
+import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { findVerifiedIndustrySummaryForCompany, getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -444,14 +444,26 @@ export const SnippetCard = memo(function SnippetCard({
         {/* Work history column */}
         {workHistory.length > 0 ? (
           <div className="min-w-0 space-y-1 text-sm lg:w-[420px]">
-            {workHistory.map(({ entry, text }, index) => (
-              <div key={`${item.key}-wh-${index}`} className="flex gap-2">
-                <span className="text-muted-foreground">●</span>
-                <span className="truncate" title={entry.raw || text}>
-                  {text}
-                </span>
-              </div>
-            ))}
+            {workHistory.map(({ entry, text }, index) => {
+              const verifiedSummary = findVerifiedIndustrySummaryForCompany(
+                entry.companyName,
+                verifiedIndustryEvidenceSummaries,
+                { roleSignals: item.resume.ingestData?.roleSignals, jobTitle: entry.jobTitle, rawText: text },
+              )
+              return (
+                <div key={`${item.key}-wh-${index}`} className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-muted-foreground shrink-0">●</span>
+                  <span className="truncate" title={entry.raw || text}>
+                    {text}
+                  </span>
+                  {verifiedSummary ? (
+                    <VerifiedCompanyBadge
+                      summary={verifiedSummary}
+                    />
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         ) : null}
       </div>

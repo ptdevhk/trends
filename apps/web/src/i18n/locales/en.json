@@ -408,6 +408,7 @@
       "manager": "Management"
     },
     "card": {
+      "industryVerifiedBadge": "{{industry}} Verified",
       "industryVerifiedSuffix": " (Industry verified)",
       "relatedYears": "Related years: {{years}}",
       "industryVerified": "Industry verified: {{years}}",

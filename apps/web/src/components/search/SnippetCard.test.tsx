@@ -186,7 +186,7 @@ describe('SnippetCard', () => {
       />,
     )
 
-    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
     expect(screen.getByText('Human-approved CNC machinery evidence.')).toBeInTheDocument()
   })
 

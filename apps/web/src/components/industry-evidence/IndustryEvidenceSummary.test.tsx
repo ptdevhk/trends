@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   IndustryEvidenceDetail,
   IndustryEvidenceSummary,
+  VerifiedCompanyBadge,
 } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { findVerifiedIndustrySummaryForCompany } from '@/components/industry-evidence/industry-evidence'
 import { rawApiClient } from '@/lib/api-helpers'
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -58,11 +60,28 @@ describe('IndustryEvidenceSummary', () => {
   it('shows one compact approved summary and the additional employer count', () => {
     render(<IndustryEvidenceSummary summaries={summaries} preferredRoleTypes={['sales']} />)
 
-    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
     expect(screen.getByText('Acme CNC')).toBeInTheDocument()
     expect(screen.getByText('Known CNC company confirmed by approved official evidence.')).toBeInTheDocument()
     expect(screen.getByText('+1 verified employer')).toBeInTheDocument()
     expect(screen.queryByText('Beta CNC')).not.toBeInTheDocument()
+  })
+
+  it('triggers onCompanyClick when company name is clicked', async () => {
+    const user = userEvent.setup()
+    const handleCompanyClick = vi.fn()
+
+    render(
+      <IndustryEvidenceSummary
+        summaries={summaries.slice(0, 1)}
+        onCompanyClick={handleCompanyClick}
+      />
+    )
+
+    const companyButton = screen.getByRole('button', { name: /Acme CNC/i })
+    await user.click(companyButton)
+
+    expect(handleCompanyClick).toHaveBeenCalledWith('Acme CNC')
   })
 
   it('opens a source preview by hover, focus, and tap and dismisses it safely', async () => {
@@ -90,6 +109,60 @@ describe('IndustryEvidenceSummary', () => {
     expect(await screen.findByRole('dialog', { name: 'About Acme' })).toBeInTheDocument()
     await user.click(sourceChip)
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'About Acme' })).not.toBeInTheDocument())
+  })
+})
+
+describe('VerifiedCompanyBadge', () => {
+  it('renders inline badge for verified company in work history list', () => {
+    render(<VerifiedCompanyBadge summary={summaries[0]} />)
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
+  })
+
+  it('correctly matches company names using findVerifiedIndustrySummaryForCompany', () => {
+    const lionapexSummary = {
+      companyKey: 'lionapex-equipment-m-sdn-bhd',
+      companyName: 'Lionapex Equipment (M) Sdn. Bhd.',
+      industryClass: 'cnc' as const,
+      verificationLevel: 'verified' as const,
+      verdictRevisionId: 'revision-3',
+      evidenceSummary: 'CNC machinery supplier.',
+      reviewedAt: Date.UTC(2026, 6, 20),
+      sourceCount: 1,
+      sourcePreviews: [],
+      additionalSourceCount: 0,
+    }
+    const testSummaries = [...summaries, lionapexSummary]
+
+    // Exact string match with dot variation: "Lionapex Equipment (M) Sdn Bhd" vs "Lionapex Equipment (M) Sdn. Bhd."
+    const matchLionapex = findVerifiedIndustrySummaryForCompany('Lionapex Equipment (M) Sdn Bhd', testSummaries)
+    expect(matchLionapex?.companyKey).toBe('lionapex-equipment-m-sdn-bhd')
+
+    // Role signals fallback match
+    const matchViaSignal = findVerifiedIndustrySummaryForCompany(
+      'Lionapex Equipment',
+      testSummaries,
+      {
+        roleSignals: [{
+          matchedWorkEntries: [{
+            companyKey: 'lionapex-equipment-m-sdn-bhd',
+            companyName: 'Lionapex Equipment (M) Sdn. Bhd.',
+            years: 5,
+            matchedSignals: ['cnc'],
+            industryVerified: true,
+          }],
+        }],
+      },
+    )
+    expect(matchViaSignal?.companyKey).toBe('lionapex-equipment-m-sdn-bhd')
+
+    const match1 = findVerifiedIndustrySummaryForCompany('Acme CNC Co.', testSummaries)
+    expect(match1?.companyKey).toBe('acme-cnc')
+
+    const match2 = findVerifiedIndustrySummaryForCompany('Beta CNC Ltd.', testSummaries)
+    expect(match2?.companyKey).toBe('beta-cnc')
+
+    const noMatch = findVerifiedIndustrySummaryForCompany('Unknown Corp', testSummaries)
+    expect(noMatch).toBeUndefined()
   })
 })
 

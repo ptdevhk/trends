@@ -1,4 +1,5 @@
 import {
+  Building2,
   Check,
   ExternalLink,
   FileCheck2,
@@ -21,8 +22,15 @@ import type {
   IndustryEvidenceTrustTier,
   VerifiedIndustryEvidenceSummary,
 } from '@trends/shared'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { paths } from '@/lib/api-types'
 import { cn } from '@/lib/utils'
@@ -316,15 +324,84 @@ function IndustryEvidenceSourceChip({
   )
 }
 
+export function VerifiedCompanyBadge({
+  summary,
+  onCompanyClick,
+  className,
+}: {
+  summary: VerifiedIndustryEvidenceSummary
+  onCompanyClick?: (companyName: string) => void
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const indLabel = industryLabel(summary.industryClass)
+  const badgeLabel = t('resumes.card.industryVerifiedBadge', {
+    industry: indLabel,
+    defaultValue: `${indLabel} Verified`,
+  })
+  const reviewedDate = formatDate(summary.reviewedAt)
+  const verificationPathExplanation = summary.reviewedBy
+    ? `Human-verified by ${summary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${summary.sourceCount} approved evidence source(s).`
+    : `Auto-verified ${indLabel} industry employer based on ${summary.sourceCount} corroborating evidence source(s).`
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            className={cn(
+              'inline-flex items-center gap-0.5 border border-emerald-700 bg-emerald-700 text-white text-[10px] py-0 px-1.5 font-medium transition-colors shrink-0',
+              onCompanyClick ? 'cursor-pointer hover:bg-emerald-800' : 'cursor-help hover:bg-emerald-800',
+              className,
+            )}
+            onClick={(e) => {
+              if (onCompanyClick) {
+                e.stopPropagation()
+                onCompanyClick(summary.companyName)
+              }
+            }}
+          >
+            <Check className="h-3 w-3" aria-hidden="true" />
+            {badgeLabel}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs p-3 text-xs bg-slate-900 text-white space-y-1.5 shadow-xl">
+          <div className="flex items-center justify-between border-b border-white/20 pb-1 gap-2">
+            <span className="font-semibold text-emerald-400">{summary.companyName}</span>
+            <Badge variant="outline" className="border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[10px]">
+              {badgeLabel}
+            </Badge>
+          </div>
+          <p>{verificationPathExplanation}</p>
+          {summary.evidenceSummary ? (
+            <p className="text-[11px] text-slate-300 line-clamp-2">
+              {summary.evidenceSummary}
+            </p>
+          ) : null}
+          {onCompanyClick ? (
+            <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              Click to filter candidate search by this company
+            </div>
+          ) : null}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 export function IndustryEvidenceSummary({
   summaries,
   preferredRoleTypes,
+  onCompanyClick,
   className,
 }: {
   summaries: readonly unknown[]
   preferredRoleTypes?: readonly string[]
+  onCompanyClick?: (companyName: string) => void
   className?: string
 }) {
+  const { t } = useTranslation()
   const selection = selectPrimaryIndustryEvidence(summaries, {
     preferredRoleTypes,
   })
@@ -337,27 +414,115 @@ export function IndustryEvidenceSummary({
   const employerSuffix = additionalVerifiedEmployerCount === 1
     ? 'verified employer'
     : 'verified employers'
+  const indLabel = industryLabel(primary.industryClass)
+  const badgeLabel = t('resumes.card.industryVerifiedBadge', {
+    industry: indLabel,
+    defaultValue: `${indLabel} Verified`,
+  })
+  const verificationPathExplanation = primary.reviewedBy
+    ? `Human-verified by ${primary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${primary.sourceCount} approved evidence source(s).`
+    : `Auto-verified ${indLabel} industry employer based on ${primary.sourceCount} corroborating evidence source(s).`
 
   return (
     <section
       aria-label={`Approved industry evidence for ${primary.companyName}`}
       className={cn(
-        'rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/80 to-white px-3 py-2.5',
+        'rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white px-3.5 py-2.5 shadow-sm transition-all',
         className,
       )}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <Badge className="border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-700">
-          <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          {industryLabel(primary.industryClass)} 行业验证
-        </Badge>
-        <span className="text-sm font-semibold text-slate-950">
-          {primary.companyName}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge className="cursor-help border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 transition-colors">
+                <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                {badgeLabel}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs p-3 text-xs bg-slate-900 text-white space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-emerald-400 border-b border-white/20 pb-1 mb-1">
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                {indLabel} Industry Verification Status
+              </div>
+              <p>{verificationPathExplanation}</p>
+              <p className="text-[11px] text-slate-300 italic">
+                Confirms registered manufacturing & enterprise capabilities for candidate search filtering.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                role={onCompanyClick ? 'button' : undefined}
+                className={cn(
+                  'text-sm font-semibold text-slate-950 flex items-center gap-1 rounded px-1 -mx-1 transition-colors',
+                  onCompanyClick ? 'cursor-pointer hover:text-emerald-800 hover:bg-emerald-100/60' : 'cursor-help hover:bg-emerald-100/50',
+                )}
+                onClick={(e) => {
+                  if (onCompanyClick) {
+                    e.stopPropagation()
+                    onCompanyClick(primary.companyName)
+                  }
+                }}
+              >
+                <Building2 className="h-3.5 w-3.5 text-emerald-700 shrink-0" aria-hidden="true" />
+                {primary.companyName}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm p-3 text-xs bg-slate-900 text-white space-y-1.5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/20 pb-1.5 gap-2">
+                <span className="font-semibold text-emerald-400 text-sm">{primary.companyName}</span>
+                <Badge variant="outline" className="border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[10px]">
+                  {primary.companyKey}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                <div>
+                  <span className="text-slate-400">Industry:</span>{' '}
+                  <span className="font-medium text-slate-200">{indLabel}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400">Approved Sources:</span>{' '}
+                  <span className="font-medium text-slate-200">{primary.sourceCount}</span>
+                </div>
+                {primary.roleTypes && primary.roleTypes.length > 0 ? (
+                  <div className="col-span-2">
+                    <span className="text-slate-400">Relevant Roles:</span>{' '}
+                    <span className="font-medium text-slate-200 capitalize">{primary.roleTypes.join(', ')}</span>
+                  </div>
+                ) : null}
+              </div>
+              {onCompanyClick ? (
+                <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  Click to filter candidate search by this company
+                </div>
+              ) : null}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         {typeof primary.verifiedYears === 'number' && primary.verifiedYears > 0 ? (
-          <span className="text-xs font-medium text-emerald-800">
-            {primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} verified years
-          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help text-xs font-medium text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                  {primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} verified years
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="p-2.5 text-xs bg-slate-900 text-white max-w-xs">
+                <p className="font-semibold text-emerald-400 mb-0.5">Verified Experience Duration</p>
+                <p>
+                  Calculated from {primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} years of candidate work history at this confirmed {indLabel} industry employer.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
       </div>
       <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">
