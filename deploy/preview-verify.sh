@@ -170,17 +170,22 @@ json_value() {
     # json_value <json> <python expression on parsed object>
     # e.g. json_value "$body" "d['summary']['total']"
     local json="$1" expr="$2"
-    JSON_BODY="$json" python3 -c '
+    local tmpf
+    tmpf="$(mktemp)"
+    printf '%s' "$json" > "$tmpf"
+    python3 -c '
 import json, os, sys
 try:
-    d = json.loads(os.environ["JSON_BODY"])
+    with open(sys.argv[1], "r") as f:
+        d = json.load(f)
 except Exception:
     sys.exit(1)
 try:
-    print(eval(sys.argv[1]))
+    print(eval(sys.argv[2]))
 except Exception:
     sys.exit(1)
-' "$expr" 2>/dev/null || true
+' "$tmpf" "$expr" 2>/dev/null || true
+    rm -f "$tmpf"
 }
 
 # ---------------------------------------------------------------------------
@@ -454,10 +459,14 @@ if [[ -n "${AUTH_HR_DEMO_PASSWORD:-}" ]] && type preview_auth_curl >/dev/null 2>
 
     # Verify at least one result carries industryVerified work-history evidence
     # (field lives at data[].ingestData.roleSignals[].matchedWorkEntries[].industryVerified)
-    INDUSTRY_VERIFIED="$(JSON_BODY="$MY_BODY" python3 -c '
+    local iv_tmpf
+    iv_tmpf="$(mktemp)"
+    printf '%s' "$MY_BODY" > "$iv_tmpf"
+    INDUSTRY_VERIFIED="$(python3 -c '
 import json, os, sys
 try:
-    d = json.loads(os.environ["JSON_BODY"])
+    with open(sys.argv[1], "r") as f:
+        d = json.load(f)
 except Exception:
     sys.exit(0)
 count = 0
@@ -467,7 +476,8 @@ for item in d.get("data") or []:
             if entry.get("industryVerified") is True:
                 count += 1
 print(count)
-' 2>/dev/null || echo 0)"
+' "$iv_tmpf" 2>/dev/null || echo 0)"
+    rm -f "$iv_tmpf"
     if [[ -n "$INDUSTRY_VERIFIED" && "$INDUSTRY_VERIFIED" =~ ^[0-9]+$ && "$INDUSTRY_VERIFIED" -gt 0 ]]; then
         _ok "industryVerified work-history entries found in MY results ($INDUSTRY_VERIFIED)"
     else
