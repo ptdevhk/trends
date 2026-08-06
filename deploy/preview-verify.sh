@@ -459,9 +459,8 @@ if [[ -n "${AUTH_HR_DEMO_PASSWORD:-}" ]] && type preview_auth_curl >/dev/null 2>
 
     # Verify at least one result carries industryVerified work-history evidence
     # (field lives at data[].ingestData.roleSignals[].matchedWorkEntries[].industryVerified)
-    local iv_tmpf
-    iv_tmpf="$(mktemp)"
-    printf '%s' "$MY_BODY" > "$iv_tmpf"
+    IV_TMPF="$(mktemp)"
+    printf '%s' "$MY_BODY" > "$IV_TMPF"
     INDUSTRY_VERIFIED="$(python3 -c '
 import json, os, sys
 try:
@@ -476,8 +475,8 @@ for item in d.get("data") or []:
             if entry.get("industryVerified") is True:
                 count += 1
 print(count)
-' "$iv_tmpf" 2>/dev/null || echo 0)"
-    rm -f "$iv_tmpf"
+' "$IV_TMPF" 2>/dev/null || echo 0)"
+    rm -f "$IV_TMPF"
     if [[ -n "$INDUSTRY_VERIFIED" && "$INDUSTRY_VERIFIED" =~ ^[0-9]+$ && "$INDUSTRY_VERIFIED" -gt 0 ]]; then
         _ok "industryVerified work-history entries found in MY results ($INDUSTRY_VERIFIED)"
     else
