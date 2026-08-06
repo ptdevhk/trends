@@ -15,6 +15,7 @@ from apps.worker.web_research.search import (
 
 _WEB_RESEARCH_ENV_KEYS = [
     "WEB_RESEARCH_ENABLED",
+    "WEB_RESEARCH_MARKET",
     "TAVILY_API_KEY",
     "BRAVE_API_KEY",
     "FIRECRAWL_API_KEY",

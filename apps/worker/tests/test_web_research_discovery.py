@@ -430,7 +430,7 @@ class _MaintenanceFakeClient:
         self.upserted = []
         self.states = []
         self.due = []
-    def list_industry_proposals(self, status=None):
+    def list_industry_proposals(self, status=None, limit=None):
         if status == "new":
             return [{
                 "proposalId": "p-1",
@@ -708,7 +708,7 @@ def test_reenrichment_demotes_homepage_content_candidates():
                 "fetchStatus": "fetched",
             }]
             self.status_calls = []
-        def list_industry_proposals(self, status):
+        def list_industry_proposals(self, status, limit=None):
             if status == "needs_more_evidence":
                 return [{
                     "proposalId": "p-sp",

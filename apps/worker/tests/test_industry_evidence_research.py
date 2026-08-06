@@ -44,7 +44,7 @@ class FakeIndustryClient:
             None,
         )
 
-    def list_industry_proposals(self, status=None):
+    def list_industry_proposals(self, status=None, limit=None):
         return list(self.proposals)
 
     def set_industry_proposal_research_state(self, payload):
