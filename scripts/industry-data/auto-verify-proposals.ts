@@ -50,6 +50,8 @@ type EvidenceSource = {
   proposalId?: string;
   reviewStatus?: string;
   trustTier?: string;
+  fetchStatus?: string;
+  sourceState?: string;
   updatedAt: number;
 };
 
@@ -203,13 +205,21 @@ async function main() {
       continue;
     }
 
-    // Filter to non-discovery sources with content
+    // Filter to approval-safe sources:
+    // - Must be non-discovery trust tier (primary or corroborating)
+    // - Must be successfully fetched (not failed)
+    // - Must not be rejected/disputed
     const approvableSources = sources.filter(
-      (s) => s.trustTier !== "discovery" && s.reviewStatus !== "rejected",
+      (s) =>
+        s.trustTier !== "discovery" &&
+        s.reviewStatus !== "rejected" &&
+        s.reviewStatus !== "disputed" &&
+        s.fetchStatus !== "failed" &&
+        s.sourceState === "active",
     );
 
     if (approvableSources.length === 0) {
-      console.log("⚠ Skipped: only discovery-tier sources");
+      console.log("⚠ Skipped: no approval-safe sources (need fetched primary/corroborating)");
       skipped++;
       continue;
     }
