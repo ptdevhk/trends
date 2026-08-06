@@ -13,7 +13,11 @@
  *   npx tsx scripts/industry-data/corpus-fast-track.ts            # dry run
  *   npx tsx scripts/industry-data/corpus-fast-track.ts --apply    # write
  */
-import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { parseArgs } from "node:util";
 
 // ---------------------------------------------------------------------------
@@ -92,6 +96,98 @@ function getWriteSecret(): string {
     if (match) return match[1].trim();
   }
   throw new Error("CONVEX_WRITE_SECRET not found (set env or packages/convex/.env.local)");
+}
+
+/**
+ * Run a Convex function via `npx convex run` from the packages/convex directory.
+ * Args are written to a temp file and read via $(cat) to avoid shell escaping
+ * issues with proposalIds containing slashes.
+ */
+async function convexRun<T>(
+  functionName: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const tmpDir = mkdtempSync(path.join(tmpdir(), "convex-run-"));
+  try {
+    const tmpFile = path.join(tmpDir, "args.json");
+    writeFileSync(tmpFile, JSON.stringify(args), { mode: 0o600 });
+    const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')" 2>&1`;
+    let output: string;
+    try {
+      output = execSync(cmd, {
+        cwd: `${process.cwd()}/packages/convex`,
+        encoding: "utf-8",
+        timeout: 120000,
+        maxBuffer: 100 * 1024 * 1024,
+        env: { ...process.env },
+        shell: "/bin/bash",
+      });
+    } catch (err) {
+      const anyErr = err as { stdout?: Buffer; stderr?: Buffer };
+      const raw = Buffer.concat([
+        anyErr.stdout ?? Buffer.alloc(0),
+        anyErr.stderr ?? Buffer.alloc(0),
+      ]).toString("utf-8");
+      // Surface the actual Convex error (not the wrapped shell command).
+      const uncaught = raw.match(/Uncaught Error: [^\n]+/);
+      const first = raw.match(/Error: [^\n]+/);
+      const detail = (uncaught ?? first)?.[0].replace(/^Uncaught /, "") ?? raw.slice(-200).trim();
+      throw new Error(detail || `Convex ${functionName} command failed`);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+    // npx convex run prints JSON to stdout (after any warnings/log lines).
+    // Find the first line that starts a JSON value and parse the rest.
+    const lines = output.trim().split("\n");
+    const jsonStart = lines.findIndex((l) => {
+      const t = l.trim();
+      return t.startsWith("[") || t.startsWith("{");
+    });
+    if (jsonStart === -1) {
+      throw new Error(`Could not find JSON in Convex output: ${output.slice(-200)}`);
+    }
+    return JSON.parse(lines.slice(jsonStart).join("\n")) as T;
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+type IndustryProposal = {
+  proposalId: string;
+  companyKey?: string;
+  normalizedEmployerSurface?: string;
+  status: string;
+};
+
+const OPEN_PROPOSAL_STATUSES = new Set(["new", "researching", "ready_for_review", "needs_more_evidence"]);
+
+const PROPOSAL_STATUSES = [
+  "new",
+  "researching",
+  "ready_for_review",
+  "needs_more_evidence",
+  "approved",
+  "rejected",
+  "superseded",
+];
+
+/**
+ * Stable id-suffix for a company key. ASCII keys pass through as-is
+ * (minus punctuation); CJK keys strip to an empty string, so fall back
+ * to a short content hash to keep ids unique per employer.
+ */
+function idSuffix(companyKey: string): string {
+  const ascii = companyKey.replace(/[^a-z0-9-]/g, "");
+  if (ascii.length > 0) return ascii;
+  return createHash("sha1").update(companyKey).digest("hex").slice(0, 8);
+}
+
+function normalizeAlias(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u3000]+/g, " ")
+    .replace(/[()（）[\]【】.,，。·・'"`]/g, "");
 }
 
 const MARKET_QUERIES: Record<Market, { q: string; location: string }> = {
@@ -238,9 +334,7 @@ async function main(): Promise<void> {
   const markets: Market[] =
     marketArg === "my" ? ["my"] : marketArg === "cn" ? ["cn"] : ["my", "cn"];
 
-  if (APPLY) {
-    getWriteSecret(); // validate early (Task 2 will use it)
-  }
+  const secret = APPLY ? getWriteSecret() : ""; // validate early (Task 2 will use it)
 
   console.log(`🔍 Corpus-evidence fast-track (${APPLY ? "APPLY" : "DRY RUN"})`);
   console.log(`   Markets: ${markets.join(", ")}\n`);
@@ -297,9 +391,191 @@ async function main(): Promise<void> {
   printReport(groupsByTier, totals);
 
   if (APPLY) {
-    console.log("Apply path not yet implemented");
+    await applyFastTrack(groupsByTier, secret);
   } else {
     console.log("\nPass --apply to write proposals + evidence sources (Task 2).");
+  }
+}
+
+async function applyFastTrack(
+  groupsByTier: Record<"tier1" | "tier2" | "excluded" | "defer", EmployerGroup[]>,
+  secret: string,
+): Promise<void> {
+  // 1. Load existing proposals to dedupe by surface and companyKey.
+  //    Fetch per-status buckets (each sorted by priority/updatedAt and
+  //    well under the take limit) rather than one status-less scan, which
+  //    silently drops the newest rows once the table exceeds 5000.
+  const existing: IndustryProposal[] = [];
+  for (const status of PROPOSAL_STATUSES) {
+    const bucket = await convexRun<IndustryProposal[]>("companies:listIndustryProposals", {
+      status,
+      limit: 5000,
+      writeSecret: secret,
+    });
+    existing.push(...bucket);
+  }
+  const bySurface = new Map<string, IndustryProposal>();
+  const byCompanyKey = new Map<string, IndustryProposal>();
+  for (const proposal of existing) {
+    if (proposal.normalizedEmployerSurface) {
+      const key = normalizeAlias(proposal.normalizedEmployerSurface);
+      if (!bySurface.has(key)) bySurface.set(key, proposal);
+    }
+    if (proposal.companyKey && !byCompanyKey.has(proposal.companyKey)) {
+      byCompanyKey.set(proposal.companyKey, proposal);
+    }
+  }
+  console.log(`   Loaded ${existing.length} existing proposals\n`);
+
+  let upserted = 0;
+  let upgraded = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  const fastTrackGroups = [...groupsByTier.tier1, ...groupsByTier.tier2];
+  for (const group of fastTrackGroups) {
+    const tier = groupsByTier.tier1.includes(group) ? 1 : 2;
+    const resumeCount = group.identityKeys.size;
+    const cleanName = group.displayName.replace(/,+$/, "").trim();
+    try {
+      // Dedupe against existing proposals by normalized surface, then companyKey.
+      const surfaceKey = normalizeAlias(group.displayName);
+      const bySurfaceHit = bySurface.get(surfaceKey);
+      const byKeyHit = byCompanyKey.get(group.companyKey);
+
+      // Skip if the matched proposal is terminal (approved/rejected).
+      const terminalHit = [bySurfaceHit, byKeyHit].find(
+        (p) => p && !OPEN_PROPOSAL_STATUSES.has(p.status),
+      );
+      if (terminalHit) {
+        console.log(`[→] ${group.companyKey} already ${terminalHit!.status}, skipping`);
+        skipped++;
+        continue;
+      }
+
+      const existingProposal = bySurfaceHit ?? byKeyHit;
+      const proposalId = existingProposal
+        ? existingProposal.proposalId
+        : `corpus-ft-${idSuffix(group.companyKey)}`;
+
+      if (!existingProposal) {
+        // a) No existing proposal: create company + alias + proposal, then upgrade.
+        await convexRun("companies:upsert", {
+          companyKey: group.companyKey,
+          displayName: cleanName,
+          status: "confirmed",
+          createdBy: "corpus-fast-track",
+          writeSecret: secret,
+        });
+        await convexRun("companies:addAlias", {
+          companyKey: group.companyKey,
+          alias: group.displayName,
+          source: "observed",
+          writeSecret: secret,
+        });
+        // upsertIndustryProposal patches any open proposal matching the
+        // companyKey/surface and returns its real proposalId (which can
+        // differ from the precomputed one) — use the returned id.
+        const proposalResult = await convexRun<{ proposalId: string }>(
+          "companies:upsertIndustryProposal",
+          {
+            proposalId,
+            companyKey: group.companyKey,
+            normalizedEmployerSurface: group.displayName,
+            triggerReasons: ["corpus_evidence"],
+            priority: tier === 1 ? 95 : 85,
+            suggestedIndustryClass: "cnc",
+            suggestedVerificationLevel: "verified",
+            materialChangeSummary: `Corpus evidence: ${resumeCount} resume(s) with CNC-relevant titles`,
+            requestedBy: "corpus-fast-track",
+            sampleReferences: [
+              {
+                workspaceSlug: "dev",
+                resumeIdentity: group.entries[0].identityKey,
+                workEntryFingerprint: group.entries[0].workEntryFingerprint,
+              },
+            ],
+            writeSecret: secret,
+          },
+        );
+        const createdProposalId = proposalResult.proposalId;
+        await convexRun("companies:setIndustryProposalResearchState", {
+          proposalId: createdProposalId,
+          status: "ready_for_review",
+          suggestedIndustryClass: "cnc",
+          writeSecret: secret,
+        });
+        upserted++;
+
+        // Evidence sources attach to the real proposal id.
+        await addEvidenceSources(group, createdProposalId, secret);
+        console.log(`[✓] ${group.companyKey} tier=${tier} resumes=${resumeCount} sources=${group.identityKeys.size}`);
+        continue;
+      } else if (
+        existingProposal.status === "new" ||
+        existingProposal.status === "needs_more_evidence"
+      ) {
+        // b) Existing open proposal that needs promotion.
+        await convexRun("companies:setIndustryProposalResearchState", {
+          proposalId: existingProposal.proposalId,
+          status: "ready_for_review",
+          suggestedIndustryClass: "cnc",
+          writeSecret: secret,
+        });
+        upgraded++;
+
+        // Evidence sources attach to the existing proposal id.
+        await addEvidenceSources(group, existingProposal.proposalId, secret);
+        console.log(`[✓] ${group.companyKey} tier=${tier} resumes=${resumeCount} sources=${group.identityKeys.size}`);
+        continue;
+      } else {
+        // c) Existing open proposal (researching / ready_for_review):
+        //    no status change needed, but evidence sources still attach
+        //    (idempotent by sourceId) so corpus evidence is complete.
+        await addEvidenceSources(group, existingProposal.proposalId, secret);
+        console.log(`[✓] ${group.companyKey} tier=${tier} resumes=${resumeCount} sources=${group.identityKeys.size} (existing ${existingProposal.status})`);
+        skipped++;
+        continue;
+      }
+    } catch (error) {
+      errors++;
+      console.error(`[✗] ${group.companyKey} failed: ${(error as Error).message.slice(0, 160)}`);
+    }
+  }
+
+  console.log(`\nApplied: ${upserted} upserted, ${upgraded} upgraded, ${skipped} skipped, ${errors} errors`);
+}
+
+/**
+ * One evidence source per distinct resume that contributed to the employer.
+ * Sources are unreviewed/active, which passes the approval-safe filter.
+ */
+async function addEvidenceSources(
+  group: EmployerGroup,
+  proposalId: string,
+  secret: string,
+): Promise<void> {
+  const seenIdentities = new Set<string>();
+  for (const entry of group.entries) {
+    if (seenIdentities.has(entry.identityKey)) continue;
+    seenIdentities.add(entry.identityKey);
+    const sourceId =
+      `corpus-src-${idSuffix(group.companyKey)}-` +
+      `${entry.workEntryFingerprint ?? entry.identityKey.slice(-8)}`;
+    await convexRun("companies:upsertIndustryEvidenceSource", {
+      sourceId,
+      companyKey: group.companyKey,
+      proposalId,
+      url: entry.profileUrl,
+      sourceType: "other",
+      trustTier: "corroborating",
+      title: `Corpus evidence: ${entry.jobTitle} (${formatYears(entry.years)}) at ${group.displayName}`,
+      evidenceExcerpt: `${entry.jobTitle}, ${formatYears(entry.years)}`,
+      fetchStatus: "fetched",
+      fetchedAt: Date.now(),
+      contentFingerprint: `corpus-${entry.workEntryFingerprint ?? entry.identityKey}`,
+      writeSecret: secret,
+    });
   }
 }
 
