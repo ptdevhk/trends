@@ -261,11 +261,15 @@ class ResearchConvexClient:
             self._args(payload),
         )
 
-    def list_industry_proposals(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_industry_proposals(
+        self, status: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         self.require_ready()
         payload: Dict[str, Any] = {}
         if status:
             payload["status"] = status
+        if limit:
+            payload["limit"] = limit
         result = self._querier(
             self.convex_url,
             "companies:listIndustryProposals",

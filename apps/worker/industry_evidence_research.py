@@ -521,7 +521,7 @@ class IndustryEvidenceMaintenanceJob:
         self.client = client or ResearchConvexClient()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
         self.researcher = researcher or IndustryEvidenceResearcher(now_ms=self.now_ms)
-        self.proposal_limit = max(1, min(50, int(proposal_limit)))
+        self.proposal_limit = max(1, min(200, int(proposal_limit)))
         self.freshness_limit = max(1, min(100, int(freshness_limit)))
         self.discovery_job = discovery_job
         self.mode = mode or "sweep"
@@ -837,8 +837,11 @@ class IndustryEvidenceMaintenanceJob:
 
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
+        # Pass proposal_limit * 3 to give the sort/dedup enough headroom
+        # while respecting the Convex query's own safety cap.
+        scan_limit = self.proposal_limit * 3 if self.proposal_limit > 20 else None
         for status in ("new", "researching", "needs_more_evidence"):
-            for proposal in self.client.list_industry_proposals(status):
+            for proposal in self.client.list_industry_proposals(status, limit=scan_limit):
                 proposal_id = str(proposal.get("proposalId") or "")
                 if proposal_id:
                     proposals_by_id[proposal_id] = proposal
@@ -1268,6 +1271,10 @@ def run_industry_evidence_maintenance(
         ]
 
     discovery_job = build_discovery_job_from_env()
+    # Allow operators to scale the per-run proposal batch via env var.
+    # Default 20 (safe for scheduled runs); set higher (e.g., 50) for
+    # manual backlog-draining after a major upgrade.
+    proposal_limit = int(os.environ.get("INDUSTRY_PROPOSAL_LIMIT", "20"))
     return IndustryEvidenceMaintenanceJob(
         client=client,
         discovery_job=discovery_job,
@@ -1275,6 +1282,7 @@ def run_industry_evidence_maintenance(
         mode=mode or ("targeted" if proposal_ids else "sweep"),
         target_proposal_ids=claimed_proposal_ids,
         claimed_requests=claimed_requests,
+        proposal_limit=proposal_limit,
     ).run()
 
 
