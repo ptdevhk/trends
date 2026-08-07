@@ -123,11 +123,10 @@ async function convexRun<T>(
         shell: "/bin/bash",
       });
     } catch (err) {
-      const anyErr = err as { stdout?: Buffer; stderr?: Buffer };
-      const raw = Buffer.concat([
-        anyErr.stdout ?? Buffer.alloc(0),
-        anyErr.stderr ?? Buffer.alloc(0),
-      ]).toString("utf-8");
+      const anyErr = err as { stdout?: string | Buffer; stderr?: string | Buffer };
+      const raw = [anyErr.stdout ?? "", anyErr.stderr ?? ""].map(s =>
+        typeof s === "string" ? s : Buffer.from(s).toString("utf-8")
+      ).join("");
       // Surface the actual Convex error (not the wrapped shell command).
       const uncaught = raw.match(/Uncaught Error: [^\n]+/);
       const first = raw.match(/Error: [^\n]+/);
