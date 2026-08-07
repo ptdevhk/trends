@@ -128,14 +128,21 @@ function buildCompactDigestSearchText(
     const ingestTokens = collectIngestTokens(ingestData);
     const domainTokens = collectDomainPresenceTokens(options.coldSearchText);
     const roleTokens = Object.keys(options.roleYearsByType);
+    // Ordering contract: domain tokens (cnc/数控/销售/sales/机床) are appended
+    // before role/ingest tokens, AND limitSearchText emits them with cap
+    // priority. The 1500-char cap breaks on overflow, so tokens appended later
+    // can silently drop under long content — putting domain presence tokens
+    // first in both the append order and the cap guarantees they always
+    // survive a rebuild (observed live: one CN resume lost its 销售 token
+    // when digest tokens were appended after long work-history text).
     const withDigestFields = appendMissingSearchTokens(base, [
+        ...domainTokens,
         options.locationText,
         options.educationLevel,
-        ...domainTokens,
         ...roleTokens,
         ...ingestTokens,
     ].filter((value): value is string => typeof value === "string" && value.length > 0));
-    return limitSearchText(withDigestFields);
+    return limitSearchText(withDigestFields, domainTokens);
 }
 
 function dropUndefined(record: Record<string, unknown>): Record<string, unknown> {
@@ -203,18 +210,44 @@ function toBrandHits(value: unknown): Array<{ brand: string }> | undefined {
     return result.length > 0 ? result : undefined;
 }
 
-function limitSearchText(value: string): string | undefined {
+/**
+ * Cap the digest search text at MAX_DIGEST_SEARCH_TEXT_LENGTH (1500 chars).
+ *
+ * `priorityTokens` are emitted FIRST (deduplicated, normalized) so they always
+ * fit under the cap regardless of how long the base content is. The digest
+ * rebuild path passes the domain presence tokens (cnc/数控/销售/sales/机床)
+ * here: they are the keyword-search surface, so losing them to the cap would
+ * silently break queries after a rebuild.
+ */
+function limitSearchText(value: string, priorityTokens: string[] = []): string | undefined {
     const tokens = normalizeWhitespace(value).toLowerCase().split(/\s+/g).filter((token) => token.length > 0);
     const seen = new Set<string>();
     const result: string[] = [];
     let length = 0;
-    for (const token of tokens) {
-        if (seen.has(token)) continue;
+    const push = (token: string): boolean => {
+        if (seen.has(token)) {
+            return true;
+        }
         const nextLength = length + token.length + (result.length > 0 ? 1 : 0);
-        if (nextLength > MAX_DIGEST_SEARCH_TEXT_LENGTH) break;
+        if (nextLength > MAX_DIGEST_SEARCH_TEXT_LENGTH) {
+            return false;
+        }
         seen.add(token);
         result.push(token);
         length = nextLength;
+        return true;
+    };
+    for (const token of priorityTokens) {
+        const normalized = normalizeWhitespace(token).toLowerCase();
+        if (!normalized) {
+            continue;
+        }
+        push(normalized);
+    }
+    for (const token of tokens) {
+        if (!push(token)) {
+            break;
+        }
     }
     return result.length > 0 ? result.join(" ") : undefined;
 }

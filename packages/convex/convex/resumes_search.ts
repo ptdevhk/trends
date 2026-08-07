@@ -63,6 +63,56 @@ async function getResumeDocsByDigestRows(
     return docs.filter((doc): doc is Doc<"resumes"> => doc !== null && doc.isArchived !== true);
 }
 
+/**
+ * Per-token fetch budget for multi-token queries. A single search over the
+ * full query string (OR semantics) with a 500-doc take exceeds the local
+ * backend's per-query operation budget (observed live: "too many system
+ * operations" even at limit=5). Each token is instead searched with this
+ * bounded take and the result sets are intersected — the same AND semantics
+ * at a strictly smaller, limit-scaled cost. For very common tokens this can
+ * truncate beyond the budget, the same risk class as the old 500 floor but
+ * strictly smaller per query; the BFF full-scan path remains the gold
+ * standard and is unchanged.
+ */
+export function resolveMultiTokenFetchLimit(limit: number): number {
+    return Math.max(Math.min(limit, 100) * 2, 50);
+}
+
+/**
+ * AND semantics for multi-token queries via bounded per-token intersection:
+ * Convex full-text search ORs terms within one query string, so the prior
+ * code searched the joined query and post-filtered — which both blew the
+ * query budget (500-doc take) and capped AND recall at that single take.
+ * Searching each token separately with a small take and intersecting keeps
+ * recall at the intersection of per-token tops, which is the best bounded
+ * approximation and fits self-hosted backends.
+ */
+async function searchDigestRowsForTokens(
+    ctx: QueryCtx,
+    tokens: string[],
+    fetchLimit: number,
+): Promise<Doc<"resume_digests">[]> {
+    let intersection: Doc<"resume_digests">[] | null = null;
+    for (const token of tokens) {
+        const rows = await ctx.db
+            .query("resume_digests")
+            .withSearchIndex("search_body", (q) =>
+                q.search("searchText", token).eq("isArchived", undefined),
+            )
+            .take(fetchLimit);
+        if (intersection === null) {
+            intersection = rows;
+            continue;
+        }
+        const ids = new Set(rows.map((row) => String(row._id)));
+        intersection = intersection.filter((row) => ids.has(String(row._id)));
+        if (intersection.length === 0) {
+            break;
+        }
+    }
+    return intersection ?? [];
+}
+
 function compareResumes(
     left: Doc<"resumes">,
     right: Doc<"resumes">,
@@ -332,20 +382,27 @@ export const search = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
         const tokens = splitQueryTokens(args.query);
-        const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : limit;
+        if (tokens.length > 1) {
+            const digestMatches = await searchDigestRowsForTokens(
+                ctx,
+                tokens,
+                resolveMultiTokenFetchLimit(limit),
+            );
+            const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
+            // Per-token index hits are AND by construction; keep the post-filter
+            // as defense-in-depth against tokenizer edge cases.
+            return matches
+                .filter((doc) => matchesAllTokens(doc.searchText, tokens))
+                .slice(0, limit);
+        }
 
         const digestMatches = await ctx.db
             .query("resume_digests")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
-            .take(fetchLimit);
+            .take(limit);
         const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
-        // Convex full-text search uses OR. Post-filter to enforce AND.
-        const filtered = tokens.length > 1
-            ? matches.filter((doc) => matchesAllTokens(doc.searchText, tokens))
-            : matches;
-
-        return filtered.slice(0, limit);
+        return matches.slice(0, limit);
     },
 });
 
@@ -359,25 +416,30 @@ export const searchWithIngestData = query({
         const limit = args.limit || 50;
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
         const tokens = splitQueryTokens(args.query);
-        // Over-fetch to compensate for AND post-filtering on OR results
-        const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : Math.max(limit, 200);
-
-        const digestMatches = await ctx.db
-            .query("resume_digests")
-            .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
-            .take(fetchLimit);
-        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
-
-        // Convex full-text search uses OR. Post-filter to enforce AND.
-        const filtered = tokens.length > 1
-            ? matches.filter((doc) => matchesAllTokens(doc.searchText, tokens))
-            : matches;
-
-        if (!jobDescriptionId) {
-            return filtered.slice(0, limit);
+        let matches: Doc<"resumes">[];
+        if (tokens.length > 1) {
+            const digestMatches = await searchDigestRowsForTokens(
+                ctx,
+                tokens,
+                resolveMultiTokenFetchLimit(limit),
+            );
+            matches = await getResumeDocsByDigestRows(ctx, digestMatches);
+            matches = matches.filter((doc) => matchesAllTokens(doc.searchText, tokens));
+        } else {
+            // Over-fetch to compensate for the OR result window (unchanged path).
+            const fetchLimit = Math.max(limit, 200);
+            const digestMatches = await ctx.db
+                .query("resume_digests")
+                .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
+                .take(fetchLimit);
+            matches = await getResumeDocsByDigestRows(ctx, digestMatches);
         }
 
-        return sortByIngestRuleScore(filtered, jobDescriptionId).slice(0, limit);
+        if (!jobDescriptionId) {
+            return matches.slice(0, limit);
+        }
+
+        return sortByIngestRuleScore(matches, jobDescriptionId).slice(0, limit);
     },
 });
 

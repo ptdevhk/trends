@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCompanyAliasIndex,
   buildCompanyPolicyAliasIndex,
   CANONICAL_SEED_COMPANIES,
   inferPolicyPreset,
@@ -9,6 +10,7 @@ import {
   matchResumeCompanyPolicies,
   normalizeCompanyAlias,
   policyEffectsFromPreset,
+  resolveCompanyAlias,
   resolveMostSpecificPolicy,
 } from "./company-policy.js";
 
@@ -98,5 +100,78 @@ describe("company-policy helpers", () => {
     expect(isCompanyWorkflowBlocked(hits)).toBe(true);
     expect(isAdvancingCandidateStatus("shortlisted")).toBe(true);
     expect(isAdvancingCandidateStatus("rejected")).toBe(false);
+  });
+});
+
+describe("policy-free company alias index (link backfill)", () => {
+  const companies = [
+    {
+      companyKey: "seco-tools-sdn-bhd",
+      displayName: "SECO TOOLS (M) SDN BHD",
+      aliases: [
+        { aliasDisplay: "SECO Tools", aliasNormalized: "seco tools" },
+        { aliasDisplay: "SECO TOOLS (M) SDN. BHD.", aliasNormalized: "seco tools m sdn bhd" },
+      ],
+    },
+  ];
+
+  it("matches exact and case/punctuation variants of display names and aliases", () => {
+    const index = buildCompanyAliasIndex(companies);
+    expect(index.get("seco tools m sdn bhd")).toBe("seco-tools-sdn-bhd");
+
+    expect(resolveCompanyAlias(index, "SECO TOOLS (M) SDN. BHD.")).toBe(
+      "seco-tools-sdn-bhd",
+    );
+    expect(resolveCompanyAlias(index, "seco tools m sdn bhd")).toBe(
+      "seco-tools-sdn-bhd",
+    );
+    expect(resolveCompanyAlias(index, "  Seco Tools Sdn. Bhd. ")).toBe(
+      "seco-tools-sdn-bhd",
+    );
+    expect(resolveCompanyAlias(index, "SECO TOOLS (M) SDN BHD")).toBe(
+      "seco-tools-sdn-bhd",
+    );
+  });
+
+  it("soft-matches employer strings that embed a registered alias", () => {
+    const index = buildCompanyAliasIndex(companies);
+    // "seco tools" is embedded in a longer employer string.
+    expect(resolveCompanyAlias(index, "SECO TOOLS MALAYSIA TRADING")).toBe(
+      "seco-tools-sdn-bhd",
+    );
+  });
+
+  it("prefers the longest matching alias over shorter ones", () => {
+    const index = buildCompanyAliasIndex([
+      {
+        companyKey: "haas-malaysia",
+        displayName: "HAAS CNC",
+        aliases: [{ aliasDisplay: "Haas Malaysia" }],
+      },
+      {
+        companyKey: "haas-asia",
+        displayName: "HAAS ASIA PACIFIC",
+        aliases: [{ aliasDisplay: "Haas" }],
+      },
+    ]);
+    // "Haas Malaysia Sdn Bhd" embeds both "haas malaysia" (longest) and "haas".
+    expect(resolveCompanyAlias(index, "Haas Malaysia Sdn Bhd")).toBe("haas-malaysia");
+  });
+
+  it("returns null for unmatched employers and generic fragments shorter than 4 chars", () => {
+    const index = buildCompanyAliasIndex(companies);
+    expect(resolveCompanyAlias(index, "Unrelated Manufacturing Sdn Bhd")).toBeNull();
+    expect(resolveCompanyAlias(index, "ABC")).toBeNull();
+    expect(resolveCompanyAlias(index, "")).toBeNull();
+    expect(resolveCompanyAlias(index, "   ")).toBeNull();
+  });
+
+  it("does not cross-map aliases between companies", () => {
+    const index = buildCompanyAliasIndex([
+      { companyKey: "acme-cnc", displayName: "ACME CNC" },
+      { companyKey: "acme-other", displayName: "Acme Trading" },
+    ]);
+    expect(resolveCompanyAlias(index, "ACME CNC")).toBe("acme-cnc");
+    expect(resolveCompanyAlias(index, "Acme Trading Sdn Bhd")).toBe("acme-other");
   });
 });

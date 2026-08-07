@@ -39,6 +39,10 @@ source "$SCRIPT_DIR/lib-bff-defaults.sh"
 ROLE=""
 API_URL=""
 WORKSPACE="${TRENDS_WORKSPACE:-dev}"
+# SCAN_LIMIT is the doctor's lag-scan WINDOW, not a corpus count: the dry-run
+# reingest stops after scanning this many resume rows and reports
+# hasMore/scanComplete. Counts from an incomplete window understate the true
+# stale population — the gate warns when scanComplete=false.
 SCAN_LIMIT="${SCAN_LIMIT:-200}"
 REINGEST_LIMIT="${REINGEST_LIMIT:-200}"
 REINGEST_BATCH="${REINGEST_BATCH:-25}"
@@ -219,6 +223,15 @@ else
   echo
 fi
 
+# Window semantics: the doctor's lag scan is a dry-run reingest capped at
+# SCAN_LIMIT rows. When the corpus is larger, the scan stops mid-corpus and
+# reports hasMore=true / scanComplete=false — the stale counts in that case
+# UNDERSTATE the true population. The gate must say so explicitly instead of
+# reporting a window as if it were a full-corpus count.
+if echo "$DOCTOR_OUT" | grep -q '"scanComplete": false'; then
+  warn "Doctor lag scan window incomplete (scanComplete=false) — computeStale/missingEpoch counts understate the true stale population; re-run with a higher --scan-limit or continue the cursor scan"
+fi
+
 # Schedule reingest on lag (exit 2) or when JSON says computeStale / lagScanFailed
 should_schedule=0
 if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
@@ -285,7 +298,7 @@ while remaining > 0:
         method="POST",
     )
     try:
-        # The reingest action scans the full resume corpus in 50-row batches
+        # The reingest action scans the full resume corpus in 100-row batches
         # before scheduling; on large cloned datasets (8k+ resumes) it can take
         # 3-5 minutes. A 180s client timeout aborts the pacing loop after the
         # first batch, so the gate must allow the action's worst case.

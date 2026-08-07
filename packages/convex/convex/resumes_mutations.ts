@@ -20,7 +20,10 @@ import {
     PAGINATE_MAX_ROWS_READ,
     resolveResumeScanBatchSize,
 } from "./lib/resumes_pagination.js";
-import { replaceCompanyResumeLinksForResume } from "./lib/company_resume_links.js";
+import {
+    replaceCompanyResumeLinksForResume,
+    upsertCompanyResumeLinkForCompany,
+} from "./lib/company_resume_links.js";
 
 // ---------------------------------------------------------------------------
 // Workspace access guard (defense-in-depth)
@@ -58,6 +61,9 @@ export type ResumeScanRow = {
     ingestData: Doc<"resumes">["ingestData"];
     primaryRuleScore: Doc<"resumes">["primaryRuleScore"];
     searchText: Doc<"resumes">["searchText"];
+    workspaceSlug?: Doc<"resumes">["workspaceSlug"];
+    identityKey?: Doc<"resumes">["identityKey"];
+    externalId?: Doc<"resumes">["externalId"];
 };
 
 export type ResumeUsageScanRow = {
@@ -203,6 +209,46 @@ export const updateIngestDataBatch = internalMutation({
     },
 });
 
+/**
+ * Idempotent link upsert for the company-link backfill flow.
+ *
+ * The backfill action (companies:backfillCompanyResumeLinksByCompany) matches
+ * resume work-history surfaces against a company's registered aliases and
+ * hands the matched rows here. Each row re-reads the current resume doc, so
+ * workspace/identity fields are always authoritative, and archived/missing
+ * resumes are skipped. Re-running the same batch is a no-op-safe upsert.
+ */
+export const upsertBackfilledCompanyResumeLinks = internalMutation({
+    args: {
+        companyKey: v.string(),
+        rows: v.array(v.object({
+            resumeId: v.id("resumes"),
+            matchedEmployerSurfaces: v.array(v.string()),
+            workEntryFingerprints: v.array(v.string()),
+            currentVerdictRevisionId: v.optional(v.string()),
+        })),
+    },
+    handler: async (ctx, args) => {
+        let linkedRows = 0;
+        for (const row of args.rows) {
+            const resume = await ctx.db.get(row.resumeId);
+            if (!resume || resume.isArchived === true) {
+                continue;
+            }
+            await upsertCompanyResumeLinkForCompany(ctx, resume, {
+                companyKey: args.companyKey,
+                matchedEmployerSurfaces: row.matchedEmployerSurfaces,
+                workEntryFingerprints: row.workEntryFingerprints,
+                ...(row.currentVerdictRevisionId?.trim()
+                    ? { currentVerdictRevisionId: row.currentVerdictRevisionId.trim() }
+                    : {}),
+            });
+            linkedRows += 1;
+        }
+        return { linkedRows };
+    },
+});
+
 // ---------------------------------------------------------------------------
 // Internal queries (scan batches)
 // ---------------------------------------------------------------------------
@@ -232,6 +278,9 @@ export const listResumeScanBatch = internalQuery({
                 ingestData: resume.ingestData,
                 primaryRuleScore: resume.primaryRuleScore,
                 searchText: resume.searchText,
+                workspaceSlug: resume.workspaceSlug,
+                identityKey: resume.identityKey,
+                externalId: resume.externalId,
             })),
         };
     },

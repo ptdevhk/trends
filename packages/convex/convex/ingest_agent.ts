@@ -872,6 +872,8 @@ export type ReIngestStaleResult = {
   cursor: string | null;
   mode: StaleSelectionMode;
   dryRun: boolean;
+  /** Resume rows actually scanned in this invocation (page rows fetched, not the requested limit). */
+  scannedRows: number;
   /** Rows seen in this scan that are skills-stale (may exceed scheduled when dry-run/count capped). */
   skillsStaleCount: number;
   /** Rows seen in this scan that are compute-stale. */
@@ -926,11 +928,12 @@ export const reIngestStaleResumes = internalAction({
         ? versionPayload.ingestComputeEpoch
         : CURRENT_INGEST_COMPUTE_EPOCH;
 
-    const batchSize = 50;
+    const batchSize = 100;
     let cursor = args.cursor;
     let nextCursor: string | null = null;
     const resumeIds: Id<"resumes">[] = [];
     let batches = 0;
+    let scannedRows = 0;
     let skillsStaleCount = 0;
     let computeStaleCount = 0;
     let matchedCount = 0;
@@ -949,6 +952,7 @@ export const reIngestStaleResumes = internalAction({
         throw new Error("Resume scan returned an unfinished page without a continuation cursor");
       }
       nextCursor = batch.isDone ? null : batch.continueCursor;
+      scannedRows += batch.page.length;
 
       for (const resume of batch.page) {
         // Skills path historically required ingestData present.
@@ -992,6 +996,7 @@ export const reIngestStaleResumes = internalAction({
         cursor: nextCursor,
         mode,
         dryRun,
+        scannedRows,
         skillsStaleCount,
         computeStaleCount,
         matchedCount: Math.min(matchedCount, limit),
@@ -1014,6 +1019,7 @@ export const reIngestStaleResumes = internalAction({
       cursor: nextCursor,
       mode,
       dryRun: false,
+      scannedRows,
       skillsStaleCount,
       computeStaleCount,
       matchedCount: resumeIds.length,

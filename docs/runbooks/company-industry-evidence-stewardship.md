@@ -405,6 +405,52 @@ Approved verdicts drive recruiter search recall, not just the card badge. When a
 - Query-time behavior: no re-ingest is required when the bridge or verdicts change; only the usual profile→recompute path updates cards.
 - The 60s TTL cache warms at API startup; the first expansion before warm returns synonyms-only.
 
+## Targeted recompute and company-resume links (2026-08-08)
+
+Targeted recompute (`companies:startIndustryRecomputeRun` + BFF
+`company-industry-recompute-service`) drives off `company_resume_links`: the BFF
+lists affected resumes via `companies:listAffectedResumesByCompany`, reserves a
+page, and dispatches `ingest_agent:scheduleExactReingest` batches. If a company
+has zero links, the run finalizes with `processedCount` 0 — a silent no-op.
+
+Links are derived from computed ingestData (`matchedWorkEntries[].companyKey`)
+during every ingest update, so **newly approved companies historically had zero
+links and every recompute no-oped**. Since 2026-08-08 a `verified` approval
+(human lane and governed auto-approve lane alike, via the shared
+`commitIndustryVerdictApproval` path) schedules
+`companies:backfillCompanyResumeLinksByCompany`:
+
+- The backfill scans resumes and matches raw work-history employer surfaces
+  against the company's display names + registered aliases
+  (`company_aliases`), case/punctuation-insensitive with longest-alias soft
+  match (shared `buildCompanyAliasIndex` / `resolveCompanyAlias`).
+- Links are idempotent (delete-then-insert per resume+company), bounded (≤10
+  pages per invocation), and self-chain via the scheduler with a cursor until
+  the corpus is done.
+- A link only carries `currentVerdictRevisionId` when the resume was actually
+  computed under that verdict (from its ingestData entries). Resumes never
+  computed under the company stay revision-less, so the recompute classifies
+  them as stale and processes them.
+- **Backfill for already-verified companies:** the write-secret-gated ops
+  mutation `companies:backfillCompanyResumeLinks` (registry-listed,
+  maintenance-guarded) schedules the same backfill for an existing company —
+  use it after importing a reviewed catalog or adding aliases.
+- Rejected verdicts never schedule a backfill.
+
+**Corpus drain fallback:** when the full-corpus scan
+(`migrations:reIngestStaleSkillsVersion`) cannot run (local-backend overload),
+use exact re-ingest for targeted cohorts
+(`ingest_agent:scheduleExactReingest`, `MAX_EXACT_REINGEST_TARGETS=500`),
+which dispatches `internal.ingest_agent.processNewResumes` per batch. The BFF
+`trigger-reingest` route and the search-freshness doctor report this fallback
+hint explicitly on action failure instead of a bare 500.
+
+**Drain counters are honest:** `reIngestStaleResumes` reports `scannedRows`
+(rows actually fetched) + `hasMore`; the doctor's `lag.scanned` is the real
+scanned window and `scanComplete = !hasMore` — an incomplete window
+understates the true stale population and is called out in doctor messages and
+by `deploy/search-freshness-gate.sh`.
+
 ## Rollback
 
 Verdict revisions are immutable. Never delete or mutate the imported current revision.

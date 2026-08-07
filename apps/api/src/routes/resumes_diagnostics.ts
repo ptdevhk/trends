@@ -711,7 +711,7 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
       dryRun: true,
     });
     lag = {
-      scanned: scanLimit ?? 200,
+      scanned: dry.scannedRows,
       withIngestData: Math.max(dry.skillsStaleCount, dry.computeStaleCount, dry.matchedCount),
       skillsStale: dry.skillsStaleCount,
       computeStale: dry.computeStaleCount,
@@ -719,8 +719,11 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
       currentEpoch: dry.currentIngestComputeEpoch,
       scanComplete: !dry.hasMore,
     };
+    const windowNote = dry.hasMore
+      ? "; scan window INCOMPLETE (hasMore=true) — stale counts understate the true population; re-run with a higher scanLimit or continue the cursor scan"
+      : "; scan window complete";
     messages.push(
-      `dry-run reingest mode=${dry.mode}: matched=${dry.matchedCount} skillsStale=${dry.skillsStaleCount} computeStale=${dry.computeStaleCount} hasMore=${dry.hasMore}`,
+      `dry-run reingest mode=${dry.mode}: scanned=${dry.scannedRows} matched=${dry.matchedCount} skillsStale=${dry.skillsStaleCount} computeStale=${dry.computeStaleCount} hasMore=${dry.hasMore}${windowNote}`,
     );
   } catch (error) {
     lagScanFailed = true;

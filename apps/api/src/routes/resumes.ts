@@ -817,10 +817,20 @@ export type TriggerReingestResult = {
   cursor: string | null;
   mode: string;
   dryRun: boolean;
+  scannedRows: number;
   skillsStaleCount: number;
   computeStaleCount: number;
   matchedCount: number;
 };
+
+/**
+ * Explicit fallback hint for operators when the re-ingest action itself fails
+ * (e.g. local backend overload): the full-corpus scan is not the only path.
+ * Targeted cohorts can go through the exact-re-ingest scheduler
+ * (ingest_agent:scheduleExactReingest), and the scan can be retried later.
+ */
+export const REINGEST_ACTION_FALLBACK_HINT =
+  "Re-ingest action unavailable; fallback: use exact re-ingest (ingest_agent:scheduleExactReingest) for targeted cohorts or retry the full-corpus scan when the backend recovers";
 
 export async function triggerReingestStaleSkillsVersion(
   limitOrOptions: number | TriggerReingestOptions = 200,
@@ -832,17 +842,23 @@ export async function triggerReingestStaleSkillsVersion(
   const cursor = options.cursor;
   const dryRun = options.dryRun === true;
 
-  // callConvexAction retries transient 5xx / connection resets (fetchWithRetry),
-  // which the freshness gate's lag scan depends on under reingest load.
-  const value = await callConvexAction("migrations:reIngestStaleSkillsVersion", {
-    limit,
-    cursor,
-    mode,
-    dryRun,
-  });
+  let value: unknown;
+  try {
+    // callConvexAction retries transient 5xx / connection resets (fetchWithRetry),
+    // which the freshness gate's lag scan depends on under reingest load.
+    value = await callConvexAction("migrations:reIngestStaleSkillsVersion", {
+      limit,
+      cursor,
+      mode,
+      dryRun,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message} — ${REINGEST_ACTION_FALLBACK_HINT}`);
+  }
 
   if (!isRecord(value)) {
-    throw new Error("Invalid re-ingest response from Convex");
+    throw new Error(`Invalid re-ingest response from Convex — ${REINGEST_ACTION_FALLBACK_HINT}`);
   }
 
   const result = value;
@@ -862,6 +878,7 @@ export async function triggerReingestStaleSkillsVersion(
     cursor: typeof result.cursor === "string" && result.cursor.length > 0 ? result.cursor : null,
     mode: typeof result.mode === "string" ? result.mode : mode,
     dryRun: result.dryRun === true || dryRun,
+    scannedRows: typeof result.scannedRows === "number" ? result.scannedRows : 0,
     skillsStaleCount: typeof result.skillsStaleCount === "number" ? result.skillsStaleCount : 0,
     computeStaleCount: typeof result.computeStaleCount === "number" ? result.computeStaleCount : 0,
     matchedCount: typeof result.matchedCount === "number" ? result.matchedCount : 0,
