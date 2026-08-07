@@ -91,6 +91,52 @@ export function hasExplicitCncEvidence(
   return candidates.some(isExplicitCncEvidenceSource);
 }
 
+/**
+ * Lane A (governed auto-verify) source types: structured, machine-verifiable
+ * data only. Prose sources (official_site, reporting, oem_partner, trade_body,
+ * directory, other) and discovery-only search results are never auto-approvable.
+ */
+export const AUTO_VERIFY_SOURCE_TYPES = new Set<IndustryEvidenceSourceType>([
+  "registry",
+  "taxonomy",
+]);
+
+/**
+ * Lane A (governed auto-verify) eligibility for a single evidence source.
+ *
+ * A source is auto-approvable only when it is a structured registry/taxonomy
+ * record (never prose), carries explicit CNC/industrial signal text, is
+ * fetched + active + unreviewed, and is not disputed/rejected.
+ */
+export function isAutoApprovableSource(
+  candidate: IndustryCncEvidenceCandidate & {
+    reviewStatus?: string;
+  },
+): boolean {
+  return (
+    AUTO_VERIFY_SOURCE_TYPES.has(candidate.sourceType) &&
+    candidate.trustTier !== "discovery" &&
+    (candidate.fetchStatus === undefined || candidate.fetchStatus === "fetched") &&
+    (candidate.sourceState === undefined || candidate.sourceState === "active") &&
+    candidate.reviewStatus !== "disputed" &&
+    candidate.reviewStatus !== "rejected" &&
+    hasCncText(candidate)
+  );
+}
+
+/**
+ * Lane A (governed auto-verify) eligibility for a proposal's full evidence set.
+ *
+ * Every selected source must be auto-approvable (structured registry/taxonomy
+ * with explicit CNC text). This is deliberately narrower than the human
+ * approval gate: prose evidence always routes to the human cockpit.
+ */
+export function hasAutoApprovableEvidence(
+  candidates: readonly (IndustryCncEvidenceCandidate & { reviewStatus?: string })[],
+): boolean {
+  return candidates.length > 0 && candidates.every(isAutoApprovableSource);
+}
+
 export const INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS = [
   "canonical_mapping_missing",
   "only_discovery_sources",

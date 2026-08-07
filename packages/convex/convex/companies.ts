@@ -5,6 +5,7 @@ import {
   INDUSTRY_RESEARCH_ORIGIN_PRIORITIES,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
   compareSourcePreviews,
+  hasAutoApprovableEvidence,
   hasExplicitCncEvidence,
   normalizeIndustryEvidenceUrl,
   normalizeCompanyAlias,
@@ -2413,131 +2414,85 @@ export const approveIndustryProposal = mutation({
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
+    return commitIndustryVerdictApproval(ctx, {
+      proposalId: args.proposalId,
+      revisionId: args.revisionId,
+      expectedCurrentRevisionId: args.expectedCurrentRevisionId,
+      expectedProposalUpdatedAt: args.expectedProposalUpdatedAt,
+      expectedInputFingerprint: args.expectedInputFingerprint,
+      expectedSourceVersions: args.expectedSourceVersions,
+      verificationLevel: args.verificationLevel,
+      industryClass: args.industryClass,
+      approvedSourceIds: args.approvedSourceIds,
+      evidenceSummary: args.evidenceSummary,
+      reviewer: args.reviewer,
+      reviewerType: "human",
+      decisionReason: args.decisionReason,
+      taxonomyVersion: args.taxonomyVersion,
+      ruleVersion: args.ruleVersion,
+      nextReviewAt: args.nextReviewAt,
+      reviewAttestation: args.reviewAttestation,
+    });
+  },
+});
+
+/**
+ * Governed Lane A auto-approval (auto-verify-bot).
+ *
+ * Automation may approve ONLY when every Lane A condition holds:
+ *   - every selected source is a structured registry/taxonomy record with
+ *     explicit CNC/industrial signal text (never prose — official sites,
+ *     reporting, OEM pages, directories route to the human cockpit);
+ *   - all sources fetched + active + unreviewed (not disputed/rejected);
+ *   - the proposal has a canonical companyKey (no identity ambiguity);
+ *   - verificationLevel is "verified" only — "rejected" is human-only;
+ *   - the proposal is not already approved (idempotent re-run is a no-op).
+ *
+ * The revisionId is deterministic: derived from the proposal, the selected
+ * source versions, and the input fingerprint, so re-approving the same
+ * proposal is a no-op instead of creating a duplicate revision.
+ */
+export const autoApproveIndustryProposal = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    proposalId: v.string(),
+    industryClass: industryClassValidator,
+    approvedSourceIds: v.array(v.string()),
+    evidenceSummary: v.string(),
+    decisionReason: v.string(),
+    taxonomyVersion: v.string(),
+    ruleVersion: v.optional(v.string()),
+    expectedInputFingerprint: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
     const proposalId = args.proposalId.trim();
-    const revisionId = args.revisionId.trim();
-    const reviewer = args.reviewer.trim();
-    const decisionReason = args.decisionReason.trim();
-    const evidenceSummary = args.evidenceSummary.trim();
-    const taxonomyVersion = args.taxonomyVersion.trim();
-    if (
-      !proposalId ||
-      !revisionId ||
-      !reviewer ||
-      !decisionReason ||
-      !evidenceSummary ||
-      !taxonomyVersion
-    ) {
-      throw new Error("Approval requires proposal, revision, reviewer, reason, summary, and taxonomy");
-    }
     const proposal = await findIndustryProposal(ctx, proposalId);
     if (!proposal || !proposal.companyKey) {
       throw new Error(`Proposal is missing a canonical company: ${proposalId}`);
     }
-    const companyKey = proposal.companyKey;
-    const profiles = await ctx.db
-      .query("company_industry_profiles")
-      .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
-      .collect();
-    const profile = profiles[0];
-    const currentRevisionId = profile?.currentRevisionId;
-    if (
-      proposal.status === "approved" &&
-      proposal.approvedRevisionId === revisionId &&
-      currentRevisionId === revisionId
-    ) {
-      const revisions = await ctx.db
-        .query("company_industry_verdict_revisions")
-        .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
-        .collect();
-      const revision = revisions[0];
-      if (
-        !revision ||
-        revision.companyKey !== companyKey ||
-        revision.proposalId !== proposalId
-      ) {
-        throw new Error("Approved proposal revision is inconsistent");
+    if (proposal.status === "approved") {
+      // Idempotent re-run: the deterministic revisionId already exists.
+      const existing = await findIndustryVerdictRevision(
+        ctx,
+        deterministicAutoRevisionId(proposalId, args.approvedSourceIds, args.expectedInputFingerprint),
+      );
+      if (existing) {
+        return {
+          proposalId,
+          revisionId: existing.revisionId,
+          companyKey: proposal.companyKey,
+          sourceCount: existing.approvedSourceIds.length,
+          idempotent: true,
+        };
       }
-      return {
-        proposalId,
-        revisionId,
-        companyKey,
-        ...(revision.supersedesRevisionId
-          ? { supersedesRevisionId: revision.supersedesRevisionId }
-          : {}),
-        sourceCount: revision.approvedSourceIds.length,
-      };
+      throw new Error(`Proposal is not open for approval: ${proposal.status}`);
     }
     if (!OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
       throw new Error(`Proposal is not open for approval: ${proposal.status}`);
     }
-    if (
-      args.reviewAttestation &&
-      args.expectedInputFingerprint !== undefined &&
-      args.reviewAttestation.inputFingerprint !== args.expectedInputFingerprint
-    ) {
-      throw new Error(
-        `${INDUSTRY_REVIEW_STALE_PREFIX} recommendation fingerprint changed during review`,
-      );
-    }
-    if (
-      args.reviewAttestation &&
-      args.reviewAttestation.decisionMode === "risk_override" &&
-      !args.reviewAttestation.acknowledgementReason.trim()
-    ) {
-      throw new Error("INDUSTRY_REVIEW_ATTESTATION_INVALID: risk override reason is required");
-    }
-    if (
-      args.industryClass === "cnc" &&
-      (!args.reviewAttestation || !args.reviewAttestation.cncEvidenceAcknowledged)
-    ) {
-      throw new Error(
-        "INDUSTRY_REVIEW_CNC_ACK_REQUIRED: explicit CNC evidence acknowledgement is required",
-      );
-    }
-    if (
-      args.expectedCurrentRevisionId !== undefined &&
-      currentRevisionId !== args.expectedCurrentRevisionId
-    ) {
-      throw new Error(
-        `${INDUSTRY_REVIEW_STALE_PREFIX} current industry revision changed during review`,
-      );
-    }
-    if (
-      proposal.currentRevisionId !== undefined &&
-      currentRevisionId !== proposal.currentRevisionId
-    ) {
-      throw new Error(
-        `${INDUSTRY_REVIEW_STALE_PREFIX} proposal current revision changed during review`,
-      );
-    }
-    assertExpectedIndustryProposalUpdatedAt(proposal, args.expectedProposalUpdatedAt);
-    if (args.expectedSourceVersions !== undefined) {
-      const currentSources = await ctx.db
-        .query("company_industry_evidence_sources")
-        .withIndex("by_proposal", (q) => q.eq("proposalId", proposalId))
-        .collect();
-      const expectedVersions = new Map(
-        args.expectedSourceVersions.map((item) => [item.sourceId.trim(), item.updatedAt]),
-      );
-      if (
-        expectedVersions.size !== args.expectedSourceVersions.length ||
-        expectedVersions.size !== currentSources.length ||
-        currentSources.some(
-          (source) => expectedVersions.get(source.sourceId) !== source.updatedAt,
-        )
-      ) {
-        throw new Error(
-          `${INDUSTRY_REVIEW_STALE_PREFIX} evidence source changed during review`,
-        );
-      }
-    }
-
-    const existingRevisions = await ctx.db
-      .query("company_industry_verdict_revisions")
-      .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
-      .collect();
-    if (existingRevisions[0]) {
-      throw new Error(`revisionId already exists: ${revisionId}`);
+    if (args.industryClass === "cnc" && !args.expectedInputFingerprint) {
+      throw new Error("Auto-approval requires the review input fingerprint");
     }
 
     const approvedSourceIds = uniqueSortedStrings(args.approvedSourceIds);
@@ -2551,132 +2506,377 @@ export const approveIndustryProposal = mutation({
         throw new Error(`Unknown evidence source: ${sourceId}`);
       }
       if (
-        (source.companyKey && source.companyKey !== companyKey) ||
+        (source.companyKey && source.companyKey !== proposal.companyKey) ||
         (source.proposalId && source.proposalId !== proposalId)
       ) {
         throw new Error(`Evidence source is not attached to this proposal: ${sourceId}`);
       }
-      if (
-        source.sourceType === "search_result" ||
-        source.trustTier === "discovery" ||
-        normalizeIndustryEvidenceUrl(source.url) === null ||
-        source.fetchStatus !== "fetched" ||
-        source.sourceState !== "active" ||
-        source.reviewStatus === "disputed" ||
-        source.reviewStatus === "rejected"
-      ) {
-        throw new Error(`Evidence source is not approval-safe: ${sourceId}`);
-      }
       sources.push(source);
     }
 
-    if (
-      args.industryClass === "cnc" &&
-      !hasExplicitCncEvidence(sources)
-    ) {
+    // Lane A gate: structured registry/taxonomy only, explicit CNC text,
+    // fetched + active + unreviewed. Prose evidence is never auto-approvable.
+    if (!hasAutoApprovableEvidence(sources)) {
       throw new Error(
-        "INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED: selected sources do not contain explicit CNC evidence",
+        "AUTO_VERIFY_LANE_A_REQUIRED: every selected source must be a fetched, active, unreviewed registry/taxonomy record with explicit CNC evidence",
       );
     }
 
-    const now = Date.now();
-    await ctx.db.insert("company_industry_verdict_revisions", {
-      revisionId,
-      companyKey,
-      industryClass: args.industryClass,
-      verificationLevel: args.verificationLevel,
-      approvedSourceIds,
-      evidenceSummary,
-      reviewedBy: reviewer,
-      reviewedAt: now,
-      decisionReason,
-      taxonomyVersion,
-      ...(args.ruleVersion?.trim()
-        ? { ruleVersion: args.ruleVersion.trim() }
-        : {}),
-      ...(args.reviewAttestation
-        ? { reviewAttestation: args.reviewAttestation }
-        : {}),
-      ...(currentRevisionId
-        ? { supersedesRevisionId: currentRevisionId }
-        : {}),
+    const revisionId = deterministicAutoRevisionId(
       proposalId,
-      createdAt: now,
-    });
-
-    for (const source of sources) {
-      await ctx.db.patch(source._id, {
-        reviewStatus: "approved",
-        reviewedAt: now,
-        reviewedBy: reviewer,
-        reviewerNote: decisionReason,
-        updatedAt: now,
-      });
-    }
-
-    const primarySource = sources[0];
-    const nextReviewAt =
-      args.nextReviewAt ??
-      Math.min(
-        ...sources.map((source) =>
-          nextIndustryEvidenceReviewAt(
-            source.sourceType,
-            source.trustTier,
-            now,
-          ),
-        ),
-      );
-    const profilePayload = {
-      companyKey,
+      approvedSourceIds,
+      args.expectedInputFingerprint,
+    );
+    return commitIndustryVerdictApproval(ctx, {
+      proposalId,
+      revisionId,
+      verificationLevel: "verified",
       industryClass: args.industryClass,
-      verificationLevel: args.verificationLevel,
-      evidenceSource: "manual" as const,
-      summary: evidenceSummary,
-      ...(primarySource
+      approvedSourceIds,
+      evidenceSummary: args.evidenceSummary,
+      reviewer: "auto-verify-bot",
+      reviewerType: "auto-verify-bot",
+      decisionReason: args.decisionReason,
+      taxonomyVersion: args.taxonomyVersion,
+      ruleVersion: args.ruleVersion,
+      reviewAttestation: args.expectedInputFingerprint
         ? {
-            sourceUrl: primarySource.url,
-            sourceDomain: primarySource.sourceDomain,
-            sourceType: primarySource.sourceType,
+            schemaVersion: "industry-review-attestation.v1",
+            inputFingerprint: args.expectedInputFingerprint,
+            decisionMode: "standard",
+            acknowledgedRiskFlags: [],
+            cncEvidenceAcknowledged: true,
+            acknowledgementReason:
+              "Governed Lane A auto-approval: structured registry/taxonomy evidence with explicit CNC signal text",
           }
-        : {}),
-      currentRevisionId: revisionId,
-      reviewedAt: now,
-      reviewedBy: reviewer,
-      sourceCount: approvedSourceIds.length,
-      freshnessState: "fresh" as const,
-      nextReviewAt,
-      catalogVersion: (profile?.catalogVersion ?? 0) + 1,
-      compatibilityState: "reviewed" as const,
-      updatedAt: now,
-      updatedBy: reviewer,
-    };
-    if (profile) {
-      await ctx.db.patch(profile._id, profilePayload);
-    } else {
-      await ctx.db.insert("company_industry_profiles", profilePayload);
-    }
-
-    await ctx.db.patch(proposal._id, {
-      status: "approved",
-      reviewedAt: now,
-      reviewedBy: reviewer,
-      reviewNote: decisionReason,
-      approvedRevisionId: revisionId,
-      applicationState: "recompute_pending",
-      updatedAt: now,
+        : undefined,
     });
+  },
+});
 
+/**
+ * Deterministic revisionId for governed auto-approval: derived from the
+ * proposal, the selected source IDs, and the review input fingerprint so a
+ * re-run of the same approval is a no-op (no duplicate revisions).
+ */
+function deterministicAutoRevisionId(
+  proposalId: string,
+  approvedSourceIds: string[],
+  inputFingerprint: string | undefined,
+): string {
+  const material = [
+    "auto",
+    proposalId,
+    ...approvedSourceIds,
+    inputFingerprint ?? "",
+  ].join("|");
+  let hash = 2166136261;
+  for (const char of material) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `auto-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+/**
+ * Shared approval core used by the attended human mutation and the governed
+ * auto-approve mutation. Validates the proposal/source state, writes the
+ * immutable verdict revision (with reviewerType), patches sources + profile,
+ * and marks the proposal approved with recompute pending.
+ */
+async function commitIndustryVerdictApproval(
+  ctx: { db: any },
+  args: {
+    proposalId: string;
+    revisionId: string;
+    expectedCurrentRevisionId?: string;
+    expectedProposalUpdatedAt?: number;
+    expectedInputFingerprint?: string;
+    expectedSourceVersions?: Array<{ sourceId: string; updatedAt: number }>;
+    verificationLevel: "verified" | "rejected";
+    industryClass: string;
+    approvedSourceIds: string[];
+    evidenceSummary: string;
+    reviewer: string;
+    reviewerType: "human" | "auto-verify-bot";
+    decisionReason: string;
+    taxonomyVersion: string;
+    ruleVersion?: string;
+    nextReviewAt?: number;
+    reviewAttestation?: {
+      schemaVersion: "industry-review-attestation.v1";
+      inputFingerprint: string;
+      decisionMode: "standard" | "risk_override";
+      acknowledgedRiskFlags: string[];
+      cncEvidenceAcknowledged: boolean;
+      acknowledgementReason: string;
+    };
+  },
+) {
+  const proposalId = args.proposalId.trim();
+  const revisionId = args.revisionId.trim();
+  const reviewer = args.reviewer.trim();
+  const decisionReason = args.decisionReason.trim();
+  const evidenceSummary = args.evidenceSummary.trim();
+  const taxonomyVersion = args.taxonomyVersion.trim();
+  if (
+    !proposalId ||
+    !revisionId ||
+    !reviewer ||
+    !decisionReason ||
+    !evidenceSummary ||
+    !taxonomyVersion
+  ) {
+    throw new Error("Approval requires proposal, revision, reviewer, reason, summary, and taxonomy");
+  }
+  const proposal = await findIndustryProposal(ctx, proposalId);
+  if (!proposal || !proposal.companyKey) {
+    throw new Error(`Proposal is missing a canonical company: ${proposalId}`);
+  }
+  const companyKey = proposal.companyKey;
+  const profiles = await ctx.db
+    .query("company_industry_profiles")
+    .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+    .collect();
+  const profile = profiles[0];
+  const currentRevisionId = profile?.currentRevisionId;
+  if (
+    proposal.status === "approved" &&
+    proposal.approvedRevisionId === revisionId &&
+    currentRevisionId === revisionId
+  ) {
+    const revisions = await ctx.db
+      .query("company_industry_verdict_revisions")
+      .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
+      .collect();
+    const revision = revisions[0];
+    if (
+      !revision ||
+      revision.companyKey !== companyKey ||
+      revision.proposalId !== proposalId
+    ) {
+      throw new Error("Approved proposal revision is inconsistent");
+    }
     return {
       proposalId,
       revisionId,
       companyKey,
-      ...(currentRevisionId
-        ? { supersedesRevisionId: currentRevisionId }
+      ...(revision.supersedesRevisionId
+        ? { supersedesRevisionId: revision.supersedesRevisionId }
         : {}),
-      sourceCount: approvedSourceIds.length,
+      sourceCount: revision.approvedSourceIds.length,
     };
-  },
-});
+  }
+  if (!OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
+    throw new Error(`Proposal is not open for approval: ${proposal.status}`);
+  }
+  if (
+    args.reviewAttestation &&
+    args.expectedInputFingerprint !== undefined &&
+    args.reviewAttestation.inputFingerprint !== args.expectedInputFingerprint
+  ) {
+    throw new Error(
+      `${INDUSTRY_REVIEW_STALE_PREFIX} recommendation fingerprint changed during review`,
+    );
+  }
+  if (
+    args.reviewAttestation &&
+    args.reviewAttestation.decisionMode === "risk_override" &&
+    !args.reviewAttestation.acknowledgementReason.trim()
+  ) {
+    throw new Error("INDUSTRY_REVIEW_ATTESTATION_INVALID: risk override reason is required");
+  }
+  if (
+    args.industryClass === "cnc" &&
+    (!args.reviewAttestation || !args.reviewAttestation.cncEvidenceAcknowledged)
+  ) {
+    throw new Error(
+      "INDUSTRY_REVIEW_CNC_ACK_REQUIRED: explicit CNC evidence acknowledgement is required",
+    );
+  }
+  if (
+    args.expectedCurrentRevisionId !== undefined &&
+    currentRevisionId !== args.expectedCurrentRevisionId
+  ) {
+    throw new Error(
+      `${INDUSTRY_REVIEW_STALE_PREFIX} current industry revision changed during review`,
+    );
+  }
+  if (
+    proposal.currentRevisionId !== undefined &&
+    currentRevisionId !== proposal.currentRevisionId
+  ) {
+    throw new Error(
+      `${INDUSTRY_REVIEW_STALE_PREFIX} proposal current revision changed during review`,
+    );
+  }
+  assertExpectedIndustryProposalUpdatedAt(proposal, args.expectedProposalUpdatedAt);
+  if (args.expectedSourceVersions !== undefined) {
+    const currentSources = await ctx.db
+      .query("company_industry_evidence_sources")
+      .withIndex("by_proposal", (q) => q.eq("proposalId", proposalId))
+      .collect();
+    const expectedVersions = new Map(
+      args.expectedSourceVersions.map((item) => [item.sourceId.trim(), item.updatedAt]),
+    );
+    if (
+      expectedVersions.size !== args.expectedSourceVersions.length ||
+      expectedVersions.size !== currentSources.length ||
+      currentSources.some(
+        (source) => expectedVersions.get(source.sourceId) !== source.updatedAt,
+      )
+    ) {
+      throw new Error(
+        `${INDUSTRY_REVIEW_STALE_PREFIX} evidence source changed during review`,
+      );
+    }
+  }
+
+  const existingRevisions = await ctx.db
+    .query("company_industry_verdict_revisions")
+    .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
+    .collect();
+  if (existingRevisions[0]) {
+    throw new Error(`revisionId already exists: ${revisionId}`);
+  }
+
+  const approvedSourceIds = uniqueSortedStrings(args.approvedSourceIds);
+  if (approvedSourceIds.length === 0) {
+    throw new Error("At least one approved evidence source is required");
+  }
+  const sources = [];
+  for (const sourceId of approvedSourceIds) {
+    const source = await findIndustryEvidenceSource(ctx, sourceId);
+    if (!source) {
+      throw new Error(`Unknown evidence source: ${sourceId}`);
+    }
+    if (
+      (source.companyKey && source.companyKey !== companyKey) ||
+      (source.proposalId && source.proposalId !== proposalId)
+    ) {
+      throw new Error(`Evidence source is not attached to this proposal: ${sourceId}`);
+    }
+    if (
+      source.sourceType === "search_result" ||
+      source.trustTier === "discovery" ||
+      normalizeIndustryEvidenceUrl(source.url) === null ||
+      source.fetchStatus !== "fetched" ||
+      source.sourceState !== "active" ||
+      source.reviewStatus === "disputed" ||
+      source.reviewStatus === "rejected"
+    ) {
+      throw new Error(`Evidence source is not approval-safe: ${sourceId}`);
+    }
+    sources.push(source);
+  }
+
+  if (
+    args.industryClass === "cnc" &&
+    !hasExplicitCncEvidence(sources)
+  ) {
+    throw new Error(
+      "INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED: selected sources do not contain explicit CNC evidence",
+    );
+  }
+
+  const now = Date.now();
+  await ctx.db.insert("company_industry_verdict_revisions", {
+    revisionId,
+    companyKey,
+    industryClass: args.industryClass,
+    verificationLevel: args.verificationLevel,
+    approvedSourceIds,
+    evidenceSummary,
+    reviewedBy: reviewer,
+    reviewerType: args.reviewerType,
+    reviewedAt: now,
+    decisionReason,
+    taxonomyVersion,
+    ...(args.ruleVersion?.trim()
+      ? { ruleVersion: args.ruleVersion.trim() }
+      : {}),
+    ...(args.reviewAttestation
+      ? { reviewAttestation: args.reviewAttestation }
+      : {}),
+    ...(currentRevisionId
+      ? { supersedesRevisionId: currentRevisionId }
+      : {}),
+    proposalId,
+    createdAt: now,
+  });
+
+  for (const source of sources) {
+    await ctx.db.patch(source._id, {
+      reviewStatus: "approved",
+      reviewedAt: now,
+      reviewedBy: reviewer,
+      reviewerNote: decisionReason,
+      updatedAt: now,
+    });
+  }
+
+  const primarySource = sources[0];
+  const nextReviewAt =
+    args.nextReviewAt ??
+    Math.min(
+      ...sources.map((source) =>
+        nextIndustryEvidenceReviewAt(
+          source.sourceType,
+          source.trustTier,
+          now,
+        ),
+      ),
+    );
+  const profilePayload = {
+    companyKey,
+    industryClass: args.industryClass,
+    verificationLevel: args.verificationLevel,
+    evidenceSource: "manual" as const,
+    summary: evidenceSummary,
+    ...(primarySource
+      ? {
+          sourceUrl: primarySource.url,
+          sourceDomain: primarySource.sourceDomain,
+          sourceType: primarySource.sourceType,
+        }
+      : {}),
+    currentRevisionId: revisionId,
+    reviewedAt: now,
+    reviewedBy: reviewer,
+    sourceCount: approvedSourceIds.length,
+    freshnessState: "fresh" as const,
+    nextReviewAt,
+    catalogVersion: (profile?.catalogVersion ?? 0) + 1,
+    compatibilityState: "reviewed" as const,
+    updatedAt: now,
+    updatedBy: reviewer,
+  };
+  if (profile) {
+    await ctx.db.patch(profile._id, profilePayload);
+  } else {
+    await ctx.db.insert("company_industry_profiles", profilePayload);
+  }
+
+  await ctx.db.patch(proposal._id, {
+    status: "approved",
+    reviewedAt: now,
+    reviewedBy: reviewer,
+    reviewNote: decisionReason,
+    approvedRevisionId: revisionId,
+    applicationState: "recompute_pending",
+    updatedAt: now,
+  });
+
+  return {
+    proposalId,
+    revisionId,
+    companyKey,
+    ...(currentRevisionId
+      ? { supersedesRevisionId: currentRevisionId }
+      : {}),
+    sourceCount: approvedSourceIds.length,
+  };
+}
 
 export const undoIndustryProposalApproval = mutation({
   args: {
@@ -2860,6 +3060,7 @@ export const undoIndustryProposalApproval = mutation({
       approvedSourceIds: restoredSourceIds,
       evidenceSummary: restoredEvidenceSummary,
       reviewedBy: reviewer,
+      reviewerType: "human",
       reviewedAt: now,
       decisionReason: restoredDecisionReason,
       taxonomyVersion: previousRevision?.taxonomyVersion ?? approvedRevision.taxonomyVersion,

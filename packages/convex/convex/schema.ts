@@ -1127,6 +1127,8 @@ export default defineSchema({
         approvedSourceIds: v.array(v.string()),
         evidenceSummary: v.string(),
         reviewedBy: v.string(),
+        /** Who advanced the verdict: "human" (attended cockpit) or "auto-verify-bot" (governed Lane A). */
+        reviewerType: v.union(v.literal("human"), v.literal("auto-verify-bot")),
         reviewedAt: v.number(),
         decisionReason: v.string(),
         taxonomyVersion: v.string(),

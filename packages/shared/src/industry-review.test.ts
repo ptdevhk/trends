@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AUTO_VERIFY_SOURCE_TYPES,
   INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
   INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS,
+  hasAutoApprovableEvidence,
   hasExplicitCncEvidence,
+  isAutoApprovableSource,
   isExplicitCncEvidenceSource,
   reviewAttestationDecision,
   validateIndustryReviewAttestation,
@@ -94,5 +97,129 @@ describe("industry review policy", () => {
       ok: false,
       code: "INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED",
     });
+  });
+
+  it("Lane A auto-verify accepts only structured registry/taxonomy sources with explicit CNC text", () => {
+    expect(AUTO_VERIFY_SOURCE_TYPES).toEqual(
+      new Set(["registry", "taxonomy"]),
+    );
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining company registry record",
+        evidenceExcerpt: "数控机床制造",
+        fetchStatus: "fetched",
+        sourceState: "active",
+        reviewStatus: "unreviewed",
+      }),
+    ).toBe(true);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "taxonomy",
+        trustTier: "primary",
+        title: "机床加工",
+        evidenceExcerpt: "Precision machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(true);
+  });
+
+  it("Lane A rejects prose, discovery, failed, disputed, and non-CNC sources", () => {
+    expect(
+      isAutoApprovableSource({
+        sourceType: "official_site",
+        trustTier: "primary",
+        title: "CNC machining",
+        evidenceExcerpt: "We do CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "discovery",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "failed",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "disputed",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "General trading company",
+        evidenceExcerpt: "Import and export of consumer goods",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+  });
+
+  it("Lane A requires every selected source to be auto-approvable", () => {
+    expect(
+      hasAutoApprovableEvidence([
+        {
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+        {
+          sourceType: "taxonomy",
+          trustTier: "primary",
+          title: "机床",
+          evidenceExcerpt: "机床",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      hasAutoApprovableEvidence([
+        {
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+        {
+          sourceType: "official_site",
+          trustTier: "primary",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+      ]),
+    ).toBe(false);
+    expect(hasAutoApprovableEvidence([])).toBe(false);
   });
 });

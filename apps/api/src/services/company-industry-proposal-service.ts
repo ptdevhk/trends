@@ -171,6 +171,59 @@ export async function approveIndustryProposal(
 }
 
 /**
+ * Governed Lane A auto-approval (auto-verify-bot).
+ *
+ * Thin driver over the Convex `autoApproveIndustryProposal` mutation — the
+ * Lane A gate (structured registry/taxonomy sources only, explicit CNC text,
+ * fetched+active+unreviewed, canonical companyKey, verified-only) is enforced
+ * server-side in the mutation, never in the caller. The revisionId is
+ * deterministic, so re-approving the same proposal is a no-op.
+ */
+export async function autoApproveIndustryProposal(input: {
+  proposalId: string;
+  industryClass: IndustryClass;
+  approvedSourceIds: string[];
+  evidenceSummary: string;
+  decisionReason: string;
+  taxonomyVersion: string;
+  ruleVersion?: string;
+  expectedInputFingerprint?: string;
+}): Promise<{
+  proposalId: string;
+  revisionId: string;
+  companyKey: string;
+  idempotent?: boolean;
+}> {
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:autoApproveIndustryProposal", {
+      ...input,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    throw error;
+  }
+  if (
+    !isRecord(value) ||
+    typeof value.proposalId !== "string" ||
+    typeof value.revisionId !== "string" ||
+    typeof value.companyKey !== "string"
+  ) {
+    throw new Error("Invalid companies:autoApproveIndustryProposal response");
+  }
+  invalidateIndustryReviewIndex();
+  return {
+    proposalId: value.proposalId,
+    revisionId: value.revisionId,
+    companyKey: value.companyKey,
+    ...(value.idempotent === true ? { idempotent: true } : {}),
+  };
+}
+
+/**
  * Attended approval boundary used by the future stewardship route.
  *
  * Truth is committed first as an immutable revision. The proposal remains in
