@@ -3206,6 +3206,34 @@ export const listIndustryVerdictRevisions = query({
   },
 });
 
+/**
+ * List verdict revisions advanced by the governed auto-verify-bot lane
+ * (reviewerType = auto-verify-bot), newest first. Used by the sampling-audit
+ * script to select ~10% of auto-approved verdicts for human re-review and to
+ * track the override rate.
+ */
+export const listAutoApprovedVerdictRevisions = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const limit = Math.min(1000, Math.max(1, Math.floor(args.limit ?? 200)));
+    const rows = await ctx.db
+      .query("company_industry_verdict_revisions")
+      .collect();
+    return rows
+      .filter((row) => row.reviewerType === "auto-verify-bot")
+      .sort(
+        (left, right) =>
+          right.createdAt - left.createdAt ||
+          right.revisionId.localeCompare(left.revisionId),
+      )
+      .slice(0, limit);
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Durable targeted company-industry recompute orchestration
 // ---------------------------------------------------------------------------
