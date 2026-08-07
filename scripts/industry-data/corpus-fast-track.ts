@@ -532,8 +532,24 @@ async function applyFastTrack(
         continue;
       } else {
         // c) Existing open proposal (researching / ready_for_review):
-        //    no status change needed, but evidence sources still attach
-        //    (idempotent by sourceId) so corpus evidence is complete.
+        //    no status change needed, but attach the canonical companyKey
+        //    when the proposal is still unmapped (created before the company
+        //    was resolved) and evidence sources still attach (idempotent by
+        //    sourceId) so corpus evidence is complete.
+        if (!existingProposal.companyKey) {
+          await convexRun("companies:upsertIndustryProposal", {
+            proposalId: existingProposal.proposalId,
+            companyKey: group.companyKey,
+            normalizedEmployerSurface: group.displayName,
+            triggerReasons: ["corpus_evidence"],
+            priority: tier === 1 ? 95 : 85,
+            suggestedIndustryClass: "cnc",
+            suggestedVerificationLevel: "verified",
+            materialChangeSummary: `Corpus evidence: ${resumeCount} resume(s) with CNC-relevant titles`,
+            requestedBy: "corpus-fast-track",
+            writeSecret: secret,
+          });
+        }
         await addEvidenceSources(group, existingProposal.proposalId, secret);
         console.log(`[✓] ${group.companyKey} tier=${tier} resumes=${resumeCount} sources=${group.identityKeys.size} (existing ${existingProposal.status})`);
         skipped++;
