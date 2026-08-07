@@ -212,7 +212,7 @@ async function scanMarket(market: Market): Promise<CollectedEntry[]> {
   const bffBase = process.env.BFF_API_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   const url =
     `${bffBase}/api/resumes?q=${encodeURIComponent(q)}&location=${encodeURIComponent(location)}` +
-    `&source=convex&paged=true&limit=200&workspaceSlug=hr`;
+    `&source=convex&paged=true&limit=200&workspaceSlug=hr&minRoleYears=1&roleType=sales`;
 
   const res = await fetch(url);
   if (!res.ok) {
