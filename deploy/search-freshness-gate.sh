@@ -285,7 +285,11 @@ while remaining > 0:
         method="POST",
     )
     try:
-        with opener.open(req, timeout=180) as r:
+        # The reingest action scans the full resume corpus in 50-row batches
+        # before scheduling; on large cloned datasets (8k+ resumes) it can take
+        # 3-5 minutes. A 180s client timeout aborts the pacing loop after the
+        # first batch, so the gate must allow the action's worst case.
+        with opener.open(req, timeout=420) as r:
             out = json.loads(r.read().decode())
         sched = int(out.get("scheduled") or 0)
         scheduled_total += sched
