@@ -1127,8 +1127,14 @@ export default defineSchema({
         approvedSourceIds: v.array(v.string()),
         evidenceSummary: v.string(),
         reviewedBy: v.string(),
-        /** Who advanced the verdict: "human" (attended cockpit) or "auto-verify-bot" (governed Lane A). */
-        reviewerType: v.union(v.literal("human"), v.literal("auto-verify-bot")),
+        /**
+         * Who advanced the verdict: "human" (attended cockpit) or
+         * "auto-verify-bot" (governed Lane A). Optional for backward
+         * compatibility with pre-Lane-A rows; readers treat a missing value
+         * as "human" unless reviewedBy is "auto-verify-bot" (legacy
+         * migration-bot approvals).
+         */
+        reviewerType: v.optional(v.union(v.literal("human"), v.literal("auto-verify-bot"))),
         reviewedAt: v.number(),
         decisionReason: v.string(),
         taxonomyVersion: v.string(),

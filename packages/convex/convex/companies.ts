@@ -3211,6 +3211,10 @@ export const listIndustryVerdictRevisions = query({
  * (reviewerType = auto-verify-bot), newest first. Used by the sampling-audit
  * script to select ~10% of auto-approved verdicts for human re-review and to
  * track the override rate.
+ *
+ * Legacy rows (pre-Lane-A) lack reviewerType; they are treated as
+ * auto-approved when reviewedBy is "auto-verify-bot" (the migration-bot
+ * approvals from the v0.4.23 upgrade).
  */
 export const listAutoApprovedVerdictRevisions = query({
   args: {
@@ -3224,7 +3228,11 @@ export const listAutoApprovedVerdictRevisions = query({
       .query("company_industry_verdict_revisions")
       .collect();
     return rows
-      .filter((row) => row.reviewerType === "auto-verify-bot")
+      .filter(
+        (row) =>
+          row.reviewerType === "auto-verify-bot" ||
+          (row.reviewerType === undefined && row.reviewedBy === "auto-verify-bot"),
+      )
       .sort(
         (left, right) =>
           right.createdAt - left.createdAt ||
