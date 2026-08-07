@@ -76,7 +76,7 @@ function parseCliArgs() {
  * Run a Convex function via `npx convex run` from the packages/convex directory.
  */
 async function convexRun<T>(
-  _convexUrl: string,
+  convexUrl: string,
   functionName: string,
   args: Record<string, unknown>,
 ): Promise<T> {
@@ -94,7 +94,8 @@ async function convexRun<T>(
   const tmpFile = join(tmpDir, "args.json");
   writeFileSync(tmpFile, argsJson, { mode: 0o600 });
 
-  const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')" 2>&1`;
+  const urlFlag = convexUrl ? ` --url "${convexUrl}"` : "";
+  const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')"${urlFlag} 2>&1`;
 
   let output: string;
   try {

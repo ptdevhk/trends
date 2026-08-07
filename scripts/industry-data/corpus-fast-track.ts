@@ -107,11 +107,13 @@ async function convexRun<T>(
   functionName: string,
   args: Record<string, unknown>,
 ): Promise<T> {
+  const convexUrl = process.env.CONVEX_URL ?? "http://127.0.0.1:3210";
   const tmpDir = mkdtempSync(path.join(tmpdir(), "convex-run-"));
   try {
     const tmpFile = path.join(tmpDir, "args.json");
     writeFileSync(tmpFile, JSON.stringify(args), { mode: 0o600 });
-    const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')" 2>&1`;
+    const urlFlag = ` --url "${convexUrl}"`;
+    const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')"${urlFlag} 2>&1`;
     let output: string;
     try {
       output = execSync(cmd, {
@@ -207,8 +209,9 @@ type RoleSignal = {
 
 async function scanMarket(market: Market): Promise<CollectedEntry[]> {
   const { q, location } = MARKET_QUERIES[market];
+  const bffBase = process.env.BFF_API_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
   const url =
-    `http://localhost:3000/api/resumes?q=${q}&location=${location}` +
+    `${bffBase}/api/resumes?q=${encodeURIComponent(q)}&location=${encodeURIComponent(location)}` +
     `&source=convex&paged=true&limit=200&workspaceSlug=hr`;
 
   const res = await fetch(url);
