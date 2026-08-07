@@ -290,6 +290,7 @@ describe("companies routes", () => {
             evidenceSummaryDraft: "Official catalog confirms CNC products.",
             decisionReasonDraft: "Reviewed primary evidence.",
             requiresHumanReview: true,
+            autoApprovable: false,
           },
           inputFingerprint: "fingerprint-1",
           sourceCount: 1,
@@ -364,6 +365,7 @@ describe("companies routes", () => {
         evidenceSummaryDraft: "Need more evidence",
         decisionReasonDraft: "Need more evidence",
         requiresHumanReview: true,
+        autoApprovable: false,
       },
       warnings: [],
     });

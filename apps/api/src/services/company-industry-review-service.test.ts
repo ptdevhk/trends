@@ -361,7 +361,7 @@ describe("excludeAutoApprovableFromQueue (Lane A queue exclusion)", () => {
         },
         evidenceSummaryDraft: "Registry evidence.",
         decisionReasonDraft: "Auto-approve.",
-        requiresHumanReview: true,
+        requiresHumanReview: true as const,
         autoApprovable,
       },
       inputFingerprint: "fingerprint-1",

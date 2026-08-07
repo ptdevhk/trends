@@ -102,6 +102,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "companies.ts", name: "markIndustryEvidenceProfilesChecking", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },
     { file: "companies.ts", name: "recordIndustryEvidenceFreshnessCheck", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },
     { file: "companies.ts", name: "approveIndustryProposal", quiesceAware: true, reason: "Attended admin approval via write-secret and BFF middleware" },
+    { file: "companies.ts", name: "autoApproveIndustryProposal", quiesceAware: true, reason: "Governed Lane A auto-verify via write-secret and BFF/script maintenance guard" },
     { file: "companies.ts", name: "resolveIndustryProposal", quiesceAware: true, reason: "Attended admin review via write-secret and BFF middleware" },
     { file: "companies.ts", name: "deleteIndustryVerdictRevision", quiesceAware: true, reason: "Admin revision maintenance via write-secret and BFF middleware" },
     { file: "companies.ts", name: "startIndustryRecomputeRun", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
