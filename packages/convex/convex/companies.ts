@@ -2636,7 +2636,7 @@ async function commitIndustryVerdictApproval(
   const companyKey = proposal.companyKey;
   const profiles = await ctx.db
     .query("company_industry_profiles")
-    .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+    .withIndex("by_company_key", (q: any) => q.eq("companyKey", companyKey))
     .collect();
   const profile = profiles[0];
   const currentRevisionId = profile?.currentRevisionId;
@@ -2647,7 +2647,7 @@ async function commitIndustryVerdictApproval(
   ) {
     const revisions = await ctx.db
       .query("company_industry_verdict_revisions")
-      .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
+      .withIndex("by_revision_id", (q: any) => q.eq("revisionId", revisionId))
       .collect();
     const revision = revisions[0];
     if (
@@ -2714,7 +2714,7 @@ async function commitIndustryVerdictApproval(
   if (args.expectedSourceVersions !== undefined) {
     const currentSources = await ctx.db
       .query("company_industry_evidence_sources")
-      .withIndex("by_proposal", (q) => q.eq("proposalId", proposalId))
+      .withIndex("by_proposal", (q: any) => q.eq("proposalId", proposalId))
       .collect();
     const expectedVersions = new Map(
       args.expectedSourceVersions.map((item) => [item.sourceId.trim(), item.updatedAt]),
@@ -2723,7 +2723,8 @@ async function commitIndustryVerdictApproval(
       expectedVersions.size !== args.expectedSourceVersions.length ||
       expectedVersions.size !== currentSources.length ||
       currentSources.some(
-        (source) => expectedVersions.get(source.sourceId) !== source.updatedAt,
+        (source: { sourceId: string; updatedAt: number }) =>
+          expectedVersions.get(source.sourceId) !== source.updatedAt,
       )
     ) {
       throw new Error(
@@ -2734,7 +2735,7 @@ async function commitIndustryVerdictApproval(
 
   const existingRevisions = await ctx.db
     .query("company_industry_verdict_revisions")
-    .withIndex("by_revision_id", (q) => q.eq("revisionId", revisionId))
+    .withIndex("by_revision_id", (q: any) => q.eq("revisionId", revisionId))
     .collect();
   if (existingRevisions[0]) {
     throw new Error(`revisionId already exists: ${revisionId}`);

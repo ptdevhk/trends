@@ -5,6 +5,7 @@ import {
   INDUSTRY_REVIEW_CONFIDENCE_BANDS,
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
+  hasAutoApprovableEvidence,
   hasExplicitCncEvidence,
   normalizeIndustryEvidenceUrl,
   reviewAttestationDecision,
@@ -193,6 +194,39 @@ function maintenanceFailureWarning(
     message: "The latest industry maintenance could not reach the FastAPI worker; no new evidence was promoted.",
     action: "Start apps.worker.api on :8000, verify WORKER_URL, then run maintenance again.",
   };
+}
+
+/**
+ * Lane A (governed auto-verify) eligibility for a proposal.
+ *
+ * A proposal is auto-approvable only when ALL hold:
+ *   - it has a canonical companyKey (no identity ambiguity);
+ *   - the recommendation is an approve with zero risk flags (the blocking
+ *     flags already cover low_source_diversity, source_conflict, stale
+ *     sources, weak signals, and missing identity);
+ *   - every eligible source is a structured registry/taxonomy record with
+ *     explicit CNC signal text (prose evidence always routes to the human
+ *     cockpit).
+ *
+ * Confidence is deliberately not part of the gate: for structured registry
+ * evidence, corroborating records are the trusted tier (registry data is
+ * machine-verifiable), and the risk-flag set is the real safety boundary.
+ *
+ * Auto-approvable proposals are excluded from the human review queue — the
+ * governed auto-verify-bot lane handles them with zero manual actions.
+ */
+function isAutoApprovableProposal(input: {
+  proposal: IndustryProposal;
+  recommendedAction: string;
+  riskFlags: IndustryReviewRiskFlag[];
+  eligibleSources: IndustryEvidenceSource[];
+}): boolean {
+  const { proposal, recommendedAction, riskFlags, eligibleSources } = input;
+  if (!proposal.companyKey) return false;
+  if (recommendedAction !== "approve") return false;
+  if (riskFlags.length > 0) return false;
+  if (eligibleSources.length === 0) return false;
+  return hasAutoApprovableEvidence(eligibleSources);
 }
 
 function buildRecommendation(input: {
@@ -415,6 +449,12 @@ function buildRecommendation(input: {
           ? "The proposed change does not meet the current evidence policy; confirm the rejection reason."
           : "Additional evidence or canonical-company review is required before changing verified truth.",
     requiresHumanReview: true,
+    autoApprovable: isAutoApprovableProposal({
+      proposal,
+      recommendedAction,
+      riskFlags: [...riskFlags],
+      eligibleSources,
+    }),
   };
 
   const fingerprintInput = {
@@ -680,12 +720,25 @@ export async function listIndustryReviewQueue(input: {
     success: true,
     ok: true,
     schemaVersion: INDUSTRY_REVIEW_SCHEMA_VERSION,
-    items: page.items
-      .map((entry) => itemByProposalId.get(entry.proposalId))
-      .filter((item): item is IndustryReviewQueueItem => item !== undefined),
+    items: excludeAutoApprovableFromQueue(
+      page.items
+        .map((entry) => itemByProposalId.get(entry.proposalId))
+        .filter((item): item is IndustryReviewQueueItem => item !== undefined),
+    ),
     maintenance,
     ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
   };
+}
+
+/**
+ * Lane A exclusion: auto-approvable proposals never appear in the human
+ * review queue — the governed auto-verify-bot lane handles them with zero
+ * manual actions. All other proposals flow through unchanged.
+ */
+export function excludeAutoApprovableFromQueue(
+  items: IndustryReviewQueueItem[],
+): IndustryReviewQueueItem[] {
+  return items.filter((item) => item.recommendation.autoApprovable !== true);
 }
 
 function reviewIndexCacheKey(input: {

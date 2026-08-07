@@ -308,6 +308,15 @@ export interface IndustryReviewRecommendation {
   evidenceSummaryDraft: string;
   decisionReasonDraft: string;
   requiresHumanReview: true;
+  /**
+   * Lane A (governed auto-verify) eligibility: true only when the proposal
+   * has a canonical companyKey, the recommendation is a high-confidence
+   * approve with zero risk flags, and every eligible source is a structured
+   * registry/taxonomy record with explicit CNC signal text. Auto-approvable
+   * proposals are excluded from the human review queue — the governed
+   * auto-verify-bot lane handles them with zero manual actions.
+   */
+  autoApprovable: boolean;
 }
 
 export interface IndustryReviewOperation {
