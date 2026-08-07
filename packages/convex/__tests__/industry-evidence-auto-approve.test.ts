@@ -257,4 +257,39 @@ describe("autoApproveIndustryProposal (governed Lane A)", () => {
       reviewerType: "human",
     });
   });
+
+  it("attaches a canonical companyKey to an existing unmapped surface proposal", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    // Unmapped surface proposal (no companyKey) — the corpus-fast-track
+    // promotion path (b) hits this shape.
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-surface",
+      normalizedEmployerSurface: "ACME CNC SDN BHD",
+      triggerReasons: ["unknown_employer"],
+      priority: 50,
+      writeSecret: WRITE_SECRET,
+    });
+
+    // Re-upsert with a resolved companyKey attaches it to the open proposal.
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-surface-2",
+      companyKey: "acme-cnc",
+      normalizedEmployerSurface: "ACME CNC SDN BHD",
+      triggerReasons: ["corpus_evidence"],
+      priority: 95,
+      writeSecret: WRITE_SECRET,
+    });
+
+    const proposal = await t.query(api.companies.getIndustryProposal, {
+      proposalId: "proposal-surface",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposal?.companyKey).toBe("acme-cnc");
+  });
 });

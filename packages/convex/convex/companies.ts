@@ -1509,9 +1509,26 @@ export const upsertIndustryProposal = mutation({
             q.eq("normalizedEmployerSurface", normalizedEmployerSurface),
           )
           .collect();
-    const existing = candidates.find((candidate) =>
-      OPEN_INDUSTRY_PROPOSAL_STATUSES.has(candidate.status),
-    );
+    // When the caller resolved a canonical company AND supplied the employer
+    // surface, also look up by surface so an existing unmapped proposal
+    // (created before the company was resolved) is found and gets the
+    // companyKey attached instead of spawning a duplicate.
+    const surfaceCandidates =
+      companyKey && normalizedEmployerSurface
+        ? await ctx.db
+            .query("company_industry_review_proposals")
+            .withIndex("by_surface_status", (q) =>
+              q.eq("normalizedEmployerSurface", normalizedEmployerSurface),
+            )
+            .collect()
+        : [];
+    const existing =
+      candidates.find((candidate) =>
+        OPEN_INDUSTRY_PROPOSAL_STATUSES.has(candidate.status),
+      ) ??
+      surfaceCandidates.find((candidate) =>
+        OPEN_INDUSTRY_PROPOSAL_STATUSES.has(candidate.status),
+      );
     const now = Date.now();
     const triggerReasons = uniqueSortedStrings([
       ...(existing?.triggerReasons ?? []),
@@ -1527,6 +1544,10 @@ export const upsertIndustryProposal = mutation({
         triggerReasons,
         priority: Math.max(existing.priority, args.priority),
         ...(sampleReferences.length > 0 ? { sampleReferences } : {}),
+        // Attach the canonical company when the caller resolved one — an
+        // unmapped surface proposal becomes auto-approvable (Lane A) only
+        // once it has a companyKey.
+        ...(companyKey && !existing.companyKey ? { companyKey } : {}),
         ...(args.currentRevisionId !== undefined
           ? { currentRevisionId: args.currentRevisionId }
           : {}),
