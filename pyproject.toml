@@ -1,6 +1,6 @@
 [project]
 name = "trends"
-version = "0.4.24"
+version = "0.4.23"
 description = "Trends - Multi-source data aggregation & AI screening platform"
 requires-python = ">=3.10"
 dependencies = [
