@@ -505,6 +505,10 @@ describe("resume routes", () => {
         location: "东莞",
       })
     );
+    // List-view projection: the raw searchText blob is dropped from the
+    // response (the web list never consumes it; provenance is computed
+    // server-side), shrinking the CN list payload by ~12%.
+    expect(payload.data[0]).not.toHaveProperty("searchText");
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
     }));

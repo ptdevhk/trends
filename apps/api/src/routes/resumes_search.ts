@@ -1122,6 +1122,18 @@ app.openapi(getResumesRoute, (c) => {
             ? (totalCount ?? statusFilteredWorking.length)
             : statusFilteredWorking.length;
 
+        // List-view projection: the web list consumes the resume fields,
+        // ingestData, analysis/analyses, and provenance — but never the raw
+        // searchText blob (up to ~27KB per resume). Dropping it shrinks the
+        // CN list payload by ~12% (763KB of 6.6MB) with zero UI impact.
+        const projected = limited.map((item) => {
+          if (!isRecord(item) || typeof item.searchText !== "string") {
+            return item;
+          }
+          const { searchText: _dropped, ...rest } = item as Record<string, unknown>;
+          return rest as ResumeItem;
+        });
+
         return c.json({
           success: true as const,
           summary: {
@@ -1133,7 +1145,7 @@ app.openapi(getResumesRoute, (c) => {
             searchMode: hybridSearchMode,
             ...(statusCounts ? { statusCounts } : {}),
           },
-          data: limited,
+          data: projected,
         }, 200);
       })();
     }
