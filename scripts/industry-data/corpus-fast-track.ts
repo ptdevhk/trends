@@ -537,6 +537,21 @@ async function applyFastTrack(
         //    was resolved) and evidence sources still attach (idempotent by
         //    sourceId) so corpus evidence is complete.
         if (!existingProposal.companyKey) {
+          // The company may not exist yet (the proposal predates resolution);
+          // create it + alias first, mirroring path (a).
+          await convexRun("companies:upsert", {
+            companyKey: group.companyKey,
+            displayName: cleanName,
+            status: "confirmed",
+            createdBy: "corpus-fast-track",
+            writeSecret: secret,
+          });
+          await convexRun("companies:addAlias", {
+            companyKey: group.companyKey,
+            alias: group.displayName,
+            source: "observed",
+            writeSecret: secret,
+          });
           await convexRun("companies:upsertIndustryProposal", {
             proposalId: existingProposal.proposalId,
             companyKey: group.companyKey,
