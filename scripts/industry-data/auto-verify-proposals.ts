@@ -28,7 +28,6 @@
  */
 
 import { parseArgs } from "node:util";
-import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -57,7 +56,6 @@ type EvidenceSource = {
 
 const TARGET_INDUSTRIES = ["cnc", "automation", "industrial", "metrology"];
 const TAXONOMY_VERSION = "industry-v1";
-const ATTESTATION_SCHEMA = "industry-review-attestation.v1";
 
 function parseCliArgs() {
   const { values } = parseArgs({
@@ -179,6 +177,7 @@ async function main() {
   let approved = 0;
   let skipped = 0;
   let failed = 0;
+  let idempotent = 0;
   const approvedCompanies: string[] = [];
 
   for (const proposal of batch) {
@@ -234,44 +233,38 @@ async function main() {
       continue;
     }
 
-    // Approve via Convex mutation
-    const revisionId = `auto-${proposal.proposalId.slice(0, 12)}-${Date.now().toString(36)}`;
-    const inputFingerprint = `auto-fp-${randomUUID().slice(0, 16)}`;
-
+    // Governed Lane A approval: the Convex mutation enforces the gate
+    // (structured registry/taxonomy sources only, explicit CNC text,
+    // fetched+active+unreviewed, canonical companyKey, verified-only) and
+    // derives a deterministic revisionId, so re-runs are no-ops.
     try {
       const result = await convexRun<Record<string, unknown>>(
         convexUrl,
-        "companies:approveIndustryProposal",
+        "companies:autoApproveIndustryProposal",
         {
           proposalId: proposal.proposalId,
-          revisionId,
-          verificationLevel: "verified",
           industryClass: industry,
           approvedSourceIds,
           evidenceSummary: `Auto-approved ${industry} industry company with ${approvedSourceIds.length} evidence source(s)`,
-          decisionReason: `Batch auto-approval for upgrade migration (reviewer: ${reviewer})`,
+          decisionReason: `Governed Lane A auto-approval (reviewer: ${reviewer})`,
           taxonomyVersion: TAXONOMY_VERSION,
-          reviewer,
-          reviewAttestation: {
-            schemaVersion: ATTESTATION_SCHEMA,
-            inputFingerprint,
-            decisionMode: "standard",
-            acknowledgedRiskFlags: [],
-            cncEvidenceAcknowledged: true,
-            acknowledgementReason: `Auto-verified batch approval for ${industry} industry`,
-          },
         },
       );
 
       const resultRevision = typeof result.revisionId === "string" ? result.revisionId : "?";
       const resultCompany = typeof result.companyKey === "string" ? result.companyKey : companyKey;
-      console.log(`✓ Approved (revision: ${resultRevision.slice(0, 16)}...)`);
-      approved++;
+      if (result.idempotent === true) {
+        console.log(`✓ Already approved (idempotent, revision: ${resultRevision.slice(0, 16)}...)`);
+        idempotent++;
+      } else {
+        console.log(`✓ Approved (revision: ${resultRevision.slice(0, 16)}...)`);
+        approved++;
+      }
       approvedCompanies.push(resultCompany);
     } catch (err) {
       const msg = (err as Error).message;
-      if (msg.includes("INDUSTRY_REVIEW_CNC_ACK_REQUIRED")) {
-        console.log(`✗ CNC attestation required (try manual review)`);
+      if (msg.includes("AUTO_VERIFY_LANE_A_REQUIRED")) {
+        console.log(`✗ Lane A gate: prose or non-structured evidence (try manual review)`);
       } else if (msg.includes("not open for approval")) {
         console.log(`⚠ Already processed (not open)`);
         skipped++;
@@ -286,7 +279,7 @@ async function main() {
   }
 
   console.log(`\n${"=".repeat(60)}`);
-  console.log(`Results: ${approved} approved, ${skipped} skipped, ${failed} failed`);
+  console.log(`Results: ${approved} approved, ${idempotent} idempotent, ${skipped} skipped, ${failed} failed`);
 
   if (approvedCompanies.length > 0) {
     console.log(`\nApproved companies:`);
