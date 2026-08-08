@@ -705,3 +705,241 @@ def test_targeted_job_rejects_legal_name_without_distinctive_overlap():
 
     assert job.run() is True
     assert not any(name == "identity_candidate" for name, _ in client.operations)
+
+
+# --- JSON-LD organization-name capture (2026-08-09) --------------------------
+
+
+def test_json_ld_org_names_extracts_organization_and_alternate():
+    from apps.worker.industry_evidence_research import _json_ld_org_names
+
+    raw = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Organization",
+     "name":"Leong Bee & Soo Bee Sdn Bhd","alternateName":"LBSB","url":"https://lbsb.com"}
+    </script>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[
+      {"@type":["Organization","WebSite"],"name":"Orange Vise Company LLC"},
+      {"@type":"WebSite","name":"Ignored Site"}]}
+    </script>
+    </head><body>Home About Us</body></html>
+    """
+    orgs = _json_ld_org_names(raw)
+    assert orgs == [
+        {"name": "Leong Bee & Soo Bee Sdn Bhd", "alternateName": "LBSB"},
+        {"name": "Orange Vise Company LLC", "alternateName": ""},
+    ]
+    # Broken JSON-LD blocks are skipped, not fatal; valid siblings survive.
+    broken = raw.replace('"name":"Orange Vise Company LLC"', '"name": BROKEN }')
+    orgs = _json_ld_org_names(broken)
+    assert orgs[0]["name"] == "Leong Bee & Soo Bee Sdn Bhd"
+    assert _json_ld_org_names("<html><p>no json-ld</p></html>") == []
+
+
+def test_excerpt_with_organization_names_appends_org_line():
+    from apps.worker.industry_evidence_research import _excerpt_with_organization_names
+
+    excerpt = "Home About Us Contact"
+    raw = '<script type="application/ld+json">{"@type":"Organization","name":"Leong Bee & Soo Bee Sdn Bhd","alternateName":"LBSB"}</script>'
+    result = _excerpt_with_organization_names(excerpt, raw)
+    assert result == "Home About Us Contact\nOrganization name: LEONG BEE & SOO BEE SDN BHD. | alt: LBSB"
+
+    # No JSON-LD organization: excerpt unchanged.
+    assert _excerpt_with_organization_names(excerpt, "<html><p>plain</p></html>") == excerpt
+
+
+def test_guarded_fetcher_captures_json_ld_org_name():
+    class Headers:
+        @staticmethod
+        def get_content_charset():
+            return "utf-8"
+
+    class Response:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        @staticmethod
+        def geturl():
+            return "https://lbsb.example/"
+
+        @staticmethod
+        def read(_limit):
+            body = (
+                "<html><head><title>About Us - LBSB</title>"
+                '<script type="application/ld+json">'
+                '{"@type":"Organization","name":"Leong Bee & Soo Bee Sdn Bhd",'
+                '"alternateName":"LBSB","url":"https://lbsb.example"}</script>'
+                "</head><body><p>Bandsaw blades, carbide tipped circular sawblades.</p></body></html>"
+            )
+            return body.encode("utf-8")
+
+    with (
+        patch(
+            "apps.worker.industry_evidence_research._resolved_host_is_public",
+            return_value=True,
+        ),
+        patch("apps.worker.industry_evidence_research.urlopen", return_value=Response()),
+    ):
+        result = GuardedEvidenceFetcher().fetch("https://lbsb.example/")
+
+    assert "Organization name: LEONG BEE & SOO BEE SDN BHD. | alt: LBSB" in result["excerpt"]
+
+
+def test_targeted_job_extracts_candidate_from_json_ld_alt_name():
+    """The LBSB regression: the legal name lives only in JSON-LD as
+    "Leong Bee & Soo Bee Sdn Bhd" with alternateName "LBSB"; the surface
+    "lbsb group of companies" matches via the alternate name only."""
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "lbsb", "normalizedEmployerSurface": "lbsb group of companies", "status": "new"}
+    ]
+    source_url = "https://lbsb.example/about"
+    client.sources_by_proposal["lbsb"] = [
+        {"sourceId": "lbsb-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt=(
+                "Bandsaw blades, carbide tipped circular sawblades.\n"
+                "Organization name: LEONG BEE & SOO BEE SDN BHD. | alt: LBSB"
+            ),
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["lbsb"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    candidates = [payload for name, payload in client.operations if name == "identity_candidate"]
+    assert candidates
+    assert candidates[0]["normalizedLegalName"] == "LEONG BEE & SOO BEE SDN BHD."
+
+
+# --- No-churn guard: needs_more_evidence with unchanged evidence stays put --
+
+
+def _needs_more_proposal(proposal_id: str, surface: str) -> Dict[str, Any]:
+    return {
+        "proposalId": proposal_id,
+        "normalizedEmployerSurface": surface,
+        "status": "needs_more_evidence",
+    }
+
+
+def test_no_churn_keeps_needs_more_evidence_on_unchanged_sources():
+    """The panasonic churn regression: a needs_more_evidence proposal whose
+    re-research pass returns the same stored sources must not flip back to
+    ready_for_review."""
+    client = FakeIndustryClient()
+    client.proposals = [_needs_more_proposal("p-churn", "Vision Machine Tools")]
+    source_url = "https://vision.example/about"
+    client.sources_by_proposal["p-churn"] = [
+        {"sourceId": "vision-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt="VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["p-churn"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    final_state = [
+        payload for name, payload in client.operations
+        if name == "set_research_state" and payload.get("status") != "researching"
+    ][-1]
+    assert final_state["status"] == "needs_more_evidence"
+    assert "no material evidence change" in final_state["materialChangeSummary"]
+    assert not any(name == "complete_request" for name, _ in client.operations)
+
+
+def test_no_churn_allows_flip_when_new_evidence_source_appears():
+    """A genuinely new evidence source is a material change: the proposal may
+    move to ready_for_review."""
+    class DiscoveryJob:
+        def discover_for_proposal(self, proposal):
+            return {
+                "sources": [
+                    {
+                        "url": "https://vision.example/products",
+                        "sourceType": "official_site",
+                        "trustTier": "primary",
+                        "expectedExcerpt": "VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+                    }
+                ]
+            }
+
+    client = FakeIndustryClient()
+    client.proposals = [_needs_more_proposal("p-new-evidence", "Vision Machine Tools")]
+    fetcher = StaticFetcher({
+        "https://vision.example/products": _page(
+            final_url="https://vision.example/products",
+            excerpt="VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        discovery_job=DiscoveryJob(),
+        mode="targeted",
+        target_proposal_ids=["p-new-evidence"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    final_state = [
+        payload for name, payload in client.operations
+        if name == "set_research_state" and payload.get("status") != "researching"
+    ][-1]
+    assert final_state["status"] == "ready_for_review"
+
+
+def test_no_churn_does_not_hold_back_new_proposals():
+    """The guard applies only to needs_more_evidence proposals; a fresh
+    proposal with real evidence still reaches ready_for_review."""
+    client = FakeIndustryClient()
+    client.proposals = [{"proposalId": "p-fresh", "normalizedEmployerSurface": "Vision Machine Tools", "status": "new"}]
+    source_url = "https://vision.example/about"
+    client.sources_by_proposal["p-fresh"] = [
+        {"sourceId": "vision-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt="VISION MACHINE TOOLS SDN. BHD. manufactures CNC machine tools.",
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["p-fresh"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    final_state = [
+        payload for name, payload in client.operations
+        if name == "set_research_state" and payload.get("status") != "researching"
+    ][-1]
+    assert final_state["status"] == "ready_for_review"

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import html
 import ipaddress
+import json
 import logging
 import os
 import re
@@ -140,6 +141,122 @@ def _excerpt_with_legal_name(excerpt: str, text: str) -> str:
 _LEGAL_SUFFIX_TOKENS = frozenset(
     {"sdn", "bhd", "pte", "ltd", "limited", "inc", "corp", "corporation", "co"}
 )
+
+
+def _walk_json_ld_nodes(node: Any):
+    """Depth-first walk of parsed JSON-LD, yielding every object node."""
+    if isinstance(node, list):
+        for child in node:
+            yield from _walk_json_ld_nodes(child)
+    elif isinstance(node, dict):
+        yield node
+        graph = node.get("@graph")
+        if graph is not None:
+            yield from _walk_json_ld_nodes(graph)
+        for key, value in node.items():
+            if key.startswith("@") or key == "@graph":
+                continue
+            if isinstance(value, (dict, list)):
+                yield from _walk_json_ld_nodes(value)
+
+
+def _json_ld_org_names(raw: str) -> List[Dict[str, str]]:
+    """Schema.org Organization names/alternateNames from JSON-LD script blocks.
+
+    Legal names frequently live only in ``<script type="application/ld+json">``
+    markup, which the plain-text extractor strips. Returns at most four
+    ``{"name", "alternateName"}`` entries; review-only, never a mapping.
+    """
+    orgs: List[Dict[str, str]] = []
+    for block in re.findall(
+        r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+        str(raw or ""),
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        try:
+            data = json.loads(block)
+        except (ValueError, TypeError):
+            continue
+        for item in _walk_json_ld_nodes(data):
+            type_value = item.get("@type") if isinstance(item, dict) else None
+            types = type_value if isinstance(type_value, list) else [type_value]
+            if "Organization" not in types:
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            alternate = str(item.get("alternateName") or "").strip()
+            orgs.append({"name": name, "alternateName": alternate})
+            if len(orgs) >= 4:
+                return orgs
+    return orgs
+
+
+def _excerpt_with_organization_names(excerpt: str, raw: str) -> str:
+    """Append bounded schema.org Organization lines to a fetched excerpt.
+
+    JSON-LD script content is stripped by the text extractor, so append the
+    organization's own name (and alternateName when present) as a structured
+    line the identity pipeline can read. Verbatim page data, capped at two
+    organizations and one line each.
+    """
+    lines = []
+    for org in _json_ld_org_names(raw)[:2]:
+        name = _normalize_identity_name(org["name"])
+        if len(name) < 8 or len(name) > 80:
+            continue
+        line = f"Organization name: {name}"
+        alternate = re.sub(r"\s+", " ", org.get("alternateName") or "").strip()
+        if alternate and len(alternate) <= 80:
+            line += f" | alt: {alternate.upper()}"
+        lines.append(line)
+    if not lines:
+        return excerpt
+    return f"{excerpt}\n" + "\n".join(lines)
+
+
+def _identity_org_from_excerpt(evidence_excerpt: str) -> Optional[tuple]:
+    """``(organization_name, alternate_name)`` from an appended
+    ``Organization name:`` line, or None."""
+    for line in str(evidence_excerpt or "").splitlines():
+        match = re.match(
+            r"^Organization name: (.+?)(?: \| alt: (.+))?$",
+            line.strip(),
+        )
+        if match:
+            return (match.group(1).strip(), (match.group(2) or "").strip())
+    return None
+
+
+def _name_overlap_passes(
+    employer_surface: str,
+    surface_tokens: List[str],
+    legal_name: str,
+) -> bool:
+    """Distinctive-token overlap gate shared by regex and org-line candidates.
+
+    A legal name sharing any non-generic token with the employer surface is a
+    viable candidate; fully generic surfaces fall back to a stricter
+    two-token rule. Legal-suffix tokens never count toward overlap.
+    """
+    name_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", legal_name.lower())
+        if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
+    }
+    if not name_tokens:
+        return False
+    distinctive = _distinctive_employer_tokens(employer_surface)
+    if distinctive:
+        return any(token in name_tokens for token in distinctive)
+    return (
+        sum(
+            token in name_tokens
+            for token in surface_tokens
+            if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
+        )
+        >= 2
+    )
 
 
 def _distinctive_employer_tokens(employer_surface: str) -> set:
@@ -327,6 +444,7 @@ class GuardedEvidenceFetcher:
                     raw = body.decode(charset, errors="replace")
                     text = _text_from_html(raw)
                     excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
+                    excerpt = _excerpt_with_organization_names(excerpt, raw)
                     return {
                         "finalUrl": final_url,
                         "status": int(getattr(response, "status", 200)),
@@ -715,42 +833,46 @@ class IndustryEvidenceMaintenanceJob:
                 or source.get("domainGuardPassed") is False
             ):
                 continue
-            match = None
-            for field in ("evidenceExcerpt", "title"):
-                field_text = str(source.get(field) or "")
-                match = _find_first_legal_name(field_text)
-                if match:
-                    break
-            if not match:
-                continue
-            legal_name = match
             # A legal suffix alone is not enough to infer the employer. Require
             # meaningful overlap with the exact employer surface; a primary
             # source can still be retained as evidence without creating a
             # misleading identity candidate.
-            # Distinctive-token overlap: a legal name that shares any
-            # non-generic token with the employer surface is a viable
-            # candidate (e.g. surface "lbsb group of companies" + legal name
-            # "LBSB SDN BHD." share only "lbsb"). Fully generic surfaces fall
-            # back to the stricter two-token rule.
             surface_tokens = re.findall(r"[a-z0-9]+", employer_surface.lower())
-            name_tokens = {
-                token
-                for token in re.findall(r"[a-z0-9]+", legal_name.lower())
-                if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
-            }
-            distinctive = _distinctive_employer_tokens(employer_surface)
-            if distinctive:
-                overlap = sum(token in name_tokens for token in distinctive)
-                required_overlap = 1
-            else:
-                overlap = sum(
-                    token in name_tokens
-                    for token in surface_tokens
-                    if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
+            legal_name = None
+            alt_name = ""
+            org_line = _identity_org_from_excerpt(
+                str(source.get("evidenceExcerpt") or "")
+            )
+            if org_line:
+                # JSON-LD organization line: accept when the organization
+                # name OR its alternateName shares a distinctive token with
+                # the surface (e.g. surface "lbsb group of companies" with an
+                # org "LEONG BEE & SOO BEE SDN BHD." + alt "LBSB").
+                org_name, alt_name = org_line
+                normalized_org = _normalize_identity_name(org_name)
+                if 8 <= len(normalized_org) <= 80:
+                    legal_name = normalized_org
+                    alt_name = alt_name.strip()
+            if legal_name is None:
+                for field in ("evidenceExcerpt", "title"):
+                    field_text = str(source.get(field) or "")
+                    match = _find_first_legal_name(field_text)
+                    if match:
+                        legal_name = match
+                        break
+            if not legal_name:
+                continue
+            if not (
+                _name_overlap_passes(employer_surface, surface_tokens, legal_name)
+                or (
+                    alt_name
+                    and _name_overlap_passes(
+                        employer_surface,
+                        surface_tokens,
+                        _normalize_identity_name(alt_name),
+                    )
                 )
-                required_overlap = 2
-            if employer_surface and surface_tokens and overlap < required_overlap:
+            ):
                 continue
             item = grouped.setdefault(
                 legal_name,
@@ -890,6 +1012,14 @@ class IndustryEvidenceMaintenanceJob:
                 candidate["relevanceDemoted"] = True
                 demoted_count += 1
         result = self.researcher.enrich_proposal(proposal, candidates)
+        # Capture the pre-run source set before upserting so the no-churn
+        # guard compares against what the proposal actually stored.
+        existing_source_ids = {
+            str(source.get("sourceId") or "").strip()
+            for source in self.client.list_industry_evidence_sources(
+                proposal_id=proposal_id
+            )
+        }
         for source in result["sources"]:
             source.pop("domainGuardPassed", None)
             source.pop("errorCode", None)
@@ -897,6 +1027,24 @@ class IndustryEvidenceMaintenanceJob:
         identity_candidates = self._identity_candidates_for_sources(
             proposal, result["sources"]
         )
+        # No-churn guard: a needs_more_evidence proposal stays
+        # needs_more_evidence when a re-research pass adds no material
+        # evidence change (every result source was already stored), instead
+        # of flipping back to ready_for_review with unchanged evidence every
+        # maintenance round (observed churn, 2026-08-08/09).
+        if (
+            str(proposal.get("status") or "") == "needs_more_evidence"
+            and result["status"] == "ready_for_review"
+            and bool(result["sources"])
+            and all(
+                str(source.get("sourceId") or "").strip() in existing_source_ids
+                for source in result["sources"]
+            )
+        ):
+            result["status"] = "needs_more_evidence"
+            result["materialChangeSummary"] = (
+                "ready_for_review suppressed: re-research added no material evidence change"
+            )
         self.client.set_industry_proposal_research_state(
             {
                 "proposalId": proposal_id,
