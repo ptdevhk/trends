@@ -8,6 +8,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/quiesce.sh"
+# shellcheck source=lib-preview-common.sh
+source "$SCRIPT_DIR/lib-preview-common.sh"
 
 TARGET_CONVEX_DIR=/home/ubuntu/trends-preview/packages/convex
 SOURCE_CONVEX_DIR=/opt/trends/packages/convex
@@ -300,6 +302,20 @@ docker exec trends-preview-convex bash -c "
     cd /app/packages/convex && \
     timeout 900 npx convex import --replace-all /app/prod-convex-export.zip --yes
 "
+
+echo ""
+echo "=== Step 3c: Re-assert canonical no-hire company policies ==="
+# `convex import --replace-all` materializes schema tables missing from the
+# export as EMPTY (see Step 1b). If the export predates the no-hire seed (or
+# lacks the table), the workspace blacklist settings for 宝力机械 / Pro-Technic
+# Machinery and 宝惠 / Polywell would silently vanish on preview while prod
+# keeps them. Re-run the idempotent seed so a repeat restore cycle leaves the
+# blacklist SET (no-op when the latest revision is already no-hire).
+if ! seed_preview_canonical_no_hire "hr"; then
+    echo "FATAL: canonical no-hire re-seed failed — preview blacklist would be unset." >&2
+    echo "Manual fix: docker exec trends-preview-convex bash -c 'cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET | tail -1) && npx convex run companies:seedCanonicalCompanies \"{\\\"workspaceSlug\\\":\\\"hr\\\",\\\"seedNoHireForWorkspace\\\":true,\\\"writeSecret\\\":\\\"\$WS\\\"}\" --env-file .env.local'" >&2
+    exit 1
+fi
 
 echo ""
 echo "=== Step 4: Resume digests (parity-preserving policy) ==="

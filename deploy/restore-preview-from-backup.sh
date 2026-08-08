@@ -218,6 +218,16 @@ import_preview_convex() {
     docker exec "$PREVIEW_CONVEX_CONTAINER" bash -lc \
         "cd /app/packages/convex && npx convex import --replace-all --yes '$container_path' --env-file .env.local"
     docker exec "$PREVIEW_CONVEX_CONTAINER" rm -f "$container_path"
+    # `convex import --replace-all` materializes schema tables missing from the
+    # snapshot as EMPTY. If the replayed backup predates the no-hire seed (or
+    # lacks the table), the workspace blacklist settings for 宝力机械 /
+    # Pro-Technic Machinery and 宝惠 / Polywell would silently vanish on
+    # preview while prod keeps them. Re-run the idempotent seed so a repeat
+    # restore cycle leaves the blacklist SET. Best-effort here: a rehearsal
+    # baseline may predate the seed mutation (function not found), which must
+    # not abort the replay.
+    seed_preview_canonical_no_hire "hr" \
+        || log_warn "canonical no-hire re-seed failed (rehearsal baseline may predate the seed mutation) — re-run manually after install-target"
 }
 
 recreate_preview_containers() {

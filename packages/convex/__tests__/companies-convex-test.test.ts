@@ -129,6 +129,68 @@ describe("companies (convex-test)", () => {
     expect(again.policiesSeeded).toBe(0);
   });
 
+  it("restore-cycle guard: empty revisions → seed → no_hire for both → re-seed appends nothing", async () => {
+    // Models a preview data restore (`convex import --replace-all`): tables
+    // missing from the imported snapshot are materialized EMPTY, so the
+    // workspace blacklist starts unset — exactly the state that made
+    // preview's policies page show "no workspace policy" after the upgrade.
+    const t = createTest();
+    const before = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(before).toEqual([]);
+
+    // The restore path re-asserts the canonical no-hire policies.
+    const seed = await t.mutation(api.companies.seedCanonicalCompanies, {
+      workspaceSlug: "hr",
+      seedNoHireForWorkspace: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "seed",
+    });
+    expect(seed.companiesCreated).toBe(2);
+    expect(seed.policiesSeeded).toBe(2);
+
+    // The settings page lookup (`/hr/settings/policies` → listPoliciesForScope
+    // with scopeId "hr") now resolves both companies to no-hire.
+    const after = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(after.map((policy) => policy.companyKey).sort()).toEqual([
+      "polywell",
+      "pro-technic-machinery",
+    ]);
+    for (const policy of after) {
+      expect(policy.scopeId).toBe("hr");
+      expect(policy.revision).toBe(1);
+      expect(policy.effects?.visibility).toBe("hide");
+      expect(policy.effects?.workflow).toBe("blocked");
+      expect(policy.effects?.rankingEffect).toBe("band_known_bad");
+      expect(policy.effects?.summary).toContain("Seeded no-hire employer");
+    }
+
+    // A repeat restore cycle re-runs the same seed: already no-hire → no new
+    // revision rows (idempotent), so revisions stay at 1.
+    const reseed = await t.mutation(api.companies.seedCanonicalCompanies, {
+      workspaceSlug: "hr",
+      seedNoHireForWorkspace: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "seed",
+    });
+    expect(reseed.policiesSeeded).toBe(0);
+    expect(reseed.policyRevision).toBeNull();
+    const afterReseed = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(afterReseed).toHaveLength(2);
+    expect(afterReseed.every((policy) => policy.revision === 1)).toBe(true);
+  });
+
   it("appends policy revisions and resolves workspace over global", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {
