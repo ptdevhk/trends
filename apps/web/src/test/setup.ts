@@ -11,10 +11,14 @@ expect.extend(matchers)
 //
 // vitest.config.ts aliases every react/react-dom import to the ROOT copy so
 // tests and @testing-library/react share one reconciler. Root react is pinned
-// as a root devDependency (^19) — the suite is written against React 19 and
-// behaves pathologically on React 18 (infinite effect loops, flaky races, CI
-// hangs). If this guard trips, `npm install` at the repo root and confirm
-// node_modules/react is 19.x.
+// as a root devDependency (^19); if the root hoist ever drifts back to 18 (a
+// stale lockfile, a removed root pin), app code and @testing-library/react
+// resolve to different React majors inside one jsdom process — divergent
+// act()/effect behavior, flaky races, and CI stalls (the July-2026 incident;
+// note the update-depth guard code is identical in 18/19, so the failure was
+// the mixed-reconciler split, not React 18 itself). The guard turns that
+// drift into an immediate, legible failure. If it trips, run `npm install` at
+// the repo root and confirm node_modules/react is 19.x.
 // ---------------------------------------------------------------------------
 if (!React.version.startsWith('19.')) {
   throw new Error(

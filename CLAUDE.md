@@ -37,29 +37,39 @@ enforced by tests/CI:
 
 - **React 19 is pinned at the repo root** (root devDeps `react`/`react-dom`
   `^19`). `apps/web/vitest.config.ts` aliases every react import to the ROOT
-  copy, so a stale root hoist silently runs tests on a different React major
-  (the July-2026 root cause: a stale lockfile hoisted React 18 to root while
-  the bun tree had 19). `apps/web/src/test/setup.ts` hard-fails at test start
-  if resolved React is not 19.x. Never remove the root pin; never let
-  `package-lock.json` drift out of the tree (it is committed and CI-installs it).
-- **Mount-effect load callbacks must not depend on `t`.** The loop pattern:
-  `useEffect(() => { void load() }, [load])` where `load = useCallback(..., [t])`
-  and `t` changes identity per render → effect re-runs every render → infinite
-  loop. Omit `t` from the deps array and keep the convention comment +
-  `// eslint-disable-next-line react-hooks/exhaustive-deps`.
+  copy so tests and @testing-library/react share one reconciler; a stale root
+  hoist (July-2026 root cause: a stale lockfile hoisted React 18 to root while
+  the bun tree had 19) silently splits the suite across two React majors in
+  one jsdom process — divergent act()/effect behavior, races, stalls. Note the
+  update-depth guard code is identical in React 18/19; the failure was the
+  mixed-reconciler split, not React 18 being loop-prone. `src/test/setup.ts`
+  hard-fails at test start if resolved React is not 19.x. Never remove the
+  root pin; never let `package-lock.json` drift out of the tree (it is
+  committed and CI-installs it).
+- **Keep `t` in callback deps — `t` is stable.** react-i18next memoizes `t`
+  (stable identity across renders; changes only on a language switch), and the
+  test mocks below return a module-scope `t`, so `useCallback(..., [t])` is
+  stable and mount effects run once. Do NOT omit `t` from deps to "fix" loops:
+  it stalls error strings in the old language after a runtime language switch.
+  If a loop appears, the cause is an unstable mock or an unstable non-`t` dep,
+  not `t`.
 - **react-i18next test mocks must return a module-scope `t`.** An inline
   `t: (key) => ...` arrow inside a `vi.mock('react-i18next', ...)` factory
   creates a fresh `t` every render, destabilizing every `useCallback([..., t])`
   in the tree. Hoist it: `const mockT = (key, opts) => ...` at module scope,
   then `t: mockT`. `src/test/setup.ts` provides a shared default.
-- **Loop watchdog:** `apps/web/vitest.config.ts` `onConsoleLog` throws on
-  "Maximum update depth exceeded" so loops fail in seconds, not at the
-  30-minute CI timeout.
-- **Node 22 / CI parity:** `.nvmrc` pins node 22 (what the Checks + Tests
-  workflows run). Before pushing, run `make ci-local` (node-major check +
-  i18n + agent policy + `CI=true make check-build` + `make test-coverage`) —
-  it reproduces the CI gates locally. `NODE_VERSION_STRICT=1` upgrades the
-  node-major mismatch to a hard failure.
+- **Loop watchdog (smoke signal):** `apps/web/vitest.config.ts` `onConsoleLog`
+  throws when a worker logs "Maximum update depth exceeded" — the throw
+  surfaces in the main process as an unhandled rejection and the run exits 1,
+  instead of streaming warnings until the 30-minute CI timeout. It does NOT
+  fail the offending test and does NOT interrupt a worker stuck in a loop; the
+  stable-mock-`t` convention above is the real protection.
+- **Node 22 / CI parity:** `.nvmrc` pins node 22; both GitHub workflows read
+  it via `node-version-file` so it is the single source of truth. Before
+  pushing, run `make ci-local` (node-major check + i18n + agent policy +
+  `CI=true make check-build` + `make test-coverage`) — it reproduces the CI
+  gates locally. `NODE_VERSION_STRICT=1` upgrades the node-major mismatch to a
+  hard failure.
 
 <!-- AGENT_POLICY:BEGIN -->
 <!--

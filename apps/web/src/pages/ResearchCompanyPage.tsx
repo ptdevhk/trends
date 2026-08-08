@@ -288,9 +288,7 @@ export function ResearchCompanyPage() {
     setSignals(Array.isArray(data.items) ? data.items : [])
     setSignalsMeta(data.meta ?? null)
     setLoading(false)
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyKey, persona])
+  }, [companyKey, persona, t])
 
   const loadLatest = useCallback(async () => {
     const { data } = await rawApiClient.GET<LatestIngestResponse>('/api/research/ingest/latest')
@@ -324,9 +322,7 @@ export function ResearchCompanyPage() {
       return
     }
     setHotlistItems(Array.isArray(data.items) ? data.items : [])
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   useEffect(() => {
     let cancelled = false

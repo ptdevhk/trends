@@ -527,9 +527,7 @@ export function SearchProfileEditorDialog({
             toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
             onOpenChange(false)
         }
-      // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [onOpenChange])
+    }, [onOpenChange, t])
 
     useEffect(() => {
         if (!open) {

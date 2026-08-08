@@ -296,9 +296,7 @@ export function ReviewPacketsPage() {
     } finally {
       setRunsLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   const loadRunDetail = useCallback(async (runId: string) => {
     setDetailLoading(true)
@@ -324,9 +322,7 @@ export function ReviewPacketsPage() {
     } finally {
       setDetailLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   function updateRunState(nextRun: ReviewPacketRun) {
     setSelectedRunId(nextRun.id)

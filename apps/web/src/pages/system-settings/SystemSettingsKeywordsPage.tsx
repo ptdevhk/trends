@@ -85,9 +85,7 @@ export function SystemSettingsKeywordsPage() {
     } finally {
       setLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadBrandKeywords, loadCustomKeywords])
+  }, [loadBrandKeywords, loadCustomKeywords, t])
 
   useEffect(() => {
     loadData().catch((error) => {

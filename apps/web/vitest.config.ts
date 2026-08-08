@@ -27,11 +27,16 @@ export default defineConfig({
     css: false,
     // Watchdog: an infinite React update loop ("Maximum update depth exceeded")
     // used to stream warnings for 30 minutes until the CI job timeout killed
-    // the run. Fail the offending test immediately instead — the message tells
-    // the developer what the usual cause is (an effect depending on an
-    // unstable callback, e.g. `t` from an unstable react-i18next mock).
+    // the run. Throwing from onConsoleLog does NOT fail the offending test and
+    // does NOT interrupt a worker genuinely stuck in a loop — the throw
+    // surfaces in the main process as an unhandled rejection and makes vitest
+    // exit 1. Treat this as a smoke signal for logged loops, not a hang guard:
+    // the stable mock-`t` convention (src/test/setup.ts) is the real
+    // protection. The message tells the developer the usual cause (an effect
+    // depending on an unstable callback, e.g. `t` from an unstable
+    // react-i18next mock).
     onConsoleLog(log, type) {
-      if ((type === 'stderr' || type === 'error') && log.includes('Maximum update depth exceeded')) {
+      if (type === 'stderr' && log.includes('Maximum update depth exceeded')) {
         throw new Error(
           'Detected an infinite React update loop ("Maximum update depth exceeded"). ' +
             'Likely cause: a mount effect depends on a useCallback that closes over `t` ' +

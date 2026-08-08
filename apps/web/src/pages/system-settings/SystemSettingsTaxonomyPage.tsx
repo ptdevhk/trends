@@ -96,9 +96,7 @@ export function SystemSettingsTaxonomyPage() {
     } finally {
       setLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestJson])
+  }, [requestJson, t])
 
   useEffect(() => {
     loadData().catch((error) => {

@@ -91,9 +91,7 @@ export default function SearchAnalyticsPage() {
     } finally {
       setLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadAnalytics()

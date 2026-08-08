@@ -43,9 +43,7 @@ export function UserAuditDrawer({ open, onOpenChange, user }: Props) {
     } finally {
       setLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
+  }, [user, t])
 
   useEffect(() => {
     if (open && user) {

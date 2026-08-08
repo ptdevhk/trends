@@ -337,9 +337,7 @@ export function SummaryRunsPage() {
     } finally {
       setDetailLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   const loadRuns = useCallback(async (preferredRunId?: string) => {
     setLoading(true)
@@ -379,9 +377,7 @@ export function SummaryRunsPage() {
     } finally {
       setLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadRunDetail])
+  }, [loadRunDetail, t])
 
   useEffect(() => {
     void loadRuns()
@@ -421,9 +417,7 @@ export function SummaryRunsPage() {
     } finally {
       setProfilesLoading(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadProfiles()

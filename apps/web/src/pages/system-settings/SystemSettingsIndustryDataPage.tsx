@@ -91,9 +91,7 @@ export function SystemSettingsIndustryDataPage() {
     } finally {
       setLoadingEntries(false)
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryType, requestJson])
+  }, [entryType, requestJson, t])
 
   const loadSchedule = useCallback(async () => {
     try {
@@ -134,9 +132,7 @@ export function SystemSettingsIndustryDataPage() {
         }),
       )
     }
-    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auditCompanyKey, requestJson])
+  }, [auditCompanyKey, requestJson, t])
 
   useEffect(() => {
     if (activeTab === 'manage') void loadEntries()
