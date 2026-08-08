@@ -105,7 +105,9 @@ export function SystemSettingsRuntimePage() {
     } finally {
       setLoading(false)
     }
-  }, [requestJson, setEffectiveWorkHistoryLimit, t])
+    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestJson, setEffectiveWorkHistoryLimit])
 
   useEffect(() => {
     loadData().catch((error) => {

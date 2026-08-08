@@ -246,7 +246,9 @@ export function SearchProfilesPage() {
       toast.error(t('searchProfiles.loadError', { defaultValue: 'Failed to load profiles' }))
       setLoading(false)
     }
-  }, [fetchProfileDetail, fetchRunStatus, t])
+    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchProfileDetail, fetchRunStatus])
 
   useEffect(() => {
     void loadProfiles()

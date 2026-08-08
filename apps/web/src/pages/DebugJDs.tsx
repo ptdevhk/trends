@@ -74,7 +74,9 @@ export default function DebugJDs() {
             reportUiError('Failed to load job descriptions with usage', error)
             setDeleteError((previous) => previous ?? t('jdManagement.errors.deleteFailed'))
         }
-    }, [loadJdsWithUsage, slug, t])
+      // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadJdsWithUsage, slug])
 
     useEffect(() => {
         void refreshJds()

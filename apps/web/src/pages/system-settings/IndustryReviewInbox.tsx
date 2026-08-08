@@ -297,7 +297,9 @@ export function IndustryReviewInbox({
     } finally {
       setLoading(false)
     }
-  }, [actionFilter, confidenceFilter, effectiveQueueStatus, requestJson, riskFilter, t])
+    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionFilter, confidenceFilter, effectiveQueueStatus, requestJson, riskFilter])
 
   const loadHistory = useCallback(async (): Promise<IndustryHistoryItem[] | null> => {
     setHistoryLoading(true)
@@ -342,7 +344,9 @@ export function IndustryReviewInbox({
     } finally {
       setHistoryLoading(false)
     }
-  }, [requestJson, t])
+    // t is i18n; intentionally omit from deps to avoid remount loops when t identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestJson])
 
   useEffect(() => {
     if (targetPending || (targetIsTerminal && (activeFilter === 'history' || !hasExplicitFilter))) return
