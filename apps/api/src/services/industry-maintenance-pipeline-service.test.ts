@@ -69,6 +69,58 @@ describe("enqueueIndustryMaintenance", () => {
     );
   });
 
+  it("leaves the run for worker-side completion when the worker POST times out", async () => {
+    const deps = makeDeps({
+      postToWorker: vi.fn().mockRejectedValue(
+        new DOMException("The operation timed out", "TimeoutError"),
+      ),
+    });
+    await enqueueIndustryMaintenance(
+      { workspaceSlug: "dev", triggerSource: "schedule" },
+      deps,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    // The worker may still be researching; the run must not be marked failed.
+    expect(deps.finishRun).not.toHaveBeenCalled();
+  });
+
+  it("does not release leases when the worker POST times out", async () => {
+    const deps = makeDeps({
+      startRun: vi.fn().mockResolvedValue({
+        runId: "r-target",
+        requests: [
+          { requestId: "request-1", proposalId: "proposal-1", leaseId: "lease-1" },
+        ],
+      }),
+      postToWorker: vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")),
+      releaseRequests: vi.fn().mockResolvedValue(undefined),
+    });
+    await enqueueIndustryMaintenance(
+      { workspaceSlug: "dev", triggerSource: "manual", mode: "targeted" },
+      deps,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    // Releasing leases on timeout could double-process proposals the worker
+    // is already researching; leave them leased for worker-side completion.
+    expect(deps.releaseRequests).not.toHaveBeenCalled();
+    expect(deps.finishRun).not.toHaveBeenCalled();
+  });
+
+  it("finishes the run failed when the worker connection is refused", async () => {
+    const deps = makeDeps({
+      postToWorker: vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    });
+    await enqueueIndustryMaintenance(
+      { workspaceSlug: "dev", triggerSource: "restore" },
+      deps,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    // Connection refusal means the worker never got the request: fail the run.
+    expect(deps.finishRun).toHaveBeenCalledWith(
+      expect.objectContaining({ runId: "r-1", status: "failed" }),
+    );
+  });
+
   it("never throws to the caller even if startRun fails", async () => {
     const deps = makeDeps({
       startRun: vi.fn().mockRejectedValue(new Error("convex down")),
