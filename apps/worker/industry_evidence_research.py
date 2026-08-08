@@ -52,11 +52,28 @@ TRUST_ORDER = {
 }
 
 IDENTITY_LEGAL_SUFFIX_RE = re.compile(
-    r"\b(?:SDN\.?\s+BHD\.?|PTE\.?\s+LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|CORPORATION|CO\.?\s*,?\s*LTD\.?)\b",
+    r"\b(?P<suffix>"
+    r"SDN\.?\s+BHD\.?|"
+    r"PTE\.?\s+LTD\.?|PTY\.?\s+LTD\.?|"
+    r"COMPANY\s+LIMITED|GESELLSCHAFT\s+MIT\s+BESCHRAENKTER\s+HAFTUNG|"
+    r"LIMITED|CORPORATION|BERHAD\.?|GMBH\.?|"
+    r"BHD\.?|LTD\.?|LLC\.?|LLP\.?|PLC\.?|INC\.?|CORP\.?|CO\.?\s*,?\s*LTD\.?|"
+    r"AB\.?|AS\.?|AG\.?|BV\.?|NV\.?|KK\.?|SA\.?"
+    r")\b",
     re.IGNORECASE,
 )
 IDENTITY_NAME_RE = re.compile(
     r"\b([A-Za-z0-9][A-Za-z0-9&.,'()\-/ ]{2,100}?\s+"
+    + IDENTITY_LEGAL_SUFFIX_RE.pattern
+    + r")",
+    re.IGNORECASE,
+)
+# Copyright lines carry the registrant's legal name most reliably; the
+# captured span deliberately excludes a leading 4-digit year.
+_COPYRIGHT_LEGAL_NAME_RE = re.compile(
+    r"(?:(?:copyright\s*)?(?:©|&copy;)|\(c\)|\(C\)|copyright)"
+    r"\s*(?:\d{4}\s*)?"
+    r"([A-Za-z0-9][A-Za-z0-9&.,'()\-/ ]{2,100}?\s+"
     + IDENTITY_LEGAL_SUFFIX_RE.pattern
     + r")",
     re.IGNORECASE,
@@ -77,7 +94,7 @@ def _normalize_identity_name(value: str) -> str:
 _PAGE_CHROME_TOKENS = frozenset(
     {
         "home", "about", "contact", "skip", "menu", "search", "login", "sign",
-        "back", "top", "bottom", "page", "main", "footer", "learn", "more",
+        "back", "page", "main", "footer", "learn", "more",
         "read", "terms", "privacy", "policy", "copyright", "reserved",
         "welcome", "browse", "close", "open", "content", "products",
         "services", "solutions", "legal", "name", "us", "our", "the", "and",
@@ -92,13 +109,60 @@ def _trim_page_chrome(value: str) -> str:
     IDENTITY_NAME_RE captures from the leftmost word to the legal suffix, so
     "Home About Us Contact LBSB SDN BHD." arrives as one span; the chrome
     prefix is not part of the legal name. Deterministic and conservative: only
-    leading tokens from the chrome vocabulary are removed, and at least two
-    tokens always remain.
+    leading tokens from the chrome vocabulary (and bare 4-digit years, which
+    precede footer copyright names) are removed, and at least two tokens
+    always remain.
     """
     tokens = value.split()
-    while len(tokens) > 2 and tokens[0].strip(".,;:()").lower() in _PAGE_CHROME_TOKENS:
+    while len(tokens) > 2 and (
+        tokens[0].strip(".,;:()").lower() in _PAGE_CHROME_TOKENS
+        or re.fullmatch(r"\d{4}", tokens[0].strip(".,;:()"))
+    ):
         tokens = tokens[1:]
     return " ".join(tokens)
+
+
+def _suffix_case_ok(match) -> bool:
+    """Short legal suffixes (AB/AS/AG/BV/NV/KK/SA/BHD/LTD/LLC/…) must be
+    capitalized in the original text: the case-insensitive matcher would
+    otherwise treat prose words like "as" or "ag" as suffixes."""
+    suffix = match.group("suffix")
+    if len(suffix) <= 3 and not suffix[0].isupper():
+        return False
+    return True
+
+
+def _find_legal_names(text: str) -> List[str]:
+    """Every legal-suffix name in page text, copyright lines first.
+
+    Footer copyright lines ("© 2024 Alfa Laval AB") carry the registrant's
+    legal name most reliably, so they are yielded before generic suffix
+    matches. Each candidate is normalized, chrome-trimmed, deduplicated, and
+    bounded to the same 8-80 char window the candidate pipeline accepts.
+    Review-only: nothing here maps or approves identity.
+    """
+    source = str(text or "")
+    names: List[str] = []
+    seen: set = set()
+    for match in _COPYRIGHT_LEGAL_NAME_RE.finditer(source):
+        if not _suffix_case_ok(match):
+            continue
+        # Copyright captures start right after the ©/year marker, so there is
+        # no leading chrome to trim — and trimming would destroy registered
+        # names that begin with an article (e.g. "The Store (Malaysia) Sdn.
+        # Bhd.").
+        candidate = _normalize_identity_name(match.group(1))
+        if 8 <= len(candidate) <= 80 and candidate not in seen:
+            seen.add(candidate)
+            names.append(candidate)
+    for match in IDENTITY_NAME_RE.finditer(source):
+        if not _suffix_case_ok(match):
+            continue
+        candidate = _normalize_identity_name(_trim_page_chrome(match.group(1)))
+        if 8 <= len(candidate) <= 80 and candidate not in seen:
+            seen.add(candidate)
+            names.append(candidate)
+    return names
 
 
 def _find_first_legal_name(text: str) -> Optional[str]:
@@ -109,13 +173,8 @@ def _find_first_legal_name(text: str) -> Optional[str]:
     candidate pipeline accepts, or None. Review-only: nothing here maps or
     approves identity.
     """
-    match = IDENTITY_NAME_RE.search(str(text or ""))
-    if not match:
-        return None
-    legal_name = _normalize_identity_name(_trim_page_chrome(match.group(1)))
-    if len(legal_name) < 8 or len(legal_name) > 80:
-        return None
-    return legal_name
+    names = _find_legal_names(text)
+    return names[0] if names else None
 
 
 def _excerpt_with_legal_name(excerpt: str, text: str) -> str:
@@ -423,45 +482,54 @@ class GuardedEvidenceFetcher:
             raise ValueError("unsafe_or_unresolved_host")
 
         last_error: Optional[Exception] = None
-        for attempt in range(self.max_attempts):
-            try:
-                request = Request(
-                    url,
-                    headers={
-                        "Accept": "text/html,application/xhtml+xml,text/plain",
-                        "User-Agent": "TrendsIndustryEvidenceBot/1.0",
-                    },
-                )
-                with urlopen(request, timeout=self.timeout_seconds) as response:
-                    final_url = response.geturl()
-                    if not safe_public_evidence_url(final_url):
-                        raise ValueError("unsafe_redirect")
-                    final_host = (urlparse(final_url).hostname or "").lower()
-                    if not _resolved_host_is_public(final_host):
-                        raise ValueError("unsafe_redirect_host")
-                    body = response.read(1_000_000)
-                    charset = response.headers.get_content_charset() or "utf-8"
-                    raw = body.decode(charset, errors="replace")
-                    text = _text_from_html(raw)
-                    excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
-                    excerpt = _excerpt_with_organization_names(excerpt, raw)
-                    return {
-                        "finalUrl": final_url,
-                        "status": int(getattr(response, "status", 200)),
-                        "title": _title_from_html(raw),
-                        "excerpt": excerpt,
-                        "contentFingerprint": "sha256:"
-                        + hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                        "domainGuardPassed": (
-                            not expected_domain
-                            or final_host == expected_domain.lower()
-                            or final_host.endswith("." + expected_domain.lower())
-                        ),
-                    }
-            except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
-                last_error = error
-                if attempt + 1 < self.max_attempts:
-                    continue
+        # Some sites only answer on their www (or bare) host; after the
+        # primary attempts are exhausted, try the sibling host once.
+        candidate_urls = [url]
+        host = initial.hostname
+        if host:
+            if host.startswith("www."):
+                candidate_urls.append(url.replace(f"://{host}", f"://{host[4:]}", 1))
+            else:
+                candidate_urls.append(url.replace(f"://{host}", f"://www.{host}", 1))
+        for url_index, attempt_url in enumerate(candidate_urls):
+            attempts = self.max_attempts if url_index == 0 else 1
+            for attempt in range(attempts):
+                try:
+                    request = Request(
+                        attempt_url,
+                        headers={
+                            "Accept": "text/html,application/xhtml+xml,text/plain",
+                            "User-Agent": "TrendsIndustryEvidenceBot/1.0",
+                        },
+                    )
+                    with urlopen(request, timeout=self.timeout_seconds) as response:
+                        final_url = response.geturl()
+                        if not safe_public_evidence_url(final_url):
+                            raise ValueError("unsafe_redirect")
+                        final_host = (urlparse(final_url).hostname or "").lower()
+                        if not _resolved_host_is_public(final_host):
+                            raise ValueError("unsafe_redirect_host")
+                        body = response.read(1_000_000)
+                        charset = response.headers.get_content_charset() or "utf-8"
+                        raw = body.decode(charset, errors="replace")
+                        text = _text_from_html(raw)
+                        excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
+                        excerpt = _excerpt_with_organization_names(excerpt, raw)
+                        return {
+                            "finalUrl": final_url,
+                            "status": int(getattr(response, "status", 200)),
+                            "title": _title_from_html(raw),
+                            "excerpt": excerpt,
+                            "contentFingerprint": "sha256:"
+                            + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                            "domainGuardPassed": (
+                                not expected_domain
+                                or final_host == expected_domain.lower()
+                                or final_host.endswith("." + expected_domain.lower())
+                            ),
+                        }
+                except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
+                    last_error = error
         raise RuntimeError(f"fetch_failed:{last_error}")
 
 
@@ -854,11 +922,22 @@ class IndustryEvidenceMaintenanceJob:
                     legal_name = normalized_org
                     alt_name = alt_name.strip()
             if legal_name is None:
+                # Best-match instead of first-match: footer copyright lines
+                # (yielded first) are the most reliable carriers of the
+                # registrant's legal name, and a wrong first generic match
+                # (e.g. a supplier or partner name in the page body) must not
+                # hide the employer's own legal name later in the text. Take
+                # the first name that shares a distinctive token with the
+                # exact employer surface.
                 for field in ("evidenceExcerpt", "title"):
                     field_text = str(source.get(field) or "")
-                    match = _find_first_legal_name(field_text)
-                    if match:
-                        legal_name = match
+                    for candidate_name in _find_legal_names(field_text):
+                        if _name_overlap_passes(
+                            employer_surface, surface_tokens, candidate_name
+                        ):
+                            legal_name = candidate_name
+                            break
+                    if legal_name is not None:
                         break
             if not legal_name:
                 continue

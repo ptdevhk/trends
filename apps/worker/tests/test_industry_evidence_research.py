@@ -5,6 +5,7 @@ from __future__ import annotations
 import socket
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
+from urllib.error import URLError
 
 from apps.worker.industry_evidence_research import (
     MAX_EXCERPT_LENGTH,
@@ -705,6 +706,156 @@ def test_targeted_job_rejects_legal_name_without_distinctive_overlap():
 
     assert job.run() is True
     assert not any(name == "identity_candidate" for name, _ in client.operations)
+
+
+# --- Extended legal-name extraction (copyright/AB/Berhad, best-match) ---------
+
+
+def test_find_legal_names_copyright_ab_and_year_stripped():
+    from apps.worker.industry_evidence_research import _find_legal_names
+
+    # Swedish AB suffix + copyright line; the year must not enter the name.
+    assert _find_legal_names("© 2024 Alfa Laval AB. All rights reserved.") == [
+        "ALFA LAVAL AB"
+    ]
+    assert _find_legal_names("Copyright © 2024 Tenaga Nasional Berhad") == [
+        "TENAGA NASIONAL BERHAD"
+    ]
+    # Article-leading registered names keep "The" on the copyright path.
+    store_names = _find_legal_names("© 2024 The Store (Malaysia) Sdn. Bhd.")
+    assert store_names[0] == "THE STORE (MALAYSIA) SDN. BHD."
+    # Copyright names come first, before generic suffix matches.
+    assert _find_legal_names(
+        "About ACME Engineering Sdn Bhd. © 2024 Alfa Laval AB"
+    )[0] == "ALFA LAVAL AB"
+
+
+def test_find_legal_names_extra_suffixes_and_short_suffix_case_guard():
+    from apps.worker.industry_evidence_research import _find_legal_names
+
+    names = _find_legal_names("ABC Engineering LLC and Top Glove Bhd")
+    assert "ABC ENGINEERING LLC" in names
+    assert "TOP GLOVE BHD" in names
+    assert _find_legal_names("Sony Computer Entertainment Europe Ltd") == [
+        "SONY COMPUTER ENTERTAINMENT EUROPE LTD"
+    ]
+    # Short suffixes (AB/AS/AG/BV/NV/KK/SA) must be capitalized in the text;
+    # prose "as" must never be treated as a legal suffix.
+    assert _find_legal_names("this is as we know") == []
+    assert _find_legal_names("known as the market leader") == []
+    assert _find_legal_names("Alfa Laval AB is a Swedish company") == ["ALFA LAVAL AB"]
+
+
+def test_targeted_job_extracts_candidate_from_copyright_footer_name():
+    """Round-1 drain miss: alfalaval.com carries the legal name only in the
+    footer copyright line ("© 2024 Alfa Laval AB"), which the old suffix
+    vocabulary (no AB) and excerpt window missed."""
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "alfa", "normalizedEmployerSurface": "alfa laval", "status": "new"}
+    ]
+    source_url = "https://www.alfalaval.example/"
+    client.sources_by_proposal["alfa"] = [
+        {"sourceId": "alfa-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt="Heat transfer, Separation, Fluid handling. © 2024 Alfa Laval AB. All rights reserved.",
+        ),
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["alfa"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    candidates = [payload for name, payload in client.operations if name == "identity_candidate"]
+    assert candidates and candidates[0]["normalizedLegalName"] == "ALFA LAVAL AB"
+
+
+def test_targeted_job_best_match_skips_wrong_first_name():
+    """A wrong first legal-suffix name (no surface overlap) must not hide the
+    employer's own legal name later in the same text."""
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "alfa2", "normalizedEmployerSurface": "alfa laval", "status": "new"}
+    ]
+    source_url = "https://www.alfalaval.example/contact"
+    client.sources_by_proposal["alfa2"] = [
+        {"sourceId": "alfa2-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt=(
+                "Partner: GLOBAL HOLDINGS LTD handles logistics. "
+                "© 2024 Alfa Laval AB. All rights reserved."
+            ),
+        ),
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["alfa2"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    candidates = [payload for name, payload in client.operations if name == "identity_candidate"]
+    assert candidates and candidates[0]["normalizedLegalName"] == "ALFA LAVAL AB"
+
+
+def test_guarded_fetcher_retries_www_fallback_after_primary_failures():
+    class Headers:
+        @staticmethod
+        def get_content_charset():
+            return "utf-8"
+
+    class Response:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        @staticmethod
+        def geturl():
+            return "https://www.watsons.example.my/"
+
+        @staticmethod
+        def read(_limit):
+            return b"<title>Watsons Malaysia</title><p>beauty &amp; health</p>"
+
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if "www." not in request.full_url:
+            raise URLError("connection refused on bare host")
+        return Response()
+
+    with (
+        patch(
+            "apps.worker.industry_evidence_research._resolved_host_is_public",
+            return_value=True,
+        ),
+        patch("apps.worker.industry_evidence_research.urlopen", side_effect=fake_urlopen),
+    ):
+        result = GuardedEvidenceFetcher(max_attempts=2).fetch(
+            "https://watsons.example.my/", expected_domain="watsons.example.my"
+        )
+
+    assert calls["count"] == 3  # 2 primary attempts + 1 www fallback
+    assert result["domainGuardPassed"] is True
+    assert "Watsons Malaysia" in result["title"]
 
 
 # --- JSON-LD organization-name capture (2026-08-09) --------------------------
