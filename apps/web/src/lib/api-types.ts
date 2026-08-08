@@ -8890,11 +8890,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List governed company-industry review proposals */
+        /** List governed company-industry review proposals (paginated) */
         get: {
             parameters: {
                 query?: {
                     status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                    limit?: number;
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -8902,7 +8904,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Proposal queue */
+                /** @description Proposal queue page; pass nextCursor to continue */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -8940,6 +8942,7 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                             }[];
+                            nextCursor?: string;
                         };
                     };
                 };

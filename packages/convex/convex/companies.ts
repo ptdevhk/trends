@@ -1,3 +1,4 @@
+/// <reference path="./query-count-augmentation.d.ts" />
 import { v } from "convex/values";
 import {
   internalAction,
