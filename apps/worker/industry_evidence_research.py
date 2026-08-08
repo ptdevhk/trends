@@ -64,13 +64,91 @@ IDENTITY_NAME_RE = re.compile(
 
 def _normalize_identity_name(value: str) -> str:
     """Normalize a legal-name candidate without claiming canonical identity."""
-    normalized = re.sub(r"\s+", " ", value.replace("\u00a0", " ")).strip(" ,;:-")
+    normalized = re.sub(r"\s+", " ", value.replace("\u00a0", " ")).strip(" ,;:-()")
     normalized = re.sub(r"\s+\.", ".", normalized)
     normalized = re.sub(r"\.\s+", ". ", normalized)
     normalized = re.sub(r"\s*,\s*", ", ", normalized)
-    if re.search(r"\b(?:SDN\. BHD|PTE\. LTD)$", normalized, re.IGNORECASE):
+    if re.search(r"\b(?:SDN\.?\s+BHD|PTE\.?\s+LTD)$", normalized, re.IGNORECASE):
         normalized += "."
     return normalized.upper()
+
+
+_PAGE_CHROME_TOKENS = frozenset(
+    {
+        "home", "about", "contact", "skip", "menu", "search", "login", "sign",
+        "back", "top", "bottom", "page", "main", "footer", "learn", "more",
+        "read", "terms", "privacy", "policy", "copyright", "reserved",
+        "welcome", "browse", "close", "open", "content", "products",
+        "services", "solutions", "legal", "name", "us", "our", "the", "and",
+        "for", "with", "from",
+    }
+)
+
+
+def _trim_page_chrome(value: str) -> str:
+    """Drop leading page-chrome tokens from a captured legal-name span.
+
+    IDENTITY_NAME_RE captures from the leftmost word to the legal suffix, so
+    "Home About Us Contact LBSB SDN BHD." arrives as one span; the chrome
+    prefix is not part of the legal name. Deterministic and conservative: only
+    leading tokens from the chrome vocabulary are removed, and at least two
+    tokens always remain.
+    """
+    tokens = value.split()
+    while len(tokens) > 2 and tokens[0].strip(".,;:()").lower() in _PAGE_CHROME_TOKENS:
+        tokens = tokens[1:]
+    return " ".join(tokens)
+
+
+def _find_first_legal_name(text: str) -> Optional[str]:
+    """First legal-suffix name in page text (footers/contact sections often
+    carry the legal name beyond the excerpt window).
+
+    Returns a normalized legal name bounded to the same 8-80 char window the
+    candidate pipeline accepts, or None. Review-only: nothing here maps or
+    approves identity.
+    """
+    match = IDENTITY_NAME_RE.search(str(text or ""))
+    if not match:
+        return None
+    legal_name = _normalize_identity_name(_trim_page_chrome(match.group(1)))
+    if len(legal_name) < 8 or len(legal_name) > 80:
+        return None
+    return legal_name
+
+
+def _excerpt_with_legal_name(excerpt: str, text: str) -> str:
+    """Append a bounded ``Legal name:`` line to an excerpt when the full page
+    text contains a legal-suffix name the excerpt window did not cover.
+
+    The appended line is verbatim page content, so the stored excerpt stays a
+    truthful bounded extract while the identity pipeline can see footer legal
+    names. No-op when the name is already inside the excerpt or the line would
+    exceed a bounded length.
+    """
+    legal_name = _find_first_legal_name(text)
+    if not legal_name:
+        return excerpt
+    if legal_name in excerpt.upper():
+        return excerpt
+    legal_line = f"Legal name: {legal_name}"
+    if len(legal_line) > 160:
+        return excerpt
+    return f"{excerpt}\n{legal_line}"
+
+
+_LEGAL_SUFFIX_TOKENS = frozenset(
+    {"sdn", "bhd", "pte", "ltd", "limited", "inc", "corp", "corporation", "co"}
+)
+
+
+def _distinctive_employer_tokens(employer_surface: str) -> set:
+    """Distinctive employer tokens; lazy import keeps web_research out of the
+    import graph when discovery is disabled (same pattern as
+    ``_candidate_content_proves_employer``)."""
+    from apps.worker.web_research.classify import distinctive_employer_tokens
+
+    return distinctive_employer_tokens(employer_surface)
 
 
 def employer_surface_for_search(proposal: Dict[str, Any]) -> str:
@@ -248,7 +326,7 @@ class GuardedEvidenceFetcher:
                     charset = response.headers.get_content_charset() or "utf-8"
                     raw = body.decode(charset, errors="replace")
                     text = _text_from_html(raw)
-                    excerpt = text[:MAX_EXCERPT_LENGTH]
+                    excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
                     return {
                         "finalUrl": final_url,
                         "status": int(getattr(response, "status", 200)),
@@ -365,7 +443,9 @@ class IndustryEvidenceResearcher:
                     # publisher-provided summary as the excerpt instead of
                     # fetching the URL, which would return unrelated
                     # homepage boilerplate or a JS interstitial.
-                    excerpt = expected_excerpt[:MAX_EXCERPT_LENGTH]
+                    excerpt = _excerpt_with_legal_name(
+                        expected_excerpt[:MAX_EXCERPT_LENGTH], expected_excerpt
+                    )
                     classification = classify_industry_excerpt(excerpt)
                     candidate_title = str(candidate.get("title") or "").strip()
                     source = {
@@ -638,22 +718,38 @@ class IndustryEvidenceMaintenanceJob:
             match = None
             for field in ("evidenceExcerpt", "title"):
                 field_text = str(source.get(field) or "")
-                match = IDENTITY_NAME_RE.search(field_text)
+                match = _find_first_legal_name(field_text)
                 if match:
                     break
             if not match:
                 continue
-            legal_name = _normalize_identity_name(match.group(1))
-            if len(legal_name) < 8 or len(legal_name) > 80:
-                continue
+            legal_name = match
             # A legal suffix alone is not enough to infer the employer. Require
             # meaningful overlap with the exact employer surface; a primary
             # source can still be retained as evidence without creating a
             # misleading identity candidate.
+            # Distinctive-token overlap: a legal name that shares any
+            # non-generic token with the employer surface is a viable
+            # candidate (e.g. surface "lbsb group of companies" + legal name
+            # "LBSB SDN BHD." share only "lbsb"). Fully generic surfaces fall
+            # back to the stricter two-token rule.
             surface_tokens = re.findall(r"[a-z0-9]+", employer_surface.lower())
-            name_tokens = re.findall(r"[a-z0-9]+", legal_name.lower())
-            overlap = sum(token in name_tokens for token in surface_tokens if len(token) > 2)
-            required_overlap = 1 if len(surface_tokens) <= 1 else 2
+            name_tokens = {
+                token
+                for token in re.findall(r"[a-z0-9]+", legal_name.lower())
+                if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
+            }
+            distinctive = _distinctive_employer_tokens(employer_surface)
+            if distinctive:
+                overlap = sum(token in name_tokens for token in distinctive)
+                required_overlap = 1
+            else:
+                overlap = sum(
+                    token in name_tokens
+                    for token in surface_tokens
+                    if len(token) > 2 and token not in _LEGAL_SUFFIX_TOKENS
+                )
+                required_overlap = 2
             if employer_surface and surface_tokens and overlap < required_overlap:
                 continue
             item = grouped.setdefault(

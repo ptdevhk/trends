@@ -573,3 +573,135 @@ def test_identity_persistence_failure_does_not_claim_review_ready_candidate():
     assert job.run() is True
     assert not any(name == "identity_candidate" for name, _ in client.operations)
     assert any(name == "complete_request" and payload["state"] == "completed" for name, payload in client.operations)
+
+
+# --- Identity-candidate extraction: fetch-time legal-name capture + ---
+# --- distinctive-token overlap (2026-08-09)                           ---
+
+
+def test_find_first_legal_name_finds_footer_names():
+    from apps.worker.industry_evidence_research import _find_first_legal_name
+
+    assert _find_first_legal_name("Home About Us Contact LBSB SDN BHD.") == "LBSB SDN BHD."
+    assert _find_first_legal_name("KSB in Malaysia | KSB Malaysia Pumps and Valves Sdn Bhd") == (
+        "KSB MALAYSIA PUMPS AND VALVES SDN BHD."
+    )
+    assert _find_first_legal_name("About Us - LBSB") is None
+    assert _find_first_legal_name("") is None
+    assert _find_first_legal_name("AB") is None  # below the 8-char window
+
+
+def test_excerpt_with_legal_name_appends_only_when_name_is_outside_window():
+    from apps.worker.industry_evidence_research import (
+        _excerpt_with_legal_name,
+        MAX_EXCERPT_LENGTH,
+    )
+
+    filler = "x" * MAX_EXCERPT_LENGTH
+    full = filler + " Footer: LBSB SDN BHD."
+    excerpt = _excerpt_with_legal_name(full[:MAX_EXCERPT_LENGTH], full)
+    assert excerpt == full[:MAX_EXCERPT_LENGTH] + "\nLegal name: LBSB SDN BHD."
+
+    # Name already inside the excerpt window: no duplicate line.
+    inside = "LBSB SDN BHD." + filler
+    assert _excerpt_with_legal_name(inside[:MAX_EXCERPT_LENGTH], inside) == inside[:MAX_EXCERPT_LENGTH]
+
+    # No legal name anywhere: excerpt unchanged.
+    assert _excerpt_with_legal_name(filler, filler) == filler
+
+
+def test_guarded_fetcher_captures_footer_legal_name_beyond_excerpt_window():
+    class Headers:
+        @staticmethod
+        def get_content_charset():
+            return "utf-8"
+
+    class Response:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        @staticmethod
+        def geturl():
+            return "https://lbsb.example/about"
+
+        @staticmethod
+        def read(_limit):
+            # The legal name sits beyond the first 800 chars of page text.
+            body = (
+                "<title>About Us - LBSB</title><p>"
+                + "x" * 2000
+                + "</p><footer>LBSB SDN BHD. All rights reserved.</footer>"
+            )
+            return body.encode("utf-8")
+
+    with (
+        patch(
+            "apps.worker.industry_evidence_research._resolved_host_is_public",
+            return_value=True,
+        ),
+        patch("apps.worker.industry_evidence_research.urlopen", return_value=Response()),
+    ):
+        result = GuardedEvidenceFetcher().fetch("https://lbsb.example/about")
+
+    assert "Legal name: LBSB SDN BHD." in result["excerpt"]
+
+
+def test_targeted_job_extracts_candidate_with_single_distinctive_token_overlap():
+    """Regression for the observed LBSB miss: surface "lbsb group of
+    companies" + legal name "LBSB SDN BHD." share only the "lbsb" token, which
+    the old two-token overlap gate dropped."""
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "lbsb", "normalizedEmployerSurface": "lbsb group of companies", "status": "new"}
+    ]
+    source_url = "https://lbsb.example/about"
+    client.sources_by_proposal["lbsb"] = [
+        {"sourceId": "lbsb-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(final_url=source_url, excerpt="Legal name: LBSB SDN BHD."),
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["lbsb"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    candidates = [payload for name, payload in client.operations if name == "identity_candidate"]
+    assert candidates and candidates[0]["normalizedLegalName"] == "LBSB SDN BHD."
+
+
+def test_targeted_job_rejects_legal_name_without_distinctive_overlap():
+    client = FakeIndustryClient()
+    client.proposals = [
+        {"proposalId": "abc", "normalizedEmployerSurface": "abc holdings", "status": "new"}
+    ]
+    source_url = "https://abc.example/about"
+    client.sources_by_proposal["abc"] = [
+        {"sourceId": "abc-source", "url": source_url, "sourceType": "official_site", "trustTier": "primary"}
+    ]
+    fetcher = StaticFetcher({
+        source_url: _page(
+            final_url=source_url,
+            excerpt="ABC HOLDINGS buys stakes; XYZ CORPORATION is a financial services group.",
+        )
+    })
+    job = IndustryEvidenceMaintenanceJob(
+        client=client,
+        researcher=IndustryEvidenceResearcher(fetcher=fetcher, now_ms=lambda: 200),
+        mode="targeted",
+        target_proposal_ids=["abc"],
+        claimed_requests=[],
+    )
+
+    assert job.run() is True
+    assert not any(name == "identity_candidate" for name, _ in client.operations)
