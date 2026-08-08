@@ -243,6 +243,21 @@ fi
 systemctl restart "$PREVIEW_API_SERVICE"
 wait_for_http "$PREVIEW_API_URL/health" 120
 
+log_step "Restart preview worker API"
+# The worker FastAPI service (uvicorn :8003) executes industry evidence
+# research + maintenance runs. Install the repo unit when missing so the host
+# tracks the tree, then restart so the upgraded code is live.
+if [[ -f "$PREVIEW_DIR/deploy/systemd/trends-preview-worker-api.service" ]]; then
+    cp "$PREVIEW_DIR/deploy/systemd/trends-preview-worker-api.service" /etc/systemd/system/trends-preview-worker-api.service
+    systemctl daemon-reload
+fi
+if systemctl is-active --quiet trends-preview-worker-api 2>/dev/null; then
+    systemctl restart trends-preview-worker-api
+else
+    systemctl start trends-preview-worker-api || log_warn "trends-preview-worker-api start failed (inspect with preview-doctor.sh)"
+fi
+wait_for_http "http://127.0.0.1:8003/health" 60 || log_warn "preview worker /health did not respond"
+
 log_step "Seed canonical preview auth (admin@dev + hr-demo@hr)"
 if [[ -x "$SCRIPT_DIR/preview-seed-auth.sh" ]]; then
     bash "$SCRIPT_DIR/preview-seed-auth.sh" || log_warn "preview-seed-auth failed (run manually)"

@@ -69,6 +69,14 @@ services:
       # Safe at our scale (≤10k docs, low UDF count); revisit if query latency regresses.
       - SHARED_UDF_CACHE_MAX_SIZE=100000000
       - UDF_CACHE_MAX_SIZE=50000000
+      # System-op budget relief at preview scale (~9k resumes, ~3k sources):
+      # the per-query budget is ~10k system ops and full-table collect()s on
+      # restored prod data exceed it. 256 docs held in memory plus capped
+      # concurrent query/mutation execution keep queries inside the budget
+      # and bound memory (host-verified: 4.2 GiB / 12g, zero restarts).
+      - DOCUMENTS_IN_MEMORY=256
+      - APPLICATION_MAX_CONCURRENT_QUERIES=8
+      - APPLICATION_MAX_CONCURRENT_MUTATIONS=8
       # Match self-hosted/docker/docker-compose.yml override (2 days vs 14 day default).
       - DOCUMENT_RETENTION_DELAY=172800
       # Convex actions call the host BFF for ingest-compute + skills-version.

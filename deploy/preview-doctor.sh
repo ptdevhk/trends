@@ -6,6 +6,7 @@
 #   - Convex container health + memory headroom
 #   - Convex /version + sync HTTP upgrade
 #   - Preview API systemd status + /api/blocks and a public resume query
+#   - Preview worker API systemd status + /health (industry research worker)
 #   - MCP container status
 #   - Recent dmesg OOM kills affecting any preview container
 #
@@ -26,6 +27,7 @@ PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 COMPOSE_FILE="$PREVIEW_DIR/docker-compose.preview.yml"
 CONVEX_PORT="${PREVIEW_CONVEX_PORT:-4210}"
 API_PORT="${PREVIEW_API_PORT:-3002}"
+WORKER_PORT="${PREVIEW_WORKER_PORT:-8003}"
 PUBLIC_HOST="${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}"
 PREVIEW_BFF_RECOMMENDED="$(type preview_public_bff_url >/dev/null 2>&1 && preview_public_bff_url || printf 'https://%s' "$PUBLIC_HOST")"
 RESUME_SMOKE_PATH="/api/resumes?source=convex&paged=true&limit=1"
@@ -54,12 +56,12 @@ echo "=== Preview Doctor ($PUBLIC_HOST) ==="
 date -u +%Y-%m-%dT%H:%M:%SZ
 
 echo
-echo "[1/7] Public Caddy"
+echo "[1/8] Public Caddy"
 PUB=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "https://$PUBLIC_HOST/" || echo 000)
 [ "$PUB" = "200" ] && ok "https://$PUBLIC_HOST/ → $PUB" || fail "https://$PUBLIC_HOST/ → $PUB"
 
 echo
-echo "[2/6] Convex container"
+echo "[2/8] Convex container"
 CON_STATUS=$(docker ps --filter name=trends-preview-convex --format '{{.Status}}' || echo "")
 if [ -z "$CON_STATUS" ]; then
     fail "trends-preview-convex container is not running"
@@ -80,7 +82,7 @@ if docker ps --format '{{.Names}}' | grep -q trends-preview-convex; then
 fi
 
 echo
-echo "[3/6] OOM kills (last 24h)"
+echo "[3/8] OOM kills (last 24h)"
 KILLS=$($SUDO dmesg -T 2>/dev/null | grep -E 'Killed process.*convex-local-ba' | tail -5 || true)
 if [ -z "$KILLS" ]; then
     ok "no convex-local-backend OOM kills in dmesg buffer"
@@ -95,7 +97,7 @@ else
 fi
 
 echo
-echo "[4/6] Preview API systemd"
+echo "[4/8] Preview API systemd"
 if systemctl is-active --quiet trends-preview-api 2>/dev/null; then
     ok "trends-preview-api is active"
 else
@@ -175,7 +177,17 @@ else
 fi
 
 echo
-echo "[5/6] MCP container"
+echo "[5/8] Preview worker API"
+if systemctl is-active --quiet trends-preview-worker-api 2>/dev/null; then
+    ok "trends-preview-worker-api is active"
+else
+    fail "trends-preview-worker-api is NOT active"
+fi
+WZ=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$WORKER_PORT/health" || echo 000)
+[ "$WZ" = "200" ] && ok "worker /health → $WZ" || fail "worker /health → $WZ"
+
+echo
+echo "[6/8] MCP container"
 MCP_STATUS=$(docker ps --filter name=trends-preview-mcp --format '{{.Status}}' || echo "")
 if [ -z "$MCP_STATUS" ]; then
     warn "trends-preview-mcp is not running (non-critical for resume UI)"
@@ -187,7 +199,7 @@ else
 fi
 
 echo
-echo "[6/7] Caddy preview vhost"
+echo "[7/8] Caddy preview vhost"
 if $SUDO grep -qF "$PUBLIC_HOST" /etc/caddy/Caddyfile; then
     ok "$PUBLIC_HOST block present in /etc/caddy/Caddyfile"
 else
@@ -195,7 +207,7 @@ else
 fi
 
 echo
-echo "[7/7] Convex→BFF + search freshness"
+echo "[8/8] Convex→BFF + search freshness"
 BFF_IN_ENV=""
 if [ -f "$ENV_FILE" ]; then
     BFF_IN_ENV=$(grep -E '^BFF_API_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
@@ -269,11 +281,15 @@ if [ $FAIL -gt 0 ] && [ $RECOVER -eq 1 ]; then
 
     echo "→ Restarting trends-preview-api…"
     $SUDO systemctl restart trends-preview-api
+    echo "→ Restarting trends-preview-worker-api…"
+    $SUDO systemctl restart trends-preview-worker-api 2>/dev/null || warn "trends-preview-worker-api restart failed (unit may be missing)"
     sleep 4
     RS2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT$RESUME_SMOKE_PATH" || echo 000)
     BL2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$API_PORT/api/blocks" || echo 000)
+    WZ2=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$WORKER_PORT/health" || echo 000)
     info "post-recovery $RESUME_SMOKE_PATH → $RS2"
     info "post-recovery /api/blocks → $BL2"
+    info "post-recovery worker /health → $WZ2"
 fi
 
 [ $FAIL -gt 0 ] && exit 1 || exit 0
