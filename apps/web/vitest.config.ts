@@ -6,10 +6,10 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // In tests, force react/react-dom to root node_modules (React 18) so they match
-    // @testing-library/react which is hoisted to root and uses root's react-dom (React 18).
-    // React 19 elements use Symbol.for('react.transitional.element') which React 18's
-    // reconciler doesn't recognise — aliasing everything to React 18 keeps it consistent.
+    // In tests, force react/react-dom to root node_modules (React 19, pinned as a
+    // root devDependency) so they match @testing-library/react which is hoisted to
+    // root and uses root's react-dom (React 19). Mixed React versions (18 at root
+    // via stale hoisting) produce divergent act()/effect behavior in tests.
     alias: [
       { find: '@', replacement: path.resolve(__dirname, './src') },
       { find: /^react\/jsx-runtime$/, replacement: path.resolve(__dirname, '../../node_modules/react/jsx-runtime') },

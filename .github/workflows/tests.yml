@@ -40,13 +40,7 @@ jobs:
         run: make install-deps
 
       - name: Run tests with coverage
-        # DIAGNOSTIC RUN: web suite with verbose reporter + threads pool to
-        # pinpoint the deterministic mid-suite stall on Ubuntu runners
-        # (107/186 files complete, then silence; not reproducible locally).
-        # Restore to `make test-coverage` once the cause is fixed.
-        run: |
-          npm run --workspace @trends/shared build
-          cd apps/web && npx vitest run --coverage --reporter=verbose --pool=threads
+        run: make test-coverage
 
       - name: Upload coverage to Codecov
         if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
