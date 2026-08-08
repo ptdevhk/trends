@@ -132,15 +132,21 @@ export const list = query({
   args: {
     writeSecret: v.optional(v.string()),
     status: v.optional(statusValidator),
+    includeArchived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     requireReadSecret(args.writeSecret);
-    const rows = args.status
+    let rows = args.status
       ? await ctx.db
           .query("companies")
           .withIndex("by_status", (q) => q.eq("status", args.status!))
           .collect()
       : await ctx.db.query("companies").collect();
+
+    // Soft-deleted companies are hidden by default; `includeArchived` opts in.
+    if (args.includeArchived !== true) {
+      rows = rows.filter((row) => !row.archivedAt);
+    }
 
     rows.sort((left, right) => left.displayName.localeCompare(right.displayName));
 
@@ -158,6 +164,7 @@ export const list = query({
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         createdBy: row.createdBy,
+        archivedAt: row.archivedAt,
         aliases,
       });
     }
@@ -196,6 +203,7 @@ export const getByKey = query({
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       createdBy: row.createdBy,
+      archivedAt: row.archivedAt,
       aliases,
     };
   },
@@ -324,6 +332,46 @@ export const upsert = mutation({
       createdBy: args.createdBy,
     });
     return { companyKey, id, created: true };
+  },
+});
+
+/**
+ * Archive (soft delete) or restore a company registry entry.
+ * Archived companies are hidden from `companies:list` by default and never
+ * enter the resume-policy alias index, so their policies stop applying.
+ * Setting `archivedAt` to undefined removes the field (Convex patch delete).
+ */
+export const setCompanyArchived = mutation({
+  args: {
+    companyKey: v.string(),
+    archived: v.boolean(),
+    writeSecret: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const companyKey = normalizeCompanyKey(args.companyKey);
+    if (!companyKey) {
+      throw new Error("companyKey is required");
+    }
+    const existing = await ctx.db
+      .query("companies")
+      .withIndex("by_company_key", (q) => q.eq("companyKey", companyKey))
+      .collect();
+    const row = existing[0];
+    if (!row) {
+      throw new Error(`Unknown companyKey: ${companyKey}`);
+    }
+    const now = Date.now();
+    await ctx.db.patch(row._id, {
+      archivedAt: args.archived ? now : undefined,
+      updatedAt: now,
+    });
+    return {
+      companyKey,
+      archived: args.archived,
+      archivedAt: args.archived ? now : null,
+    };
   },
 });
 

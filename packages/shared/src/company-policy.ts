@@ -232,12 +232,17 @@ export function buildCompanyPolicyAliasIndex(
     aliases?: Array<{ aliasDisplay?: string; aliasNormalized?: string } | string>;
     nameCn?: string;
     nameEn?: string;
+    /** Soft-deleted (archived) companies never match; archive timestamp. */
+    archivedAt?: number;
   }>,
   policiesByCompanyKey: Map<string, CompanyPolicyEffects>,
 ): Map<string, CompanyPolicyIndexEntry> {
   const index = new Map<string, CompanyPolicyIndexEntry>();
 
   for (const company of companies) {
+    if (company.archivedAt) {
+      continue;
+    }
     const effects = policiesByCompanyKey.get(company.companyKey);
     if (!effects) {
       continue;

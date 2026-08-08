@@ -719,6 +719,7 @@ export default defineSchema({
         createdAt: v.number(),
         updatedAt: v.number(),
         createdBy: v.optional(v.string()),
+        archivedAt: v.optional(v.number()),
     })
         .index("by_company_key", ["companyKey"])
         .index("by_status", ["status"]),

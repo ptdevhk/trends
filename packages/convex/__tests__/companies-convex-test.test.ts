@@ -191,6 +191,79 @@ describe("companies (convex-test)", () => {
     expect(afterReseed.every((policy) => policy.revision === 1)).toBe(true);
   });
 
+  it("archives and restores companies (soft delete)", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+
+    // Active by default: visible in the default list.
+    const before = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    expect(before.map((company) => company.companyKey)).toContain("acme-cnc");
+    expect(before.find((company) => company.companyKey === "acme-cnc")?.archivedAt).toBeUndefined();
+
+    // Archive → hidden from the default list, visible with includeArchived.
+    const archived = await t.mutation(api.companies.setCompanyArchived, {
+      companyKey: "acme-cnc",
+      archived: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+    expect(archived.archived).toBe(true);
+    expect(archived.archivedAt).toBeTypeOf("number");
+
+    const defaultList = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    expect(defaultList.map((company) => company.companyKey)).not.toContain("acme-cnc");
+
+    const withArchived = await t.query(api.companies.list, {
+      includeArchived: true,
+      writeSecret: WRITE_SECRET,
+    });
+    const archivedRow = withArchived.find((company) => company.companyKey === "acme-cnc");
+    expect(archivedRow?.archivedAt).toBeTypeOf("number");
+
+    // Status-filtered listing also hides archived rows.
+    const confirmedOnly = await t.query(api.companies.list, {
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(confirmedOnly.map((company) => company.companyKey)).not.toContain("acme-cnc");
+
+    // Restore → visible again, archivedAt cleared.
+    const restored = await t.mutation(api.companies.setCompanyArchived, {
+      companyKey: "acme-cnc",
+      archived: false,
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+    expect(restored.archived).toBe(false);
+    expect(restored.archivedAt).toBeNull();
+
+    const after = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    const restoredRow = after.find((company) => company.companyKey === "acme-cnc");
+    expect(restoredRow).toBeDefined();
+    expect(restoredRow?.archivedAt).toBeUndefined();
+
+    await expect(
+      t.mutation(api.companies.setCompanyArchived, {
+        companyKey: "no-such-company",
+        archived: true,
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(/Unknown companyKey/);
+
+    await expect(
+      t.mutation(api.companies.setCompanyArchived, {
+        companyKey: "acme-cnc",
+        archived: true,
+      }),
+    ).rejects.toThrow("Unauthorized Convex write");
+  });
+
   it("appends policy revisions and resolves workspace over global", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {

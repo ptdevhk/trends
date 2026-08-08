@@ -9,7 +9,7 @@ import {
 } from '@trends/shared'
 import { PageHeader } from '@/components/PageHeader'
 import { BlacklistPage } from '@/pages/BlacklistPage'
-import { useCompanyPolicies } from '@/hooks/useCompanyPolicies'
+import { useCompanyPolicies, type CompanyItem } from '@/hooks/useCompanyPolicies'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,9 +44,11 @@ function CompaniesTab() {
     upsertCompany,
     addAlias,
     setPolicyPreset,
+    setCompanyArchived,
   } = useCompanyPolicies(true)
 
   const [search, setSearch] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [newKey, setNewKey] = useState('')
@@ -62,7 +64,8 @@ function CompaniesTab() {
 
   const filteredCompanies = useMemo(() => {
     const keyword = search.trim().toLowerCase()
-    const sorted = [...companies].sort((left, right) => left.displayName.localeCompare(right.displayName))
+    const visible = showArchived ? companies : companies.filter((item) => !item.archivedAt)
+    const sorted = [...visible].sort((left, right) => left.displayName.localeCompare(right.displayName))
     if (!keyword) {
       return sorted
     }
@@ -78,7 +81,7 @@ function CompaniesTab() {
         .toLowerCase()
       return haystack.includes(keyword)
     })
-  }, [companies, search])
+  }, [companies, search, showArchived])
 
   const handleSeed = async () => {
     setSeeding(true)
@@ -153,6 +156,32 @@ function CompaniesTab() {
     toast.success(t('settings.policies.toasts.aliasAdded', { defaultValue: 'Alias added' }))
   }
 
+  const handleArchive = async (company: CompanyItem) => {
+    setSavingKey(company.companyKey)
+    const nextArchived = !company.archivedAt
+    const ok = await setCompanyArchived(company.companyKey, nextArchived)
+    setSavingKey(null)
+    if (!ok) {
+      toast.error(t('settings.policies.toasts.archiveFailed', { defaultValue: 'Failed to update archive state' }))
+      return
+    }
+    if (nextArchived) {
+      toast.success(
+        t('settings.policies.toasts.archiveSuccess', {
+          defaultValue: 'Archived {{name}}',
+          name: company.displayName,
+        }),
+      )
+    } else {
+      toast.success(
+        t('settings.policies.toasts.restoreSuccess', {
+          defaultValue: 'Restored {{name}}',
+          name: company.displayName,
+        }),
+      )
+    }
+  }
+
   return (
     <div className="space-y-6" data-testid="company-policies-panel">
       <Card>
@@ -177,6 +206,18 @@ function CompaniesTab() {
                 className="w-full sm:w-72"
                 data-testid="company-search-input"
               />
+              <label
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+                data-testid="company-show-archived-toggle"
+              >
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(event) => setShowArchived(event.target.checked)}
+                  className="h-4 w-4"
+                />
+                {t('settings.policies.showArchived', { defaultValue: 'Show archived' })}
+              </label>
               <Button
                 type="button"
                 variant="outline"
@@ -229,10 +270,15 @@ function CompaniesTab() {
                         <div className="space-y-1">
                           <div className="font-medium">{company.displayName}</div>
                           <div className="font-mono text-xs text-muted-foreground">{company.companyKey}</div>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap items-center gap-1">
                             <Badge variant="secondary">{company.status}</Badge>
                             {company.nameCn ? <Badge variant="outline">{company.nameCn}</Badge> : null}
                             {company.nameEn ? <Badge variant="outline">{company.nameEn}</Badge> : null}
+                            {company.archivedAt ? (
+                              <Badge variant="outline" data-testid="company-archived-badge">
+                                {t('settings.policies.archivedBadge', { defaultValue: 'Archived' })}
+                              </Badge>
+                            ) : null}
                             <Link
                               to={`/${teamSlug}/research/${encodeURIComponent(company.companyKey)}?persona=hr`}
                               className="text-xs text-blue-600 hover:underline"
@@ -242,6 +288,18 @@ function CompaniesTab() {
                                 defaultValue: 'Research (HR)',
                               })}
                             </Link>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() => void handleArchive(company)}
+                              data-testid="company-archive-toggle"
+                            >
+                              {company.archivedAt
+                                ? t('settings.policies.restore', { defaultValue: 'Restore' })
+                                : t('settings.policies.archive', { defaultValue: 'Archive' })}
+                            </Button>
                           </div>
                         </div>
                       </TableCell>

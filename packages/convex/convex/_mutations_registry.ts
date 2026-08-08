@@ -89,6 +89,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "candidate_blocks.ts", name: "remove", quiesceAware: true, reason: "Blocked by BFF middleware" },
 
     { file: "companies.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
+    { file: "companies.ts", name: "setCompanyArchived", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "companies.ts", name: "addAlias", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "companies.ts", name: "removeAlias", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "companies.ts", name: "appendPolicyRevision", quiesceAware: true, reason: "Blocked by BFF middleware" },

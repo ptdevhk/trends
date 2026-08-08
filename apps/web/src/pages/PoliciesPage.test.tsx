@@ -59,6 +59,16 @@ describe('PoliciesPage', () => {
           updatedAt: 1,
           aliases: [{ aliasDisplay: '宝力机械', aliasNormalized: '宝力机械', source: 'seed' }],
         },
+        {
+          _id: '2',
+          companyKey: 'legacy-cnc',
+          status: 'confirmed',
+          displayName: 'Legacy CNC',
+          createdAt: 1,
+          updatedAt: 1,
+          archivedAt: 42,
+          aliases: [],
+        },
       ],
       policies: [
         {
@@ -79,6 +89,7 @@ describe('PoliciesPage', () => {
       upsertCompany: vi.fn(),
       addAlias: vi.fn(),
       setPolicyPreset: vi.fn().mockResolvedValue(true),
+      setCompanyArchived: vi.fn().mockResolvedValue(true),
     })
   })
 
@@ -98,5 +109,31 @@ describe('PoliciesPage', () => {
     renderPolicies()
     fireEvent.click(screen.getByTestId('policies-tab-companies'))
     expect(screen.getByTestId('company-policies-panel')).toBeInTheDocument()
+  })
+
+  it('hides archived companies by default and reveals them via the toggle', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+    expect(screen.queryByText(/Legacy CNC/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('company-show-archived-toggle'))
+    expect(screen.getByText(/Legacy CNC/)).toBeInTheDocument()
+    expect(screen.getByTestId('company-archived-badge')).toBeInTheDocument()
+  })
+
+  it('archives and restores a company via the toggle button', () => {
+    const { setCompanyArchived } = mockUseCompanyPolicies()
+    renderPolicies('/hr/settings/policies?tab=companies')
+    // Archive the active Pro-Technic row.
+    fireEvent.click(screen.getAllByTestId('company-archive-toggle')[0]!)
+    expect(setCompanyArchived).toHaveBeenCalledWith('pro-technic-machinery', true)
+
+    // Restore the archived Legacy CNC row (reveal it first).
+    fireEvent.click(screen.getByTestId('company-show-archived-toggle'))
+    const restoreButtons = screen
+      .getAllByTestId('company-archive-toggle')
+      .map((button) => button.textContent)
+    expect(restoreButtons).toContain('Restore')
+    const legacyRow = screen.getByText(/Legacy CNC/)
+    fireEvent.click(legacyRow.closest('tr')!.querySelector('[data-testid="company-archive-toggle"]')!)
+    expect(setCompanyArchived).toHaveBeenCalledWith('legacy-cnc', false)
   })
 })

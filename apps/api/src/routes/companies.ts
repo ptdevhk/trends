@@ -28,6 +28,7 @@ import {
   listCompanies,
   listWorkspacePolicies,
   seedCanonicalCompanies,
+  setCompanyArchived,
   upsertCompany,
 } from "../services/company-policy-service.js";
 import {
@@ -130,6 +131,7 @@ const CompanySchema = z.object({
   createdAt: z.number(),
   updatedAt: z.number(),
   createdBy: z.string().optional(),
+  archivedAt: z.number().optional(),
   aliases: z.array(
     z.object({
       aliasDisplay: z.string(),
@@ -165,7 +167,12 @@ const listCompaniesRoute = createRoute({
   method: "get",
   path: "/api/companies",
   tags: ["companies"],
-  summary: "List company registry entries",
+  summary: "List company registry entries (archived companies hidden unless includeArchived=true)",
+  request: {
+    query: z.object({
+      includeArchived: z.enum(["true", "false"]).optional(),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -179,7 +186,8 @@ const listCompaniesRoute = createRoute({
 });
 
 app.openapi(listCompaniesRoute, async (c) => {
-  const items = await listCompanies();
+  const { includeArchived } = c.req.valid("query");
+  const items = await listCompanies({ includeArchived: includeArchived === "true" });
   return c.json({ success: true as const, items }, 200);
 });
 
@@ -319,6 +327,47 @@ app.openapi(seedRoute, async (c) => {
       body.seedNoHireForWorkspace === true || body.seedKnownGoodForWorkspace === true,
     createdBy: actorId,
   });
+  return c.json({ success: true as const, ...result }, 200);
+});
+
+const archiveCompanyRoute = createRoute({
+  method: "post",
+  path: "/api/companies/:companyKey/archive",
+  tags: ["companies"],
+  summary:
+    "Archive (soft delete) or restore a company registry entry; archived companies are hidden from the default list and stop matching resume policies",
+  request: {
+    params: z.object({ companyKey: z.string().min(1) }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ archived: z.boolean() }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            companyKey: z.string(),
+            archived: z.boolean(),
+            archivedAt: z.number().nullable(),
+          }),
+        },
+      },
+      description: "Archive state updated",
+    },
+  },
+});
+
+app.openapi(archiveCompanyRoute, async (c) => {
+  const { companyKey } = c.req.valid("param");
+  const { archived } = c.req.valid("json");
+  const actorId = getAuthenticatedActorId(c);
+  const result = await setCompanyArchived({ companyKey, archived, createdBy: actorId });
   return c.json({ success: true as const, ...result }, 200);
 });
 

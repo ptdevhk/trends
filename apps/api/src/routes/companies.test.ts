@@ -201,6 +201,64 @@ describe("companies routes", () => {
     expect(body.policyRevision).toBe(1);
   });
 
+  it("passes includeArchived to the company list query", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:list") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const archivedResponse = await app.request("/api/companies?includeArchived=true", {
+      headers: auth.headers,
+    });
+    expect(archivedResponse.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args.includeArchived).toBe(true);
+
+    const defaultResponse = await app.request("/api/companies", { headers: auth.headers });
+    expect(defaultResponse.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.args.includeArchived).toBe(false);
+  });
+
+  it("archives and restores a company through the BFF", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:setCompanyArchived") {
+        expect(call.args.companyKey).toBe("acme-cnc");
+        expect(call.args.archived).toBe(true);
+        expect(call.args.createdBy).toBe(auth.userId);
+        return convexSuccess({ companyKey: "acme-cnc", archived: true, archivedAt: 123 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/companies/acme-cnc/archive", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ companyKey: string; archived: boolean; archivedAt: number | null }>(response);
+    expect(body.companyKey).toBe("acme-cnc");
+    expect(body.archived).toBe(true);
+    expect(body.archivedAt).toBe(123);
+    expect(calls).toHaveLength(1);
+  });
+
   it("lists governed industry proposals for an authenticated admin", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

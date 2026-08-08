@@ -943,7 +943,10 @@
         "policyFailed": "Failed to update policy",
         "policyUpdated": "Company policy updated",
         "aliasFailed": "Failed to add alias",
-        "aliasAdded": "Alias added"
+        "aliasAdded": "Alias added",
+        "archiveFailed": "Failed to update archive state",
+        "archiveSuccess": "Archived {{name}}",
+        "restoreSuccess": "Restored {{name}}"
       },
       "runtime": {
         "noHireBadge": "No-hire",
@@ -962,7 +965,11 @@
         "manageLink": "Manage",
         "researchLink": "Research"
       },
-      "researchLink": "Research (HR)"
+      "researchLink": "Research (HR)",
+      "archive": "Archive",
+      "restore": "Restore",
+      "showArchived": "Show archived",
+      "archivedBadge": "Archived"
     },
     "account": {
       "nav": "Account",
@@ -1530,7 +1537,6 @@
     "rowApproveFailed": "Approval failed. Retry this row.",
     "rowPolicyRejected": "This row no longer meets the one-click approval policy. Open it for review.",
     "viewRow": "View",
-    "selectProposal": "Select a proposal to review its evidence.",
     "previous": "Previous",
     "next": "Next",
     "previousProposal": "Previous proposal",

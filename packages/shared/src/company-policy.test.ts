@@ -101,6 +101,42 @@ describe("company-policy helpers", () => {
     expect(isAdvancingCandidateStatus("shortlisted")).toBe(true);
     expect(isAdvancingCandidateStatus("rejected")).toBe(false);
   });
+
+  it("excludes archived (soft-deleted) companies from the policy alias index", () => {
+    const policies = new Map([
+      ["pro-technic-machinery", policyEffectsFromPreset("no_hire")],
+      ["polywell", policyEffectsFromPreset("known_good")],
+    ]);
+    const index = buildCompanyPolicyAliasIndex(
+      CANONICAL_SEED_COMPANIES.map((seed, i) => ({
+        companyKey: seed.companyKey,
+        displayName: seed.displayName,
+        nameCn: seed.nameCn,
+        nameEn: seed.nameEn,
+        aliases: [...seed.aliases],
+        // Polywell is archived (soft-deleted); Pro-Technic stays active.
+        archivedAt: i === 1 ? 1784787490976 : undefined,
+      })),
+      policies,
+    );
+
+    const hits = matchResumeCompanyPolicies(
+      {
+        workHistory: [{ companyName: "Polywell" }],
+        companyHits: ["宝惠"],
+      },
+      index,
+    );
+    expect(hits).toEqual([]);
+
+    const active = matchResumeCompanyPolicies(
+      { workHistory: [{ companyName: "宝力机械" }] },
+      index,
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0]?.companyKey).toBe("pro-technic-machinery");
+    expect(active[0]?.preset).toBe("no_hire");
+  });
 });
 
 describe("policy-free company alias index (link backfill)", () => {

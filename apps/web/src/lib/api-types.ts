@@ -8391,10 +8391,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List company registry entries */
+        /** List company registry entries (archived companies hidden unless includeArchived=true) */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    includeArchived?: "true" | "false";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -8421,6 +8423,7 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                                 createdBy?: string;
+                                archivedAt?: number;
                                 aliases: {
                                     aliasDisplay: string;
                                     aliasNormalized: string;
@@ -8563,6 +8566,56 @@ export interface paths {
                             aliasesCreated: number;
                             policiesSeeded: number;
                             policyRevision: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/:companyKey/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive (soft delete) or restore a company registry entry; archived companies are hidden from the default list and stop matching resume policies */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        archived: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Archive state updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companyKey: string;
+                            archived: boolean;
+                            archivedAt: number | null;
                         };
                     };
                 };

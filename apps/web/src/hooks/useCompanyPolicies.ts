@@ -17,6 +17,8 @@ export type CompanyItem = {
   nameEn?: string
   createdAt: number
   updatedAt: number
+  /** Soft-delete marker; set → the company is archived. */
+  archivedAt?: number
   aliases: CompanyAlias[]
 }
 
@@ -65,7 +67,9 @@ function notifyListeners() {
 async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
   try {
     const [companiesResult, policiesResult] = await Promise.all([
-      rawApiClient.GET<ListResponse<CompanyItem>>('/api/companies'),
+      // Archived companies are hidden by default server-side; the companies
+      // tab opts in so operators can restore them.
+      rawApiClient.GET<ListResponse<CompanyItem>>('/api/companies?includeArchived=true'),
       rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies'),
     ])
 
@@ -218,6 +222,26 @@ export function useCompanyPolicies(enabled: boolean = true) {
     [load],
   )
 
+  const setCompanyArchived = useCallback(
+    async (companyKey: string, archived: boolean) => {
+      const { data, error: apiError } = await rawApiClient.POST<{
+        success: boolean
+        companyKey?: string
+        archived?: boolean
+        archivedAt?: number | null
+      }>(`/api/companies/${encodeURIComponent(companyKey)}/archive`, {
+        body: { archived },
+      })
+      if (apiError || !data?.success) {
+        setError('Failed to update company archive state')
+        return false
+      }
+      await load(true)
+      return true
+    },
+    [load],
+  )
+
   const setPolicyPreset = useCallback(
     async (companyKey: string, preset: CompanyPolicyPreset, summary?: string) => {
       const { data, error: apiError } = await rawApiClient.POST<{
@@ -250,5 +274,6 @@ export function useCompanyPolicies(enabled: boolean = true) {
     upsertCompany,
     addAlias,
     setPolicyPreset,
+    setCompanyArchived,
   }
 }
