@@ -132,13 +132,15 @@ export function parseIndustryCoverageSummary(
   const researchQueue = isRecord(value.researchQueue) ? value.researchQueue : {};
   const generatedAt = finiteNumber(value.generatedAt);
   const openTotal = finiteNumber(value.openTotal);
-  const openWithSources = finiteNumber(value.openWithSources);
-  const openWithoutSources = finiteNumber(value.openWithoutSources);
+  // openWithSources/openWithoutSources/emptyEvidenceBottleneck are computed
+  // by the service from the merged countIndustryOpenProposalSources query
+  // (the main Convex query must stay under the per-query system-op budget);
+  // tolerate their absence from the raw Convex payload.
+  const openWithSources = finiteNumber(value.openWithSources) ?? 0;
+  const openWithoutSources = finiteNumber(value.openWithoutSources) ?? 0;
   if (
     generatedAt === undefined ||
     openTotal === undefined ||
-    openWithSources === undefined ||
-    openWithoutSources === undefined ||
     typeof value.workspaceSlug !== "string"
   ) {
     return null;
@@ -191,13 +193,30 @@ export function parseIndustryCoverageSummary(
 export async function getIndustryCoverageSummary(
   workspaceSlug: string,
 ): Promise<IndustryCoverageSummary> {
-  const value = await callConvexQuery("companies:getIndustryCoverageSummary", {
-    workspaceSlug,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  // Two budget-safe queries instead of one: the main summary scans the
+  // ~9.8k-row proposals table (~9.9k system ops), and the open-with-sources
+  // count runs as a separate lean query (~2k ops) so neither exceeds the
+  // local-backend per-query system-op ceiling.
+  const [value, openWithSources] = await Promise.all([
+    callConvexQuery("companies:getIndustryCoverageSummary", {
+      workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    }),
+    callConvexQuery("companies:countIndustryOpenProposalSources", {
+      workspaceSlug,
+      writeSecret: config.auth.convexWriteSecret,
+    }),
+  ]);
   const parsed = parseIndustryCoverageSummary(value);
   if (!parsed) {
     throw new Error("Invalid companies:getIndustryCoverageSummary response");
   }
+  const withSources =
+    typeof openWithSources === "number" ? openWithSources : 0;
+  parsed.openWithSources = withSources;
+  parsed.openWithoutSources = Math.max(0, parsed.openTotal - withSources);
+  parsed.emptyEvidenceBottleneck =
+    parsed.openTotal > 0 &&
+    (withSources === 0 || withSources / parsed.openTotal < 0.05);
   return parsed;
 }

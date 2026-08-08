@@ -1037,6 +1037,10 @@ describe("companies routes", () => {
     const auth = createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:countIndustryOpenProposalSources") {
+        expect(call.args.workspaceSlug).toBe("dev");
+        return convexSuccess(7);
+      }
       if (call.pathName === "companies:getIndustryCoverageSummary") {
         expect(call.args.workspaceSlug).toBe("dev");
         return convexSuccess({
@@ -1127,6 +1131,8 @@ describe("companies routes", () => {
     }>(response);
     expect(body.success).toBe(true);
     expect(body.item.openTotal).toBe(487);
+    expect(body.item.openWithSources).toBe(7);
+    expect(body.item.openWithoutSources).toBe(480);
     expect(body.item.emptyEvidenceBottleneck).toBe(true);
     expect(body.item.resumes.withVerifiedEvidence).toBe(1);
   });

@@ -134,6 +134,46 @@ describe("industry review recommendation rules", () => {
     expect(result.recommendation.riskFlags).toContain("stale_or_failed_source");
   });
 
+  it("does not hard-block on failed search-result sources", () => {
+    // A bot-blocked junk search result never contributed evidence and is
+    // excluded from approval either way; it must not hard-block a proposal
+    // whose official sources fetched cleanly (observed on preview 2026-08-09
+    // with 3M/Indeed/CTOS rows blocking otherwise clean approvals).
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [
+        source(),
+        source({
+          _id: "source-row-junk",
+          sourceId: "source-junk",
+          url: "https://www.3m.com/",
+          sourceDomain: "www.3m.com",
+          sourceType: "search_result",
+          trustTier: "discovery",
+          fetchStatus: "failed",
+          suggestedIndustryClass: undefined,
+          workerConfidence: 0.2,
+          title: "3M",
+          evidenceExcerpt: "",
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+
+    expect(result.recommendation.riskFlags).not.toContain("stale_or_failed_source");
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.recommendedSourceIds).toEqual(["source-1"]);
+    const junkDecision = result.recommendation.sourceDecisions.find(
+      (decision) => decision.sourceId === "source-junk",
+    );
+    expect(junkDecision).toMatchObject({
+      approvalSafe: false,
+      recommended: false,
+    });
+    expect(junkDecision?.reasonCodes).toContain("fetch_failed");
+  });
+
   it("routes conflicting source classes to more evidence", () => {
     const result = industryReviewInternals.buildRecommendation({
       proposal: proposal(),

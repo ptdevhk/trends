@@ -289,16 +289,28 @@ function buildRecommendation(input: {
     }
     if (source.fetchStatus !== "fetched") {
       reasonCodes.push(source.fetchStatus === "failed" ? "fetch_failed" : "not_fetched");
-      riskFlags.add("stale_or_failed_source");
+      // Only a failed *would-be approval* source is a stale-evidence risk:
+      // a failed search-result/discovery row never contributed evidence and
+      // is excluded from approval either way, so it must not hard-block a
+      // proposal whose official sources fetched cleanly (observed on preview
+      // 2026-08-09: bot-blocked 3M/Indeed/CTOS rows blocked United Marking
+      // and Gin Seiko approvals despite healthy official sources).
+      if (approvalSafeCandidate) {
+        riskFlags.add("stale_or_failed_source");
+      }
       usable = false;
     }
     if (source.sourceState === "unavailable") {
       reasonCodes.push("source_unavailable");
-      riskFlags.add("stale_or_failed_source");
+      if (approvalSafeCandidate) {
+        riskFlags.add("stale_or_failed_source");
+      }
       usable = false;
     } else if (source.sourceState !== "active") {
       reasonCodes.push("source_not_active");
-      riskFlags.add("stale_or_failed_source");
+      if (approvalSafeCandidate) {
+        riskFlags.add("stale_or_failed_source");
+      }
       usable = false;
     }
     if (source.reviewStatus === "disputed") {

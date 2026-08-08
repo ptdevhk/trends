@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("companies:getIndustryCoverageSummary (budget-safe)", () => {
-  it("computes resume counts from resumes.count() + company_resume_links and probes sources per open proposal", async () => {
+  it("computes resume counts from resumes.count() + company_resume_links and splits the open-with-sources probe into a lean query", async () => {
     const t = createTest();
     const resumeA = await seedResume(t);
     const resumeB = await seedResume(t, {
@@ -87,13 +87,19 @@ describe("companies:getIndustryCoverageSummary (budget-safe)", () => {
       workspaceSlug: "hr",
       writeSecret: "test-secret",
     });
-
+    // The main query must stay under the per-query system-op budget: it
+    // scans the proposals table and computes statuses/openTotal, but the
+    // open-with-sources count lives in the separate lean query below.
     expect(summary.resumes.total).toBe(2);
     expect(summary.resumes.withVerifiedEvidence).toBe(1);
     expect(summary.proposalsByStatus.new).toBe(2);
     expect(summary.openTotal).toBe(2);
-    expect(summary.openWithSources).toBe(1);
-    expect(summary.openWithoutSources).toBe(1);
     expect(summary.workspaceSlug).toBe("hr");
+
+    const openWithSources = await t.query(
+      api.companies.countIndustryOpenProposalSources,
+      { workspaceSlug: "hr", writeSecret: "test-secret" },
+    );
+    expect(openWithSources).toBe(1);
   });
 });

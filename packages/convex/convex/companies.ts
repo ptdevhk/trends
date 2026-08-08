@@ -5837,28 +5837,15 @@ export const getIndustryCoverageSummary = query({
       }
     }
 
-    // Budget-safe open-proposal source probe: one collect of the sources
-    // table instead of one indexed read per open proposal. On preview the
-    // proposals table holds ~9.8k rows (9.7k of them stuck in "new"), so
-    // ~9.8k sequential indexed first() syscalls exceeded the local-backend
-    // 1s query execution ceiling ("Function execution timed out (maximum
-    // duration: 1s)" — observed 2026-08-09). A single sources collect is
-    // one scan of ~545 rows and finishes in a few ms.
-    const sourceProposalIds = new Set<string>();
-    const allSources = await ctx.db
-      .query("company_industry_evidence_sources")
-      .collect();
-    for (const source of allSources) {
-      if (typeof source.proposalId === "string") {
-        sourceProposalIds.add(source.proposalId);
-      }
-    }
-    let openWithSources = 0;
-    for (const proposal of openProposals) {
-      if (sourceProposalIds.has(proposal.proposalId)) openWithSources += 1;
-    }
+    // Budget-safe open-proposal source probe: the sources scan moved to
+    // countIndustryOpenProposalSources (one lean query, ~2k system ops).
+    // Keeping it here pushed this query past the local-backend per-query
+    // system-op budget once the sources table grew past ~1k rows (proposals
+    // collect ~9.8k + sources collect ~1k ≈ 10.9k ops > ~10.5k ceiling —
+    // observed 2026-08-09 as "timed out performing too many system
+    // operations"). openTotal stays here; openWithSources arrives via the
+    // merged second query and the API service recomputes the bottleneck.
     const openTotal = openProposals.length;
-    const openWithoutSources = Math.max(0, openTotal - openWithSources);
 
     // Budget-safe verified-evidence counts. A full resume_digests scan
     // (~9k rows on preview) exceeds the local-backend per-query system-op
@@ -6005,10 +5992,8 @@ export const getIndustryCoverageSummary = query({
 
     // Treat "none" and "near-empty fill" as the same operator bottleneck:
     // research is not producing steward-ready evidence for the open backlog.
-    const evidenceFillRatio =
-      openTotal > 0 ? openWithSources / openTotal : 1;
-    const emptyEvidenceBottleneck =
-      openTotal > 0 && (openWithSources === 0 || evidenceFillRatio < 0.05);
+    // emptyEvidenceBottleneck is recomputed by the API service once the
+    // merged openWithSources count is available.
     const readyBacklogBottleneck =
       (proposalsByStatus.ready_for_review ?? 0) === 0 &&
       ((proposalsByStatus.new ?? 0) > 0 ||
@@ -6019,9 +6004,6 @@ export const getIndustryCoverageSummary = query({
       workspaceSlug,
       proposalsByStatus,
       openTotal,
-      openWithSources,
-      openWithoutSources,
-      emptyEvidenceBottleneck,
       readyBacklogBottleneck,
       resumes: {
         total: resumeTotal,
@@ -6057,5 +6039,48 @@ export const getIndustryCoverageSummary = query({
         },
       },
     };
+  },
+});
+
+/**
+ * Number of OPEN proposals that have at least one evidence source.
+ *
+ * Deliberately separate from getIndustryCoverageSummary: scanning the
+ * ~9.8k-row proposals table plus the sources table in one query exceeds the
+ * local-backend per-query system-op budget. This side counts from the
+ * sources table (~1k rows) with one indexed proposal lookup per distinct
+ * source proposalId (~2k system ops total), and the API service merges it
+ * with the main coverage query.
+ */
+export const countIndustryOpenProposalSources = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    void args.workspaceSlug;
+    const sources = await ctx.db
+      .query("company_industry_evidence_sources")
+      .collect();
+    const proposalIdSet = new Set<string>();
+    for (const source of sources) {
+      if (typeof source.proposalId === "string") {
+        proposalIdSet.add(source.proposalId);
+      }
+    }
+    let openWithSources = 0;
+    for (const proposalId of proposalIdSet) {
+      const proposal = await ctx.db
+        .query("company_industry_review_proposals")
+        .withIndex("by_proposal_id", (q: any) =>
+          q.eq("proposalId", proposalId),
+        )
+        .first();
+      if (proposal && OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
+        openWithSources += 1;
+      }
+    }
+    return openWithSources;
   },
 });
