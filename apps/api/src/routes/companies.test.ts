@@ -265,31 +265,33 @@ describe("companies routes", () => {
       const call = parseConvexCall(input, init);
       expect(call).toMatchObject({
         type: "query",
-        pathName: "companies:listIndustryProposals",
+        pathName: "companies:listIndustryProposalsPage",
       });
       expect(call.args.status).toBe("ready_for_review");
-      return convexSuccess([
-        {
-          _id: "proposal-row",
-          proposalId: "proposal-1",
-          companyKey: "acme-cnc",
-          triggerReasons: ["scheduled_freshness"],
-          priority: 80,
-          status: "ready_for_review",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-        {
-          _id: "legacy-row",
-          proposalId: "probe-nonexistent-xyz",
-          companyKey: "legacy-company",
-          triggerReasons: ["probe"],
-          priority: 1,
-          status: "superseded",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ]);
+      return convexSuccess({
+        items: [
+          {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          {
+            _id: "legacy-row",
+            proposalId: "probe-nonexistent-xyz",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "superseded",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+      });
     });
 
     const app = createApp({ authStorage: auth.storage });
@@ -308,6 +310,51 @@ describe("companies routes", () => {
         status: "ready_for_review",
       }),
     ]);
+  });
+
+  it("pages governed industry proposals with limit and cursor (no 500-row cap)", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call).toMatchObject({
+        type: "query",
+        pathName: "companies:listIndustryProposalsPage",
+      });
+      expect(call.args.status).toBe("ready_for_review");
+      expect(call.args.limit).toBe(25);
+      expect(call.args.cursor).toBe("cursor-1");
+      return convexSuccess({
+        items: [
+          {
+            _id: "proposal-row-2",
+            proposalId: "proposal-2",
+            companyKey: "acme-cnc",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nextCursor: "cursor-2",
+      });
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals?status=ready_for_review&limit=25&cursor=cursor-1",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ proposalId: string }>;
+      nextCursor?: string;
+    }>(response);
+    expect(body.items).toEqual([
+      expect.objectContaining({ proposalId: "proposal-2" }),
+    ]);
+    expect(body.nextCursor).toBe("cursor-2");
   });
 
   it("lists the shared industry review queue for an authenticated admin", async () => {

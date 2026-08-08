@@ -71,6 +71,57 @@ export async function listIndustryProposals(
   return parsedItems;
 }
 
+export interface IndustryProposalPage {
+  items: IndustryProposal[];
+  nextCursor?: string;
+}
+
+export async function listIndustryProposalsPage(
+  options: {
+    status?: IndustryProposalStatus;
+    limit?: number;
+    cursor?: string;
+  } = {},
+): Promise<IndustryProposalPage> {
+  const value = await callConvexQuery("companies:listIndustryProposalsPage", {
+    writeSecret: config.auth.convexWriteSecret,
+    ...(options.status ? { status: options.status } : {}),
+    ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    ...(options.cursor ? { cursor: options.cursor } : {}),
+  });
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new Error("Invalid companies:listIndustryProposalsPage response");
+  }
+  const parsedItems: IndustryProposal[] = [];
+  for (const item of value.items) {
+    const parsed = parseIndustryProposal(item);
+    if (parsed) {
+      parsedItems.push(parsed);
+      continue;
+    }
+    const rawStatus = isRecord(item) ? item.status : undefined;
+    if (
+      !isTerminalIndustryProposalStatus(options.status) &&
+      !isTerminalIndustryProposalStatus(rawStatus)
+    ) {
+      throw new Error("Invalid industry proposal response");
+    }
+    logger.warn("Skipping invalid industry proposal record", {
+      status: options.status ?? "all",
+      proposalId:
+        isRecord(item) && typeof item.proposalId === "string"
+          ? item.proposalId
+          : undefined,
+    });
+  }
+  return {
+    items: parsedItems,
+    ...(typeof value.nextCursor === "string"
+      ? { nextCursor: value.nextCursor }
+      : {}),
+  };
+}
+
 export async function getIndustryProposal(
   proposalId: string,
 ): Promise<IndustryProposal | null> {

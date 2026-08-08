@@ -44,6 +44,7 @@ import {
   approveIndustryProposalAndStartRecompute,
   getIndustryProposal,
   listIndustryProposals,
+  listIndustryProposalsPage,
   resolveIndustryProposal,
   undoIndustryProposalApproval,
   upsertIndustryProposal,
@@ -725,9 +726,13 @@ const listIndustryProposalsRoute = createRoute({
   method: "get",
   path: "/api/company-industry-proposals",
   tags: ["company-industry-evidence"],
-  summary: "List governed company-industry review proposals",
+  summary: "List governed company-industry review proposals (paginated)",
   request: {
-    query: z.object({ status: ProposalStatusEnum.optional() }),
+    query: z.object({
+      status: ProposalStatusEnum.optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional().default(100),
+      cursor: z.string().optional(),
+    }),
   },
   responses: {
     200: {
@@ -736,18 +741,26 @@ const listIndustryProposalsRoute = createRoute({
           schema: z.object({
             success: z.literal(true),
             items: z.array(IndustryProposalSchema),
+            nextCursor: z.string().optional(),
           }),
         },
       },
-      description: "Proposal queue",
+      description: "Proposal queue page; pass nextCursor to continue",
     },
   },
 });
 
 app.openapi(listIndustryProposalsRoute, async (c) => {
-  const { status } = c.req.valid("query");
-  const items = await listIndustryProposals(status);
-  return c.json({ success: true as const, items }, 200);
+  const { status, limit, cursor } = c.req.valid("query");
+  const page = await listIndustryProposalsPage({ status, limit, cursor });
+  return c.json(
+    {
+      success: true as const,
+      items: page.items,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    },
+    200,
+  );
 });
 
 const IndustryReviewActionEnum = z.enum(INDUSTRY_REVIEW_ACTIONS);

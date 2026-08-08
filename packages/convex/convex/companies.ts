@@ -1994,6 +1994,38 @@ export const upsertIndustryProposal = mutation({
   },
 });
 
+/**
+ * Paginated proposal listing. The plain listIndustryProposals caps at 500
+ * rows (silently hiding older proposals on large datasets — observed
+ * 2026-08-09); this page form carries an opaque cursor so clients can walk
+ * the full corpus. Ordering follows the by_status_priority index descending
+ * (priority first, deterministic tie-break).
+ */
+export const listIndustryProposalsPage = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    status: v.optional(industryProposalStatusValidator),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const numItems = Math.min(200, Math.max(1, Math.floor(args.limit ?? 100)));
+    const base = args.status
+      ? ctx.db
+          .query("company_industry_review_proposals")
+          .withIndex("by_status_priority", (q) => q.eq("status", args.status!))
+      : ctx.db.query("company_industry_review_proposals");
+    const page = await base
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems });
+    return {
+      items: page.page,
+      nextCursor: page.isDone ? undefined : page.continueCursor,
+    };
+  },
+});
+
 export const listIndustryProposals = query({
   args: {
     writeSecret: v.optional(v.string()),
@@ -5804,31 +5836,38 @@ export const getIndustryCoverageSummary = query({
       }
     }
 
-    const sources = await ctx.db
-      .query("company_industry_evidence_sources")
-      .collect();
-    const proposalIdsWithSources = new Set<string>();
-    for (const source of sources) {
-      const proposalId =
-        typeof source.proposalId === "string" ? source.proposalId.trim() : "";
-      if (proposalId) proposalIdsWithSources.add(proposalId);
-    }
+    // Budget-safe open-proposal source probe: one indexed read per open
+    // proposal instead of collecting the whole sources table (~3k rows and
+    // growing with every maintenance round).
     let openWithSources = 0;
     for (const proposal of openProposals) {
-      if (proposalIdsWithSources.has(proposal.proposalId)) openWithSources += 1;
+      const existing = await ctx.db
+        .query("company_industry_evidence_sources")
+        .withIndex("by_proposal", (q: any) =>
+          q.eq("proposalId", proposal.proposalId),
+        )
+        .first();
+      if (existing) openWithSources += 1;
     }
     const openTotal = openProposals.length;
     const openWithoutSources = Math.max(0, openTotal - openWithSources);
 
-    const digests = await ctx.db.query("resume_digests").collect();
-    let withVerifiedEvidence = 0;
-    for (const digest of digests) {
-      const summaries = (digest as { verifiedIndustryEvidenceSummaries?: unknown })
-        .verifiedIndustryEvidenceSummaries;
-      if (Array.isArray(summaries) && summaries.length > 0) {
-        withVerifiedEvidence += 1;
+    // Budget-safe verified-evidence counts. A full resume_digests scan
+    // (~9k rows on preview) exceeds the local-backend per-query system-op
+    // budget ("timed out performing too many system operations" — observed
+    // 2026-08-09). Resumes computed under a verified verdict carry a
+    // company_resume_links row with currentVerdictRevisionId (set by the
+    // 2026-08-08 backfill), i.e. the same population as digests with
+    // verifiedIndustryEvidenceSummaries, at a fraction of the cost.
+    const resumeTotal = await ctx.db.query("resumes").count();
+    const verifiedLinkResumes = new Set<string>();
+    const resumeLinks = await ctx.db.query("company_resume_links").collect();
+    for (const link of resumeLinks) {
+      if (typeof link.currentVerdictRevisionId === "string") {
+        verifiedLinkResumes.add(String(link.resumeId));
       }
     }
+    const withVerifiedEvidence = verifiedLinkResumes.size;
 
     const profiles = await ctx.db
       .query("company_industry_profiles")
@@ -5977,7 +6016,7 @@ export const getIndustryCoverageSummary = query({
       emptyEvidenceBottleneck,
       readyBacklogBottleneck,
       resumes: {
-        total: digests.length,
+        total: resumeTotal,
         withVerifiedEvidence,
       },
       profiles: {
