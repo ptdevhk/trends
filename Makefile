@@ -6,7 +6,7 @@
 		preview-backup-prod on-host-backup-prod-complete on-host-preview-preflight on-host-preview-clone-from-prod on-host-preview-upgrade on-host-preview-isolate preview-deploy preview-restore-data preview-doctor preview-smoke \
 		on-host-preview-rehearse-backup on-host-preview-rehearse-resume on-host-preview-rehearse-rollback on-host-preview-verify-snapshot on-host-preview-run-migrations \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
-		check-python check-node check-node-tests-types check-build \
+		check-python check-node check-node-tests-types check-build ci-local \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke my-scoring my-scoring-e2e \
 		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -1459,6 +1459,20 @@ check-build: check
 		bun run --filter '@trends/shared' --filter '@trends/api' --filter '@trends/web' build; \
 		if [ -n "$$CONVEX_DEPLOYMENT" ]; then bun run --filter '@trends/convex' build; else echo "Skipping @trends/convex build (CONVEX_DEPLOYMENT not set)"; fi; \
 	fi
+
+# CI-parity local gate: run the same steps as the Checks + Tests workflows
+# (node-version parity, i18n, agent policy, check-build, test-coverage) so the
+# loop-class failures of 2026-07 (React 18 root hoist, unstable i18n-mock `t`,
+# vitest hangs) surface locally instead of burning a 30-minute CI run.
+# NODE_VERSION_STRICT=1 makes the node-major check a hard failure.
+ci-local:
+	@bash scripts/check-node-version.sh
+	@$(MAKE) i18n-check
+	@$(MAKE) check-agent-policy
+	@CI=true $(MAKE) check-build
+	@$(MAKE) test-coverage
+	@echo ""
+	@echo "✅ ci-local: all CI gates passed (Checks + Tests parity)"
 
 # =============================================================================
 # Tests

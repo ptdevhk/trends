@@ -4,18 +4,20 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { FilterPanel } from './FilterPanel'
 
+const mockT = (key: string, options?: Record<string, unknown>) => {
+  const labels: Record<string, string> = {
+    'resumes.filters.badges.maxExperience': '≤{{value}} years',
+    'resumes.filters.badges.ageRange': '{{min}}-{{max}} years old',
+    'resumes.filters.badges.minAge': '≥{{value}} years old',
+    'resumes.filters.badges.maxAge': '≤{{value}} years old',
+  }
+  const template = labels[key] ?? key
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
-      const labels: Record<string, string> = {
-        'resumes.filters.badges.maxExperience': '≤{{value}} years',
-        'resumes.filters.badges.ageRange': '{{min}}-{{max}} years old',
-        'resumes.filters.badges.minAge': '≥{{value}} years old',
-        'resumes.filters.badges.maxAge': '≤{{value}} years old',
-      }
-      const template = labels[key] ?? key
-      return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
-    },
+    t: mockT,
   }),
 }))
 

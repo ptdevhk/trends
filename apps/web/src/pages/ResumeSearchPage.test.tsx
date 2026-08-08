@@ -19,37 +19,39 @@ type AuthMockValue = {
   refresh: () => Promise<void>
 }
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+  // Return English text for keys used by ResumeSearchPage
+  const englishTexts: Record<string, string> = {
+    'bulkActions.selected': 'selected',
+    'bulkActions.blocked': 'blocked',
+    'bulkActions.manageBlocked': 'manage',
+    'resumes.searchPage.header.resultsWithQuery': 'Results for "{{query}}": {{count}}',
+    'resumes.searchPage.header.results': 'Found {{count}} results',
+    'resumes.searchPage.header.sort': 'Sort',
+    'resumes.searchPage.header.sortResults': 'Sort results',
+    'resumes.searchPage.header.sortOptions.aiScore': 'AI Score',
+    'resumes.searchPage.header.sortOptions.newest': 'Most Recent',
+    'resumes.searchPage.header.sortOptions.experience': 'Experience',
+    'resumes.searchPage.analysis.title': 'Resume AI analysis',
+    'resumes.searchPage.analysis.description': 'Generate AI summary and detailed score breakdown for the loaded search results.',
+    'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
+    'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
+    'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+    'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+  }
+  const text = englishTexts[key] ?? key
+  return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-      // Return English text for keys used by ResumeSearchPage
-      const englishTexts: Record<string, string> = {
-        'bulkActions.selected': 'selected',
-        'bulkActions.blocked': 'blocked',
-        'bulkActions.manageBlocked': 'manage',
-        'resumes.searchPage.header.resultsWithQuery': 'Results for "{{query}}": {{count}}',
-        'resumes.searchPage.header.results': 'Found {{count}} results',
-        'resumes.searchPage.header.sort': 'Sort',
-        'resumes.searchPage.header.sortResults': 'Sort results',
-        'resumes.searchPage.header.sortOptions.aiScore': 'AI Score',
-        'resumes.searchPage.header.sortOptions.newest': 'Most Recent',
-        'resumes.searchPage.header.sortOptions.experience': 'Experience',
-        'resumes.searchPage.analysis.title': 'Resume AI analysis',
-        'resumes.searchPage.analysis.description': 'Generate AI summary and detailed score breakdown for the loaded search results.',
-        'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
-        'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
-        'resumes.searchPage.analysis.analyzing': 'Analyzing...',
-        'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
-      }
-      const text = englishTexts[key] ?? key
-      return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 

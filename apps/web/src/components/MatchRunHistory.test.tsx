@@ -4,13 +4,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MatchRunHistory } from '@/components/MatchRunHistory'
 import type { MatchRunItem } from '@/hooks/useMatchRunHistory'
 
+const mockT = (key: string, options?: string | { defaultValue?: string }) => {
+  if (typeof options === 'string') return options
+  if (options?.defaultValue) return options.defaultValue
+  return key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | { defaultValue?: string }) => {
-      if (typeof options === 'string') return options
-      if (options?.defaultValue) return options.defaultValue
-      return key
-    },
+    t: mockT,
   }),
 }))
 

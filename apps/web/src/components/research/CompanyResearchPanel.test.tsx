@@ -3,9 +3,11 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { CompanyResearchPanel, type ResearchSignalView } from './CompanyResearchPanel'
 
+const mockT = (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key,
+    t: mockT,
   }),
 }))
 

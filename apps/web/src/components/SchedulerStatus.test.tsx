@@ -2,16 +2,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { SchedulerStatus } from '@/components/SchedulerStatus'
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
+const mockT = (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
       if (key === 'common.loading') return 'Loading from i18n'
       if (typeof options === 'string') return options
       if (options?.defaultValue) {
         return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match: string, k: string) => String(options[k] ?? `{{${k}}}`))
       }
       return key
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 

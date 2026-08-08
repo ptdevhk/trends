@@ -23,15 +23,17 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string | { defaultValue?: string; [name: string]: unknown }) => {
+const mockT = (key: string, fallback?: string | { defaultValue?: string; [name: string]: unknown }) => {
       if (typeof fallback === 'string') {
         return fallback
       }
       const template = fallback?.defaultValue ?? key
       return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(fallback?.[name] ?? `{{${name}}}`))
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 

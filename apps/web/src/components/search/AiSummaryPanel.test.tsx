@@ -2,22 +2,24 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 

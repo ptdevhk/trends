@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockChangePassword = vi.hoisted(() => vi.fn())
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
+const mockT = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+    t: mockT,
   }),
 }))
 

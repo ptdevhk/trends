@@ -91,14 +91,16 @@ const mockState = vi.hoisted(() => ({
   navigate: vi.fn(),
 }))
 
+const mockT = (_key: string, options?: string | { defaultValue?: string }) => {
+  if (typeof options === 'string') {
+    return options
+  }
+  return options?.defaultValue ?? _key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: string | { defaultValue?: string }) => {
-      if (typeof options === 'string') {
-        return options
-      }
-      return options?.defaultValue ?? _key
-    },
+    t: mockT,
   }),
 }))
 

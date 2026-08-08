@@ -3,13 +3,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { TrendItem } from '@/components/TrendItem'
 import type { NewsItem } from '@/lib/types'
 
+const mockT = (key: string, options?: string | { defaultValue?: string }) => {
+  if (typeof options === 'string') return options
+  if (options?.defaultValue) return options.defaultValue
+  return key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | { defaultValue?: string }) => {
-      if (typeof options === 'string') return options
-      if (options?.defaultValue) return options.defaultValue
-      return key
-    },
+    t: mockT,
   }),
 }))
 

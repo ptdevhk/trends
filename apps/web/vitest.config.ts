@@ -25,6 +25,21 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     css: false,
+    // Watchdog: an infinite React update loop ("Maximum update depth exceeded")
+    // used to stream warnings for 30 minutes until the CI job timeout killed
+    // the run. Fail the offending test immediately instead — the message tells
+    // the developer what the usual cause is (an effect depending on an
+    // unstable callback, e.g. `t` from an unstable react-i18next mock).
+    onConsoleLog(log, type) {
+      if ((type === 'stderr' || type === 'error') && log.includes('Maximum update depth exceeded')) {
+        throw new Error(
+          'Detected an infinite React update loop ("Maximum update depth exceeded"). ' +
+            'Likely cause: a mount effect depends on a useCallback that closes over `t` ' +
+            '(or another per-render value) from a react-i18next mock. Omit `t` from the ' +
+            'callback deps and/or make the mock return a module-scope `t`.',
+        )
+      }
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'clover', 'json', 'lcov'],

@@ -7,17 +7,19 @@ vi.mock('date-fns/formatDistanceToNow', () => ({
   formatDistanceToNow: () => '2 hours ago',
 }))
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') return options
+  const translations: Record<string, string> = {
+    'searchProfiles.card.resultCount': '{{count}} CVs',
+    'searchProfiles.card.never': 'never',
+  }
+  const template = translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') return options
-      const translations: Record<string, string> = {
-        'searchProfiles.card.resultCount': '{{count}} CVs',
-        'searchProfiles.card.never': 'never',
-      }
-      const template = translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
-      return template.replace(/\{\{(\w+)\}\}/g, (_match, token: string) => String(options?.[token] ?? ''))
-    },
+    t: mockT,
   }),
 }))
 

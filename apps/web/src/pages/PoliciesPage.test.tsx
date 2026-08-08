@@ -16,9 +16,11 @@ vi.mock('@/components/PageHeader', () => ({
   PageHeader: ({ title }: { title?: string }) => <div>{title || 'Policies'}</div>,
 }))
 
+const mockT = (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+    t: mockT,
   }),
 }))
 

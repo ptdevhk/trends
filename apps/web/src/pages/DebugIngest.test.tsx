@@ -73,9 +73,7 @@ vi.mock('convex/react', () => ({
   },
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
+const mockT = (_key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
       if (typeof options === 'string') {
         return options
       }
@@ -83,7 +81,11 @@ vi.mock('react-i18next', () => ({
         return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => String(options[key] ?? `{{${key}}}`))
       }
       return _key
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 

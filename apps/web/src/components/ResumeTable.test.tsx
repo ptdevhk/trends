@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ResumeTable } from './ResumeTable'
 
+const mockT = (_key: string, fallback?: string) => fallback ?? _key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback?: string) => fallback ?? _key,
+    t: mockT,
   }),
 }))
 
