@@ -5836,18 +5836,25 @@ export const getIndustryCoverageSummary = query({
       }
     }
 
-    // Budget-safe open-proposal source probe: one indexed read per open
-    // proposal instead of collecting the whole sources table (~3k rows and
-    // growing with every maintenance round).
+    // Budget-safe open-proposal source probe: one collect of the sources
+    // table instead of one indexed read per open proposal. On preview the
+    // proposals table holds ~9.8k rows (9.7k of them stuck in "new"), so
+    // ~9.8k sequential indexed first() syscalls exceeded the local-backend
+    // 1s query execution ceiling ("Function execution timed out (maximum
+    // duration: 1s)" — observed 2026-08-09). A single sources collect is
+    // one scan of ~545 rows and finishes in a few ms.
+    const sourceProposalIds = new Set<string>();
+    const allSources = await ctx.db
+      .query("company_industry_evidence_sources")
+      .collect();
+    for (const source of allSources) {
+      if (typeof source.proposalId === "string") {
+        sourceProposalIds.add(source.proposalId);
+      }
+    }
     let openWithSources = 0;
     for (const proposal of openProposals) {
-      const existing = await ctx.db
-        .query("company_industry_evidence_sources")
-        .withIndex("by_proposal", (q: any) =>
-          q.eq("proposalId", proposal.proposalId),
-        )
-        .first();
-      if (existing) openWithSources += 1;
+      if (sourceProposalIds.has(proposal.proposalId)) openWithSources += 1;
     }
     const openTotal = openProposals.length;
     const openWithoutSources = Math.max(0, openTotal - openWithSources);
