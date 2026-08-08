@@ -230,7 +230,12 @@ export default function DebugIngest() {
     }
   }, [apiBaseUrl, t])
 
+  const skillsVersionLoadedRef = useRef(false)
   useEffect(() => {
+    if (skillsVersionLoadedRef.current) {
+      return
+    }
+    skillsVersionLoadedRef.current = true
     void loadSkillsVersion()
   }, [loadSkillsVersion])
 
