@@ -1704,7 +1704,7 @@
       "human": "人工",
       "auto-verify-bot": "自動驗證機器人"
     },
-    "riskFlags": {
+    "riskFlagLabels": {
       "canonical_mapping_missing": "缺少規範公司對應",
       "only_discovery_sources": "僅有探索來源",
       "source_conflict": "來源衝突",

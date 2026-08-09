@@ -1262,7 +1262,7 @@
       "human": "人工",
       "auto-verify-bot": "自动验证机器人"
     },
-    "riskFlags": {
+    "riskFlagLabels": {
       "canonical_mapping_missing": "缺少规范公司映射",
       "only_discovery_sources": "仅有发现来源",
       "source_conflict": "来源冲突",

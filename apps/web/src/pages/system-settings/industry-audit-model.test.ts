@@ -111,8 +111,8 @@ describe('formatAuditTimestamp', () => {
 
 describe('riskFlagLabelKey', () => {
   it('maps a flag code to its i18n key under industryAudit.riskFlags', () => {
-    expect(riskFlagLabelKey('source_conflict')).toBe('industryAudit.riskFlags.source_conflict')
-    expect(riskFlagLabelKey('recompute_pending')).toBe('industryAudit.riskFlags.recompute_pending')
+    expect(riskFlagLabelKey('source_conflict')).toBe('industryAudit.riskFlagLabels.source_conflict')
+    expect(riskFlagLabelKey('recompute_pending')).toBe('industryAudit.riskFlagLabels.recompute_pending')
   })
 
   it('covers every known risk flag code with an English fallback label', () => {

@@ -1704,7 +1704,7 @@
       "human": "Human",
       "auto-verify-bot": "Auto-verify bot"
     },
-    "riskFlags": {
+    "riskFlagLabels": {
       "canonical_mapping_missing": "Canonical mapping missing",
       "only_discovery_sources": "Only discovery sources",
       "source_conflict": "Source conflict",

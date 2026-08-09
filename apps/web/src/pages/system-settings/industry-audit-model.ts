@@ -140,7 +140,7 @@ export const RISK_FLAG_LABELS: Record<string, string> = {
 
 /** i18n key for a risk flag label, e.g. `industryAudit.riskFlags.source_conflict`. */
 export function riskFlagLabelKey(flag: string): string {
-  return `industryAudit.riskFlags.${flag}`
+  return `industryAudit.riskFlagLabels.${flag}`
 }
 
 /** English fallbacks for the industry class labels. */
