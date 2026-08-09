@@ -1649,6 +1649,73 @@
     "viewRow": "檢視",
     "visibleRiskFlags": "可見風險標記"
   },
+  "industryAudit": {
+    "title": "行業稽核",
+    "description": "行業判定版本與雇主身分解析的決策紀錄，包括證明詳細資訊。",
+    "identitySectionTitle": "身分解析稽核",
+    "identitySectionDescription": "按工作區記錄雇主身分對應（現有或臨時），最新在前。",
+    "verdictSectionTitle": "判定版本",
+    "verdictSectionDescription": "不可變的行業判定決策紀錄，含稽核人與證明詳細資訊，最新在前。",
+    "loading": "正在載入稽核紀錄…",
+    "applyFilter": "套用",
+    "proposalIdFilterLabel": "依提案篩選",
+    "proposalIdFilterPlaceholder": "proposal-…",
+    "batchIdFilterLabel": "依批次篩選",
+    "batchIdFilterPlaceholder": "batch-…",
+    "identityEmpty": "尚無身分解析稽核紀錄。",
+    "verdictEmpty": "尚無判定版本紀錄。",
+    "actor": "操作者",
+    "mappingMode": "對應方式",
+    "targetCompanyKey": "目標公司",
+    "proposalId": "提案",
+    "sourceCount": "來源數",
+    "createdAt": "建立時間",
+    "reviewNote": "稽核備註",
+    "companyKey": "公司",
+    "industryClass": "行業分類",
+    "verificationLevel": "驗證級別",
+    "reviewedBy": "稽核人",
+    "reviewedAt": "稽核時間",
+    "decisionMode": "決策模式",
+    "riskFlags": "風險標記",
+    "batchId": "批次",
+    "decisionReason": "決策原因",
+    "mappingModes": {
+      "existing": "現有公司",
+      "create_provisional": "臨時公司"
+    },
+    "classes": {
+      "cnc": "CNC",
+      "automation": "自動化",
+      "metrology": "量測",
+      "industrial": "工業",
+      "non_industry": "非工業",
+      "unknown": "未知"
+    },
+    "levels": {
+      "verified": "已驗證",
+      "rejected": "已拒絕"
+    },
+    "decisionModes": {
+      "standard": "標準",
+      "risk_override": "風險覆寫"
+    },
+    "reviewerTypes": {
+      "human": "人工",
+      "auto-verify-bot": "自動驗證機器人"
+    },
+    "riskFlags": {
+      "canonical_mapping_missing": "缺少規範公司對應",
+      "only_discovery_sources": "僅有探索來源",
+      "source_conflict": "來源衝突",
+      "weak_industry_signal": "行業訊號較弱",
+      "cnc_claim_inferred": "CNC 聲明為推斷",
+      "stale_or_failed_source": "來源過期或失敗",
+      "low_source_diversity": "來源多樣性不足",
+      "worker_unreachable": "證據 worker 無法連線",
+      "recompute_pending": "待重新計算"
+    }
+  },
   "operations": {
     "industryMaintenanceDescription": "研究開放提案並重新整理到期的已核准來源。",
     "industryMaintenanceLastRun": "最近一次執行",

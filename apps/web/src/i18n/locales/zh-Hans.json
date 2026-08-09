@@ -1207,6 +1207,73 @@
     "viewRow": "查看",
     "visibleRiskFlags": "可见风险标记"
   },
+  "industryAudit": {
+    "title": "行业审计",
+    "description": "行业判定版本与雇主身份解析的决策记录，包括证明详情。",
+    "identitySectionTitle": "身份解析审计",
+    "identitySectionDescription": "按工作区记录雇主身份映射（现有或临时），最新在前。",
+    "verdictSectionTitle": "判定版本",
+    "verdictSectionDescription": "不可变的行业判定决策记录，含审核人与证明详情，最新在前。",
+    "loading": "正在加载审计记录…",
+    "applyFilter": "应用",
+    "proposalIdFilterLabel": "按提案筛选",
+    "proposalIdFilterPlaceholder": "proposal-…",
+    "batchIdFilterLabel": "按批次筛选",
+    "batchIdFilterPlaceholder": "batch-…",
+    "identityEmpty": "暂无身份解析审计记录。",
+    "verdictEmpty": "暂无判定版本记录。",
+    "actor": "操作者",
+    "mappingMode": "映射方式",
+    "targetCompanyKey": "目标公司",
+    "proposalId": "提案",
+    "sourceCount": "来源数",
+    "createdAt": "创建时间",
+    "reviewNote": "审核备注",
+    "companyKey": "公司",
+    "industryClass": "行业分类",
+    "verificationLevel": "验证级别",
+    "reviewedBy": "审核人",
+    "reviewedAt": "审核时间",
+    "decisionMode": "决策模式",
+    "riskFlags": "风险标记",
+    "batchId": "批次",
+    "decisionReason": "决策原因",
+    "mappingModes": {
+      "existing": "现有公司",
+      "create_provisional": "临时公司"
+    },
+    "classes": {
+      "cnc": "CNC",
+      "automation": "自动化",
+      "metrology": "计量",
+      "industrial": "工业",
+      "non_industry": "非工业",
+      "unknown": "未知"
+    },
+    "levels": {
+      "verified": "已验证",
+      "rejected": "已拒绝"
+    },
+    "decisionModes": {
+      "standard": "标准",
+      "risk_override": "风险覆盖"
+    },
+    "reviewerTypes": {
+      "human": "人工",
+      "auto-verify-bot": "自动验证机器人"
+    },
+    "riskFlags": {
+      "canonical_mapping_missing": "缺少规范公司映射",
+      "only_discovery_sources": "仅有发现来源",
+      "source_conflict": "来源冲突",
+      "weak_industry_signal": "行业信号较弱",
+      "cnc_claim_inferred": "CNC 声明为推断",
+      "stale_or_failed_source": "来源过期或失败",
+      "low_source_diversity": "来源多样性不足",
+      "worker_unreachable": "证据 worker 不可达",
+      "recompute_pending": "待重新计算"
+    }
+  },
   "operations": {
     "industryMaintenanceDescription": "研究开放提案并刷新到期的已批准来源。",
     "industryMaintenanceLastRun": "最近一次运行",

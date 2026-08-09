@@ -102,6 +102,10 @@ vi.mock('@/pages/system-settings/SystemSettingsIndustryDataPage', () => ({
   SystemSettingsIndustryDataPage: () => <div>Industry data route rendered</div>,
 }))
 
+vi.mock('@/pages/system-settings/SystemSettingsIndustryAuditPage', () => ({
+  default: () => <div>Industry audit route rendered</div>,
+}))
+
 describe('App routes', () => {
   beforeEach(() => {
     authState.user = null
@@ -364,6 +368,19 @@ describe('App routes', () => {
     render(<App />)
 
     expect(await screen.findByText('Industry data route rendered')).toBeInTheDocument()
+  })
+
+  it('renders the workspace industry audit route for the active workspace admin', async () => {
+    authState.user = { id: 'hr-admin', status: 'active', displayName: 'HR Admin' }
+    authState.memberships = [{ userId: 'hr-admin', workspaceSlug: 'hr', role: 'admin' }]
+    authState.workspaceRole = 'admin'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-audit')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry audit route rendered')).toBeInTheDocument()
+    expect(workspaceRef.get()).toBe('hr')
   })
 
   it('denies non-admin workspace members on the industry verification surface', async () => {

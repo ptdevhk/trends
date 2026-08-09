@@ -1649,6 +1649,73 @@
     "viewRow": "View",
     "visibleRiskFlags": "Visible risk flags"
   },
+  "industryAudit": {
+    "title": "Industry audit",
+    "description": "Decision history for industry verdict revisions and employer identity resolution, including attestation details.",
+    "identitySectionTitle": "Identity-resolution audits",
+    "identitySectionDescription": "Workspace-scoped record of employer identity mappings (existing or provisional), newest first.",
+    "verdictSectionTitle": "Verdict revisions",
+    "verdictSectionDescription": "Immutable industry verdict decisions with reviewer and attestation details, newest first.",
+    "loading": "Loading audit records…",
+    "applyFilter": "Apply",
+    "proposalIdFilterLabel": "Filter by proposal",
+    "proposalIdFilterPlaceholder": "proposal-…",
+    "batchIdFilterLabel": "Filter by batch",
+    "batchIdFilterPlaceholder": "batch-…",
+    "identityEmpty": "No identity-resolution audits yet.",
+    "verdictEmpty": "No verdict revisions yet.",
+    "actor": "Actor",
+    "mappingMode": "Mapping mode",
+    "targetCompanyKey": "Target company",
+    "proposalId": "Proposal",
+    "sourceCount": "Sources",
+    "createdAt": "Created at",
+    "reviewNote": "Review note",
+    "companyKey": "Company",
+    "industryClass": "Industry class",
+    "verificationLevel": "Verification level",
+    "reviewedBy": "Reviewed by",
+    "reviewedAt": "Reviewed at",
+    "decisionMode": "Decision mode",
+    "riskFlags": "Risk flags",
+    "batchId": "Batch",
+    "decisionReason": "Decision reason",
+    "mappingModes": {
+      "existing": "Existing company",
+      "create_provisional": "Provisional company"
+    },
+    "classes": {
+      "cnc": "CNC",
+      "automation": "Automation",
+      "metrology": "Metrology",
+      "industrial": "Industrial",
+      "non_industry": "Non-industry",
+      "unknown": "Unknown"
+    },
+    "levels": {
+      "verified": "Verified",
+      "rejected": "Rejected"
+    },
+    "decisionModes": {
+      "standard": "Standard",
+      "risk_override": "Risk override"
+    },
+    "reviewerTypes": {
+      "human": "Human",
+      "auto-verify-bot": "Auto-verify bot"
+    },
+    "riskFlags": {
+      "canonical_mapping_missing": "Canonical mapping missing",
+      "only_discovery_sources": "Only discovery sources",
+      "source_conflict": "Source conflict",
+      "weak_industry_signal": "Weak industry signal",
+      "cnc_claim_inferred": "CNC claim inferred",
+      "stale_or_failed_source": "Stale or failed source",
+      "low_source_diversity": "Low source diversity",
+      "worker_unreachable": "Evidence worker unreachable",
+      "recompute_pending": "Recompute pending"
+    }
+  },
   "operations": {
     "industryMaintenanceDescription": "Research open proposals and refresh due approved sources.",
     "industryMaintenanceLastRun": "Last run",
