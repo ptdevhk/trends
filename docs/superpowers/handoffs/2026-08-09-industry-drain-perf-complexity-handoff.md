@@ -191,6 +191,8 @@ Second follow-up: completed C4 (candidate gate), C5 (coverage consolidation), C7
 
 ### Deploy pitfalls (learned live — avoid next time)
 
+- **`.venv` ownership**: the worker unit runs as `ubuntu` but a previous session left `.venv/bin` root-owned; any `systemctl restart trends-preview-worker-api` that triggers a uv re-sync crash-loops with `uv: failed to remove file .venv/bin/trendradar: Permission denied`. Fix: `chown -R ubuntu:ubuntu /home/ubuntu/trends-preview/.venv && systemctl restart trends-preview-worker-api`. Symptom signature: run dispatch returns `failed; worker unreachable.` + API error `postToWorker fetch failed`.
+
 The rsync-based deploy (`rsync -az --delete` from the working tree) needs the **canonical exclude list** from `deploy/preview-upgrade.sh`: `.git node_modules .venv .cache logs coverage output .env.preview .env.production packages/convex/.env.local packages/convex/.convex apps/web/dist docker-compose.preview.yml start-convex.sh prod-convex-export.zip .digest-restore-epoch` **plus `.env`** (the worker's dotenv file; the canonical copy = `.env.preview`). This session's misses caused: (1) host `.venv` corrupted with macOS binaries → recreated via `uv venv && uv sync`; (2) root `.env` overwritten with local dev values → restored from `.env.preview`; (3) `start-convex.sh` + `docker-compose.preview.yml` deleted (setup artifacts, not in git) → re-copied from `deploy/docker/`. The convex container bind-mounts the repo root, so `--delete` breaks the container entrypoint.
 
 ### Remaining (deferred)
