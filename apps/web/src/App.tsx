@@ -1,5 +1,13 @@
 import { lazy, Suspense, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -24,6 +32,7 @@ import {
   getFirstAuthorizedWorkspaceSlug,
   getDefaultAuthenticatedPath,
   hasSystemAdminAccess,
+  hasWorkspaceAdminAccess,
   hasWorkspaceMembership,
   PUBLIC_RESUME_WORKSPACE,
   SYSTEM_AUTH_WORKSPACE,
@@ -306,7 +315,17 @@ function SystemAccessGate({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-function WorkspaceSystemAccessDeniedRoute() {
+/**
+ * Workspace system routes (`/:teamSlug/system/*`).
+ *
+ * - Anonymous: redirect through canonical /login.
+ * - Dev-workspace system admins: canonical /admin/system (unchanged).
+ * - Everyone else: nested routes decide — the industry review surfaces
+ *   (industry-verification / industry-data) are workspace-scoped and accept
+ *   the active workspace's admin; every other system route keeps the
+ *   dev-admin-only denial.
+ */
+function WorkspaceSystemRoute() {
   const auth = useAuth()
   const location = useLocation()
 
@@ -321,6 +340,10 @@ function WorkspaceSystemAccessDeniedRoute() {
     return <Navigate to={{ pathname: `${SYSTEM_ROUTE_PREFIX}${suffix}`, search: location.search }} replace />
   }
 
+  return <Outlet />
+}
+
+function WorkspaceSystemDeniedPage() {
   return (
     <MainShell>
       <section className="mx-auto max-w-xl py-12">
@@ -333,6 +356,42 @@ function WorkspaceSystemAccessDeniedRoute() {
       </section>
     </MainShell>
   )
+}
+
+/**
+ * Industry review surfaces are workspace-scoped: the active workspace's
+ * admin may attend its own industry evidence queue (the API already honors
+ * X-Workspace-Slug per workspace). Users without admin membership in the
+ * active workspace keep the denial page.
+ */
+function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
+  const auth = useAuth()
+  const { teamSlug } = useParams()
+  const location = useLocation()
+
+  if (auth.isLoading) {
+    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+  }
+  if (!auth.isAuthenticated) {
+    const redirectTo = `${location.pathname}${location.search}`
+    const search = new URLSearchParams({ redirectTo }).toString()
+    return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
+  }
+  if (!hasWorkspaceAdminAccess(auth.memberships, teamSlug ?? SYSTEM_AUTH_WORKSPACE)) {
+    return (
+      <MainShell>
+        <section className="mx-auto max-w-xl py-12">
+          <div className="rounded-md border border-destructive/30 p-6">
+            <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Industry review requires a {teamSlug ?? SYSTEM_AUTH_WORKSPACE} workspace admin account.
+            </p>
+          </div>
+        </section>
+      </MainShell>
+    )
+  }
+  return <>{children}</>
 }
 
 function LegacyDevSystemRedirect() {
@@ -577,7 +636,45 @@ function App() {
 
           <Route path="/:teamSlug" element={<WorkspaceShell />}>
             <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
-            <Route path="system/*" element={<WorkspaceSystemAccessDeniedRoute />} />
+            <Route path="system/*" element={<WorkspaceSystemRoute />}>
+              <Route
+                path="settings/industry-verification"
+                element={(
+                  <WorkspaceIndustryAccessGate>
+                    <MainShell>
+                      <RouteSuspense>
+                        <LazySystemSettingsIndustryVerificationPage />
+                      </RouteSuspense>
+                    </MainShell>
+                  </WorkspaceIndustryAccessGate>
+                )}
+              />
+              <Route
+                path="settings/industry-verification/proposals/:proposalId"
+                element={(
+                  <WorkspaceIndustryAccessGate>
+                    <MainShell>
+                      <RouteSuspense>
+                        <LazySystemSettingsIndustryVerificationPage />
+                      </RouteSuspense>
+                    </MainShell>
+                  </WorkspaceIndustryAccessGate>
+                )}
+              />
+              <Route
+                path="settings/industry-data"
+                element={(
+                  <WorkspaceIndustryAccessGate>
+                    <MainShell>
+                      <RouteSuspense>
+                        <LazySystemSettingsIndustryDataPage />
+                      </RouteSuspense>
+                    </MainShell>
+                  </WorkspaceIndustryAccessGate>
+                )}
+              />
+              <Route path="*" element={<WorkspaceSystemDeniedPage />} />
+            </Route>
 
             <Route element={<MainShell />}>
               <Route path="login" element={<LoginPage />} />

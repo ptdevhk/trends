@@ -94,6 +94,14 @@ vi.mock('@/pages/SettingsKeywordsPage', () => ({
   SettingsKeywordsPage: () => <div>Workspace search setup route rendered</div>,
 }))
 
+vi.mock('@/pages/system-settings/SystemSettingsIndustryVerificationPage', () => ({
+  SystemSettingsIndustryVerificationPage: () => <div>Industry verification route rendered</div>,
+}))
+
+vi.mock('@/pages/system-settings/SystemSettingsIndustryDataPage', () => ({
+  SystemSettingsIndustryDataPage: () => <div>Industry data route rendered</div>,
+}))
+
 describe('App routes', () => {
   beforeEach(() => {
     authState.user = null
@@ -324,6 +332,67 @@ describe('App routes', () => {
     expect(await screen.findByText('Admin access required')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Page not found' })).not.toBeInTheDocument()
     expect(screen.queryByText('System layout rendered')).not.toBeInTheDocument()
+  })
+
+  it('renders the workspace industry verification route for the active workspace admin', async () => {
+    authState.user = { id: 'hr-admin', status: 'active', displayName: 'HR Admin' }
+    authState.memberships = [{ userId: 'hr-admin', workspaceSlug: 'hr', role: 'admin' }]
+    authState.workspaceRole = 'admin'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-verification')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry verification route rendered')).toBeInTheDocument()
+    expect(workspaceRef.get()).toBe('hr')
+  })
+
+  it('renders the workspace industry detail and data routes for the active workspace admin', async () => {
+    authState.user = { id: 'hr-admin', status: 'active', displayName: 'HR Admin' }
+    authState.memberships = [{ userId: 'hr-admin', workspaceSlug: 'hr', role: 'admin' }]
+    authState.workspaceRole = 'admin'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-verification/proposals/proposal-1')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry verification route rendered')).toBeInTheDocument()
+
+    cleanup()
+    window.history.pushState({}, '', '/hr/system/settings/industry-data')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry data route rendered')).toBeInTheDocument()
+  })
+
+  it('denies non-admin workspace members on the industry verification surface', async () => {
+    authState.user = { id: 'hr-user', status: 'active', displayName: 'HR User' }
+    authState.memberships = [{ userId: 'hr-user', workspaceSlug: 'hr', role: 'user' }]
+    authState.workspaceRole = 'user'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-verification')
+
+    render(<App />)
+
+    expect(await screen.findByText('Admin access required')).toBeInTheDocument()
+    expect(screen.getByText(/hr workspace admin account/)).toBeInTheDocument()
+    expect(screen.queryByText('Industry verification route rendered')).not.toBeInTheDocument()
+  })
+
+  it('keeps non-member dev admins out of workspace industry routes via the membership gate', async () => {
+    authState.user = { id: 'dev-admin', status: 'active', displayName: 'Dev Admin' }
+    authState.memberships = [{ userId: 'dev-admin', workspaceSlug: 'dev', role: 'admin' }]
+    authState.workspaceRole = 'admin'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-verification')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/resumes')
+    })
+    expect(screen.queryByText('Industry verification route rendered')).not.toBeInTheDocument()
   })
 
   it('renders the canonical workspace setup route for authorized members', async () => {

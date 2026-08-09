@@ -20,6 +20,19 @@ export function hasSystemAdminAccess(memberships: readonly WorkspaceMembership[]
   return hasWorkspaceMembership(memberships, SYSTEM_AUTH_WORKSPACE, ['admin'])
 }
 
+/**
+ * Admin membership of a specific workspace. The industry review surfaces
+ * are workspace-scoped: an HR workspace admin can attend the HR industry
+ * evidence queue even though the ops-only system settings remain gated on
+ * the dev workspace (SYSTEM_AUTH_WORKSPACE).
+ */
+export function hasWorkspaceAdminAccess(
+  memberships: readonly WorkspaceMembership[],
+  workspaceSlug: string,
+): boolean {
+  return hasWorkspaceMembership(memberships, workspaceSlug, ['admin'])
+}
+
 export function getFirstAuthorizedWorkspaceSlug(
   memberships: readonly WorkspaceMembership[],
 ): WorkspaceSlug | null {

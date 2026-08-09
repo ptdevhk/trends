@@ -20,7 +20,7 @@ const unmappedRecommendation: ReviewInboxItem['recommendation'] = {
   proposalId: 'proposal-unmapped',
   proposalStatus: 'ready_for_review',
   recommendedAction: 'inspect',
-  recommendedVerificationLevel: 'unverified',
+  recommendedVerificationLevel: 'verified',
   recommendedIndustryClass: 'unknown',
   recommendedSourceIds: [],
   sourceDecisions: [],
