@@ -391,3 +391,31 @@ export const attachProposalToCompany = mutation({
     return { proposalId: proposal.proposalId, companyKey, patchedSources };
   },
 });
+
+/**
+ * List identity-resolution audit rows for a workspace (C6 audit UI),
+ * newest-first, optionally filtered by proposal.
+ *
+ * No write-secret gate: served to the workspace-admin-gated web audit
+ * surface via the Convex React client.
+ */
+export const listIndustryIdentityResolutionAudits = query({
+  args: {
+    workspaceSlug: v.string(),
+    proposalId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    const limit = Math.min(500, Math.max(1, Math.floor(args.limit ?? 100)));
+    const proposalId = args.proposalId?.trim() || undefined;
+    const rows = await ctx.db
+      .query("industry_identity_resolution_audits")
+      .withIndex("by_workspace_created", (q) => q.eq("workspaceSlug", workspaceSlug))
+      .collect();
+    return rows
+      .filter((row) => !proposalId || row.proposalId === proposalId)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, limit);
+  },
+});

@@ -927,3 +927,34 @@ export const listAutoApprovedVerdictRevisions = query({
       .slice(0, limit);
   },
 });
+
+/**
+ * Page verdict-revision audit rows (decision history) newest-first, with an
+ * optional filter over the batch attestation id (C6 audit UI).
+ *
+ * No write-secret gate: served to the workspace-admin-gated web audit
+ * surface via the Convex React client, mirroring other web-facing queries.
+ * The revisions table is a bounded audit trail (one row per decision), so a
+ * full scan stays far under the ~10.5k system-op ceiling.
+ */
+export const listIndustryVerdictRevisionsPage = query({
+  args: {
+    batchId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(500, Math.max(1, Math.floor(args.limit ?? 100)));
+    const batchId = args.batchId?.trim() || undefined;
+    const rows = await ctx.db
+      .query("company_industry_verdict_revisions")
+      .collect();
+    return rows
+      .filter((row) => !batchId || row.reviewAttestation?.batchId === batchId)
+      .sort(
+        (left, right) =>
+          right.reviewedAt - left.reviewedAt ||
+          right.revisionId.localeCompare(left.revisionId),
+      )
+      .slice(0, limit);
+  },
+});
