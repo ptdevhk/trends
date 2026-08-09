@@ -254,6 +254,20 @@ Also observed (not bugs): the coverage counters refresh is async — a refresh i
 
 **Testing additions**: wrapped-format helper cases, identity-resolution 409 (stale + not-open) route tests, resolve 409 route test, batch wrapped-code extraction test. API suite 3,208 passing.
 
+### Browser UAT (Playwright, 2026-08-09) — 2 more findings
+
+**Finding 1 — web bundle built without `VITE_CONVEX_URL` (regression, FIXED).** The preview dist must be built with `VITE_CONVEX_URL=https://preview.pt-mes.com/convex` (canonical in `deploy/setup-preview.sh`); without it every page using convex/react hooks (`useResumeSearchState` on /resumes) crashes with "Could not find Convex client!". Rebuilt + redeployed; resumes page + industry pages now load with **0 console errors**. ⚠ **Deploy pitfall: any local rebuild of `apps/web/dist` for preview must set that env var** — `CI=true npx vite build` alone produces a broken bundle.
+
+**Finding 2 — industry review UI is unreachable for the data it reviews (OPEN, needs a design decision).** The web industry review pages (`industry-verification`, `industry-data`) live under `/admin/system/settings/*`, gated by `SystemAccessGate` → `hasSystemAdminAccess` = **dev-workspace admin** only, and the system surface hardwires `workspaceRef` to `dev` (`SYSTEM_AUTH_WORKSPACE`). Consequences, verified live:
+- `hr-demo@hr` (the HR operator account the C1/C2 design targets) gets "Admin access required — System settings require a dev workspace admin account" on `/hr/system/settings/industry-verification`.
+- `admin@dev` (the only account that passes) sees the **dev** workspace — which has **zero** industry proposals (UI shows "0 pending").
+- All the reviewable data (64 ready, 8 approved, 61 mapping-blocked) lives in the **hr** workspace and is only reachable via API (`X-Workspace-Slug: hr`, hr-demo is admin there).
+- Net: **no web account can review the actual industry evidence queue.** The batch-review + identity-lane UI components work (web tests + dev-workspace render, 0 console errors), the API is workspace-correct (`requireAdmin` honors `X-Workspace-Slug`) — only the web gate + workspace pinning disconnect them.
+- Not documented in any vault work item (P2–P4 portability is about snapshot export/import, unrelated).
+- Candidate fixes (decision needed): (a) gate the industry settings pages on admin membership of the **active workspace** (hr-demo@hr passes; API already workspace-scoped), or (b) keep dev-only but give dev admin an hr membership/view — or (c) accept as-is if industry review is deliberately ops-only (contradicts C2's "HR-workspace users may override" design).
+
+**CI note**: the fix commits initially failed the Checks workflow (`check-node` api-types drift — the NOT_OPEN schema change needed `gen:api` regeneration); fixed in `c992f7bb`, Checks + Tests green.
+
 ---
 
 ## Live state snapshot (observed 2026-08-09, workspace `hr`)
