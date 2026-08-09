@@ -9,6 +9,7 @@ import {
   getIdentityResolutionEligibility,
   getOneClickEligibility,
   parseReviewInboxFilter,
+  parseReviewInboxItems,
   partitionReviewQueue,
   requiresIdentityResolution,
   reviewInboxFilterToSlug,
@@ -71,6 +72,7 @@ function makeItem(
     recommendation: { ...cleanRecommendation, ...recommendation },
     inputFingerprint: 'fingerprint-clean',
     sourceCount: 1,
+    resumeImpact: 0,
   }
 }
 
@@ -366,6 +368,63 @@ describe('identity resolution eligibility', () => {
       { proposalId: 'proposal-mapped-flag', companyKey: 'company-x' },
       { proposalId: 'proposal-mapped-flag', riskFlags: ['canonical_mapping_missing'] },
     ))).toBe(false)
+  })
+})
+
+describe('parseReviewInboxItems', () => {
+  it('parses resumeImpact from review-queue items and defaults missing or invalid values to 0', () => {
+    const parsed = parseReviewInboxItems({
+      success: true,
+      items: [
+        {
+          proposal: cleanProposal,
+          recommendation: cleanRecommendation,
+          inputFingerprint: 'fingerprint-impact',
+          sourceCount: 1,
+          resumeImpact: 12,
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-no-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-no-impact' },
+          inputFingerprint: 'fingerprint-no-impact',
+          sourceCount: 1,
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-string-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-string-impact' },
+          inputFingerprint: 'fingerprint-string-impact',
+          sourceCount: 1,
+          resumeImpact: '7',
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-negative-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-negative-impact' },
+          inputFingerprint: 'fingerprint-negative-impact',
+          sourceCount: 1,
+          resumeImpact: -3,
+        },
+      ],
+    })
+
+    expect(parsed.map((item) => item.resumeImpact)).toEqual([12, 0, 7, 0])
+    expect(parsed[0]?.proposal.proposalId).toBe('proposal-clean')
+    expect(parsed[0]?.inputFingerprint).toBe('fingerprint-impact')
+  })
+
+  it('returns an empty list for payloads without an items array', () => {
+    expect(parseReviewInboxItems({ success: true })).toEqual([])
+    expect(parseReviewInboxItems(undefined)).toEqual([])
+  })
+
+  it('filters items that are missing proposal or recommendation shape', () => {
+    expect(parseReviewInboxItems({
+      success: true,
+      items: [
+        { proposal: {}, recommendation: {} },
+        { proposal: cleanProposal, recommendation: { ...cleanRecommendation, proposalId: undefined } },
+        { proposal: cleanProposal, recommendation: cleanRecommendation, inputFingerprint: 'fp', sourceCount: 1 },
+      ],
+    })).toHaveLength(1)
   })
 })
 

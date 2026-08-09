@@ -32,6 +32,7 @@ export {
   listAffectedResumesByCompany,
   getCompanyBackfillCatalog,
   backfillCompanyResumeLinksByCompany,
+  backfillCompanyResumeLinksByCompanySync,
   scheduleCompanyLinkBackfill,
   backfillCompanyResumeLinks,
   resolveIndustryRefreshResumeReference,

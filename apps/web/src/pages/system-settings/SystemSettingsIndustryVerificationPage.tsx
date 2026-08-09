@@ -111,6 +111,7 @@ export function SystemSettingsIndustryVerificationPage() {
       recommendation: directReviewPacket.recommendation,
       inputFingerprint: directReviewPacket.dataset.inputFingerprint,
       sourceCount: directReviewPacket.sources.length,
+      resumeImpact: 0,
     }
   }, [directReviewPacket, requestedProposalId])
 

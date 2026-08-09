@@ -35,6 +35,12 @@ function CardErrorFallback() {
   )
 }
 
+export type VerifiedOnlyNotice = {
+  minRoleYears?: number
+  roleFilterType?: string | null
+  verifiedEmployerCount?: number
+}
+
 type SearchResultsListProps = {
   detailResumeId?: string
   expandedIds: Set<string>
@@ -65,6 +71,12 @@ type SearchResultsListProps = {
   /** Admin-only exact resume target orchestration for the loaded result page. */
   onQueueIndustryResearch?: (resumeIds: string[]) => Promise<void>
   industryResearchQueueEnabled?: boolean
+  /**
+   * Gate-legibility notice: when a role gate (minRoleYears / roleFilterType)
+   * is active and the verified-employer catalog count is known, the results
+   * list explains that results are limited to industry-verified employers.
+   */
+  verifiedOnlyNotice?: VerifiedOnlyNotice
 }
 
 function SearchResultsSkeleton() {
@@ -109,6 +121,7 @@ export function SearchResultsList({
   searchQuery,
   onQueueIndustryResearch,
   industryResearchQueueEnabled = false,
+  verifiedOnlyNotice,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -397,6 +410,20 @@ export function SearchResultsList({
       ) : null}
       {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
         <LegacyIndustryEvidenceNotice showReviewAction />
+      ) : null}
+      {verifiedOnlyNotice
+      && verifiedOnlyNotice.verifiedEmployerCount !== undefined
+      && ((verifiedOnlyNotice.minRoleYears ?? 0) > 0 || Boolean(verifiedOnlyNotice.roleFilterType)) ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm"
+          data-testid="resume-verified-only-notice"
+          role="status"
+        >
+          {t('industryEvidence.searchVerifiedOnlyNotice', {
+            defaultValue: 'Results limited to industry-verified employers · {{count}} verified employers in catalog',
+            count: verifiedOnlyNotice.verifiedEmployerCount,
+          })}
+        </div>
       ) : null}
       {shouldVirtualize ? (
         <div

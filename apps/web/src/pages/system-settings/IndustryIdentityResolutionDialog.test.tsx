@@ -43,6 +43,7 @@ const item = (proposalId = 'proposal-unmapped'): ReviewInboxItem => ({
   recommendation: { ...unmappedRecommendation, proposalId },
   inputFingerprint: `fingerprint-${proposalId}`,
   sourceCount: 2,
+  resumeImpact: 0,
 })
 
 const candidates = [

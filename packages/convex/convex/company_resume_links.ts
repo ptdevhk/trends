@@ -1,9 +1,11 @@
 import { v } from "convex/values";
 import {
+  action,
   internalAction,
   internalQuery,
   mutation,
   query,
+  type ActionCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -219,6 +221,137 @@ export type CompanyLinkBackfillResult = {
   isDone: boolean;
 };
 
+/**
+ * Scheduler-free backfill scan shared by the scheduler-driven internal action
+ * and the synchronous public action. Fetches the company catalog, builds the
+ * alias index, scans resumes in bounded pages, matches raw work-history
+ * employer surfaces, and upserts idempotent company_resume_links. NEVER
+ * touches ctx.scheduler: when the corpus is unfinished it returns status
+ * "continued" with the continuation cursor so the caller decides how to
+ * resume (self-chain vs. HTTP-driven sync loop).
+ */
+async function runCompanyLinkBackfillScan(
+  ctx: {
+    runQuery: ActionCtx["runQuery"];
+    runMutation: ActionCtx["runMutation"];
+  },
+  companyKey: string,
+  cursor: string | null,
+  maxPages?: number,
+): Promise<CompanyLinkBackfillResult> {
+  const normalizedCompanyKey = normalizeCompanyKey(companyKey);
+  if (!normalizedCompanyKey) {
+    throw new Error("Backfill requires a companyKey");
+  }
+  const catalog = await ctx.runQuery(
+    internal.companies.getCompanyBackfillCatalog,
+    { companyKey: normalizedCompanyKey },
+  );
+  if (!catalog) {
+    return {
+      status: "not_found",
+      companyKey: normalizedCompanyKey,
+      scannedRows: 0,
+      matchedRows: 0,
+      linkedRows: 0,
+      cursor: null,
+      isDone: true,
+    };
+  }
+  const aliasIndex = buildCompanyAliasIndex([catalog]);
+  if (aliasIndex.size === 0) {
+    return {
+      status: "completed",
+      companyKey: normalizedCompanyKey,
+      scannedRows: 0,
+      matchedRows: 0,
+      linkedRows: 0,
+      cursor: null,
+      isDone: true,
+    };
+  }
+
+  const maxScanPages = Math.min(
+    Math.max(Math.floor(maxPages ?? BACKFILL_DEFAULT_MAX_PAGES), 1),
+    BACKFILL_MAX_PAGES,
+  );
+  let scanCursor = cursor;
+  let pages = 0;
+  let scannedRows = 0;
+  const hits: CompanyLinkBackfillHit[] = [];
+
+  while (pages < maxScanPages) {
+    const batch: {
+      continueCursor: string;
+      isDone: boolean;
+      page: ResumeScanRow[];
+    } = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
+      ...(scanCursor ? { cursor: scanCursor } : {}),
+      limit: BACKFILL_SCAN_PAGE_SIZE,
+    });
+    pages += 1;
+    scannedRows += batch.page.length;
+
+    for (const resume of batch.page) {
+      const hit = matchResumeEmployerSurfaces(
+        resume,
+        aliasIndex,
+        normalizedCompanyKey,
+      );
+      if (hit) {
+        hits.push(hit);
+      }
+    }
+
+    if (batch.isDone) {
+      scanCursor = null;
+      break;
+    }
+    scanCursor = batch.continueCursor;
+  }
+
+  let linkedRows = 0;
+  if (hits.length > 0) {
+    const result = await ctx.runMutation(
+      internal.resumes_mutations.upsertBackfilledCompanyResumeLinks,
+      {
+        companyKey: normalizedCompanyKey,
+        rows: hits.map((hit) => ({
+          resumeId: hit.resumeId,
+          matchedEmployerSurfaces: hit.matchedEmployerSurfaces,
+          workEntryFingerprints: hit.workEntryFingerprints,
+          ...(hit.currentVerdictRevisionId
+            ? { currentVerdictRevisionId: hit.currentVerdictRevisionId }
+            : {}),
+        })),
+      },
+    );
+    linkedRows = result.linkedRows;
+  }
+
+  if (scanCursor !== null) {
+    return {
+      status: "continued",
+      companyKey: normalizedCompanyKey,
+      scannedRows,
+      matchedRows: hits.length,
+      linkedRows,
+      cursor: scanCursor,
+      isDone: false,
+    };
+  }
+
+  return {
+    status: "completed",
+    companyKey: normalizedCompanyKey,
+    scannedRows,
+    matchedRows: hits.length,
+    linkedRows,
+    cursor: null,
+    isDone: true,
+  };
+}
+
 export const backfillCompanyResumeLinksByCompany = internalAction({
   args: {
     companyKey: v.string(),
@@ -226,118 +359,39 @@ export const backfillCompanyResumeLinksByCompany = internalAction({
     maxPages: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<CompanyLinkBackfillResult> => {
-    const companyKey = normalizeCompanyKey(args.companyKey);
-    if (!companyKey) {
-      throw new Error("Backfill requires a companyKey");
-    }
-    const catalog = await ctx.runQuery(
-      internal.companies.getCompanyBackfillCatalog,
-      { companyKey },
+    const result = await runCompanyLinkBackfillScan(
+      ctx,
+      args.companyKey,
+      args.cursor ?? null,
+      args.maxPages,
     );
-    if (!catalog) {
-      return {
-        status: "not_found",
-        companyKey,
-        scannedRows: 0,
-        matchedRows: 0,
-        linkedRows: 0,
-        cursor: null,
-        isDone: true,
-      };
-    }
-    const aliasIndex = buildCompanyAliasIndex([catalog]);
-    if (aliasIndex.size === 0) {
-      return {
-        status: "completed",
-        companyKey,
-        scannedRows: 0,
-        matchedRows: 0,
-        linkedRows: 0,
-        cursor: null,
-        isDone: true,
-      };
-    }
-
-    const maxPages = Math.min(
-      Math.max(Math.floor(args.maxPages ?? BACKFILL_DEFAULT_MAX_PAGES), 1),
-      BACKFILL_MAX_PAGES,
-    );
-    let cursor = args.cursor ?? null;
-    let pages = 0;
-    let scannedRows = 0;
-    const hits: CompanyLinkBackfillHit[] = [];
-
-    while (pages < maxPages) {
-      const batch: {
-        continueCursor: string;
-        isDone: boolean;
-        page: ResumeScanRow[];
-      } = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
-        ...(cursor ? { cursor } : {}),
-        limit: BACKFILL_SCAN_PAGE_SIZE,
-      });
-      pages += 1;
-      scannedRows += batch.page.length;
-
-      for (const resume of batch.page) {
-        const hit = matchResumeEmployerSurfaces(resume, aliasIndex, companyKey);
-        if (hit) {
-          hits.push(hit);
-        }
-      }
-
-      if (batch.isDone) {
-        cursor = null;
-        break;
-      }
-      cursor = batch.continueCursor;
-    }
-
-    let linkedRows = 0;
-    if (hits.length > 0) {
-      const result = await ctx.runMutation(
-        internal.resumes_mutations.upsertBackfilledCompanyResumeLinks,
-        {
-          companyKey,
-          rows: hits.map((hit) => ({
-            resumeId: hit.resumeId,
-            matchedEmployerSurfaces: hit.matchedEmployerSurfaces,
-            workEntryFingerprints: hit.workEntryFingerprints,
-            ...(hit.currentVerdictRevisionId
-              ? { currentVerdictRevisionId: hit.currentVerdictRevisionId }
-              : {}),
-          })),
-        },
-      );
-      linkedRows = result.linkedRows;
-    }
-
-    if (cursor !== null) {
+    // Self-chain only while the corpus is unfinished, exactly as before.
+    if (result.isDone === false) {
       await ctx.scheduler.runAfter(
         0,
         internal.companies.backfillCompanyResumeLinksByCompany,
-        { companyKey, cursor },
+        { companyKey: result.companyKey, cursor: result.cursor ?? undefined },
       );
-      return {
-        status: "continued",
-        companyKey,
-        scannedRows,
-        matchedRows: hits.length,
-        linkedRows,
-        cursor,
-        isDone: false,
-      };
     }
+    return result;
+  },
+});
 
-    return {
-      status: "completed",
-      companyKey,
-      scannedRows,
-      matchedRows: hits.length,
-      linkedRows,
-      cursor: null,
-      isDone: true,
-    };
+/**
+ * Synchronous (scheduler-free) variant of the backfill internal action for
+ * environments where scheduler jobs never execute (preview). Executes the
+ * same bounded scan and returns the same CompanyLinkBackfillResult; when the
+ * result is "continued" the caller resumes by re-invoking with the cursor.
+ */
+export const backfillCompanyResumeLinksByCompanySync = action({
+  args: {
+    writeSecret: v.optional(v.string()),
+    companyKey: v.string(),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<CompanyLinkBackfillResult> => {
+    requireWriteSecret(args.writeSecret);
+    return runCompanyLinkBackfillScan(ctx, args.companyKey, args.cursor ?? null);
   },
 });
 

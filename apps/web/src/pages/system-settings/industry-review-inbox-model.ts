@@ -1,11 +1,46 @@
-import { requiresReviewAttestation, selectApprovalSafeSources } from '@trends/shared'
+import { isRecord, requiresReviewAttestation, selectApprovalSafeSources } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
 type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
 
-export type ReviewInboxItem = ReviewQueueResponse['items'][number]
+export type ReviewInboxItem = ReviewQueueResponse['items'][number] & {
+  /**
+   * Linked-resume count for the company (from the review-queue API; the
+   * field is being added server-side, so parse defensively with a 0 default).
+   */
+  resumeImpact: number
+}
 export type ReviewInboxProposal = ReviewInboxItem['proposal']
 export type ReviewInboxRecommendation = ReviewInboxItem['recommendation']
+
+function parseResumeImpact(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/**
+ * Parse one review-queue item, attaching a defensive `resumeImpact` default
+ * of 0 when the server response does not (yet) include the field.
+ */
+export function parseReviewInboxItem(value: unknown): ReviewInboxItem | null {
+  if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
+  if (typeof value.proposal.proposalId !== 'string' || typeof value.recommendation.proposalId !== 'string') return null
+  return {
+    ...(value as unknown as ReviewQueueResponse['items'][number]),
+    resumeImpact: parseResumeImpact(value.resumeImpact),
+  }
+}
+
+/** Parse a review-queue response payload into validated inbox items. */
+export function parseReviewInboxItems(value: unknown): ReviewInboxItem[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  const items: ReviewInboxItem[] = []
+  for (const raw of value.items) {
+    const item = parseReviewInboxItem(raw)
+    if (item) items.push(item)
+  }
+  return items
+}
 
 export const TERMINAL_INDUSTRY_PROPOSAL_STATUSES = [
   'approved',

@@ -13,6 +13,7 @@ import {
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
   INDUSTRY_VERIFICATION_LEVELS,
+  isRecord,
   validateIndustryReviewAttestation,
   type IndustryReviewAttestation,
 } from "@trends/shared";
@@ -68,6 +69,7 @@ import {
 } from "../services/industry-evidence-research-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
+import { verifiedEmployerCatalog } from "../services/verified-employer-catalog-service.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
   INDUSTRY_REVIEW_STALE_CODE,
@@ -118,6 +120,8 @@ app.use("/api/company-industry-evidence-sources/*", requireAdmin);
 app.use("/api/company-industry-revisions/*", requireAdmin);
 app.use("/api/company-industry-recompute-runs", requireAdmin);
 app.use("/api/company-industry-recompute-runs/*", requireAdmin);
+app.use("/api/company-industry-link-backfill", requireAdmin);
+app.use("/api/company-industry-verified-employer-count", requireAdmin);
 app.use("/api/company-industry-maintenance-runs", requireAdmin);
 app.use("/api/company-industry-maintenance-runs/*", requireAdmin);
 app.use("/api/company-industry-coverage", requireAdmin);
@@ -946,6 +950,7 @@ const listIndustryReviewQueueRoute = createRoute({
                 recommendation: IndustryReviewRecommendationSchema,
                 inputFingerprint: z.string(),
                 sourceCount: z.number(),
+                resumeImpact: z.number(),
               }),
             ),
             maintenance: IndustryReviewMaintenanceContextSchema,
@@ -980,7 +985,34 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
       recommendedAction,
       workspaceSlug: c.var.workspaceSlug,
     });
-    return c.json(result, 200);
+    const companyKeys = Array.from(
+      new Set(
+        result.items
+          .map((item) => item.proposal.companyKey)
+          .filter((key): key is string => Boolean(key?.trim())),
+      ),
+    ).slice(0, 200);
+    const impact =
+      companyKeys.length > 0
+        ? await callConvexQuery(
+            "companies:getIndustryResumeImpactByCompanyKey",
+            {
+              companyKeys,
+              writeSecret: config.auth.convexWriteSecret,
+            },
+          )
+        : {};
+    const impactByKey = isRecord(impact) ? impact : {};
+    const items = result.items.map((item) => {
+      const companyKey = item.proposal.companyKey;
+      const resumeImpact =
+        typeof companyKey === "string" &&
+        typeof impactByKey[companyKey] === "number"
+          ? (impactByKey[companyKey] as number)
+          : 0;
+      return { ...item, resumeImpact };
+    });
+    return c.json({ ...result, items }, 200);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -1962,6 +1994,146 @@ app.openapi(listIndustryRecomputeRunsRoute, async (c) => {
   return c.json({ success: true as const, items }, 200);
 });
 
+// Registered BEFORE the `:runId` routes below so the literal `start` segment
+// is never captured as a runId (Hono matches in registration order).
+const startIndustryRecomputeRunRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/start",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Start a targeted recompute run from the company's approved proposal; backfills resume links and advances to terminal synchronously",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            workspaceSlug: z.string().min(1),
+            companyKey: z.string().min(1),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Started recompute run",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+          }),
+        },
+      },
+      description: "No approved proposal for the companyKey",
+    },
+  },
+});
+
+app.openapi(startIndustryRecomputeRunRoute, async (c) => {
+  const { workspaceSlug, companyKey } = c.req.valid("json");
+  const proposals = await listIndustryProposals("approved");
+  const proposal = proposals.find(
+    (item) =>
+      item.companyKey?.toLowerCase() === companyKey.trim().toLowerCase() &&
+      Boolean(item.approvedRevisionId?.trim()),
+  );
+  if (!proposal || !proposal.approvedRevisionId) {
+    return c.json(
+      { success: false as const, error: "No approved proposal for companyKey" },
+      404,
+    );
+  }
+  const item = await companyIndustryRecomputeService.start({
+    workspaceSlug,
+    companyKey,
+    targetRevisionId: proposal.approvedRevisionId,
+    requestedBy: getAuthenticatedActorId(c),
+  });
+  return c.json({ success: true as const, item }, 200);
+});
+
+const backfillCompanyResumeLinksRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-link-backfill",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Synchronously backfill company-resume links for a company (loops the bounded sync action until done)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            companyKey: z.string().min(1),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            result: z.object({
+              status: z.string(),
+              scannedRows: z.number(),
+              matchedRows: z.number(),
+              linkedRows: z.number(),
+              iterations: z.number(),
+            }),
+          }),
+        },
+      },
+      description: "Backfill summary",
+    },
+  },
+});
+
+app.openapi(backfillCompanyResumeLinksRoute, async (c) => {
+  const { companyKey } = c.req.valid("json");
+  const result = await companyIndustryRecomputeService.backfillCompanyResumeLinks(
+    companyKey,
+  );
+  return c.json({ success: true as const, result }, 200);
+});
+
+const getVerifiedEmployerCountRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-verified-employer-count",
+  tags: ["company-industry-evidence"],
+  summary: "Count of currently verified employers in the cached catalog",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            count: z.number(),
+          }),
+        },
+      },
+      description: "Verified employer count",
+    },
+  },
+});
+
+app.openapi(getVerifiedEmployerCountRoute, async (c) => {
+  const count = verifiedEmployerCatalog.getVerifiedEmployers().length;
+  return c.json({ success: true as const, count }, 200);
+});
+
 const getIndustryRecomputeRunRoute = createRoute({
   method: "get",
   path: "/api/company-industry-recompute-runs/:runId",
@@ -2234,6 +2406,34 @@ const advanceIndustryRecomputeRunRoute = createRoute({
 app.openapi(advanceIndustryRecomputeRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await companyIndustryRecomputeService.advance(runId);
+  return c.json({ success: true as const, item }, 200);
+});
+
+const advanceIndustryRecomputeRunToTerminalRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/:runId/advance-all",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Advance a targeted recompute run repeatedly until it reaches a terminal status or stops making progress",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Terminal (or stalled) recompute state",
+    },
+  },
+});
+
+app.openapi(advanceIndustryRecomputeRunToTerminalRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = await companyIndustryRecomputeService.advanceToTerminal(runId);
   return c.json({ success: true as const, item }, 200);
 });
 

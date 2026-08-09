@@ -4,19 +4,29 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { isRecord } from '@trends/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { reportUiError } from '@/lib/ui-error-reporting'
 import {
+  displayCompany,
   formatDate,
   formatRunLine,
   isCurrentMaintenanceFailure,
   parseCoverageSummary,
+  parseItems,
   PIPELINE_STATUS_LABELS,
   PIPELINE_STATUS_ORDER,
   PIPELINE_STATUS_TONES,
   type IndustryCoverageSummary,
+  type IndustryRecomputeRun,
 } from './industry-verification-model'
+
+const MAX_PROPAGATION_COMPANIES = 5
+const MAX_PROPAGATION_RUNS = 10
+const TERMINAL_RECOMPUTE_STATUSES = ['completed', 'superseded']
+
+type PropagationRunRow = IndustryRecomputeRun & { companyKey: string }
 
 /**
  * Operator health strip: proposal pipeline, empty-evidence bottleneck,
@@ -31,6 +41,77 @@ export function IndustryCoverageHealthPanel({
   const [summary, setSummary] = useState<IndustryCoverageSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [propagationRuns, setPropagationRuns] = useState<PropagationRunRow[]>([])
+  const [propagationLoaded, setPropagationLoaded] = useState(false)
+  const [advancingRunId, setAdvancingRunId] = useState<string | null>(null)
+
+  const loadPropagation = useCallback(async () => {
+    // No global runs-list route exists: the recompute-runs list endpoint is
+    // per-company. Surface the latest runs for the companies that currently
+    // sit in the review inbox (up to MAX_PROPAGATION_COMPANIES).
+    try {
+      const queuePayload = await requestJson('/api/company-industry-proposals?status=ready_for_review&limit=100')
+      const queueItems = isRecord(queuePayload) && Array.isArray(queuePayload.items)
+        ? queuePayload.items
+        : []
+      const companyKeys = [
+        ...new Set(queueItems
+          .map((item) => (
+            // The proposals-list route returns proposals with a TOP-LEVEL
+            // companyKey (no `.proposal` nesting — that is the review-queue
+            // shape). Keep both shapes working defensively.
+            isRecord(item) && typeof item.companyKey === 'string'
+              ? item.companyKey
+              : isRecord(item) && isRecord(item.proposal) && typeof item.proposal.companyKey === 'string'
+                ? item.proposal.companyKey
+                : ''
+          ))
+          .filter((key) => key.length > 0)),
+      ].slice(0, MAX_PROPAGATION_COMPANIES)
+
+      const settled = await Promise.allSettled(companyKeys.map(async (companyKey) => {
+        const payload = await requestJson(
+          `/api/company-industry-recompute-runs?companyKey=${encodeURIComponent(companyKey)}&limit=5`,
+        )
+        return { companyKey, items: parseItems<IndustryRecomputeRun>(payload) }
+      }))
+
+      const runs: PropagationRunRow[] = []
+      for (const result of settled) {
+        if (result.status !== 'fulfilled') continue
+        for (const item of result.value.items) {
+          if (isRecord(item) && typeof item.runId === 'string') {
+            runs.push({ ...(item as IndustryRecomputeRun), companyKey: result.value.companyKey })
+          }
+        }
+      }
+      const unique = [
+        ...new Map(runs.map((run) => [run.runId, run])).values(),
+      ]
+        .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))
+        .slice(0, MAX_PROPAGATION_RUNS)
+      setPropagationRuns(unique)
+      setPropagationLoaded(true)
+    } catch {
+      // Silent: the propagation section is an auxiliary surface.
+      setPropagationLoaded(true)
+    }
+  }, [requestJson])
+
+  const advanceRun = useCallback(async (run: PropagationRunRow) => {
+    setAdvancingRunId(run.runId)
+    try {
+      await requestJson(
+        `/api/company-industry-recompute-runs/${encodeURIComponent(run.runId)}/advance-all`,
+        { method: 'POST' },
+      )
+    } catch (err) {
+      reportUiError('Failed to advance industry recompute run', err)
+    } finally {
+      setAdvancingRunId(null)
+      void loadPropagation()
+    }
+  }, [loadPropagation, requestJson])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,8 +139,9 @@ export function IndustryCoverageHealthPanel({
       )
     } finally {
       setLoading(false)
+      void loadPropagation()
     }
-  }, [requestJson, t])
+  }, [loadPropagation, requestJson, t])
 
   useEffect(() => {
     void load()
@@ -359,6 +441,67 @@ export function IndustryCoverageHealthPanel({
                 </p>
               ) : null}
             </div>
+
+            {propagationLoaded ? (
+              <div className="rounded-lg border p-3" data-testid="industry-coverage-propagation">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {t('industryEvidence.coveragePropagationRuns', { defaultValue: 'Propagation runs' })}
+                  </p>
+                </div>
+                {propagationRuns.length === 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground" data-testid="industry-coverage-propagation-empty">
+                    {t('industryEvidence.coveragePropagationEmpty', {
+                      defaultValue: 'No recompute runs for companies in the review inbox.',
+                    })}
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {propagationRuns.map((run) => (
+                      <li
+                        key={run.runId}
+                        className="rounded-md border bg-muted/20 px-3 py-2"
+                        data-testid={`industry-coverage-propagation-run-${run.runId}`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">{displayCompany(run.companyKey)}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground">{run.runId}</span>
+                            <span
+                              className="text-xs text-muted-foreground"
+                              data-testid={`industry-coverage-propagation-status-${run.runId}`}
+                            >
+                              {t('industryEvidence.coveragePropagationRunStatus', {
+                                defaultValue: 'Status {{status}}',
+                                status: run.status,
+                              })}
+                            </span>
+                          </div>
+                          {!TERMINAL_RECOMPUTE_STATUSES.includes(run.status) ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={advancingRunId !== null}
+                              onClick={() => void advanceRun(run)}
+                              data-testid={`industry-coverage-propagation-advance-${run.runId}`}
+                            >
+                              {t('industryEvidence.coveragePropagationAdvance', { defaultValue: 'Advance' })}
+                            </Button>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          <strong>{run.affectedCount}</strong> affected · <strong>{run.readyCount}</strong> ready ·{' '}
+                          <strong>{run.scheduledCount}</strong> scheduled · <strong>{run.failureCount}</strong> failed
+                          {' · '}
+                          {formatDate(run.updatedAt)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
 
             <p className="text-xs text-muted-foreground">
               {t('industryEvidence.coverageOpsHint', {

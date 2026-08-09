@@ -196,6 +196,9 @@ describe("company industry API services", () => {
       targetRevisionId: "revision-1",
       proposalId: "proposal-1",
       requestedBy: "reviewer-42",
+      // No `advance: false`: the undo path intentionally inherits start()'s
+      // synchronous default (backfill + advance-to-terminal) so the reversal
+      // propagation cannot silently park on a dead scheduler.
     });
   });
 

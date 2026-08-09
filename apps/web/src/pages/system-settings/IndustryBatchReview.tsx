@@ -275,6 +275,17 @@ export function IndustryBatchApproveDialog({
                           count: eligibility.eligible ? eligibility.safeSourceIds.length : 0,
                         })}
                       </p>
+                      {item.resumeImpact > 0 ? (
+                        <p
+                          className="text-xs text-muted-foreground"
+                          data-testid={`industry-batch-impact-${item.proposal.proposalId}`}
+                        >
+                          {t('industryEvidence.approveImpactLinkedResumes', {
+                            defaultValue: 'Links {{count}} resumes — recomputed under the new verdict after approval',
+                            count: item.resumeImpact,
+                          })}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {item.recommendation.riskFlags.map((flag) => (

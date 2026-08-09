@@ -446,6 +446,85 @@ describe('SearchResultsList', () => {
     expect(onCloseDetail).toHaveBeenCalledTimes(1)
   })
 
+  describe('verified-only search notice', () => {
+    it('renders the notice when minRoleYears is set and the employer count is known', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).toHaveTextContent('Results limited to industry-verified employers')
+      expect(notice).toHaveTextContent('128')
+    })
+
+    it('renders the notice when roleFilterType is set and the employer count is known', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 0, roleFilterType: 'sales', verifiedEmployerCount: 42 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).toHaveTextContent('42')
+    })
+
+    it('does not render the notice when no verifiedOnlyNotice prop is passed', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when the employer count is undefined', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, verifiedEmployerCount: undefined }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when no role gate is active', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 0, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+  })
+
   it('loads a directly routed resume when it is not in the current result list', async () => {
     const resume = createItem(0).resume
     vi.mocked(useConvexResumeDetail).mockReturnValue({

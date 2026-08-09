@@ -8,10 +8,20 @@
 # semantics can legitimately change; set PARITY_STRICT_SEARCH=1 to fail on
 # that difference (or pin preview code to production first).
 #
+# The default CN (China) search query is always checked; an optional MY
+# (Malaysia) search query is checked in addition unless MY_QUERY is
+# explicitly set to "" (opt-out). MY totals use MY_TOTAL_TOLERANCE
+# (default: TOTAL_TOLERANCE if set, else 0). Each query gets the same
+# version-drift warning logic; sqlite/statusCounts checks run once.
+#
 # Usage (on ptcloud):
 #   bash deploy/preview-parity-check.sh
 #   QUERY='location=China&q=CNC+销售&minRoleYears=1&roleType=sales&minAge=25&maxAge=40' \
 #     bash deploy/preview-parity-check.sh
+#   MY_QUERY='location=Malaysia&q=CNC+Sales&minRoleYears=1&roleType=sales' \
+#     bash deploy/preview-parity-check.sh
+#   MY_QUERY='' bash deploy/preview-parity-check.sh      # skip the MY check
+#   MY_TOTAL_TOLERANCE=0 bash deploy/preview-parity-check.sh  # MY tolerance (default: TOTAL_TOLERANCE if set, else 0)
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,9 +35,22 @@ PREV_API="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
 # Default: the HR CNC sales China query used as staging baseline
 QUERY="${QUERY:-location=China&q=CNC+%E9%94%80%E5%94%AE&minRoleYears=1&roleType=sales&minAge=25&maxAge=40}"
 TOTAL_TOLERANCE="${TOTAL_TOLERANCE:-0}"
+# Optional MY (Malaysia) parity query. Uses ${MY_QUERY-...} (no colon) so an
+# explicitly empty MY_QUERY="" means "skip the MY check" rather than default.
+MY_QUERY="${MY_QUERY-location=Malaysia&q=CNC+Sales&minRoleYears=1&roleType=sales}"
+# MY totals tolerance: MY_TOTAL_TOLERANCE if set, else TOTAL_TOLERANCE if set, else 0.
+MY_TOTAL_TOLERANCE="${MY_TOTAL_TOLERANCE:-${TOTAL_TOLERANCE:-0}}"
 PARITY_ALLOW_VERSION_DRIFT="${PARITY_ALLOW_VERSION_DRIFT:-1}"
 PARITY_STRICT_SEARCH="${PARITY_STRICT_SEARCH:-0}"
 FAIL=0
+
+# Queries to check: CN always first (legacy output lines reflect it), then MY.
+QUERIES=( "$QUERY" )
+LABELS=( "cn" )
+if [[ -n "$MY_QUERY" ]]; then
+    QUERIES+=( "$MY_QUERY" )
+    LABELS+=( "my" )
+fi
 
 # Read production credentials from its env file without sourcing them into the
 # parity process. The values stay in shell variables and are never printed.
@@ -69,13 +92,15 @@ preview_auth_login_at() {
 
 fetch_summary_prod() {
     local jar="$1"
-    local url="$PROD_API/api/resumes?source=convex&paged=true&limit=1&${QUERY}"
+    local query="$2"
+    local url="$PROD_API/api/resumes?source=convex&paged=true&limit=1&${query}"
     preview_auth_curl "$jar" "$PROD_HR_WS" --max-time 60 "$url"
 }
 
 fetch_summary_preview() {
     local jar="$1"
-    local url="$PREV_API/api/resumes?source=convex&paged=true&limit=1&${QUERY}"
+    local query="$2"
+    local url="$PREV_API/api/resumes?source=convex&paged=true&limit=1&${query}"
     preview_auth_curl "$jar" "$HR_WS" --max-time 60 "$url"
 }
 
@@ -105,7 +130,11 @@ count_sqlite() {
 
 log_step "Preview parity check"
 echo "query=$QUERY"
+if [[ -n "$MY_QUERY" ]]; then
+    echo "my_query=$MY_QUERY"
+fi
 echo "total_tolerance=$TOTAL_TOLERANCE"
+echo "my_total_tolerance=$MY_TOTAL_TOLERANCE"
 echo "production_user=$PROD_HR_USER workspace=$PROD_HR_WS"
 echo "preview_user=$HR_USER workspace=$HR_WS"
 PROD_VERSION="$(api_version "$PROD_API")"
@@ -142,10 +171,24 @@ if ! preview_auth_login_at "$PREV_API" "$HR_USER" "$HR_PASS" "$PREV_JAR"; then
     exit 1
 fi
 
-PROD_JSON="$(fetch_summary_prod "$PROD_JAR")"
-PREV_JSON="$(fetch_summary_preview "$PREV_JAR")"
+# Per-query search totals (CN + optional MY). statusCounts are captured from
+# the first (CN) query only; the sqlite/statusCounts checks run once below.
+for i in "${!QUERIES[@]}"; do
+    label="${LABELS[$i]}"
+    query="${QUERIES[$i]}"
+    tol="$TOTAL_TOLERANCE"
+    if [ "$label" = "my" ]; then
+        tol="$MY_TOTAL_TOLERANCE"
+    fi
 
-eval "$(PROD_JSON="$PROD_JSON" PREV_JSON="$PREV_JSON" python3 <<'PY'
+    PROD_JSON="$(fetch_summary_prod "$PROD_JAR" "$query")"
+    PREV_JSON="$(fetch_summary_preview "$PREV_JAR" "$query")"
+
+    with_status=0
+    if [ "$label" = "cn" ]; then
+        with_status=1
+    fi
+    eval "$(PROD_JSON="$PROD_JSON" PREV_JSON="$PREV_JSON" WITH_STATUS="$with_status" python3 <<'PY'
 import json, os
 prod = json.loads(os.environ["PROD_JSON"])
 prev = json.loads(os.environ["PREV_JSON"])
@@ -153,37 +196,54 @@ ps = prod.get("summary") or {}
 vs = prev.get("summary") or {}
 print(f"PROD_TOTAL={ps.get('total')}")
 print(f"PREV_TOTAL={vs.get('total')}")
-print(f"PROD_STATUS={json.dumps(ps.get('statusCounts') or {}, separators=(',', ':'))}")
-print(f"PREV_STATUS={json.dumps(vs.get('statusCounts') or {}, separators=(',', ':'))}")
+if os.environ.get("WITH_STATUS") == "1":
+    print(f"PROD_STATUS={json.dumps(ps.get('statusCounts') or {}, separators=(',', ':'))}")
+    print(f"PREV_STATUS={json.dumps(vs.get('statusCounts') or {}, separators=(',', ':'))}")
 PY
 )"
+
+    if [ "$label" = "cn" ]; then
+        CN_PROD_TOTAL="${PROD_TOTAL:-}"
+        CN_PREV_TOTAL="${PREV_TOTAL:-}"
+    else
+        MY_PROD_TOTAL="${PROD_TOTAL:-}"
+        MY_PREV_TOTAL="${PREV_TOTAL:-}"
+    fi
+
+    if [ -z "${PROD_TOTAL:-}" ] || [ -z "${PREV_TOTAL:-}" ] || [ "$PROD_TOTAL" = "None" ] || [ "$PREV_TOTAL" = "None" ]; then
+        log_error "Could not parse search totals (label=$label)"
+        echo "search_total_${label} prod=${PROD_TOTAL:-} preview=${PREV_TOTAL:-} delta=n/a"
+        FAIL=1
+    else
+        delta=$((PROD_TOTAL - PREV_TOTAL))
+        if [ "$delta" -lt 0 ]; then delta=$((-delta)); fi
+        echo "search_total_${label} prod=$PROD_TOTAL preview=$PREV_TOTAL delta=$delta"
+        if [ "$delta" -gt "$tol" ]; then
+            if [ "$VERSION_DRIFT" -eq 1 ] && [ "$PARITY_ALLOW_VERSION_DRIFT" != "0" ] && [ "$PARITY_STRICT_SEARCH" != "1" ]; then
+                log_warn "Search total differs under API version drift (label=$label): prod=$PROD_TOTAL preview=$PREV_TOTAL delta=$delta (tol=$tol); set PARITY_STRICT_SEARCH=1 to fail"
+            else
+                log_error "Search total mismatch (label=$label): prod=$PROD_TOTAL preview=$PREV_TOTAL delta=$delta (tol=$tol)"
+                FAIL=1
+            fi
+        else
+            log_info "Search totals OK (label=$label, delta=$delta)"
+        fi
+    fi
+done
 
 PROD_CA="$(count_sqlite "$PROD_DB")"
 PREV_CA="$(count_sqlite "$PREVIEW_DB")"
 
-echo "search_total   prod=$PROD_TOTAL preview=$PREV_TOTAL"
+# Legacy single-query lines kept for existing consumers: the original
+# `search_total` line reflects the first (CN) query exactly as before, and
+# `search_total_my` mirrors it for the optional MY query.
+echo "search_total   prod=${CN_PROD_TOTAL:-} preview=${CN_PREV_TOTAL:-}"
+if [[ -n "$MY_QUERY" ]]; then
+    echo "search_total_my prod=${MY_PROD_TOTAL:-} preview=${MY_PREV_TOTAL:-}"
+fi
 echo "candidate_actions sqlite prod=$PROD_CA preview=$PREV_CA"
 echo "statusCounts   prod=$PROD_STATUS"
 echo "statusCounts   prev=$PREV_STATUS"
-
-# Totals
-if [ -z "${PROD_TOTAL:-}" ] || [ -z "${PREV_TOTAL:-}" ] || [ "$PROD_TOTAL" = "None" ] || [ "$PREV_TOTAL" = "None" ]; then
-    log_error "Could not parse search totals"
-    FAIL=1
-else
-    delta=$((PROD_TOTAL - PREV_TOTAL))
-    if [ "$delta" -lt 0 ]; then delta=$((-delta)); fi
-    if [ "$delta" -gt "$TOTAL_TOLERANCE" ]; then
-        if [ "$VERSION_DRIFT" -eq 1 ] && [ "$PARITY_ALLOW_VERSION_DRIFT" != "0" ] && [ "$PARITY_STRICT_SEARCH" != "1" ]; then
-            log_warn "Search total differs under API version drift: prod=$PROD_TOTAL preview=$PREV_TOTAL delta=$delta (tol=$TOTAL_TOLERANCE); set PARITY_STRICT_SEARCH=1 to fail"
-        else
-            log_error "Search total mismatch: prod=$PROD_TOTAL preview=$PREV_TOTAL delta=$delta (tol=$TOTAL_TOLERANCE)"
-            FAIL=1
-        fi
-    else
-        log_info "Search totals OK (delta=$delta)"
-    fi
-fi
 
 if [ "$PROD_CA" != "$PREV_CA" ]; then
     log_error "SQLite candidate_actions mismatch: prod=$PROD_CA preview=$PREV_CA"

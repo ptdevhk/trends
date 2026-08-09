@@ -1,6 +1,6 @@
 import React from 'react'
 import { formatKeywordQuery } from '@trends/shared'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeSearchPage } from './ResumeSearchPage'
@@ -56,12 +56,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 const {
+  apiGetMock,
   apiPostMock,
   shareLinkButtonPropsMock,
   useIndustryKeywordsMock,
   useAiSearchSummaryMock,
   useResumeSearchStateMock,
 } = vi.hoisted(() => ({
+  apiGetMock: vi.fn(),
   apiPostMock: vi.fn(),
   shareLinkButtonPropsMock: vi.fn(),
   useIndustryKeywordsMock: vi.fn(),
@@ -112,6 +114,7 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
+    GET: (...args: unknown[]) => apiGetMock(...args),
     POST: (...args: unknown[]) => apiPostMock(...args),
   },
 }))
@@ -371,6 +374,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading,
     loadingMore,
     showAiScore,
+    verifiedOnlyNotice,
     onAction,
     onCandidateStatusChange,
     onCloseDetail,
@@ -388,6 +392,11 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loadingMore?: boolean
     showAiScore?: boolean
     detailResumeId?: string
+    verifiedOnlyNotice?: {
+      minRoleYears?: number
+      roleFilterType?: string | null
+      verifiedEmployerCount?: number
+    }
     onAction?: () => void
     onCandidateStatusChange?: () => void
     onCloseDetail?: () => void
@@ -404,6 +413,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
         {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
       </div>
+      <div>VerifiedOnlyNotice: {JSON.stringify(verifiedOnlyNotice ?? null)}</div>
       <div>Detail route: {detailResumeId ?? 'none'}</div>
       <div>Detail routing: {String(Boolean(onOpenDetail && onCloseDetail))}</div>
       <div>
@@ -664,6 +674,10 @@ describe('ResumeSearchPage', () => {
           publicPath: '/s/public-token-1',
         },
       },
+    })
+    apiGetMock.mockResolvedValue({
+      data: { success: true, count: 128 },
+      response: { status: 200 },
     })
     featureFlagsMock.resumeAiSummaryEnabled = false
     routeMock.search = ''
@@ -1289,5 +1303,54 @@ describe('ResumeSearchPage', () => {
 
     expect(state.setAiModeEnabled).toHaveBeenCalledWith(true)
     expect(state.analyzeResults).not.toHaveBeenCalled()
+  })
+
+  it('passes the verified-only notice props when a role gate filter is active and the count loads', async () => {
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: {
+          minRoleYears: 3,
+          roleFilterType: 'sales',
+        },
+      }),
+      queryInput: 'CNC Sales',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    // The count may come from the hook's 60s module cache (populated by an
+    // earlier test in this file) or from this mount's fetch — either way the
+    // notice props must carry the loaded count.
+    await waitFor(() => {
+      const notice = screen.getByText(/VerifiedOnlyNotice/)
+      expect(notice).toHaveTextContent('"minRoleYears":3')
+      expect(notice).toHaveTextContent('"roleFilterType":"sales"')
+      expect(notice).toHaveTextContent('"verifiedEmployerCount":128')
+    })
+  })
+
+  it('passes no verified-only notice on the public share surface', async () => {
+    routeMock.isPublicSurface = true
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+      queryInput: 'CNC Sales',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyNotice/)).toHaveTextContent('null')
+    })
+    expect(apiGetMock).not.toHaveBeenCalledWith('/api/company-industry-verified-employer-count')
   })
 })

@@ -1265,6 +1265,29 @@ describe('SystemSettingsIndustryVerificationPage batch review', () => {
     expect(screen.getByText(/has a non-overridable risk flag/)).toBeInTheDocument()
     expect(screen.getByTestId('industry-batch-approve-submit')).toBeDisabled()
   })
+
+  it('shows the linked-resumes impact line for batch items with resumeImpact and hides it for zero', async () => {
+    installBatchMock([
+      { ...makeQueueItem({}, {}), resumeImpact: 12 },
+      {
+        ...makeQueueItem(
+          { proposalId: 'clean-proposal-2', companyKey: 'other-company' },
+          { proposalId: 'clean-proposal-2' },
+        ),
+        resumeImpact: 0,
+      },
+    ])
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByTestId('industry-batch-check-clean-proposal'))
+    await user.click(await screen.findByTestId('industry-batch-check-clean-proposal-2'))
+    await user.click(screen.getByTestId('industry-batch-approve-button'))
+
+    const impactLine = await screen.findByTestId('industry-batch-impact-clean-proposal')
+    expect(impactLine).toHaveTextContent('Links 12 resumes')
+    expect(screen.queryByTestId('industry-batch-impact-clean-proposal-2')).not.toBeInTheDocument()
+  })
 })
 
 describe('SystemSettingsIndustryVerificationPage identity resolution', () => {
@@ -1453,5 +1476,174 @@ describe('SystemSettingsIndustryVerificationPage identity resolution', () => {
         sourceIds: ['source-a'],
       }))
     })
+  })
+})
+
+describe('SystemSettingsIndustryVerificationPage propagation runs', () => {
+  function makeRecomputeRun(overrides: Record<string, unknown>) {
+    return {
+      runId: 'run-p1',
+      workspaceSlug: 'dev',
+      companyKey: 'acme-cnc',
+      targetRevisionId: 'revision-1',
+      status: 'queued',
+      attempt: 1,
+      sourceDone: false,
+      pageCount: 1,
+      affectedCount: 12,
+      alreadyCurrentCount: 3,
+      scheduledCount: 5,
+      readyCount: 2,
+      failureCount: 0,
+      batchCount: 10,
+      failures: [],
+      createdAt: 1,
+      updatedAt: 10,
+      operatorSummary: 'queued',
+      ...overrides,
+    }
+  }
+
+  function installPropagationMock() {
+    let advanced = false
+    const queueItem = (proposalId: string, companyKey: string) => ({
+      proposal: { ...proposal, proposalId, companyKey },
+      recommendation: { ...recommendation, proposalId },
+      sourceCount: 1,
+      resumeImpact: 0,
+    })
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [queueItem('proposal-1', 'acme-cnc'), queueItem('proposal-2', 'clean-company')],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=ready_for_review')) {
+        return Promise.resolve({
+          success: true,
+          items: [queueItem('proposal-1', 'acme-cnc'), queueItem('proposal-2', 'clean-company')],
+        })
+      }
+      if (path.startsWith('/api/company-industry-recompute-runs?companyKey=acme-cnc')) {
+        return Promise.resolve({
+          success: true,
+          items: [
+            makeRecomputeRun({ status: advanced ? 'completed' : 'queued' }),
+            makeRecomputeRun({ runId: 'run-p2', status: 'completed', updatedAt: 5 }),
+          ],
+        })
+      }
+      if (path.startsWith('/api/company-industry-recompute-runs?companyKey=clean-company')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-recompute-runs/run-p1/advance-all' && init?.method === 'POST') {
+        advanced = true
+        return Promise.resolve({ success: true, item: makeRecomputeRun({ status: 'completed' }) })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        // Real proposals-list shape: TOP-LEVEL companyKey (no `.proposal` nesting).
+        return Promise.resolve({
+          success: true,
+          items: [
+            { ...proposal, proposalId: 'proposal-1', companyKey: 'acme-cnc' },
+            { ...proposal, proposalId: 'proposal-2', companyKey: 'clean-company' },
+          ],
+        })
+      }
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      return Promise.resolve({ success: true })
+    })
+  }
+
+  it('renders per-company recompute runs with statuses, counts, and advance controls', async () => {
+    installPropagationMock()
+    renderPage('/dev/settings/industry-verification')
+
+    expect(await screen.findByTestId('industry-coverage-propagation')).toBeInTheDocument()
+    const runRow = screen.getByTestId('industry-coverage-propagation-run-run-p1')
+    expect(runRow).toHaveTextContent('ACME CNC')
+    expect(runRow).toHaveTextContent('Status queued')
+    expect(runRow).toHaveTextContent('12')
+    expect(runRow).toHaveTextContent('5')
+    expect(screen.getByTestId('industry-coverage-propagation-advance-run-p1')).toBeInTheDocument()
+
+    const completedRow = screen.getByTestId('industry-coverage-propagation-run-run-p2')
+    expect(completedRow).toHaveTextContent('Status completed')
+    expect(screen.queryByTestId('industry-coverage-propagation-advance-run-p2')).not.toBeInTheDocument()
+  })
+
+  it('advances a non-terminal run via advance-all and refetches the section', async () => {
+    const user = userEvent.setup()
+    installPropagationMock()
+    renderPage('/dev/settings/industry-verification')
+
+    const advanceButton = await screen.findByTestId('industry-coverage-propagation-advance-run-p1')
+    await user.click(advanceButton)
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-recompute-runs/run-p1/advance-all',
+        { method: 'POST' },
+      )
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('industry-coverage-propagation-advance-run-p1')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId('industry-coverage-propagation-run-run-p1')).toHaveTextContent('Status completed')
+  })
+
+  it('shows the empty state when no recompute runs exist for inbox companies', async () => {
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [
+            { proposal: { ...proposal, proposalId: 'proposal-1', companyKey: 'acme-cnc' }, recommendation, sourceCount: 1 },
+          ],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=ready_for_review')) {
+        return Promise.resolve({
+          success: true,
+          items: [
+            { ...proposal, proposalId: 'proposal-1', companyKey: 'acme-cnc' },
+          ],
+        })
+      }
+      if (path.startsWith('/api/company-industry-recompute-runs?')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      return Promise.resolve({ success: true })
+    })
+    renderPage('/dev/settings/industry-verification')
+
+    expect(await screen.findByTestId('industry-coverage-propagation-empty')).toBeInTheDocument()
   })
 })

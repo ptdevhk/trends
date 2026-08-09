@@ -383,6 +383,111 @@ describe("company-link backfill (F1)", () => {
     expect(affected.isDone).toBe(true);
   });
 
+  it("public sync action backfills without the scheduler and rejects bad secrets or unknown companies", async () => {
+    const t = createTest();
+    await seedCompany(t);
+
+    const matching = await seedResume(t, {
+      content: { workHistory: [{ companyName: "SECO TOOLS (M) SDN. BHD." }] },
+      externalId: "sync-matching-1",
+      identityKey: "id:sync-matching-1",
+    });
+
+    const result = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompanySync,
+      { companyKey: "seco-tools-sdn-bhd", writeSecret: WRITE_SECRET },
+    );
+    expect(result.status).toBe("completed");
+    expect(result.isDone).toBe(true);
+    expect(result.matchedRows).toBeGreaterThanOrEqual(1);
+    expect(result.linkedRows).toBeGreaterThanOrEqual(1);
+
+    // The sync action must not self-chain via the scheduler.
+    const scheduled = await scheduledBackfillNames(t);
+    expect(
+      scheduled.some((name) => name.includes("backfillCompanyResumeLinksByCompany")),
+    ).toBe(false);
+
+    const links = await t.run((ctx) =>
+      ctx.db.query("company_resume_links").collect(),
+    );
+    expect(links.map((link) => String(link.resumeId))).toEqual([String(matching)]);
+    expect(links[0]?.matchedEmployerSurfaces).toEqual([
+      "SECO TOOLS (M) SDN. BHD.",
+    ]);
+
+    const missing = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompanySync,
+      { companyKey: "ghost-company", writeSecret: WRITE_SECRET },
+    );
+    expect(missing).toMatchObject({
+      status: "not_found",
+      scannedRows: 0,
+      matchedRows: 0,
+      linkedRows: 0,
+      cursor: null,
+      isDone: true,
+    });
+
+    await expect(
+      t.action(api.companies.backfillCompanyResumeLinksByCompanySync, {
+        companyKey: "seco-tools-sdn-bhd",
+        writeSecret: "wrong-secret",
+      }),
+    ).rejects.toThrow("Unauthorized Convex write");
+  });
+
+  it("public sync action continues from a cursor across invocations until done, without scheduling", async () => {
+    const t = createTest();
+    await seedCompany(t);
+
+    // > 1000 rows: the default 10-page budget cannot finish the corpus in one
+    // invocation, so the first sync call must return "continued" with a cursor.
+    for (let index = 0; index < 1001; index += 1) {
+      await seedResume(t, {
+        content: {
+          workHistory: [{ companyName: `SECO TOOLS (M) SDN. BHD. #${index}` }],
+        },
+        externalId: `sync-bulk-${index}`,
+        identityKey: `id:sync-bulk-${index}`,
+      });
+    }
+
+    const first = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompanySync,
+      { companyKey: "seco-tools-sdn-bhd", writeSecret: WRITE_SECRET },
+    );
+    expect(first.status).toBe("continued");
+    expect(first.isDone).toBe(false);
+    expect(first.cursor).toBeTruthy();
+    expect(first.scannedRows).toBe(1000);
+    expect(first.matchedRows).toBe(1000);
+
+    // No self-chained scheduler jobs after the continued invocation.
+    const scheduled = await scheduledBackfillNames(t);
+    expect(
+      scheduled.some((name) => name.includes("backfillCompanyResumeLinksByCompany")),
+    ).toBe(false);
+
+    const second = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompanySync,
+      {
+        companyKey: "seco-tools-sdn-bhd",
+        cursor: first.cursor ?? undefined,
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(second.status).toBe("completed");
+    expect(second.isDone).toBe(true);
+    expect(second.scannedRows).toBe(1);
+    expect(second.matchedRows).toBe(1);
+
+    const links = await t.run((ctx) =>
+      ctx.db.query("company_resume_links").collect(),
+    );
+    expect(links).toHaveLength(1001);
+  });
+
   it("write-secret ops mutation schedules the backfill and rejects bad secret or unknown company", async () => {
     vi.useFakeTimers();
     const t = createTest();

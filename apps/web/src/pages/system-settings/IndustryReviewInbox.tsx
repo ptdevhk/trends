@@ -11,6 +11,7 @@ import {
   getOneClickEligibility,
   isTerminalIndustryProposalStatus,
   parseReviewInboxFilter,
+  parseReviewInboxItems,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
   TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
@@ -86,12 +87,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseQueue(value: unknown): ReviewInboxItem[] {
-  if (!isRecord(value) || !Array.isArray(value.items)) return []
-  return value.items.filter((item): item is ReviewInboxItem => {
-    if (!isRecord(item) || !isRecord(item.proposal) || !isRecord(item.recommendation)) return false
-    return typeof item.proposal.proposalId === 'string'
-      && typeof item.recommendation.proposalId === 'string'
-  }) as ReviewInboxItem[]
+  return parseReviewInboxItems(value)
 }
 
 function parseBatchReviewResults(value: unknown): Array<{

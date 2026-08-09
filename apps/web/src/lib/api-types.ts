@@ -9105,6 +9105,7 @@ export interface paths {
                                 };
                                 inputFingerprint: string;
                                 sourceCount: number;
+                                resumeImpact: number;
                             }[];
                             maintenance: {
                                 latest: {
@@ -10777,6 +10778,190 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/company-industry-recompute-runs/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a targeted recompute run from the company's approved proposal; backfills resume links and advances to terminal synchronously */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        workspaceSlug: string;
+                        companyKey: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Started recompute run */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No approved proposal for the companyKey */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-link-backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synchronously backfill company-resume links for a company (loops the bounded sync action until done) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Backfill summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            result: {
+                                status: string;
+                                scannedRows: number;
+                                matchedRows: number;
+                                linkedRows: number;
+                                iterations: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-verified-employer-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count of currently verified employers in the cached catalog */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Verified employer count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/company-industry-recompute-runs/:runId": {
         parameters: {
             query?: never;
@@ -11177,6 +11362,80 @@ export interface paths {
             requestBody?: never;
             responses: {
                 /** @description Updated recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId/advance-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advance a targeted recompute run repeatedly until it reaches a terminal status or stops making progress */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Terminal (or stalled) recompute state */
                 200: {
                     headers: {
                         [name: string]: unknown;

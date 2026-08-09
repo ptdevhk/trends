@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { isRecord } from "@trends/shared";
 
 import { config } from "./config.js";
-import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
+import {
+  callConvexAction,
+  callConvexMutation,
+  callConvexQuery,
+} from "./convex-utils.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 
 export type CompanyIndustryRecomputeStatus =
@@ -72,10 +76,15 @@ type MutationFunction = (
   path: string,
   args: Record<string, unknown>,
 ) => Promise<unknown>;
+type ActionFunction = (
+  path: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>;
 
 export interface CompanyIndustryRecomputeDependencies {
   query: QueryFunction;
   mutate: MutationFunction;
+  action: ActionFunction;
   createRunId: () => string;
   getSkillsVersion: () => number;
 }
@@ -294,6 +303,7 @@ function defaultDependencies(): CompanyIndustryRecomputeDependencies {
   return {
     query: callConvexQuery,
     mutate: callConvexMutation,
+    action: callConvexAction,
     createRunId: randomUUID,
     getSkillsVersion: () => skillsKnowledgeService.getVersion(),
   };
@@ -314,6 +324,13 @@ export class CompanyIndustryRecomputeService {
 
   private mutate(path: string, args: Record<string, unknown>) {
     return this.dependencies.mutate(path, {
+      ...args,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  }
+
+  private action(path: string, args: Record<string, unknown>) {
+    return this.dependencies.action(path, {
       ...args,
       writeSecret: config.auth.convexWriteSecret,
     });
@@ -349,7 +366,113 @@ export class CompanyIndustryRecomputeService {
           : {}),
       }),
     );
-    return input.advance === false ? started : this.advance(started.runId);
+    if (input.advance === false) return started;
+    // Resume links must exist before the run lists affected resumes.
+    await this.backfillCompanyResumeLinks(companyKey);
+    return this.advanceToTerminal(started.runId);
+  }
+
+  async backfillCompanyResumeLinks(
+    companyKey: string,
+    options: { maxIterations?: number } = {},
+  ): Promise<{
+    status: string;
+    scannedRows: number;
+    matchedRows: number;
+    linkedRows: number;
+    iterations: number;
+  }> {
+    const companyKeyValue = companyKey.trim().toLowerCase();
+    const maxIterations = Math.max(
+      1,
+      Math.floor(options.maxIterations ?? 200),
+    );
+    let cursor: string | null = null;
+    let scannedRows = 0;
+    let matchedRows = 0;
+    let linkedRows = 0;
+    let status = "";
+    let iterations = 0;
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+      iterations += 1;
+      const value = await this.action(
+        "companies:backfillCompanyResumeLinksByCompanySync",
+        {
+          companyKey: companyKeyValue,
+          ...(cursor ? { cursor } : {}),
+        },
+      );
+      if (
+        !isRecord(value) ||
+        typeof value.isDone !== "boolean" ||
+        (value.cursor !== null && typeof value.cursor !== "string") ||
+        nonNegativeInteger(value.scannedRows) === undefined ||
+        nonNegativeInteger(value.matchedRows) === undefined ||
+        nonNegativeInteger(value.linkedRows) === undefined ||
+        !nonEmptyString(value.status)
+      ) {
+        throw new Error("Invalid company resume link backfill result");
+      }
+      status = nonEmptyString(value.status)!;
+      scannedRows += nonNegativeInteger(value.scannedRows)!;
+      matchedRows += nonNegativeInteger(value.matchedRows)!;
+      linkedRows += nonNegativeInteger(value.linkedRows)!;
+      if (value.isDone) {
+        return { status, scannedRows, matchedRows, linkedRows, iterations };
+      }
+      cursor = typeof value.cursor === "string" ? value.cursor : null;
+      if (!cursor) {
+        throw new Error(
+          "Company resume link backfill continued without a cursor",
+        );
+      }
+    }
+    throw new Error(
+      `Company resume link backfill exceeded ${maxIterations} iterations (scanned ${scannedRows} rows, matched ${matchedRows}, linked ${linkedRows})`,
+    );
+  }
+
+  async advanceToTerminal(
+    runId: string,
+    options: { maxIterations?: number } = {},
+  ): Promise<CompanyIndustryRecomputeRun> {
+    const runIdValue = runId.trim();
+    const maxIterations = Math.max(
+      1,
+      Math.floor(options.maxIterations ?? 1000),
+    );
+    let previousStatus: CompanyIndustryRecomputeStatus | null = null;
+    let previousSignature = "";
+    let current: CompanyIndustryRecomputeRun | null = null;
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+      current = await this.advance(runIdValue);
+      if (terminalStatuses.has(current.status)) return current;
+      const signature = [
+        current.status,
+        current.affectedCount,
+        current.readyCount,
+        current.scheduledCount,
+        current.failureCount,
+        current.batchCount,
+        current.pageCount,
+      ].join(":");
+      // No-progress guard: two consecutive iterations with the same progress
+      // signature mean the run is stalled (e.g. readiness pending with no
+      // scheduler to resolve it) — stop rather than burn the iteration cap.
+      if (
+        previousStatus !== null &&
+        previousStatus === current.status &&
+        previousSignature === signature
+      ) {
+        return current;
+      }
+      previousStatus = current.status;
+      previousSignature = signature;
+    }
+    if (!current) {
+      throw new Error(`Unknown company industry recompute run: ${runIdValue}`);
+    }
+    return current;
   }
 
   async get(runId: string): Promise<CompanyIndustryRecomputeRun | null> {
@@ -493,21 +616,20 @@ export class CompanyIndustryRecomputeService {
   ): Promise<CompanyIndustryRecomputeRun> {
     const expectedSkillsVersion = this.dependencies.getSkillsVersion();
     try {
-      const value = await this.mutate("ingest_agent:scheduleExactReingest", {
+      // Capture before executing: readiness compares resume `computedAt`
+      // against `dispatchedAt`, so the timestamp must predate the reingest.
+      const dispatchedAt = Date.now();
+      const value = await this.action("ingest_agent:runExactReingestSync", {
         workspaceSlug: run.workspaceSlug,
         resumeIds: batch.resumeIds,
       });
       if (
         !isRecord(value) ||
-        finiteNumber(value.dispatchedAt) === undefined ||
-        value.scheduled !== batch.resumeIds.length ||
-        !Array.isArray(value.resumeIds) ||
-        value.resumeIds.length !== batch.resumeIds.length ||
-        value.resumeIds.some(
-          (resumeId, index) => resumeId !== batch.resumeIds[index],
-        )
+        value.processed !== batch.resumeIds.length ||
+        value.error !== null ||
+        value.requested !== batch.resumeIds.length
       ) {
-        throw new Error("Exact reingest dispatch returned inconsistent targets");
+        throw new Error("Exact reingest returned inconsistent targets");
       }
       return parseCompanyIndustryRecomputeRun(
         await this.mutate(
@@ -515,7 +637,7 @@ export class CompanyIndustryRecomputeService {
           {
             runId: run.runId,
             batchId: batch.batchId,
-            dispatchedAt: value.dispatchedAt,
+            dispatchedAt,
             expectedSkillsVersion,
           },
         ),

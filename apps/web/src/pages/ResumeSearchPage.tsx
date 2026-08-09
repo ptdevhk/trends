@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { useVerifiedEmployerCount } from '@/hooks/useVerifiedEmployerCount'
 import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -51,6 +52,9 @@ export function ResumeSearchPage() {
   const workspaceResumePath = `/${workspaceSlug}/resumes`
   const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
   const industryResearchQueueEnabled = isIndustryEvidenceTargetedQueueEnabled() && hasSystemAdminAccess(memberships)
+  // Public share surfaces have no admin session; the hook skips the fetch
+  // there and the notice prop stays undefined.
+  const verifiedEmployerCount = useVerifiedEmployerCount(!isPublicSurface)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
@@ -692,6 +696,15 @@ export function ResumeSearchPage() {
                   searchQuery={queryInput}
                   onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
                   industryResearchQueueEnabled={industryResearchQueueEnabled}
+                  verifiedOnlyNotice={
+                    verifiedEmployerCount !== undefined
+                      ? {
+                          minRoleYears: parsedState.filters.minRoleYears,
+                          roleFilterType: parsedState.filters.roleFilterType ?? null,
+                          verifiedEmployerCount,
+                        }
+                      : undefined
+                  }
                 />
               </ErrorBoundary>
             </div>

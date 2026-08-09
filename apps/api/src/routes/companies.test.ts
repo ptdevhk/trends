@@ -405,6 +405,19 @@ describe("companies routes", () => {
       ],
       maintenance: { latest: null, lastFailed: null },
     });
+    const impactCalls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      impactCalls.push(call);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        expect(call.args).toMatchObject({
+          companyKeys: ["acme-cnc"],
+          writeSecret: expect.any(String),
+        });
+        return convexSuccess({ "acme-cnc": 5 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
 
     const app = createApp({ authStorage: auth.storage });
     const response = await app.request(
@@ -415,10 +428,15 @@ describe("companies routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody<{
       schemaVersion: string;
-      items: Array<{ recommendation: { recommendedAction: string } }>;
+      items: Array<{
+        recommendation: { recommendedAction: string };
+        resumeImpact: number;
+      }>;
     }>(response);
     expect(body.schemaVersion).toBe("industry-review.v1");
     expect(body.items[0]?.recommendation.recommendedAction).toBe("approve");
+    expect(body.items[0]?.resumeImpact).toBe(5);
+    expect(impactCalls).toHaveLength(1);
     expect(industryReviewService.listIndustryReviewQueue).toHaveBeenCalledWith({
       status: "ready_for_review",
       limit: 20,
@@ -797,6 +815,17 @@ describe("companies routes", () => {
           requestedBy: auth.userId,
         });
         return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
+      }
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 0,
+          matchedRows: 0,
+          linkedRows: 0,
+          cursor: null,
+          isDone: true,
+        });
       }
       if (call.pathName === "companies:getIndustryRecomputeRun") {
         return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
@@ -1468,6 +1497,17 @@ describe("companies routes", () => {
             updatedAt: 11,
           });
         }
+        if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+          return convexSuccess({
+            status: "completed",
+            companyKey: "acme-cnc",
+            scannedRows: 0,
+            matchedRows: 0,
+            linkedRows: 0,
+            cursor: null,
+            isDone: true,
+          });
+        }
         if (call.pathName === "companies:getIndustryRecomputeRun") {
           return convexSuccess({
             runId: "run-1",
@@ -1830,6 +1870,17 @@ describe("companies routes", () => {
             updatedAt: 11,
           });
         }
+        if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+          return convexSuccess({
+            status: "completed",
+            companyKey: "acme-cnc",
+            scannedRows: 0,
+            matchedRows: 0,
+            linkedRows: 0,
+            cursor: null,
+            isDone: true,
+          });
+        }
         if (call.pathName === "companies:getIndustryRecomputeRun") {
           return convexSuccess({
             runId: "run-1",
@@ -1952,5 +2003,347 @@ describe("companies routes", () => {
       expect(response.status).toBe(403);
       expect(fetchSpy).not.toHaveBeenCalled();
     });
+  });
+
+  it("backfills company resume links synchronously for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        expect(call.args).toMatchObject({
+          companyKey: "acme-cnc",
+          writeSecret: expect.any(String),
+        });
+        expect(call.args.cursor).toBeUndefined();
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 120,
+          matchedRows: 40,
+          linkedRows: 25,
+          cursor: null,
+          isDone: true,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-link-backfill", {
+      method: "POST",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ companyKey: "acme-cnc" }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      success: boolean;
+      result: {
+        status: string;
+        scannedRows: number;
+        matchedRows: number;
+        linkedRows: number;
+        iterations: number;
+      };
+    }>(response);
+    expect(body).toEqual({
+      success: true,
+      result: {
+        status: "completed",
+        scannedRows: 120,
+        matchedRows: 40,
+        linkedRows: 25,
+        iterations: 1,
+      },
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps the company link backfill admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-link-backfill", {
+      method: "POST",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ companyKey: "acme-cnc" }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("advances a recompute run all the way to a terminal status", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    let getCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryRecomputeRun") {
+        getCalls += 1;
+        if (getCalls === 1) {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-2",
+            status: "queued",
+            attempt: 1,
+            sourceDone: false,
+            pageCount: 0,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            updatedAt: 11,
+          });
+        }
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "completed",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 1,
+          affectedCount: 1,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 1,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          startedAt: 11,
+          completedAt: 12,
+          updatedAt: 12,
+        });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+        return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-2" });
+      }
+      if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+        return convexSuccess(null);
+      }
+      if (call.pathName === "companies:listAffectedResumesByCompany") {
+        return convexSuccess({ items: [], continueCursor: "", isDone: true });
+      }
+      if (call.pathName === "companies:reserveIndustryRecomputePage") {
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "running",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 1,
+          affectedCount: 1,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 1,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          startedAt: 11,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/advance-all",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { status: string; runId: string } }>(response);
+    expect(body.item).toMatchObject({ runId: "run-1", status: "completed" });
+    expect(getCalls).toBe(2);
+  });
+
+  it("starts a recompute run from the approved proposal without capturing start as a runId", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:listIndustryProposals") {
+        expect(call.args.status).toBe("approved");
+        return convexSuccess([
+          {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["manual"],
+            priority: 80,
+            status: "approved",
+            approvedRevisionId: "revision-2",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ]);
+      }
+      if (call.pathName === "companies:startIndustryRecomputeRun") {
+        expect(call.args).toMatchObject({
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          requestedBy: auth.userId,
+        });
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "queued",
+          attempt: 1,
+          sourceDone: false,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          updatedAt: 11,
+        });
+      }
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 0,
+          matchedRows: 0,
+          linkedRows: 0,
+          cursor: null,
+          isDone: true,
+        });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRun") {
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "completed",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          completedAt: 12,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/start",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "hr", companyKey: "acme-cnc" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { runId: string; status: string } }>(response);
+    expect(body.item).toMatchObject({ runId: "run-1", status: "completed" });
+    expect(calls.some((call) => call.pathName === "companies:startIndustryRecomputeRun")).toBe(true);
+    // The literal `start` segment must be routed to the start handler, not to
+    // the `:runId` GET route (which would 404 on `getIndustryRecomputeRun`).
+    expect(calls.some((call) => call.pathName === "companies:getIndustryRecomputeRun")).toBe(true);
+  });
+
+  it("returns 404 when starting a recompute run without an approved proposal", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryProposals") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/start",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "hr", companyKey: "acme-cnc" }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(await parseJsonBody(response)).toEqual({
+      success: false,
+      error: "No approved proposal for companyKey",
+    });
+  });
+
+  it("returns the cached verified employer count for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
+    );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+      {
+        companyKey: "polywell",
+        industryClass: "cnc",
+        displayName: "Polywell",
+        aliases: [],
+        updatedAt: 1,
+      },
+    ]);
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await parseJsonBody(response)).toEqual({ success: true, count: 2 });
+  });
+
+  it("keeps the verified employer count admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

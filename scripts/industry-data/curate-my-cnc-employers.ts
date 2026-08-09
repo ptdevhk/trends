@@ -19,6 +19,9 @@
  * Usage:
  *   npx tsx scripts/industry-data/curate-my-cnc-employers.ts            # dry run
  *   npx tsx scripts/industry-data/curate-my-cnc-employers.ts --apply    # write
+ *   npx tsx scripts/industry-data/curate-my-cnc-employers.ts \
+ *     --convex-url <url> [--apply]  # target a non-default Convex deployment
+ *     (CONVEX_URL env is honored as a fallback; default: local deployment)
  *
  * After apply:
  *   1. Trigger targeted worker research:
@@ -29,6 +32,8 @@
  *      npx tsx scripts/industry-data/auto-verify-proposals.ts --limit 50 --apply
  *   3. Reingest:
  *      npx convex run migrations:reIngestAllResumes '{}'
+ *   (For a non-default deployment, add --convex-url <url> to the script and
+ *    auto-verify calls, and --url <url> to the npx convex run steps.)
  */
 import { execSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -83,12 +88,19 @@ function proposalIdFor(companyKey: string): string {
   return `curated-my-${companyKey.replace(/[^a-z0-9-]/g, "")}`;
 }
 
-function convexRun<T>(functionName: string, args: Record<string, unknown>): T {
+function convexRun<T>(
+  functionName: string,
+  args: Record<string, unknown>,
+  convexUrl?: string,
+): T {
   const tmpDir = mkdtempSync(path.join(tmpdir(), "curate-"));
   try {
     const tmpFile = path.join(tmpDir, "args.json");
     writeFileSync(tmpFile, JSON.stringify(args), { mode: 0o600 });
-    const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')" 2>&1`;
+    // --url is only added when a non-default deployment is targeted; without
+    // it, `npx convex run` uses its configured default (local :3210).
+    const urlFlag = convexUrl ? ` --url "${convexUrl}"` : "";
+    const cmd = `npx convex run ${functionName} "$(cat '${tmpFile}')"${urlFlag} 2>&1`;
     const output = execSync(cmd, {
       cwd: `${process.cwd()}/packages/convex`,
       encoding: "utf-8",
@@ -124,7 +136,25 @@ function getWriteSecret(): string {
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+// --convex-url <url> (or --convex-url=<url>) targets a non-default Convex
+// deployment; CONVEX_URL env is honored as a fallback. Absent both, convexRun
+// uses the CLI's configured default (local :3210) — unchanged behavior.
+function parseConvexUrl(): string | undefined {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--convex-url") {
+      const value = args[i + 1];
+      if (value && !value.startsWith("--")) return value;
+    }
+    if (args[i].startsWith("--convex-url=")) {
+      return args[i].slice("--convex-url=".length);
+    }
+  }
+  return process.env.CONVEX_URL || undefined;
+}
+
 const APPLY = process.argv.includes("--apply");
+const convexUrl = parseConvexUrl();
 const secret = getWriteSecret();
 
 type PlanRow = {
@@ -139,6 +169,7 @@ type PlanRow = {
 const plan: PlanRow[] = [];
 
 console.log(`🔍 Curated MY CNC employer bootstrap (${APPLY ? "APPLY" : "DRY RUN"})`);
+console.log(`   Convex: ${convexUrl ?? "default (local)"}`);
 console.log(`   Cohort: ${CURATED.length} employers from resume work-history evidence\n`);
 
 // Check existing proposals by surface to decide attach vs create.
@@ -148,6 +179,7 @@ for (const employer of CURATED) {
   const existing = convexRun<Array<Record<string, unknown>>>(
     "companies:listIndustryProposals",
     { status: "ready_for_review", limit: 500, writeSecret: secret },
+    convexUrl,
   ).filter((p) => {
     const s = String(p.normalizedEmployerSurface ?? "").toLowerCase().trim();
     if (!s) return false; // surface-less fixture proposals never match
@@ -190,13 +222,13 @@ for (const row of plan) {
           status: "confirmed",
           createdBy: "curate-my-cnc",
           writeSecret: secret,
-        });
+        }, convexUrl);
         convexRun("companies:addAlias", {
           companyKey: row.companyKey,
           alias: employer.employerName,
           source: "observed",
           writeSecret: secret,
-        });
+        }, convexUrl);
         convexRun("companies:upsertIndustryProposal", {
           proposalId: row.proposalId,
           companyKey: row.companyKey,
@@ -215,7 +247,7 @@ for (const row of plan) {
             },
           ],
           writeSecret: secret,
-        });
+        }, convexUrl);
       }
       created++;
       console.log(`  [${APPLY ? "✓" : "·"}] ${row.companyKey}  (${employer.evidence.jobTitle} · ${employer.evidence.years}y)`);
@@ -231,18 +263,18 @@ for (const row of plan) {
           status: "confirmed",
           createdBy: "curate-my-cnc",
           writeSecret: secret,
-        });
+        }, convexUrl);
         convexRun("companies:attachProposalToCompany", {
           proposalId: row.existingProposalId!,
           companyKey: row.companyKey,
           writeSecret: secret,
-        });
+        }, convexUrl);
         convexRun("companies:addAlias", {
           companyKey: row.companyKey,
           alias: employer.employerName,
           source: "observed",
           writeSecret: secret,
-        });
+        }, convexUrl);
       }
       attached++;
       console.log(`  [${APPLY ? "✓" : "·"}] ${row.companyKey}  (attach key to existing proposal ${row.existingProposalId!.slice(-12)})`);
@@ -262,4 +294,7 @@ if (!APPLY) {
   console.log(`       -d '{"trigger":"manual","proposalIds":["${plan[0]?.proposalId}", ...]}'`);
   console.log("  2. Auto-verify:  npx tsx scripts/industry-data/auto-verify-proposals.ts --limit 50 --apply");
   console.log("  3. Reingest:     npx convex run migrations:reIngestAllResumes '{}'");
+  console.log("  (Non-default deployment? Rerun this script with --convex-url <url> (or CONVEX_URL env),");
+  console.log("   pass --convex-url <url> to auto-verify-proposals.ts, and add --url <url> to the");
+  console.log("   npx convex run steps above.)");
 }

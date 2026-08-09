@@ -4,6 +4,7 @@ import { Hono } from "hono";
 // Mock the Convex helper so we don't need a live backend.
 vi.mock("../services/convex-utils.js", () => ({
   callConvexQuery: vi.fn(),
+  callConvexAction: vi.fn(),
 }));
 
 import { maintenanceGuard, _resetMaintenanceCache } from "./maintenance.js";
