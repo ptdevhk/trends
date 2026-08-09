@@ -627,6 +627,42 @@ describe("companies routes", () => {
     });
   });
 
+  it("maps a closed proposal to 409 NOT_OPEN on identity resolution", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockRejectedValue(
+      new Error(
+        "[Request ID: 8f3c1d2e] Server Error\n"
+        + "Uncaught Error: Proposal is not open for identity resolution: approved\n"
+        + "    at handler (../convex/companies.ts:5162:4)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_NOT_OPEN",
+    });
+  });
+
   it("requires an admin for proposal review mutations", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const fetchSpy = vi.spyOn(globalThis, "fetch");

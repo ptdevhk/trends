@@ -71,7 +71,10 @@ import { config } from "../services/config.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
   INDUSTRY_REVIEW_STALE_CODE,
+  INDUSTRY_REVIEW_NOT_OPEN_CODE,
+  industryReviewNotOpenReason,
   industryReviewStaleReason,
+  isIndustryReviewNotOpenError,
   isIndustryReviewStaleError,
   IndustryReviewStaleError,
 } from "../services/company-industry-review-errors.js";
@@ -888,7 +891,10 @@ const IndustryReviewEnvelopeFields = {
 const IndustryReviewConflictSchema = z.object({
   success: z.literal(false),
   error: z.string(),
-  code: z.literal(INDUSTRY_REVIEW_STALE_CODE),
+  code: z.union([
+    z.literal(INDUSTRY_REVIEW_STALE_CODE),
+    z.literal(INDUSTRY_REVIEW_NOT_OPEN_CODE),
+  ]),
 });
 
 const IndustryReviewCursorConflictSchema = z.object({
@@ -902,6 +908,14 @@ function industryReviewConflictResponse(error: unknown) {
     success: false as const,
     error: industryReviewStaleReason(error),
     code: INDUSTRY_REVIEW_STALE_CODE,
+  };
+}
+
+function industryReviewNotOpenResponse(error: unknown) {
+  return {
+    success: false as const,
+    error: industryReviewNotOpenReason(error),
+    code: INDUSTRY_REVIEW_NOT_OPEN_CODE,
   };
 }
 
@@ -1337,6 +1351,9 @@ app.openapi(resolveIndustryProposalIdentityRoute, async (c) => {
   } catch (error) {
     if (isIndustryReviewStaleError(error)) {
       return c.json(industryReviewConflictResponse(error), 409);
+    }
+    if (isIndustryReviewNotOpenError(error)) {
+      return c.json(industryReviewNotOpenResponse(error), 409);
     }
     throw error;
   }

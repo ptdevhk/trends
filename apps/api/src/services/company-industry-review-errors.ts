@@ -2,6 +2,7 @@
 // previously built shared package.  The value is intentionally identical to
 // the shared contract constant.
 export const INDUSTRY_REVIEW_STALE_CODE = "INDUSTRY_REVIEW_STALE" as const;
+export const INDUSTRY_REVIEW_NOT_OPEN_CODE = "INDUSTRY_REVIEW_NOT_OPEN" as const;
 
 export class IndustryReviewStaleError extends Error {
   readonly code: typeof INDUSTRY_REVIEW_STALE_CODE;
@@ -12,6 +13,24 @@ export class IndustryReviewStaleError extends Error {
     super(`${INDUSTRY_REVIEW_STALE_CODE}: ${normalizedReason}`);
     this.name = "IndustryReviewStaleError";
     this.code = INDUSTRY_REVIEW_STALE_CODE;
+    this.reason = normalizedReason;
+  }
+}
+
+/**
+ * The proposal moved to a terminal/decided state between the review UI and
+ * the write (e.g. identity resolution on an already-approved proposal).
+ * Distinct from staleness: the packet is fresh, the state is not writable.
+ */
+export class IndustryReviewNotOpenError extends Error {
+  readonly code: typeof INDUSTRY_REVIEW_NOT_OPEN_CODE;
+  readonly reason: string;
+
+  constructor(reason = "The proposal is not open for this review action.") {
+    const normalizedReason = reason.trim() || "The proposal is not open for this review action.";
+    super(`${INDUSTRY_REVIEW_NOT_OPEN_CODE}: ${normalizedReason}`);
+    this.name = "IndustryReviewNotOpenError";
+    this.code = INDUSTRY_REVIEW_NOT_OPEN_CODE;
     this.reason = normalizedReason;
   }
 }
@@ -45,6 +64,25 @@ export function industryReviewStaleReason(error: unknown): string {
       return reason || error.message;
     }
     return error.message;
+  }
+  return String(error);
+}
+
+export function isIndustryReviewNotOpenError(error: unknown): boolean {
+  if (error instanceof IndustryReviewNotOpenError) return true;
+  if (isRecord(error) && error.code === INDUSTRY_REVIEW_NOT_OPEN_CODE) return true;
+  if (!(error instanceof Error)) return false;
+  // The Convex local backend wraps function errors; the convex mutation
+  // throws "Proposal is not open for <action>: <status>" (also reachable as
+  // "Proposal is not open: <status>" on the resolve path).
+  return /Proposal is not open/.test(error.message);
+}
+
+export function industryReviewNotOpenReason(error: unknown): string {
+  if (error instanceof IndustryReviewNotOpenError) return error.reason;
+  if (error instanceof Error) {
+    const match = error.message.match(/Proposal is not open[^\n]*/);
+    return match ? match[0].trim() : error.message;
   }
   return String(error);
 }
