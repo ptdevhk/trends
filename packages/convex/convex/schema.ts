@@ -1181,6 +1181,12 @@ export default defineSchema({
             )),
             cncEvidenceAcknowledged: v.boolean(),
             acknowledgementReason: v.string(),
+            /**
+             * Present on revisions materialized by a batch review: links
+             * every approved revision back to its shared batch attestation.
+             * Optional for single-item approvals and pre-batch rows.
+             */
+            batchId: v.optional(v.string()),
         })),
         supersedesRevisionId: v.optional(v.string()),
         proposalId: v.optional(v.string()),
