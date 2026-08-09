@@ -287,6 +287,30 @@ class ResearchConvexClient:
         )
         return result if isinstance(result, dict) else None
 
+    def get_industry_resume_impact(self, company_keys: List[str]) -> Dict[str, int]:
+        """Resume-link impact counts per company key (missing keys -> 0).
+
+        Drives resume-frequency-first sweep ordering (P0.4). Best-effort from
+        the planner's perspective: callers fall back to priority-only
+        ordering when this raises (e.g. the query is not deployed yet).
+        """
+        self.require_ready()
+        keys = [str(key).strip() for key in company_keys if str(key).strip()]
+        if not keys:
+            return {}
+        result = self._querier(
+            self.convex_url,
+            "industry-resume-impact:getIndustryResumeImpactByCompanyKey",
+            self._args({"companyKeys": keys}),
+        )
+        if not isinstance(result, dict):
+            return {}
+        return {
+            str(key): int(value)
+            for key, value in result.items()
+            if str(key)
+        }
+
     def set_industry_proposal_research_state(self, payload: Dict[str, Any]) -> Any:
         self.require_ready()
         return self._mutator(
