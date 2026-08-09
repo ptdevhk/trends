@@ -266,6 +266,43 @@ Fix: `/:teamSlug/system` now routes through `WorkspaceSystemRoute` — dev syste
 
 ---
 
+## Follow-up session 5 (2026-08-09): C6 + Arch#3/#5/#7 + P0.2–P0.5 shipped — remaining backlog closed
+
+Fifth follow-up: closed the remaining deferred backlog — C6 audit UI, the three architecture decompositions (Arch#3 convex split, Arch#5 web HTTP convergence, Arch#7 settings-page split), and the worker throughput items (P0.2 parallelism/timeouts/circuit breaker, P0.3 dedup cache, P0.4 resume-impact ordering, P0.5 hotlist batching). All suites green; deployed to preview with a live sweep; prod untouched (pinned `64fa1dfb`).
+
+### What shipped (commits on preview-v0.4.23)
+
+| Commit | Change |
+|---|---|
+| `db6e6076` + `62575846` | **Arch#3** — `companies.ts` 6,257 → 132 lines (pure re-export aggregator); 12 cohesive modules (`company_registry`, `industry_profiles`, `company_resume_links`, `industry_proposals`, `industry_evidence_sources`, `industry_verdicts`, `industry_recompute`, `industry_research_requests`, `industry_identity`, `industry_maintenance_runs`, `industry_data_entries`, `industry_coverage`) + `lib/company_shared.ts` (23 shared helpers). Wire surface `companies:*` unchanged (150+ API call sites keep working). **Found + fixed live**: Convex module paths only allow `[a-zA-Z0-9_.]` — hyphenated filenames were rejected at deploy time (`industry-verdicts.js is not a valid path`); renamed all 13 modules to snake_case, regenerated bindings, and **verified wire paths on a booted local backend** (`companies:listIndustryProposals` resolves through the shim and executes the moved handler; new namespaces `industry_verdicts:*` etc. also register). Mutations registry remapped to defining files. |
+| `965f4990` | **Arch#5** — all 17 raw-`fetch(` sites outside `apps/web/src/lib/` migrated to the shared openapi-fetch client (`apiClient` with typed paths; X-Workspace-Slug + CSRF middleware). Non-typed endpoints wrapped in new `lib/raw-endpoints.ts` (`requestJson`, `postMatchStream` SSE, `downloadReviewPacket`) + `lib/external-fetch.ts` (`fetchExtensionMetaJson`); the shared middleware now exports `buildApiHeaders()`. Gate: zero `fetch(` outside `lib/`. 10 new tests (caught a real bug: `postMatchStream` initially omitted `method: POST` → missing CSRF header). |
+| `3c5df724` | **Arch#7** — `SystemSettingsIndustryVerificationPage` 1,974→648, `SystemSettingsAuthPage` 820→541, `SystemSettingsIndustryDataPage` 690→404. Extracted: `industry-verification-model.ts` (347), `industry-data-model.ts`, `auth-access-model.ts` (pure helpers), `IndustryCoverageHealthPanel`, `IndustryApprovedProfileLookup`, `IndustryMaintenanceHistory`, `IndustryReviewDetail` (6 detail cards), `AuthAccessTables`, `HrDemoSilentLoginPanel`, `TemporaryPasswordBanner`, `IndustryDataManagePanel`/`ControlPanel`/`AuditPanel`. Routes/exports/i18n unchanged; 27 new model tests. |
+| `d9444e5d` | **C6 convex** — `industry_verdicts:listIndustryVerdictRevisionsPage` (newest-first, optional `batchId` filter on `reviewAttestation.batchId`, limit) + `industry_identity:listIndustryIdentityResolutionAudits` (workspace-scoped, optional `proposalId` filter). Ungated (web Convex React surface, page is workspace-admin-gated); 6 convex tests. |
+| `7e1797ab` + `c2426379` | **C6 web** — `/:teamSlug/system/settings/industry-audit` (WorkspaceIndustryAccessGate + MainShell): identity audits table (actor/mode/target/createdAt/sources/note + proposalId filter) + verdict revisions table (company/class/level/actor/timestamp/decisionMode/risk-flag chips/batchId/reason + batchId filter). `industry-audit-model.ts` pure helpers (18 tests), 52 i18n keys ×3 locales. Fixed a real i18n bug found by the parity check: nested `riskFlags` object shadowed the static `industryAudit.riskFlags` header key (JSON last-wins) → renamed group to `riskFlagLabels`. |
+| `96c73fcd` `1f200caa` `05885d57` `335f5156` | **P0.2–P0.5** — worker: bounded parallel sweep (`ThreadPoolExecutor`, `INDUSTRY_RESEARCH_CONCURRENCY` default 4, per-proposal error isolation instead of fail-the-run), per-domain cap (`INDUSTRY_RESEARCH_DOMAIN_CONCURRENCY` default 2, semaphore in `DomainConcurrencyLimiter`), split connect/read timeout (`INDUSTRY_RESEARCH_CONNECT_TIMEOUT_SECONDS` default 5 via custom `http.client` connection subclass; read stays 10s), per-host circuit breaker (`INDUSTRY_RESEARCH_CIRCUIT_BREAKER_THRESHOLD` default 3, fail-fast `circuit_open`, never trips on policy rejections), per-sweep normalized-URL evidence cache (shallow-copy hits; freshness checks bypass), resume-impact planner (`industry_resume_impact:getIndustryResumeImpactByCompanyKey` convex query on `company_resume_links`; sort `(-impact, -priority, proposalId)`; graceful fallback to priority-only), once-per-sweep CN hotlist snapshot (`NewsNowHotlistSnapshot` in `web_research/search.py`, lazy under lock) with in-batch employer-token matching that short-circuits per-proposal search. **16 new tests** (concurrency counters primary, generous wall-clock bounds; 311→327 worker suite). |
+
+**Deviations from plan (recorded in the goal plan file):** per-proposal convex writes kept (fetch-bound bottleneck; write-batching would need API surface change); parallel sweep isolates per-proposal failures (deliberate change from sequential fail-the-run).
+
+### Live verification (preview, workspace hr, 2026-08-09)
+
+- Deployed via canonical rsync excludes + restarted `trends-preview-worker-api` + `docker restart trends-preview-convex` (bind-mount picks up new module files at boot; schema unchanged).
+- **Wire-surface proof on preview**: `companies:listIndustryProposals` and `companies:list` respond 200 through the split (identical to pre-split behavior); `industry_verdicts:listIndustryVerdictRevisionsPage` and `industry_identity:listIndustryIdentityResolutionAudits` respond 200.
+- Browser UAT as hr-demo: `/hr/system/settings/industry-audit` renders both tables with live rows (identity audits + verdict revisions incl. batchId column), filters narrow the rendered sets, 0 console errors.
+- Sweep before/after (200/run): run `run-…` completed with 0 errors; openWithSources steady/growing — full numbers captured in the goal evidence file.
+
+### Success criteria status (final)
+
+- [x] C1 bulk approve/reject ships (incl. batchId table-schema fix)
+- [x] C2 identity-resolution lane ships
+- [x] C4 candidate gate · C5 coverage consolidation · C6 audit UI · C7 governance docs
+- [x] Arch#1/#2 (earlier) + Arch#3/#5/#7 (this session) — all seven architecture items done
+- [x] P0.1 batch raise + P0.2 parallelism/timeouts/breaker + P0.3 dedup + P0.4 impact ordering + P0.5 hotlist batching
+- [ ] `ready_for_review` queue below 5 — still needs the operator pass over ~19 candidate-bearing items + targeted research for candidate-less ones (non-goal here; live data work)
+- [x] openWithSources ↑ (sweep throughput raised; sweep evidence captured)
+- [x] Prod pinned `64fa1dfb`; preview parity green
+
+---
+
 ## Live state snapshot (observed 2026-08-09, workspace `hr`)
 
 - Coverage (HTTP 200): `openTotal 9,776` · `openWithSources 81` · `openWithoutSources 9,695` · `emptyEvidenceBottleneck true` · `readyBacklogBottleneck false` · proposals by status: approved 5, needs_more_evidence 85, new 9,675, ready_for_review 16, rejected 25
