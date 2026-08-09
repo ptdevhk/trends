@@ -1499,78 +1499,44 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const body = c.req.valid("json");
   try {
-    const shouldLoadPacket = Boolean(
-      body.expectedInputFingerprint ||
-        body.reviewAttestation ||
-        body.industryClass === "cnc",
+    const { getIndustryReviewPacket } = await import(
+      "../services/company-industry-review-service.js"
     );
-    let packet: IndustryReviewPacket | null = null;
-    if (shouldLoadPacket) {
-      const { getIndustryReviewPacket } = await import(
-        "../services/company-industry-review-service.js"
-      );
-      packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
-      if (!packet) {
-        throw new Error("Industry proposal not found");
-      }
-      if (
-        body.expectedInputFingerprint &&
-        packet.dataset.inputFingerprint !== body.expectedInputFingerprint
-      ) {
-        throw new IndustryReviewStaleError(
-          "Refresh the recommendation before approving this proposal.",
-        );
-      }
-      const visibleRiskFlags = packet.recommendation.riskFlags;
-      const requiresAttestation =
-        visibleRiskFlags.length > 0 || body.industryClass === "cnc";
-      if (requiresAttestation && !body.reviewAttestation) {
-        return c.json(
-          {
-            success: false as const,
-            error: "A review attestation is required before this elevated decision.",
-            code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
-          },
-          422,
-        );
-      }
-      if (body.reviewAttestation) {
-        const validation = validateIndustryReviewAttestation({
-          attestation: body.reviewAttestation as unknown as IndustryReviewAttestation,
-          expectedInputFingerprint:
-            body.expectedInputFingerprint ?? packet.dataset.inputFingerprint,
-          visibleRiskFlags,
-          recommendedIndustryClass: body.industryClass,
-        });
-        if (!validation.ok) {
-          return c.json(
-            {
-              success: false as const,
-              error: "The review attestation does not satisfy the current evidence policy.",
-              code: validation.code,
-            },
-            422,
-          );
-        }
-      }
+    const { buildIndustryApprovalDecision } = await import(
+      "../services/company-industry-approval-service.js"
+    );
+    const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
+    if (!packet) {
+      throw new Error("Industry proposal not found");
     }
-    const approvalInput = {
-      proposalId,
+    const decision = buildIndustryApprovalDecision({
       workspaceSlug: c.var.workspaceSlug,
-      ...body,
+      packet,
+      ...(body.industryClass ? { industryClass: body.industryClass } : {}),
+      ...(body.evidenceSummary ? { evidenceSummary: body.evidenceSummary } : {}),
+      ...(body.decisionReason ? { decisionReason: body.decisionReason } : {}),
       ...(body.reviewAttestation
         ? {
-            reviewAttestation: {
-              ...body.reviewAttestation,
-              acknowledgedRiskFlags:
-                body.reviewAttestation
-                  .acknowledgedRiskFlags as IndustryReviewAttestation["acknowledgedRiskFlags"],
-            } as IndustryReviewAttestation,
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1" as const,
+              cncEvidenceAcknowledged: body.reviewAttestation.cncEvidenceAcknowledged,
+              acknowledgementReason: body.reviewAttestation.acknowledgementReason,
+            },
           }
         : {}),
-    } as Parameters<typeof approveIndustryProposalAndStartRecompute>[0];
+    });
+    if (!decision.ok) {
+      return c.json(
+        {
+          success: false as const,
+          error: decision.error,
+          code: decision.code,
+        },
+        422,
+      );
+    }
     const result = await approveIndustryProposalAndStartRecompute(
-      approvalInput,
+      decision.payload,
       getAuthenticatedActorId(c),
     );
     // Approval hook: enqueue a maintenance run so recycled needs_more_evidence

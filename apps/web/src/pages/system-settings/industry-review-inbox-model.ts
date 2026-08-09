@@ -1,3 +1,4 @@
+import { requiresReviewAttestation, selectApprovalSafeSources } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
 type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
@@ -72,24 +73,16 @@ export function reviewInboxFilterToSlug(filter: ReviewInboxFilter): ReviewInboxF
 /**
  * Select the sources that can be sent through the standard approval path.
  *
- * Recommendations normally provide an ordered source selection. If that
- * selection is empty, the server's approval-safe decisions are the only safe
- * fallback. In either case, source decisions remain authoritative for the
- * browser affordance.
+ * Delegates to the shared governance rule (`selectApprovalSafeSources`) so
+ * the browser affordance and the server cross the same implementation.
  */
 export function getApprovalSafeSourceIds(
   recommendation: ReviewInboxRecommendation,
 ): string[] {
-  const approvalSafeSourceIds = new Set(
-    recommendation.sourceDecisions
-      .filter((decision) => decision.approvalSafe)
-      .map((decision) => decision.sourceId),
-  )
-  const candidateSourceIds = recommendation.recommendedSourceIds.length > 0
-    ? recommendation.recommendedSourceIds
-    : recommendation.sourceDecisions.map((decision) => decision.sourceId)
-
-  return [...new Set(candidateSourceIds)].filter((sourceId) => approvalSafeSourceIds.has(sourceId))
+  return selectApprovalSafeSources({
+    recommendedSourceIds: recommendation.recommendedSourceIds,
+    sourceDecisions: recommendation.sourceDecisions,
+  })
 }
 
 export function getOneClickEligibility(item: ReviewInboxItem): OneClickEligibility {
@@ -163,9 +156,10 @@ export function getBatchApproveEligibility(item: ReviewInboxItem): BatchApproveE
   return {
     eligible: true,
     safeSourceIds,
-    requiresAttestation:
-      item.recommendation.riskFlags.length > 0
-      || item.recommendation.recommendedIndustryClass === 'cnc',
+    requiresAttestation: requiresReviewAttestation(
+      item.recommendation.riskFlags,
+      item.recommendation.recommendedIndustryClass,
+    ),
     requiresClass: item.recommendation.recommendedIndustryClass === 'unknown',
   }
 }

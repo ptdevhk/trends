@@ -1,10 +1,11 @@
 /**
  * Industry verification coverage summary (operator health snapshot).
- * Thin wrapper over companies:getIndustryCoverageSummary.
+ * Reads the precomputed counters doc (P1.8/C5) plus live maintenance and
+ * research-queue state, and derives the operator bottleneck flags.
  */
 
 import { config } from "./config.js";
-import { callConvexQuery } from "./convex-utils.js";
+import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 
 export interface IndustryCoverageMaintenanceRun {
   runId: string;
@@ -132,10 +133,8 @@ export function parseIndustryCoverageSummary(
   const researchQueue = isRecord(value.researchQueue) ? value.researchQueue : {};
   const generatedAt = finiteNumber(value.generatedAt);
   const openTotal = finiteNumber(value.openTotal);
-  // openWithSources/openWithoutSources/emptyEvidenceBottleneck are computed
-  // by the service from the merged countIndustryOpenProposalSources query
-  // (the main Convex query must stay under the per-query system-op budget);
-  // tolerate their absence from the raw Convex payload.
+  // openWithSources now arrives from the precomputed counters doc (C5);
+  // tolerate its absence from older payloads.
   const openWithSources = finiteNumber(value.openWithSources) ?? 0;
   const openWithoutSources = finiteNumber(value.openWithoutSources) ?? 0;
   if (
@@ -190,33 +189,64 @@ export function parseIndustryCoverageSummary(
   };
 }
 
+const COUNTERS_REFRESH_TTL_MS = 5 * 60 * 1000;
+
+function refreshCounters(workspaceSlug: string): void {
+  const writeSecret = config.auth.convexWriteSecret;
+  void callConvexMutation("companies:refreshIndustryCoverageProposalCounters", {
+    workspaceSlug,
+    writeSecret,
+  }).catch(() => {
+    // Counters are an operator snapshot; a failed refresh is served stale.
+  });
+  void callConvexMutation("companies:refreshIndustryCoverageEvidenceCounters", {
+    workspaceSlug,
+    writeSecret,
+  }).catch(() => {
+    // Counters are an operator snapshot; a failed refresh is served stale.
+  });
+}
+
 export async function getIndustryCoverageSummary(
   workspaceSlug: string,
 ): Promise<IndustryCoverageSummary> {
-  // Two budget-safe queries instead of one: the main summary scans the
-  // ~9.8k-row proposals table (~9.9k system ops), and the open-with-sources
-  // count runs as a separate lean query (~2k ops) so neither exceeds the
-  // local-backend per-query system-op ceiling.
-  const [value, openWithSources] = await Promise.all([
+  const writeSecret = config.auth.convexWriteSecret;
+  const fetchValue = () =>
     callConvexQuery("companies:getIndustryCoverageSummary", {
       workspaceSlug,
-      writeSecret: config.auth.convexWriteSecret,
-    }),
-    callConvexQuery("companies:countIndustryOpenProposalSources", {
+      maintenanceLimit: 50,
+      writeSecret,
+    });
+
+  let value = await fetchValue();
+  const countersGeneratedAt = isRecord(value) && typeof value.countersGeneratedAt === "number"
+    ? value.countersGeneratedAt
+    : undefined;
+  if (countersGeneratedAt === undefined) {
+    // Never refreshed: pay for the refresh inline so the first render is
+    // accurate instead of a wall of zeros. Each refresh mutation stays
+    // under the per-query system-op ceiling (~9.8k and ~4k ops).
+    await callConvexMutation("companies:refreshIndustryCoverageProposalCounters", {
       workspaceSlug,
-      writeSecret: config.auth.convexWriteSecret,
-    }),
-  ]);
+      writeSecret,
+    });
+    await callConvexMutation("companies:refreshIndustryCoverageEvidenceCounters", {
+      workspaceSlug,
+      writeSecret,
+    });
+    value = await fetchValue();
+  } else if (Date.now() - countersGeneratedAt > COUNTERS_REFRESH_TTL_MS) {
+    refreshCounters(workspaceSlug);
+  }
+
   const parsed = parseIndustryCoverageSummary(value);
   if (!parsed) {
     throw new Error("Invalid companies:getIndustryCoverageSummary response");
   }
-  const withSources =
-    typeof openWithSources === "number" ? openWithSources : 0;
-  parsed.openWithSources = withSources;
-  parsed.openWithoutSources = Math.max(0, parsed.openTotal - withSources);
+  parsed.openWithoutSources = Math.max(0, parsed.openTotal - parsed.openWithSources);
   parsed.emptyEvidenceBottleneck =
     parsed.openTotal > 0 &&
-    (withSources === 0 || withSources / parsed.openTotal < 0.05);
+    (parsed.openWithSources === 0 ||
+      parsed.openWithSources / parsed.openTotal < 0.05);
   return parsed;
 }

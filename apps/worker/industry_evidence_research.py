@@ -776,7 +776,7 @@ class IndustryEvidenceMaintenanceJob:
         client: Optional[ResearchConvexClient] = None,
         researcher: Optional[IndustryEvidenceResearcher] = None,
         now_ms: Optional[Callable[[], int]] = None,
-        proposal_limit: int = 20,
+        proposal_limit: int = 200,
         freshness_limit: int = 50,
         discovery_job: Optional[Any] = None,
         run_id: Optional[str] = None,
@@ -1160,9 +1160,9 @@ class IndustryEvidenceMaintenanceJob:
 
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
-        # Pass proposal_limit * 3 to give the sort/dedup enough headroom
-        # while respecting the Convex query's own safety cap.
-        scan_limit = self.proposal_limit * 3 if self.proposal_limit > 20 else None
+        # Pass proposal_limit * 3 (clamped to the Convex list's 500-row
+        # safety cap) to give the sort/dedup enough headroom.
+        scan_limit = min(500, self.proposal_limit * 3) if self.proposal_limit > 20 else None
         for status in ("new", "researching", "needs_more_evidence"):
             for proposal in self.client.list_industry_proposals(status, limit=scan_limit):
                 proposal_id = str(proposal.get("proposalId") or "")
@@ -1595,9 +1595,10 @@ def run_industry_evidence_maintenance(
 
     discovery_job = build_discovery_job_from_env()
     # Allow operators to scale the per-run proposal batch via env var.
-    # Default 20 (safe for scheduled runs); set higher (e.g., 50) for
-    # manual backlog-draining after a major upgrade.
-    proposal_limit = int(os.environ.get("INDUSTRY_PROPOSAL_LIMIT", "20"))
+    # Default 200 (2026-08-09 P0.1: backlog drain is network-bound, runs
+    # minutes each; sweep headroom scan_limit = proposal_limit * 3 sits just
+    # under the Convex list cap of 500). Lower (e.g., 20) for scheduled runs.
+    proposal_limit = int(os.environ.get("INDUSTRY_PROPOSAL_LIMIT", "200"))
     return IndustryEvidenceMaintenanceJob(
         client=client,
         discovery_job=discovery_job,

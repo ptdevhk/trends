@@ -4959,6 +4959,36 @@ export const cancelIndustryEvidenceResearchRequest = mutation({
   },
 });
 
+/**
+ * Shape contract for persisted identity-candidate names.
+ *
+ * The worker extraction already enforces the same window and claims it is
+ * "the same 8-80 char window the candidate pipeline accepts"; this gate
+ * makes the persistence seam enforce the contract for every writer
+ * (worker, scripts, UI), so page-title junk ("CNC MACHINIST CAREERS -
+ * GMI CORP", observed 2026-08-09) can never enter the review queue.
+ */
+function isJunkIdentityCandidateName(name: string): boolean {
+  if (name.length < 8 || name.length > 80) return true;
+  // Page-title separators: "About | Company" style chrome.
+  if (name.includes(" | ")) return true;
+  // Headline-lead separators: a multi-word ALL-CAPS lead before " - " is a
+  // page title, not a legal name. Legal-name separators (e.g. division
+  // suffixes) are rare and re-researchable if a false positive occurs.
+  if (name.includes(" - ")) {
+    const lead = name.split(" - ")[0].trim();
+    const words = lead.split(/\s+/).filter(Boolean);
+    if (
+      words.length >= 2 &&
+      lead.length >= 8 &&
+      /^[A-Z0-9&.'()/\- ]+$/.test(lead)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export const upsertIndustryIdentityCandidate = mutation({
   args: {
     writeSecret: v.optional(v.string()),
@@ -4985,6 +5015,11 @@ export const upsertIndustryIdentityCandidate = mutation({
     }
     if (!candidateFingerprint || !normalizedLegalName || sourceIds.length === 0) {
       throw new Error("Identity candidate requires name, fingerprint, and sourceIds");
+    }
+    if (isJunkIdentityCandidateName(normalizedLegalName)) {
+      throw new Error(
+        `Identity candidate name has an invalid shape (expected 8-80 chars, no page-title separators): ${normalizedLegalName.slice(0, 80)}`,
+      );
     }
     for (const sourceId of sourceIds) {
       const source = await findIndustryEvidenceSource(ctx, sourceId);
@@ -5044,6 +5079,57 @@ export const listIndustryIdentityCandidates = query({
       .collect();
     rows.sort((left: any, right: any) => right.confidence - left.confidence || right.updatedAt - left.updatedAt);
     return rows;
+  },
+});
+
+export const listAllIndustryIdentityCandidates = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const limit = Math.min(2000, Math.max(1, Math.floor(args.limit ?? 1000)));
+    const rows = await ctx.db
+      .query("company_identity_candidates")
+      .collect();
+    rows.sort((left: any, right: any) => right.updatedAt - left.updatedAt);
+    return rows.slice(0, limit);
+  },
+});
+
+export const deleteIndustryIdentityCandidates = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    entries: v.array(
+      v.object({
+        proposalId: v.string(),
+        candidateFingerprint: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const entries = args.entries.slice(0, 200);
+    if (entries.length === 0) {
+      throw new Error("deleteIndustryIdentityCandidates requires at least one entry");
+    }
+    let deleted = 0;
+    for (const entry of entries) {
+      const proposalId = entry.proposalId.trim();
+      const candidateFingerprint = entry.candidateFingerprint.trim();
+      const rows = await ctx.db
+        .query("company_identity_candidates")
+        .withIndex("by_proposal_fingerprint", (q: any) =>
+          q.eq("proposalId", proposalId).eq("candidateFingerprint", candidateFingerprint),
+        )
+        .collect();
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        deleted += 1;
+      }
+    }
+    return { deleted };
   },
 });
 
@@ -5813,67 +5899,35 @@ export const getIndustryCoverageSummary = query({
       Math.max(1, Math.floor(args.maintenanceLimit ?? 20)),
     );
 
-    const proposals = await ctx.db
-      .query("company_industry_review_proposals")
-      .collect();
+    // Precomputed counters (P1.8/C5, 2026-08-09): the proposals / sources /
+    // resume-links / profiles scans moved to maintenance-time refresh
+    // mutations that write industry_coverage_counters. This query reads the
+    // single doc (1 system op) instead of ~10.9k ops of scans, and keeps the
+    // live maintenance + research-queue sections. A null doc (never
+    // refreshed) surfaces as zeros; the API service awaits a refresh in
+    // that case.
+    const counters = await ctx.db
+      .query("industry_coverage_counters")
+      .withIndex("by_workspace", (q: any) => q.eq("workspaceSlug", workspaceSlug))
+      .unique();
     const proposalsByStatus: Record<string, number> = {
-      new: 0,
-      researching: 0,
-      ready_for_review: 0,
-      needs_more_evidence: 0,
-      approved: 0,
-      rejected: 0,
-      superseded: 0,
+      new: counters?.statusNew ?? 0,
+      researching: counters?.statusResearching ?? 0,
+      ready_for_review: counters?.statusReadyForReview ?? 0,
+      needs_more_evidence: counters?.statusNeedsMoreEvidence ?? 0,
+      approved: counters?.statusApproved ?? 0,
+      rejected: counters?.statusRejected ?? 0,
+      superseded: counters?.statusSuperseded ?? 0,
     };
-    const openProposals: Array<{ proposalId: string; status: string }> = [];
-    for (const proposal of proposals) {
-      const status =
-        typeof proposal.status === "string" ? proposal.status : "unknown";
-      proposalsByStatus[status] = (proposalsByStatus[status] ?? 0) + 1;
-      if (OPEN_INDUSTRY_PROPOSAL_STATUSES.has(status)) {
-        openProposals.push({
-          proposalId: proposal.proposalId,
-          status,
-        });
-      }
-    }
-
-    // Budget-safe open-proposal source probe: the sources scan moved to
-    // countIndustryOpenProposalSources (one lean query, ~2k system ops).
-    // Keeping it here pushed this query past the local-backend per-query
-    // system-op budget once the sources table grew past ~1k rows (proposals
-    // collect ~9.8k + sources collect ~1k ≈ 10.9k ops > ~10.5k ceiling —
-    // observed 2026-08-09 as "timed out performing too many system
-    // operations"). openTotal stays here; openWithSources arrives via the
-    // merged second query and the API service recomputes the bottleneck.
-    const openTotal = openProposals.length;
-
-    // Budget-safe verified-evidence counts. A full resume_digests scan
-    // (~9k rows on preview) exceeds the local-backend per-query system-op
-    // budget ("timed out performing too many system operations" — observed
-    // 2026-08-09). Resumes computed under a verified verdict carry a
-    // company_resume_links row with currentVerdictRevisionId (set by the
-    // 2026-08-08 backfill), i.e. the same population as digests with
-    // verifiedIndustryEvidenceSummaries, at a fraction of the cost.
-    const resumeTotal = await ctx.db.query("resumes").count();
-    const verifiedLinkResumes = new Set<string>();
-    const resumeLinks = await ctx.db.query("company_resume_links").collect();
-    for (const link of resumeLinks) {
-      if (typeof link.currentVerdictRevisionId === "string") {
-        verifiedLinkResumes.add(String(link.resumeId));
-      }
-    }
-    const withVerifiedEvidence = verifiedLinkResumes.size;
-
-    const profiles = await ctx.db
-      .query("company_industry_profiles")
-      .collect();
-    let verifiedProfiles = 0;
-    let rejectedProfiles = 0;
-    for (const profile of profiles) {
-      if (profile.verificationLevel === "verified") verifiedProfiles += 1;
-      else if (profile.verificationLevel === "rejected") rejectedProfiles += 1;
-    }
+    const openTotal = counters?.openTotal ?? 0;
+    const openWithSources = counters?.openWithSources ?? 0;
+    const resumeTotal = counters?.resumeTotal ?? 0;
+    const withVerifiedEvidence = counters?.withVerifiedEvidence ?? 0;
+    const verifiedProfiles = counters?.profileVerified ?? 0;
+    const rejectedProfiles = counters?.profileRejected ?? 0;
+    const profileTotal = verifiedProfiles + rejectedProfiles;
+    const countersGeneratedAt =
+      typeof counters?.generatedAt === "number" ? counters.generatedAt : null;
 
     const maintenanceRows = await ctx.db
       .query("industry_maintenance_runs")
@@ -6005,13 +6059,15 @@ export const getIndustryCoverageSummary = query({
       workspaceSlug,
       proposalsByStatus,
       openTotal,
+      openWithSources,
       readyBacklogBottleneck,
+      countersGeneratedAt,
       resumes: {
         total: resumeTotal,
         withVerifiedEvidence,
       },
       profiles: {
-        total: profiles.length,
+        total: profileTotal,
         verified: verifiedProfiles,
         rejected: rejectedProfiles,
       },
@@ -6043,30 +6099,106 @@ export const getIndustryCoverageSummary = query({
   },
 });
 
+async function upsertIndustryCoverageCounters(
+  ctx: any,
+  workspaceSlug: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("industry_coverage_counters")
+    .withIndex("by_workspace", (q: any) => q.eq("workspaceSlug", workspaceSlug))
+    .unique();
+  const material = {
+    workspaceSlug,
+    generatedAt: Date.now(),
+    ...patch,
+  };
+  if (existing) {
+    await ctx.db.patch(existing._id, material);
+  } else {
+    // Defaults must come BEFORE the spread: the patch carries the real
+    // counts and must win on first insert (insert branch clobbered them
+    // before 2026-08-09 fix).
+    await ctx.db.insert("industry_coverage_counters", {
+      statusNew: 0,
+      statusResearching: 0,
+      statusReadyForReview: 0,
+      statusNeedsMoreEvidence: 0,
+      statusApproved: 0,
+      statusRejected: 0,
+      statusSuperseded: 0,
+      openTotal: 0,
+      openWithSources: 0,
+      resumeTotal: 0,
+      withVerifiedEvidence: 0,
+      profileVerified: 0,
+      profileRejected: 0,
+      ...material,
+    });
+  }
+}
+
 /**
- * Number of OPEN proposals that have at least one evidence source.
- *
- * Deliberately separate from getIndustryCoverageSummary: scanning the
- * ~9.8k-row proposals table plus the sources table in one query exceeds the
- * local-backend per-query system-op budget. This side counts from the
- * sources table (~1k rows) with one indexed proposal lookup per distinct
- * source proposalId (~2k system ops total), and the API service merges it
- * with the main coverage query.
+ * Budget-safe coverage counters refresh, part 1: the proposals scan
+ * (~9.8k system ops on preview) alone. Writes the status distribution and
+ * openTotal; the evidence part arrives via
+ * refreshIndustryCoverageEvidenceCounters.
  */
-export const countIndustryOpenProposalSources = query({
+export const refreshIndustryCoverageProposalCounters = mutation({
   args: {
     writeSecret: v.optional(v.string()),
     workspaceSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    requireReadSecret(args.writeSecret);
-    void args.workspaceSlug;
+    requireWriteSecret(args.writeSecret);
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    const proposals = await ctx.db
+      .query("company_industry_review_proposals")
+      .collect();
+    const proposalsByStatus: Record<string, number> = {};
+    let openTotal = 0;
+    for (const proposal of proposals) {
+      const status = typeof proposal.status === "string" ? proposal.status : "unknown";
+      proposalsByStatus[status] = (proposalsByStatus[status] ?? 0) + 1;
+      if (OPEN_INDUSTRY_PROPOSAL_STATUSES.has(status)) {
+        openTotal += 1;
+      }
+    }
+    await upsertIndustryCoverageCounters(ctx, workspaceSlug, {
+      statusNew: proposalsByStatus["new"] ?? 0,
+      statusResearching: proposalsByStatus["researching"] ?? 0,
+      statusReadyForReview: proposalsByStatus["ready_for_review"] ?? 0,
+      statusNeedsMoreEvidence: proposalsByStatus["needs_more_evidence"] ?? 0,
+      statusApproved: proposalsByStatus["approved"] ?? 0,
+      statusRejected: proposalsByStatus["rejected"] ?? 0,
+      statusSuperseded: proposalsByStatus["superseded"] ?? 0,
+      openTotal,
+      refreshNote: "proposal-counts",
+    });
+    return { openTotal, proposalsByStatus };
+  },
+});
+
+/**
+ * Budget-safe coverage counters refresh, part 2: the evidence scan (sources
+ * table ~1k rows + indexed proposal lookups + resume links + profiles,
+ * ~4k ops). Merges into the doc written by
+ * refreshIndustryCoverageProposalCounters.
+ */
+export const refreshIndustryCoverageEvidenceCounters = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
     const sources = await ctx.db
       .query("company_industry_evidence_sources")
       .collect();
     const proposalIdSet = new Set<string>();
     for (const source of sources) {
-      if (typeof source.proposalId === "string") {
+      if (typeof source.proposalId === "string" && source.proposalId) {
         proposalIdSet.add(source.proposalId);
       }
     }
@@ -6074,14 +6206,52 @@ export const countIndustryOpenProposalSources = query({
     for (const proposalId of proposalIdSet) {
       const proposal = await ctx.db
         .query("company_industry_review_proposals")
-        .withIndex("by_proposal_id", (q: any) =>
-          q.eq("proposalId", proposalId),
-        )
+        .withIndex("by_proposal_id", (q: any) => q.eq("proposalId", proposalId))
         .first();
       if (proposal && OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
         openWithSources += 1;
       }
     }
-    return openWithSources;
+    const resumeTotal = await ctx.db.query("resumes").count();
+    const verifiedLinkResumes = new Set<string>();
+    const resumeLinks = await ctx.db.query("company_resume_links").collect();
+    for (const link of resumeLinks) {
+      if (typeof link.currentVerdictRevisionId === "string") {
+        verifiedLinkResumes.add(String(link.resumeId));
+      }
+    }
+    const profiles = await ctx.db.query("company_industry_profiles").collect();
+    let verifiedProfiles = 0;
+    let rejectedProfiles = 0;
+    for (const profile of profiles) {
+      if (profile.verificationLevel === "verified") verifiedProfiles += 1;
+      else if (profile.verificationLevel === "rejected") rejectedProfiles += 1;
+    }
+    await upsertIndustryCoverageCounters(ctx, workspaceSlug, {
+      openWithSources,
+      resumeTotal,
+      withVerifiedEvidence: verifiedLinkResumes.size,
+      profileVerified: verifiedProfiles,
+      profileRejected: rejectedProfiles,
+      refreshNote: "evidence-counts",
+    });
+    return { openWithSources, resumeTotal, withVerifiedEvidence: verifiedLinkResumes.size };
   },
 });
+
+export const getIndustryCoverageCounters = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    const doc = await ctx.db
+      .query("industry_coverage_counters")
+      .withIndex("by_workspace", (q: any) => q.eq("workspaceSlug", workspaceSlug))
+      .unique();
+    return doc ?? null;
+  },
+});
+

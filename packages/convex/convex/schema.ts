@@ -1087,6 +1087,30 @@ export default defineSchema({
         .index("by_workspace_created", ["workspaceSlug", "createdAt"])
         .index("by_audit_id", ["auditId"]),
 
+    // Precomputed operator coverage counters (P1.8/C5, 2026-08-09 plan).
+    // Refreshed by two budget-safe mutations (proposal scan ~9.8k ops and
+    // evidence scan ~4k ops, each under the ~10.5k per-query system-op
+    // ceiling) instead of recomputing the scans on every coverage request.
+    industry_coverage_counters: defineTable({
+        workspaceSlug: v.string(),
+        generatedAt: v.number(),
+        statusNew: v.number(),
+        statusResearching: v.number(),
+        statusReadyForReview: v.number(),
+        statusNeedsMoreEvidence: v.number(),
+        statusApproved: v.number(),
+        statusRejected: v.number(),
+        statusSuperseded: v.number(),
+        openTotal: v.number(),
+        openWithSources: v.number(),
+        resumeTotal: v.number(),
+        withVerifiedEvidence: v.number(),
+        profileVerified: v.number(),
+        profileRejected: v.number(),
+        refreshNote: v.optional(v.string()),
+    })
+        .index("by_workspace", ["workspaceSlug"]),
+
     company_industry_refresh_requests: defineTable({
         requestId: v.string(),
         proposalId: v.string(),

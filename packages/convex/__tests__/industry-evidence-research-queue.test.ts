@@ -213,4 +213,132 @@ describe("targeted industry-evidence research queue", () => {
     });
     expect(candidates[0]?.reviewState).toBe("reviewed");
   });
+
+  it("rejects page-title junk identity candidates at the persistence seam", async () => {
+    const t = createTest();
+    await seedProposal(t, "p-junk");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      writeSecret: WRITE_SECRET,
+      sourceId: "p-junk-source",
+      proposalId: "p-junk",
+      url: "https://junk.example/careers",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC MACHINIST CAREERS - GMI CORP",
+      evidenceExcerpt: "CNC MACHINIST CAREERS - GMI CORP",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:junk",
+    });
+    for (const junkName of [
+      "CNC MACHINIST CAREERS - GMI CORP",
+      "ABOUT | VISION MACHINE TOOLS SDN BHD",
+      "GMI",
+    ]) {
+      await expect(
+        t.mutation(api.companies.upsertIndustryIdentityCandidate, {
+          writeSecret: WRITE_SECRET,
+          proposalId: "p-junk",
+          candidateFingerprint: `candidate-junk-${junkName.length}`,
+          normalizedLegalName: junkName,
+          sourceIds: ["p-junk-source"],
+          confidence: 0.88,
+          conflictCodes: [],
+          extractionVersion: "legal-name-v1",
+        }),
+      ).rejects.toThrow(/invalid shape/);
+    }
+    const candidates = await t.query(api.companies.listIndustryIdentityCandidates, {
+      writeSecret: WRITE_SECRET,
+      proposalId: "p-junk",
+    });
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("still accepts a legitimate legal name within the shape contract", async () => {
+    const t = createTest();
+    await seedProposal(t, "p-legit");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      writeSecret: WRITE_SECRET,
+      sourceId: "p-legit-source",
+      proposalId: "p-legit",
+      url: "https://legit.example/about",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "THE STORE (MALAYSIA) SDN. BHD.",
+      evidenceExcerpt: "© 2024 The Store (Malaysia) Sdn. Bhd.",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:legit",
+    });
+    const result = await t.mutation(api.companies.upsertIndustryIdentityCandidate, {
+      writeSecret: WRITE_SECRET,
+      proposalId: "p-legit",
+      candidateFingerprint: "candidate-legit",
+      normalizedLegalName: "THE STORE (MALAYSIA) SDN. BHD.",
+      jurisdiction: "MY",
+      sourceIds: ["p-legit-source"],
+      confidence: 0.88,
+      conflictCodes: [],
+      extractionVersion: "legal-name-v1",
+    });
+    expect(result.created).toBe(true);
+  });
+
+  it("lists all candidates and deletes pruned entries by fingerprint", async () => {
+    const t = createTest();
+    await seedProposal(t, "p-prune");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      writeSecret: WRITE_SECRET,
+      sourceId: "p-prune-source",
+      proposalId: "p-prune",
+      url: "https://prune.example/about",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "PRUNE TEST SDN BHD",
+      evidenceExcerpt: "PRUNE TEST SDN BHD",
+      fetchStatus: "fetched",
+      contentFingerprint: "sha256:prune",
+    });
+    await t.mutation(api.companies.upsertIndustryIdentityCandidate, {
+      writeSecret: WRITE_SECRET,
+      proposalId: "p-prune",
+      candidateFingerprint: "candidate-keep",
+      normalizedLegalName: "PRUNE TEST SDN BHD",
+      sourceIds: ["p-prune-source"],
+      confidence: 0.8,
+      conflictCodes: [],
+      extractionVersion: "legal-name-v1",
+    });
+    await t.mutation(api.companies.upsertIndustryIdentityCandidate, {
+      writeSecret: WRITE_SECRET,
+      proposalId: "p-prune",
+      candidateFingerprint: "candidate-remove",
+      normalizedLegalName: "PRUNE TEST SDN BHD",
+      sourceIds: ["p-prune-source"],
+      confidence: 0.6,
+      conflictCodes: [],
+      extractionVersion: "legal-name-v1",
+    });
+
+    const all = await t.query(api.companies.listAllIndustryIdentityCandidates, {
+      writeSecret: WRITE_SECRET,
+      limit: 100,
+    });
+    expect(all.some((candidate: { candidateFingerprint: string }) => candidate.candidateFingerprint === "candidate-remove")).toBe(true);
+
+    const result = await t.mutation(api.companies.deleteIndustryIdentityCandidates, {
+      writeSecret: WRITE_SECRET,
+      entries: [
+        { proposalId: "p-prune", candidateFingerprint: "candidate-remove" },
+        { proposalId: "p-prune", candidateFingerprint: "does-not-exist" },
+      ],
+    });
+    expect(result.deleted).toBe(1);
+
+    const after = await t.query(api.companies.listAllIndustryIdentityCandidates, {
+      writeSecret: WRITE_SECRET,
+      limit: 100,
+    });
+    expect(after.some((candidate: { candidateFingerprint: string }) => candidate.candidateFingerprint === "candidate-remove")).toBe(false);
+    expect(after.some((candidate: { candidateFingerprint: string }) => candidate.candidateFingerprint === "candidate-keep")).toBe(true);
+  });
 });

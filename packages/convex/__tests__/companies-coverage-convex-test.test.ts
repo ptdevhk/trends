@@ -83,23 +83,55 @@ describe("companies:getIndustryCoverageSummary (budget-safe)", () => {
       });
     });
 
+    const proposalCounters = await t.mutation(
+      api.companies.refreshIndustryCoverageProposalCounters,
+      { workspaceSlug: "hr", writeSecret: "test-secret" },
+    );
+    expect(proposalCounters.openTotal).toBe(2);
+
+    const evidenceCounters = await t.mutation(
+      api.companies.refreshIndustryCoverageEvidenceCounters,
+      { workspaceSlug: "hr", writeSecret: "test-secret" },
+    );
+    expect(evidenceCounters.openWithSources).toBe(1);
+
     const summary = await t.query(api.companies.getIndustryCoverageSummary, {
       workspaceSlug: "hr",
       writeSecret: "test-secret",
     });
-    // The main query must stay under the per-query system-op budget: it
-    // scans the proposals table and computes statuses/openTotal, but the
-    // open-with-sources count lives in the separate lean query below.
+    // The summary query reads the precomputed counters doc (1 system op)
+    // instead of scanning the proposals table per request; the split
+    // refresh mutations each stay under the per-query system-op ceiling.
     expect(summary.resumes.total).toBe(2);
     expect(summary.resumes.withVerifiedEvidence).toBe(1);
     expect(summary.proposalsByStatus.new).toBe(2);
     expect(summary.openTotal).toBe(2);
+    expect(summary.openWithSources).toBe(1);
     expect(summary.workspaceSlug).toBe("hr");
+    expect(summary.countersGeneratedAt).toEqual(expect.any(Number));
 
-    const openWithSources = await t.query(
-      api.companies.countIndustryOpenProposalSources,
-      { workspaceSlug: "hr", writeSecret: "test-secret" },
-    );
-    expect(openWithSources).toBe(1);
+    const doc = await t.query(api.companies.getIndustryCoverageCounters, {
+      workspaceSlug: "hr",
+      writeSecret: "test-secret",
+    });
+    expect(doc?.openWithSources).toBe(1);
+    expect(doc?.statusNew).toBe(2);
+    expect(doc?.resumeTotal).toBe(2);
+    expect(doc?.withVerifiedEvidence).toBe(1);
+  });
+
+  it("returns a null counters doc before any refresh and zeros from the summary", async () => {
+    const t = createTest();
+    const doc = await t.query(api.companies.getIndustryCoverageCounters, {
+      workspaceSlug: "hr",
+      writeSecret: "test-secret",
+    });
+    expect(doc).toBeNull();
+    const summary = await t.query(api.companies.getIndustryCoverageSummary, {
+      workspaceSlug: "hr",
+      writeSecret: "test-secret",
+    });
+    expect(summary.openTotal).toBe(0);
+    expect(summary.countersGeneratedAt).toBeNull();
   });
 });

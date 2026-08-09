@@ -279,6 +279,47 @@ export function validateIndustryReviewAttestation(input: {
   return { ok: true };
 }
 
+/**
+ * Select the evidence sources that may be sent through the standard approval
+ * path: the recommended selection, intersected with the approval-safe
+ * source decisions. When no source was recommended, every approval-safe
+ * decision is the fallback.
+ *
+ * Single source of truth for the tier-agnostic selection rule — the web
+ * affordance model, the batch-review endpoint, and the review producer all
+ * cross this function instead of re-implementing the predicate.
+ */
+export function selectApprovalSafeSources(
+  recommendation: Pick<
+    IndustryReviewRecommendation,
+    "recommendedSourceIds" | "sourceDecisions"
+  >,
+): string[] {
+  const approvalSafeSourceIds = new Set(
+    recommendation.sourceDecisions
+      .filter((decision) => decision.approvalSafe)
+      .map((decision) => decision.sourceId),
+  );
+  const candidateSourceIds =
+    recommendation.recommendedSourceIds.length > 0
+      ? recommendation.recommendedSourceIds
+      : recommendation.sourceDecisions.map((decision) => decision.sourceId);
+  return [...new Set(candidateSourceIds)].filter((sourceId) =>
+    approvalSafeSourceIds.has(sourceId),
+  );
+}
+
+/**
+ * True when an attended review attestation is required before an elevated
+ * decision: any visible risk flag, or a CNC classification.
+ */
+export function requiresReviewAttestation(
+  riskFlags: readonly IndustryReviewRiskFlag[],
+  industryClass: IndustryClass,
+): boolean {
+  return riskFlags.length > 0 || industryClass === "cnc";
+}
+
 export const INDUSTRY_REVIEW_SOURCE_REASON_CODES = [
   "approval_safe",
   "search_result_not_approval_safe",

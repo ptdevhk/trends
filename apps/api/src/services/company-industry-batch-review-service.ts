@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import {
-  INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS,
-  validateIndustryReviewAttestation,
   type IndustryClass,
   type IndustryProposalStatus,
   type IndustryReviewAttestation,
@@ -14,6 +12,7 @@ import {
   resolveIndustryProposal,
 } from "./company-industry-proposal-service.js";
 import { getIndustryReviewPacket } from "./company-industry-review-service.js";
+import { buildIndustryApprovalDecision } from "./company-industry-approval-service.js";
 
 const MAX_BATCH_ACTIONS = 50;
 
@@ -157,169 +156,46 @@ export async function batchReviewIndustryProposals(
       continue;
     }
 
-    const { recommendation, dataset, reviewContext } = packet;
-    if (recommendation.proposalStatus !== "ready_for_review") {
+    // Approve lane: the shared approval-decision module gates and builds
+    // the payload from the authoritative review packet.
+    const decision = buildIndustryApprovalDecision({
+      workspaceSlug: input.workspaceSlug,
+      packet,
+      ...(action.industryClass ? { industryClass: action.industryClass } : {}),
+      ...(action.decisionReason ? { decisionReason: action.decisionReason } : {}),
+      ...(action.evidenceSummary ? { evidenceSummary: action.evidenceSummary } : {}),
+      ...(input.attestation
+        ? {
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1" as const,
+              cncEvidenceAcknowledged: input.attestation.cncEvidenceAcknowledged,
+              acknowledgementReason: input.attestation.acknowledgementReason,
+            },
+            batchId,
+            batchNote: input.batchNote,
+          }
+        : {}),
+    });
+    if (!decision.ok) {
       failed += 1;
       items.push({
         proposalId: action.proposalId,
         kind: "approve",
         ok: false,
-        code: "INVALID_STATUS",
-        error: `Proposal is ${recommendation.proposalStatus}; only ready_for_review proposals can be batch-approved.`,
+        code: decision.code,
+        error: decision.error,
       });
       continue;
     }
-
-    const effectiveClass =
-      action.industryClass ?? recommendation.recommendedIndustryClass;
-    if (!effectiveClass || effectiveClass === "unknown") {
-      failed += 1;
-      items.push({
-        proposalId: action.proposalId,
-        kind: "approve",
-        ok: false,
-        code: "CLASS_REQUIRED",
-        error:
-          "The recommendation has no suggested industry class; choose an explicit classification (including non_industry) for this proposal.",
-      });
-      continue;
-    }
-
-    const safeSourceIds = approvalSafeSourceIds(recommendation);
-    if (safeSourceIds.length === 0) {
-      failed += 1;
-      items.push({
-        proposalId: action.proposalId,
-        kind: "approve",
-        ok: false,
-        code: "NO_SAFE_SOURCE",
-        error: "No approval-safe evidence source is available for this proposal.",
-      });
-      continue;
-    }
-
-    const visibleRiskFlags = [...recommendation.riskFlags];
-    const hardFlags = visibleRiskFlags.filter((flag) =>
-      INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS.some(
-        (candidate) => candidate === flag,
-      ),
-    );
-    if (hardFlags.length > 0) {
-      failed += 1;
-      items.push({
-        proposalId: action.proposalId,
-        kind: "approve",
-        ok: false,
-        code: "INDUSTRY_REVIEW_HARD_RISK",
-        error: `Non-overridable risk flags remain: ${hardFlags.join(", ")}. Resolve them before batch approval.`,
-      });
-      continue;
-    }
-
-    const attestationRequired =
-      visibleRiskFlags.length > 0 || effectiveClass === "cnc";
-    const submitted = input.attestation;
-    if (attestationRequired && !submitted) {
-      failed += 1;
-      items.push({
-        proposalId: action.proposalId,
-        kind: "approve",
-        ok: false,
-        code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
-        error:
-          "A review attestation is required before this elevated decision.",
-      });
-      continue;
-    }
-
-    const itemAttestation: IndustryReviewAttestation | undefined = submitted
-      ? {
-          schemaVersion: "industry-review-attestation.v1",
-          inputFingerprint: dataset.inputFingerprint,
-          decisionMode:
-            visibleRiskFlags.length > 0 ? "risk_override" : "standard",
-          acknowledgedRiskFlags: visibleRiskFlags,
-          cncEvidenceAcknowledged:
-            submitted.cncEvidenceAcknowledged &&
-            (effectiveClass === "cnc" ||
-              visibleRiskFlags.includes("cnc_claim_inferred")),
-          acknowledgementReason:
-            submitted.acknowledgementReason || input.batchNote || "",
-          batchId,
-        }
-      : undefined;
-
-    if (itemAttestation) {
-      const validation = validateIndustryReviewAttestation({
-        attestation: itemAttestation,
-        expectedInputFingerprint: dataset.inputFingerprint,
-        visibleRiskFlags,
-        recommendedIndustryClass: effectiveClass,
-      });
-      if (!validation.ok) {
-        failed += 1;
-        items.push({
-          proposalId: action.proposalId,
-          kind: "approve",
-          ok: false,
-          code: validation.code,
-          error: `The review attestation does not satisfy the current evidence policy (${validation.code}).`,
-        });
-        continue;
-      }
-    }
-
-    const companyKey = packet.proposal.companyKey;
-    if (!companyKey) {
-      failed += 1;
-      items.push({
-        proposalId: action.proposalId,
-        kind: "approve",
-        ok: false,
-        code: "INDUSTRY_REVIEW_HARD_RISK",
-        error: "Proposal is missing a canonical company mapping.",
-      });
-      continue;
-    }
-
-    const draftSummary = recommendation.evidenceSummaryDraft.trim();
-    const draftReason = recommendation.decisionReasonDraft.trim();
-    const evidenceSummary =
-      action.evidenceSummary?.trim() ||
-      (draftSummary && !draftSummary.startsWith("Add a bounded evidence summary")
-        ? draftSummary
-        : `Batch approval of ${companyKey} as ${effectiveClass} from ${safeSourceIds.length} approval-safe source(s).`);
-    const decisionReason =
-      action.decisionReason?.trim() ||
-      (draftReason.startsWith("Reviewed")
-        ? draftReason
-        : `Batch approval (${batchId}): ${submitted?.acknowledgementReason?.trim() || "attended bulk review"}.`);
 
     try {
       const result = await approveIndustryProposalAndStartRecompute(
-        {
-          proposalId: action.proposalId,
-          workspaceSlug: input.workspaceSlug,
-          revisionId: `industry-${companyKey}-${randomUUID()}`,
-          ...(reviewContext.profile?.currentRevisionId
-            ? { expectedCurrentRevisionId: reviewContext.profile.currentRevisionId }
-            : {}),
-          expectedProposalUpdatedAt: dataset.proposalUpdatedAt,
-          expectedInputFingerprint: dataset.inputFingerprint,
-          expectedSourceVersions: dataset.sourceVersions,
-          verificationLevel: "verified",
-          industryClass: effectiveClass,
-          approvedSourceIds: safeSourceIds,
-          evidenceSummary,
-          decisionReason,
-          taxonomyVersion: "industry-v1",
-          ...(itemAttestation ? { reviewAttestation: itemAttestation } : {}),
-        },
+        decision.payload,
         reviewer,
       );
       succeeded += 1;
       approvedFingerprints.push(
-        `${action.proposalId}:${dataset.inputFingerprint}`,
+        `${action.proposalId}:${packet.dataset.inputFingerprint}`,
       );
       items.push({
         proposalId: action.proposalId,
@@ -365,27 +241,6 @@ export async function batchReviewIndustryProposals(
     },
     items,
   };
-}
-
-function approvalSafeSourceIds(
-  recommendation: {
-    recommendedSourceIds: string[];
-    sourceDecisions: Array<{
-      sourceId: string;
-      approvalSafe: boolean;
-    }>;
-  },
-): string[] {
-  const safe = new Set(
-    recommendation.sourceDecisions
-      .filter((decision) => decision.approvalSafe)
-      .map((decision) => decision.sourceId),
-  );
-  const candidateSourceIds =
-    recommendation.recommendedSourceIds.length > 0
-      ? recommendation.recommendedSourceIds
-      : recommendation.sourceDecisions.map((decision) => decision.sourceId);
-  return [...new Set(candidateSourceIds)].filter((id) => safe.has(id));
 }
 
 function rejectItemError(

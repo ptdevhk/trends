@@ -8,7 +8,9 @@ import {
   hasExplicitCncEvidence,
   isAutoApprovableSource,
   isExplicitCncEvidenceSource,
+  requiresReviewAttestation,
   reviewAttestationDecision,
+  selectApprovalSafeSources,
   validateIndustryReviewAttestation,
   type IndustryReviewAttestation,
 } from "./industry-review.js";
@@ -265,5 +267,56 @@ describe("industry review policy", () => {
       ]),
     ).toBe(false);
     expect(hasAutoApprovableEvidence([])).toBe(false);
+  });
+});
+
+describe("selectApprovalSafeSources", () => {
+  const decisions = [
+    { sourceId: "official", approvalSafe: true, recommended: true, reasonCodes: [] },
+    { sourceId: "search", approvalSafe: false, recommended: false, reasonCodes: [] },
+    { sourceId: "registry", approvalSafe: true, recommended: false, reasonCodes: [] },
+  ];
+
+  it("intersects the recommended selection with approval-safe decisions", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official", "search", "registry"],
+      sourceDecisions: decisions,
+    })).toEqual(["official", "registry"]);
+  });
+
+  it("deduplicates repeated recommended source ids", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official", "official"],
+      sourceDecisions: decisions,
+    })).toEqual(["official"]);
+  });
+
+  it("falls back to every approval-safe decision when nothing was recommended", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: [],
+      sourceDecisions: decisions,
+    })).toEqual(["official", "registry"]);
+  });
+
+  it("returns empty when no decision is approval-safe", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official"],
+      sourceDecisions: decisions.map((decision) => ({ ...decision, approvalSafe: false })),
+    })).toEqual([]);
+  });
+});
+
+describe("requiresReviewAttestation", () => {
+  it("requires attestation for any visible risk flag", () => {
+    expect(requiresReviewAttestation(["weak_industry_signal"], "industrial")).toBe(true);
+  });
+
+  it("requires attestation for a cnc classification even with no flags", () => {
+    expect(requiresReviewAttestation([], "cnc")).toBe(true);
+  });
+
+  it("does not require attestation for a clean non-cnc decision", () => {
+    expect(requiresReviewAttestation([], "industrial")).toBe(false);
+    expect(requiresReviewAttestation([], "non_industry")).toBe(false);
   });
 });

@@ -488,8 +488,20 @@ describe("companies routes", () => {
   it("rejects an elevated approval without a complete attestation", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fingerprint-1" },
-      recommendation: { riskFlags: ["low_source_diversity"] },
+      dataset: { inputFingerprint: "fingerprint-1", proposalUpdatedAt: 123, sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }] },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: ["low_source_diversity"],
+        evidenceSummaryDraft: "Reviewed evidence.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+      },
+      reviewContext: { profile: null },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
     const app = createApp({ authStorage: auth.storage });
     const response = await app.request(
@@ -515,12 +527,31 @@ describe("companies routes", () => {
     });
   });
 
-  it("fails closed when an approval packet fingerprint is stale", async () => {
+  it("fails closed when the approval boundary reports a stale packet", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fresh-fingerprint" },
+      dataset: { inputFingerprint: "fingerprint-1", proposalUpdatedAt: 123, sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }] },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: [],
+        evidenceSummaryDraft: "Reviewed official evidence.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+      },
+      reviewContext: { profile: null },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:approveIndustryProposal") {
+        return convexFailure("INDUSTRY_REVIEW_STALE: recommendation fingerprint changed during review");
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
     const app = createApp({ authStorage: auth.storage });
     const response = await app.request(
       "/api/company-industry-proposals/proposal-1/approve",
@@ -539,6 +570,14 @@ describe("companies routes", () => {
           evidenceSummary: "Reviewed official evidence.",
           decisionReason: "Reviewed primary evidence.",
           taxonomyVersion: "industry-v1",
+          reviewAttestation: {
+            schemaVersion: "industry-review-attestation.v1",
+            inputFingerprint: "fingerprint-1",
+            decisionMode: "standard",
+            acknowledgedRiskFlags: [],
+            cncEvidenceAcknowledged: true,
+            acknowledgementReason: "",
+          },
         }),
       },
     );
@@ -546,7 +585,6 @@ describe("companies routes", () => {
     expect(await parseJsonBody(response)).toMatchObject({
       code: "INDUSTRY_REVIEW_STALE",
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("requires an admin for proposal review mutations", async () => {
@@ -603,22 +641,42 @@ describe("companies routes", () => {
       updatedAt: 11,
     };
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fingerprint-1" },
-      recommendation: { riskFlags: [] },
+      dataset: {
+        inputFingerprint: "fingerprint-1",
+        proposalUpdatedAt: 123,
+        sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+      },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: [],
+        evidenceSummaryDraft: "Official catalog confirms CNC products.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+      },
+      reviewContext: { profile: { currentRevisionId: "revision-1" } },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       if (call.pathName === "companies:approveIndustryProposal") {
         expect(call.args).toMatchObject({
           proposalId: "proposal-1",
-          revisionId: "revision-2",
+          revisionId: expect.stringMatching(/^industry-acme-cnc-/),
           reviewer: auth.userId,
           verificationLevel: "verified",
+          industryClass: "cnc",
           approvedSourceIds: ["source-1"],
+          expectedInputFingerprint: "fingerprint-1",
+          expectedProposalUpdatedAt: 123,
+          expectedCurrentRevisionId: "revision-1",
         });
         return convexSuccess({
           proposalId: "proposal-1",
-          revisionId: "revision-2",
+          revisionId: call.args.revisionId,
           companyKey: "acme-cnc",
         });
       }
@@ -626,7 +684,7 @@ describe("companies routes", () => {
         expect(call.args).toMatchObject({
           workspaceSlug: "hr",
           companyKey: "acme-cnc",
-          targetRevisionId: "revision-2",
+          targetRevisionId: expect.stringMatching(/^industry-acme-cnc-/),
           proposalId: "proposal-1",
           requestedBy: auth.userId,
         });
@@ -692,7 +750,7 @@ describe("companies routes", () => {
       revisionId: string;
       recompute: { runId: string; status: string };
     }>(response);
-    expect(body.revisionId).toBe("revision-2");
+    expect(body.revisionId).toMatch(/^industry-acme-cnc-/);
     expect(body.recompute).toMatchObject({ runId: "run-1", status: "running" });
   });
 
@@ -1037,14 +1095,14 @@ describe("companies routes", () => {
     const auth = createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
-      if (call.pathName === "companies:countIndustryOpenProposalSources") {
-        expect(call.args.workspaceSlug).toBe("dev");
-        return convexSuccess(7);
-      }
       if (call.pathName === "companies:getIndustryCoverageSummary") {
         expect(call.args.workspaceSlug).toBe("dev");
         return convexSuccess({
           generatedAt: 1_700_000_000_000,
+          // C5 (2026-08-09): openWithSources + statuses come from the
+          // precomputed counters doc; countersGeneratedAt non-null means
+          // the API service serves the doc without an inline refresh.
+          countersGeneratedAt: 1_700_000_000_000,
           workspaceSlug: "dev",
           proposalsByStatus: {
             new: 427,
@@ -1056,8 +1114,7 @@ describe("companies routes", () => {
             superseded: 0,
           },
           openTotal: 487,
-          openWithSources: 0,
-          openWithoutSources: 487,
+          openWithSources: 7,
           emptyEvidenceBottleneck: true,
           readyBacklogBottleneck: true,
           resumes: { total: 83, withVerifiedEvidence: 1 },
@@ -1255,7 +1312,7 @@ describe("companies routes", () => {
           decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
         },
         reviewContext: { profile: { currentRevisionId: "revision-current" } },
-        proposal: { companyKey: "acme-cnc" },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
         ...overrides,
       } as never;
     }
@@ -1360,7 +1417,7 @@ describe("companies routes", () => {
                 evidenceSummaryDraft: "",
                 decisionReasonDraft: "Additional evidence or canonical-company review is required before changing verified truth.",
               },
-              proposal: { companyKey: "watsons-my" },
+              proposal: { proposalId: "proposal-2", companyKey: "watsons-my" },
             });
           }
           throw new Error(`Unexpected proposal ${proposalId}`);
@@ -1555,6 +1612,7 @@ describe("companies routes", () => {
                 proposalUpdatedAt: 456,
                 sourceVersions: [{ sourceId: "source-1", updatedAt: 8 }],
               },
+              proposal: { proposalId: "proposal-stale", companyKey: "acme-cnc" },
             });
           }
           throw new Error(`Unexpected proposal ${proposalId}`);
