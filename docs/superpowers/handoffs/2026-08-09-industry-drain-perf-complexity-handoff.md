@@ -167,6 +167,41 @@ The bulk approve/reject workflow (the original product ask) shipped end-to-end: 
 
 ---
 
+## Follow-up session 2 (2026-08-09): C4/C5/C7 + P0.1 + architecture deepening shipped
+
+Second follow-up: completed C4 (candidate gate), C5 (coverage consolidation), C7 (governance docs), P1.6 (budget docs), P2.10 (prune), P0.1 (sweep batch raise), plus the two top `/codebase-architecture` / `/improve-codebase-architecture` deepening candidates (shared governance primitives + approval-decision module). All suites green; deployed + live-verified on preview; prod untouched (pinned `64fa1dfb`).
+
+### What shipped (commit `e5328b75` on preview-v0.4.23)
+
+| Piece | Change |
+|---|---|
+| Arch#1 shared governance primitives | `selectApprovalSafeSources(recommendation)` + `requiresReviewAttestation(riskFlags, industryClass)` in `packages/shared/src/industry-review.ts` (15 shared tests). Single source of truth now used by the API approval service, batch service, and web model — the web previously re-implemented both. Rebuild `packages/shared/dist` after changes (runtime resolves from dist). |
+| Arch#2 approval-decision module | `apps/api/src/services/company-industry-approval-service.ts` (new): `buildIndustryApprovalDecision` centralizes the full gate chain (INVALID_STATUS → CLASS_REQUIRED → NO_SAFE_SOURCE → INDUSTRY_REVIEW_HARD_RISK → attestation validate) + payload/materialization (server `revisionId`, expected* fields, per-item attestation clones). Both the approve route and the batch service now delegate to it; 13 unit tests. |
+| C4/P2.10 candidate shape gate | `isJunkIdentityCandidateName` enforced at convex `upsertIndustryIdentityCandidate` (8–80 chars; rejects ` \| `; rejects ALL-CAPS multi-word lead before ` - `). New `listAllIndustryIdentityCandidates` query + `deleteIndustryIdentityCandidates` mutation (≤200/call) + `scripts/industry-data/prune-junk-identity-candidates.ts` (dry-run default). `scripts/check-mutation-entry-points.sh` now also checks reverse drift (registered names must exist). |
+| C5/P1.8 coverage counters | New `industry_coverage_counters` table (by_workspace) + two budget-safe refresh mutations (proposal scan ~9.8k ops / evidence scan ~4k ops, each under the ~10.5k ceiling) + slim `getIndustryCoverageSummary` (1 doc read + live maintenance/research-queue). API service awaits an inline refresh on a null doc, then serves with a 5-min TTL. **Found + fixed a real insert-branch bug**: defaults after `...material` clobbered the first write's counts (would have zeroed statuses/openTotal forever on a real backend). Removed dead `countIndustryOpenProposalSources`. |
+| C7 + P1.6 docs | `docs/industry-evidence-governance.md` (flag→condition→override table, approval-safe rules, attestation contract, batch semantics, candidate shape contract) and `docs/convex-local-backend-budget.md` (~10.5k ops / 1s, budget math). |
+| P0.1 sweep batch | `INDUSTRY_PROPOSAL_LIMIT` default 20 → 200 (`apps/worker/industry_evidence_research.py`), scan headroom clamped to the Convex 500-row list cap; host `.env.preview` set to 200. |
+
+### Live verification (preview, workspace hr, 2026-08-09)
+
+- Coverage endpoint now reads the counters doc: first request 12.6s (inline refresh of both counters), subsequent **0.058s**. Numbers match baseline exactly: openTotal 9,776 · openWithSources 81 · openWithoutSources 9,695 · resumes 8,958/0 · ready 16 · approved 5 · rejected 25.
+- Prune applied: `CNC MACHINIST CAREERS - GMI CORP` (the handoff's observed junk) flagged by the gate mirror and deleted via `companies:deleteIndustryIdentityCandidates` (39 candidates remain).
+- Sweep duration before/after P0.1: before ≈ minutes @50; after (200/run) — **TO BE FILLED after measurement run**.
+- Direct convex HTTP works at `http://127.0.0.1:4210/api/query|mutation` with `{"path","args"}` (NOT 127.0.0.1:3210 — that's **prod's** local backend; the `npx convex run` CLI path does not resolve on the host without a cloud token).
+
+### Deploy pitfalls (learned live — avoid next time)
+
+The rsync-based deploy (`rsync -az --delete` from the working tree) needs the **canonical exclude list** from `deploy/preview-upgrade.sh`: `.git node_modules .venv .cache logs coverage output .env.preview .env.production packages/convex/.env.local packages/convex/.convex apps/web/dist docker-compose.preview.yml start-convex.sh prod-convex-export.zip .digest-restore-epoch` **plus `.env`** (the worker's dotenv file; the canonical copy = `.env.preview`). This session's misses caused: (1) host `.venv` corrupted with macOS binaries → recreated via `uv venv && uv sync`; (2) root `.env` overwritten with local dev values → restored from `.env.preview`; (3) `start-convex.sh` + `docker-compose.preview.yml` deleted (setup artifacts, not in git) → re-copied from `deploy/docker/`. The convex container bind-mounts the repo root, so `--delete` breaks the container entrypoint.
+
+### Remaining (deferred)
+
+- **C6 audit UI** (auditId rows surfaced in the UI) — not started.
+- **Arch#3** convex `companies.ts` split (~6k lines), **Arch#5** web HTTP convergence, **Arch#7** settings-page split — documented candidates, not started.
+- **P0.2–P0.5** worker parallelism, source dedup, resume-impact ordering, CN hotlist batching — not started (P0.1 batch raise is the contained first step).
+- Success criteria status: C1 ✅ · C4 ✅ · C7 ✅ · ready queue below 5 ❌ (needs C2 identity lane) · openWithSources ↑ (in progress via sweep) · prod pinned `64fa1dfb` ✅.
+
+---
+
 ## Live state snapshot (observed 2026-08-09, workspace `hr`)
 
 - Coverage (HTTP 200): `openTotal 9,776` · `openWithSources 81` · `openWithoutSources 9,695` · `emptyEvidenceBottleneck true` · `readyBacklogBottleneck false` · proposals by status: approved 5, needs_more_evidence 85, new 9,675, ready_for_review 16, rejected 25
@@ -231,7 +266,7 @@ systemctl restart trends-preview-worker-api   # byte-identical unit in deploy/
 
 - Worker extraction + fetcher: `apps/worker/industry_evidence_research.py` (`_find_legal_names`, `_COPYRIGHT_LEGAL_NAME_RE`, `GuardedEvidenceFetcher`) + `apps/worker/tests/test_industry_evidence_research.py` (311 tests)
 - Governance: `apps/api/src/services/company-industry-review-service.ts` (flags at ~L260–401) + tests
-- Coverage: `apps/api/src/services/company-industry-coverage-service.ts`, convex `getIndustryCoverageSummary` / `countIndustryOpenProposalSources` in `packages/convex/convex/companies.ts`
+- Coverage: `apps/api/src/services/company-industry-coverage-service.ts`, convex `getIndustryCoverageSummary` + `refreshIndustryCoverage*Counters` mutations + `industry_coverage_counters` table in `packages/convex/convex/companies.ts` / `schema.ts`
 - Routes: `apps/api/src/routes/companies.ts` (identity-resolution L1288, approve L1430), `apps/api/src/routes/industry-data-admin.ts` (trigger L334)
 - Deploy: `deploy/trends-preview-worker-api.service`, `deploy/preview-upgrade.sh`, `deploy/preview-doctor.sh`
 - Session scripts on host (may vanish on reboot; audit already copied): `/tmp/grill-snapshot/resume/`
