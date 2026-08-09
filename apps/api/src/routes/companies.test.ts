@@ -1182,6 +1182,8 @@ describe("companies routes", () => {
       success: boolean;
       item: {
         openTotal: number;
+        openWithSources: number;
+        openWithoutSources: number;
         emptyEvidenceBottleneck: boolean;
         resumes: { withVerifiedEvidence: number };
       };
