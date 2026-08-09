@@ -10,8 +10,11 @@ import {
   type IndustryProposal,
 } from "./company-industry-contracts.js";
 import {
+  IndustryReviewNotOpenError,
   IndustryReviewStaleError,
+  industryReviewNotOpenReason,
   industryReviewStaleReason,
+  isIndustryReviewNotOpenError,
   isIndustryReviewStaleError,
 } from "./company-industry-review-errors.js";
 import {
@@ -463,6 +466,9 @@ export async function resolveIndustryProposal(
   } catch (error) {
     if (isIndustryReviewStaleError(error)) {
       throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    if (isIndustryReviewNotOpenError(error)) {
+      throw new IndustryReviewNotOpenError(industryReviewNotOpenReason(error));
     }
     throw error;
   }

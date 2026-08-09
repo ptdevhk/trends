@@ -10,6 +10,7 @@ import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
 import * as industryReviewService from "../services/company-industry-review-service";
 import * as industryEvidenceResearchService from "../services/industry-evidence-research-service";
+import * as industryProposalService from "../services/company-industry-proposal-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -653,6 +654,37 @@ describe("companies routes", () => {
           candidateFingerprint: "candidate-fingerprint-1",
           mappingMode: "create_provisional",
           sourceIds: ["source-1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_NOT_OPEN",
+    });
+  });
+
+  it("maps a closed proposal to 409 NOT_OPEN on resolve", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryProposalService, "resolveIndustryProposal").mockRejectedValue(
+      new Error(
+        "[Request ID: 51a2c3d4] Server Error\n"
+        + "Uncaught Error: Proposal is not open: approved\n"
+        + "    at resolveIndustryProposal (../convex/companies.ts:5401:4)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/resolve",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resolution: "rejected",
+          expectedProposalUpdatedAt: 1,
         }),
       },
     );

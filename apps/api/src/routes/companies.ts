@@ -1702,6 +1702,9 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     if (isIndustryReviewStaleError(error)) {
       return c.json(industryReviewConflictResponse(error), 409);
     }
+    if (isIndustryReviewNotOpenError(error)) {
+      return c.json(industryReviewNotOpenResponse(error), 409);
+    }
     throw error;
   }
 });
