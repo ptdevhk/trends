@@ -238,6 +238,24 @@ Third follow-up: shipped the **identity-resolution lane in the review inbox** (t
 
 ---
 
+## Preview UAT pass (2026-08-09, follow-up session 4): not fully bug-free — 3 API error-mapping bugs found and fixed
+
+A UAT sweep across preview (services, CI, API contracts, governance failure paths, web bundle) found **3 real bugs, all fixed and deployed**. Verdict: **the preview is NOT bug-free — predictable client errors on the single-item review routes returned HTTP 500 instead of 409**. Root cause class: the Convex **local backend wraps function errors** as `[Request ID: …] Server Error\nUncaught Error: <message>\n<stack>`, and the API routes/helper matched only a leading `INDUSTRY_REVIEW_STALE:` prefix.
+
+| Finding | Symptom | Fix (commits `12fd39e2` `89ffb8f9` `a4b96af9`, pushed) |
+|---|---|---|
+| Stale packet → 500 | identity-resolution and resolve with an outdated `expectedProposalUpdatedAt` returned 500 (was meant to be 409) | `isIndustryReviewStaleError` now matches the code anywhere in the wrapped message; `industryReviewStaleReason` strips wrapper + stack; identity-resolution route uses the shared helper (approve/undo already did) |
+| Closed proposal → 500 | identity-resolution / reject on an already-approved proposal returned 500 | New `INDUSTRY_REVIEW_NOT_OPEN` conflict code + `IndustryReviewNotOpenError`; identity + resolve services wrap the convex "Proposal is not open" error; both routes map it to 409; conflict schema accepts both codes |
+| Batch per-item codes | Wrapped `INDUSTRY_REVIEW_*` errors were flattened to generic `BATCH_ITEM_FAILED` | `rejectItemError` extracts the code anywhere in the message |
+
+**Green after the fixes** (all re-probed live): identity-resolution stale → 409 STALE · identity-resolution on approved → 409 NOT_OPEN · resolve stale → 409 STALE · resolve on approved → 409 NOT_OPEN · batch-review on approved → per-item `INVALID_STATUS` · coverage 200 (approved 8, ready 64) · review-queue 200 · maintenance-runs 200 · companies 200 (16 rows) · profiles 200 (8) · convex direct query 200 · research-requests feature flag on · web bundle `index-BtK_ze0k.js` served · all services active, **zero worker/API errors since deploy**, CI Checks green on `884bc1c2` (Tests/Checks re-running on the fix push).
+
+Also observed (not bugs): the coverage counters refresh is async — a refresh in flight during state changes can serve a pre-change snapshot until the next TTL cycle (~5 min).
+
+**Testing additions**: wrapped-format helper cases, identity-resolution 409 (stale + not-open) route tests, resolve 409 route test, batch wrapped-code extraction test. API suite 3,208 passing.
+
+---
+
 ## Live state snapshot (observed 2026-08-09, workspace `hr`)
 
 - Coverage (HTTP 200): `openTotal 9,776` · `openWithSources 81` · `openWithoutSources 9,695` · `emptyEvidenceBottleneck true` · `readyBacklogBottleneck false` · proposals by status: approved 5, needs_more_evidence 85, new 9,675, ready_for_review 16, rejected 25
