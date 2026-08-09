@@ -44,7 +44,8 @@
     "edit": "编辑",
     "save": "保存",
     "saving": "保存中...",
-    "deleting": "删除中..."
+    "deleting": "删除中...",
+    "submitting": "提交中…"
   },
   "jdManagement": {
     "title": "职位描述管理",
@@ -1144,7 +1145,41 @@
     "recoveryMapExisting": "映射到现有公司",
     "recoveryCreateProvisional": "创建临时身份",
     "recoveryHistory": "请求历史（{{count}}）",
-    "recoveryAttempts": "{{count}} 次尝试"
+    "recoveryAttempts": "{{count}} 次尝试",
+    "batchApprove": "批准（{{count}}）",
+    "batchApproveDescription": "一份证明涵盖整个批次。每个提案仍须通过相同的证据与治理检查。",
+    "batchApproveSubmit": "批准 {{count}} 项",
+    "batchApproveTitle": "批准选中的提案",
+    "batchAttestationTitle": "批次证明",
+    "batchClassLabel": "行业分类",
+    "batchClassRequired": "请选择分类…",
+    "batchClear": "清除",
+    "batchCncAck": "我确认 CNC 分类有明确的工业／产品证据支持。",
+    "batchDone": "批次审核完成：批准 {{approved}} 项、拒绝 {{rejected}} 项、失败 {{failed}} 项。",
+    "batchExcludedReason": {
+      "hard_risk": "带有不可覆盖的风险标志",
+      "source": "没有可批准的来源",
+      "status": "尚未准备好审核",
+      "terminal": "已作出决定",
+      "unknown": "不符合资格"
+    },
+    "batchExcludedTitle": "已排除于批准之外",
+    "batchFailed": "批次审核失败。请刷新队列后重试。",
+    "batchNoEligible": "选中的提案中没有可批量批准的项目。",
+    "batchNoFlags": "没有需要确认的风险标志。",
+    "batchNonIndustryHint": "记录为已验证的 non_industry 判定，而非拒绝。",
+    "batchReasonLabel": "确认原因",
+    "batchReasonPlaceholder": "说明为何现在可以安全分类这些带标志的提案（记录于每个已批准版本）。",
+    "batchReject": "拒绝（{{count}}）",
+    "batchRejectDescription": "拒绝代表这些提案是噪音或垃圾。真实但非工业的公司应改为以 non_industry 分类批准。",
+    "batchRejectDone": "批次审核完成：拒绝 {{rejected}} 项、失败 {{failed}} 项。",
+    "batchRejectNoteLabel": "拒绝备注（选填）",
+    "batchRejectNotePlaceholder": "说明这些提案为何是噪音（逐提案记录）。",
+    "batchRejectSubmit": "拒绝 {{count}} 项",
+    "batchRejectTitle": "拒绝选中的提案",
+    "batchSelectRow": "选中以进行批量操作",
+    "batchSelected": "已选中 {{count}} 项",
+    "batchSourcesCount": "{{count}} 个可批准来源"
   },
   "operations": {
     "industryMaintenanceDescription": "研究开放提案并刷新到期的已批准来源。",

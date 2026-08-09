@@ -44,7 +44,8 @@
     "edit": "編輯",
     "save": "儲存",
     "saving": "儲存中...",
-    "deleting": "刪除中..."
+    "deleting": "刪除中...",
+    "submitting": "提交中…"
   },
   "jdManagement": {
     "title": "職位描述管理",
@@ -1586,7 +1587,41 @@
     "recoveryMapExisting": "對應到現有公司",
     "recoveryCreateProvisional": "建立臨時身分",
     "recoveryHistory": "請求歷史（{{count}}）",
-    "recoveryAttempts": "{{count}} 次嘗試"
+    "recoveryAttempts": "{{count}} 次嘗試",
+    "batchApprove": "核准（{{count}}）",
+    "batchApproveDescription": "一份證明涵蓋整個批次。每個提案仍須通過相同的證據與治理檢查。",
+    "batchApproveSubmit": "核准 {{count}} 項",
+    "batchApproveTitle": "核准選取的提案",
+    "batchAttestationTitle": "批次證明",
+    "batchClassLabel": "行業分類",
+    "batchClassRequired": "請選擇分類…",
+    "batchClear": "清除",
+    "batchCncAck": "我確認 CNC 分類有明確的工業／產品證據支持。",
+    "batchDone": "批次審核完成：核准 {{approved}} 項、拒絕 {{rejected}} 項、失敗 {{failed}} 項。",
+    "batchExcludedReason": {
+      "hard_risk": "帶有不可覆寫的風險旗標",
+      "source": "沒有可核准的證據來源",
+      "status": "尚未準備好審核",
+      "terminal": "已作出決定",
+      "unknown": "不符合資格"
+    },
+    "batchExcludedTitle": "已排除於核准之外",
+    "batchFailed": "批次審核失敗。請重新整理佇列後重試。",
+    "batchNoEligible": "選取的提案中沒有可批次核准的項目。",
+    "batchNoFlags": "沒有需要確認的風險旗標。",
+    "batchNonIndustryHint": "記錄為已驗證的 non_industry 判定，而非拒絕。",
+    "batchReasonLabel": "確認原因",
+    "batchReasonPlaceholder": "說明為何現在可以安全分類這些帶旗標的提案（記錄於每個已核准版本）。",
+    "batchReject": "拒絕（{{count}}）",
+    "batchRejectDescription": "拒絕代表這些提案是雜訊或垃圾。真實但非工業的公司應改以 non_industry 分類核准。",
+    "batchRejectDone": "批次審核完成：拒絕 {{rejected}} 項、失敗 {{failed}} 項。",
+    "batchRejectNoteLabel": "拒絕備註（選填）",
+    "batchRejectNotePlaceholder": "說明這些提案為何是雜訊（逐提案記錄）。",
+    "batchRejectSubmit": "拒絕 {{count}} 項",
+    "batchRejectTitle": "拒絕選取的提案",
+    "batchSelectRow": "選取以進行批次操作",
+    "batchSelected": "已選取 {{count}} 項",
+    "batchSourcesCount": "{{count}} 個可核准來源"
   },
   "operations": {
     "industryMaintenanceDescription": "研究開放提案並重新整理到期的已核准來源。",

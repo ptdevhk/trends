@@ -44,7 +44,8 @@
     "edit": "Edit",
     "save": "Save",
     "saving": "Saving...",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "submitting": "Submitting…"
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -1586,7 +1587,41 @@
     "recoveryMapExisting": "Map to existing company",
     "recoveryCreateProvisional": "Create provisional identity",
     "recoveryHistory": "Request history ({{count}})",
-    "recoveryAttempts": "{{count}} attempt(s)"
+    "recoveryAttempts": "{{count}} attempt(s)",
+    "batchApprove": "Approve ({{count}})",
+    "batchApproveDescription": "One attestation covers this batch. Every proposal still passes the same evidence and governance checks.",
+    "batchApproveSubmit": "Approve {{count}}",
+    "batchApproveTitle": "Approve selected proposals",
+    "batchAttestationTitle": "Batch attestation",
+    "batchClassLabel": "Industry classification",
+    "batchClassRequired": "Select classification…",
+    "batchClear": "Clear",
+    "batchCncAck": "I confirm the CNC classification is backed by explicit industrial/product evidence.",
+    "batchDone": "Batch review complete: {{approved}} approved, {{rejected}} rejected, {{failed}} failed.",
+    "batchExcludedReason": {
+      "hard_risk": "has a non-overridable risk flag",
+      "source": "no approval-safe source",
+      "status": "not ready for review",
+      "terminal": "already decided",
+      "unknown": "not eligible"
+    },
+    "batchExcludedTitle": "Excluded from approval",
+    "batchFailed": "Batch review failed. Refresh the queue and retry.",
+    "batchNoEligible": "None of the selected proposals can be batch-approved.",
+    "batchNoFlags": "No risk flags to acknowledge.",
+    "batchNonIndustryHint": "Records a verified non_industry verdict instead of a rejection.",
+    "batchReasonLabel": "Acknowledgement reason",
+    "batchReasonPlaceholder": "Why these flagged proposals are safe to classify now (recorded on every approved revision).",
+    "batchReject": "Reject ({{count}})",
+    "batchRejectDescription": "Rejection marks these proposals as noise or garbage. Real companies that are not industrial should be approved with the non_industry classification instead.",
+    "batchRejectDone": "Batch review complete: {{rejected}} rejected, {{failed}} failed.",
+    "batchRejectNoteLabel": "Rejection note (optional)",
+    "batchRejectNotePlaceholder": "Why these proposals are noise (recorded per proposal).",
+    "batchRejectSubmit": "Reject {{count}}",
+    "batchRejectTitle": "Reject selected proposals",
+    "batchSelectRow": "Select for bulk action",
+    "batchSelected": "{{count}} selected",
+    "batchSourcesCount": "{{count}} approval-safe sources"
   },
   "operations": {
     "industryMaintenanceDescription": "Research open proposals and refresh due approved sources.",
