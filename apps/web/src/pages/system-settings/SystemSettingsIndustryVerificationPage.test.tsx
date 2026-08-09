@@ -1266,3 +1266,192 @@ describe('SystemSettingsIndustryVerificationPage batch review', () => {
     expect(screen.getByTestId('industry-batch-approve-submit')).toBeDisabled()
   })
 })
+
+describe('SystemSettingsIndustryVerificationPage identity resolution', () => {
+  const unmappedItem = () => ({
+    proposal: {
+      ...cleanInboxProposal,
+      proposalId: 'unmapped-proposal',
+      companyKey: undefined,
+      normalizedEmployerSurface: 'gmi corporation',
+    },
+    recommendation: {
+      ...cleanInboxRecommendation,
+      proposalId: 'unmapped-proposal',
+      recommendedAction: 'inspect',
+      recommendedIndustryClass: 'unknown',
+      recommendedVerificationLevel: 'unverified',
+      recommendedSourceIds: [],
+      riskFlags: ['canonical_mapping_missing', 'weak_industry_signal'],
+      riskDecision: {
+        requiresAcknowledgement: true,
+        nonOverridableRiskFlags: ['canonical_mapping_missing'],
+        canApproveWithRiskOverride: false,
+      },
+    },
+    sourceCount: 2,
+  })
+
+  function installIdentityMock() {
+    let identityBody: Record<string, unknown> | null = null
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [unmappedItem()],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-proposals/unmapped-proposal/review-packet') {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          dataset: {
+            revision: 'revision-identity',
+            inputFingerprint: 'identity-fingerprint',
+            proposalUpdatedAt: 2,
+            sourceVersions: [],
+          },
+          proposal: {
+            ...cleanInboxProposal,
+            proposalId: 'unmapped-proposal',
+            companyKey: undefined,
+            normalizedEmployerSurface: 'gmi corporation',
+          },
+          recommendation: {
+            ...cleanInboxRecommendation,
+            proposalId: 'unmapped-proposal',
+            recommendedAction: 'inspect',
+            recommendedIndustryClass: 'unknown',
+            riskFlags: ['canonical_mapping_missing', 'weak_industry_signal'],
+            riskDecision: {
+              requiresAcknowledgement: true,
+              nonOverridableRiskFlags: ['canonical_mapping_missing'],
+              canApproveWithRiskOverride: false,
+            },
+          },
+          reviewContext: { profile: null },
+          identityCandidates: [
+            {
+              candidateFingerprint: 'candidate-gmi',
+              proposalId: 'unmapped-proposal',
+              normalizedLegalName: 'GMI Corp',
+              jurisdiction: 'MY',
+              sourceIds: ['source-a', 'source-b'],
+              confidence: 0.88,
+              conflictCodes: [],
+              reviewState: 'candidate',
+              extractionVersion: 'v1',
+              createdAt: 1,
+              updatedAt: 2,
+            },
+            {
+              candidateFingerprint: 'candidate-gmi-high',
+              proposalId: 'unmapped-proposal',
+              normalizedLegalName: 'German-Malaysian Institute',
+              jurisdiction: 'MY',
+              sourceIds: ['source-a'],
+              confidence: 0.95,
+              conflictCodes: ['ambiguous_short_name'],
+              reviewState: 'candidate',
+              extractionVersion: 'v1',
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ],
+        })
+      }
+      if (path === '/api/companies') {
+        return Promise.resolve({
+          success: true,
+          items: [
+            { companyKey: 'gmi-corp', displayName: 'GMI Corp Sdn Bhd', status: 'provisional' },
+            { companyKey: 'polywell', displayName: 'Polywell', status: 'confirmed' },
+          ],
+        })
+      }
+      if (path === '/api/company-industry-proposals/unmapped-proposal/identity-resolution' && init?.method === 'POST') {
+        identityBody = JSON.parse(String(init.body))
+        return Promise.resolve({
+          success: true,
+          proposalId: 'unmapped-proposal',
+          companyKey: 'candidate-gmi-high-1',
+          auditId: 'audit-identity-test',
+        })
+      }
+      return Promise.resolve({ success: true })
+    })
+    return {
+      identityBody: () => identityBody,
+    }
+  }
+
+  it('resolves a selected batch item to a provisional identity and clears the selection', async () => {
+    const harness = installIdentityMock()
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    const checkbox = await screen.findByTestId('industry-batch-check-unmapped-proposal')
+    await user.click(checkbox)
+
+    expect(screen.getByTestId('industry-batch-resolve-identity-button')).toBeEnabled()
+    await user.click(screen.getByTestId('industry-batch-resolve-identity-button'))
+
+    expect(await screen.findByTestId('industry-identity-candidate-unmapped-proposal-candidate-gmi')).toBeInTheDocument()
+    const displayName = screen.getByTestId('industry-identity-display-name-unmapped-proposal') as HTMLInputElement
+    expect(displayName.value).toBe('German-Malaysian Institute')
+
+    await user.click(screen.getByTestId('industry-identity-resolve-submit'))
+
+    await waitFor(() => {
+      expect(harness.identityBody()).toEqual({
+        proposalId: 'unmapped-proposal',
+        expectedProposalUpdatedAt: 2,
+        candidateFingerprint: 'candidate-gmi-high',
+        mappingMode: 'create_provisional',
+        provisionalDisplayName: 'German-Malaysian Institute',
+        sourceIds: ['source-a'],
+        reviewNote: 'Identity mapping reviewed from the batch review lane.',
+      })
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('1 mapped'))
+  })
+
+  it('resolves identity from the row action and maps to an existing registry company', async () => {
+    const harness = installIdentityMock()
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByTestId('industry-review-resolve-identity-unmapped-proposal'))
+
+    expect(await screen.findByTestId('industry-identity-item-unmapped-proposal')).toBeInTheDocument()
+    await user.click(screen.getByTestId('industry-identity-mode-existing-unmapped-proposal'))
+    await user.selectOptions(screen.getByTestId('industry-identity-company-unmapped-proposal'), 'polywell')
+    await user.click(screen.getByTestId('industry-identity-resolve-submit'))
+
+    await waitFor(() => {
+      expect(harness.identityBody()).toEqual(expect.objectContaining({
+        proposalId: 'unmapped-proposal',
+        mappingMode: 'existing',
+        companyKey: 'polywell',
+        candidateFingerprint: 'candidate-gmi-high',
+        sourceIds: ['source-a'],
+      }))
+    })
+  })
+})

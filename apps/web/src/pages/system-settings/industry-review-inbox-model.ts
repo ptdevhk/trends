@@ -168,6 +168,38 @@ export function unionRiskFlags(items: readonly ReviewInboxItem[]): string[] {
   return [...new Set(items.flatMap((item) => item.recommendation.riskFlags))].sort()
 }
 
+export type IdentityResolutionEligibility =
+  | { eligible: true }
+  | { eligible: false; reason: 'terminal' | 'status' | 'already_mapped' }
+
+/**
+ * Identity-resolution eligibility. Mirrors the server-side gates of the
+ * identity-resolution endpoint: the proposal must be open (any non-terminal
+ * status) and not yet mapped to a canonical company. Once `companyKey` is
+ * set, `canonical_mapping_missing` recomputes away and the item can move
+ * into the batch approval lane.
+ */
+export function getIdentityResolutionEligibility(item: ReviewInboxItem): IdentityResolutionEligibility {
+  if (isTerminalIndustryProposalStatus(item.proposal.status)) {
+    return { eligible: false, reason: 'terminal' }
+  }
+  if (item.proposal.companyKey?.trim()) {
+    return { eligible: false, reason: 'already_mapped' }
+  }
+  return { eligible: true }
+}
+
+/**
+ * Whether the row is blocked specifically by the missing-canonical-mapping
+ * flag and can therefore be unblocked through the identity-resolution lane.
+ */
+export function requiresIdentityResolution(item: ReviewInboxItem): boolean {
+  return (
+    getIdentityResolutionEligibility(item).eligible
+    && item.recommendation.riskFlags.includes('canonical_mapping_missing')
+  )
+}
+
 export function batchAttestationMode(riskFlags: readonly string[]): 'standard' | 'risk_override' {
   return riskFlags.length > 0 ? 'risk_override' : 'standard'
 }

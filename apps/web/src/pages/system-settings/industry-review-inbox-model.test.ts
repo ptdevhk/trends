@@ -6,9 +6,11 @@ import {
   filterHistoryForSession,
   getApprovalSafeSourceIds,
   getBatchApproveEligibility,
+  getIdentityResolutionEligibility,
   getOneClickEligibility,
   parseReviewInboxFilter,
   partitionReviewQueue,
+  requiresIdentityResolution,
   reviewInboxFilterToSlug,
   unionRiskFlags,
   type ReviewInboxItem,
@@ -315,6 +317,55 @@ describe('filterHistoryForSession', () => {
 
     expect(filtered).not.toBe(historyItems)
     expect(historyItems).toHaveLength(2)
+  })
+})
+
+describe('identity resolution eligibility', () => {
+  const unmappedItem = makeItem(
+    {
+      proposalId: 'proposal-unmapped',
+      companyKey: undefined,
+    },
+    {
+      proposalId: 'proposal-unmapped',
+      riskFlags: ['canonical_mapping_missing'],
+    },
+  )
+
+  it('opens the lane for any non-terminal unmapped proposal', () => {
+    expect(getIdentityResolutionEligibility(unmappedItem)).toEqual({ eligible: true })
+    expect(getIdentityResolutionEligibility(makeItem(
+      { proposalId: 'proposal-evidence', companyKey: undefined, status: 'needs_more_evidence' },
+      { proposalId: 'proposal-evidence', proposalStatus: 'needs_more_evidence' },
+    ))).toEqual({ eligible: true })
+  })
+
+  it('keeps terminal and already-mapped proposals out of the lane', () => {
+    expect(getIdentityResolutionEligibility(makeItem({ status: 'approved' }))).toEqual({
+      eligible: false,
+      reason: 'terminal',
+    })
+    expect(getIdentityResolutionEligibility(makeItem({ status: 'rejected' }))).toEqual({
+      eligible: false,
+      reason: 'terminal',
+    })
+    expect(getIdentityResolutionEligibility(cleanItem)).toEqual({
+      eligible: false,
+      reason: 'already_mapped',
+    })
+  })
+
+  it('flags rows blocked specifically by the missing canonical mapping', () => {
+    expect(requiresIdentityResolution(unmappedItem)).toBe(true)
+    expect(requiresIdentityResolution(makeItem(
+      { proposalId: 'proposal-unmapped-noflag', companyKey: undefined },
+      { proposalId: 'proposal-unmapped-noflag' },
+    ))).toBe(false)
+    expect(requiresIdentityResolution(cleanItem)).toBe(false)
+    expect(requiresIdentityResolution(makeItem(
+      { proposalId: 'proposal-mapped-flag', companyKey: 'company-x' },
+      { proposalId: 'proposal-mapped-flag', riskFlags: ['canonical_mapping_missing'] },
+    ))).toBe(false)
   })
 })
 

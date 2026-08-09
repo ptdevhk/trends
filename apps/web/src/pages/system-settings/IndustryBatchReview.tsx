@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckSquare, Layers, ListX, ShieldAlert, X } from 'lucide-react'
+import { CheckSquare, IdCard, Layers, ListX, ShieldAlert, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -59,6 +59,8 @@ type IndustryBatchActionBarProps = {
   disabled?: boolean
   onApprove: () => void
   onReject: () => void
+  onResolveIdentity: () => void
+  resolveIdentityDisabled?: boolean
   onClear: () => void
 }
 
@@ -67,6 +69,8 @@ export function IndustryBatchActionBar({
   disabled = false,
   onApprove,
   onReject,
+  onResolveIdentity,
+  resolveIdentityDisabled = false,
   onClear,
 }: IndustryBatchActionBarProps) {
   const { t } = useTranslation()
@@ -93,6 +97,17 @@ export function IndustryBatchActionBar({
           >
             <CheckSquare className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {t('industryEvidence.batchApprove', { defaultValue: 'Approve ({{count}})', count: selectedCount })}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={disabled || resolveIdentityDisabled}
+            onClick={onResolveIdentity}
+            data-testid="industry-batch-resolve-identity-button"
+          >
+            <IdCard className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {t('industryEvidence.batchResolveIdentity', { defaultValue: 'Resolve identity ({{count}})', count: selectedCount })}
           </Button>
           <Button
             type="button"

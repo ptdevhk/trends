@@ -39,6 +39,15 @@ import {
   type BatchDialogKind,
   type BatchRejectAction,
 } from './IndustryBatchReview'
+import {
+  IndustryIdentityResolutionDialog,
+  type IdentityDialogPacket,
+  type IdentityResolutionAction,
+  type RegistryCompany,
+} from './IndustryIdentityResolutionDialog'
+import {
+  requiresIdentityResolution,
+} from './industry-review-inbox-model'
 
 type ReviewQueueStatus = ReviewInboxProposal['status']
 type CleanReviewPacket = {
@@ -52,6 +61,7 @@ type CleanReviewPacket = {
   reviewContext: {
     profile: { currentRevisionId?: string } | null
   }
+  identityCandidates: IdentityDialogPacket['candidates']
 }
 
 type InboxErrorKind = ReviewRowError['kind']
@@ -119,6 +129,18 @@ function parseHistory(value: unknown): IndustryHistoryItem[] {
   )) as IndustryHistoryItem[]
 }
 
+function parseIdentityCandidates(value: unknown): IdentityDialogPacket['candidates'] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is IdentityDialogPacket['candidates'][number] => (
+    isRecord(item)
+    && typeof item.candidateFingerprint === 'string'
+    && typeof item.normalizedLegalName === 'string'
+    && Array.isArray(item.sourceIds)
+    && typeof item.confidence === 'number'
+    && Array.isArray(item.conflictCodes)
+  ))
+}
+
 function parseCleanPacket(value: unknown): CleanReviewPacket | null {
   if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
   if (!isRecord(value.dataset) || typeof value.dataset.inputFingerprint !== 'string') return null
@@ -145,6 +167,7 @@ function parseCleanPacket(value: unknown): CleanReviewPacket | null {
         : [],
     },
     reviewContext: { profile },
+    identityCandidates: parseIdentityCandidates(value.identityCandidates),
   }
 }
 
@@ -277,6 +300,14 @@ export function IndustryReviewInbox({
   const [batchSelection, setBatchSelection] = useState<Set<string>>(new Set())
   const [batchDialog, setBatchDialog] = useState<BatchDialogKind | null>(null)
   const [batchSubmitting, setBatchSubmitting] = useState(false)
+  const [identityDialogOpen, setIdentityDialogOpen] = useState(false)
+  const [identityDialogItems, setIdentityDialogItems] = useState<ReviewInboxItem[]>([])
+  const [identityPackets, setIdentityPackets] = useState<Map<string, IdentityDialogPacket>>(new Map())
+  const [identityPreparing, setIdentityPreparing] = useState(false)
+  const [identitySubmitting, setIdentitySubmitting] = useState(false)
+  const [registryCompanies, setRegistryCompanies] = useState<RegistryCompany[]>([])
+  const [registryCompaniesLoading, setRegistryCompaniesLoading] = useState(false)
+  const [identityTarget, setIdentityTarget] = useState<ReviewInboxItem>()
   const syncedTargetStatusRef = useRef<string | undefined>(undefined)
   const focusedTargetRef = useRef<string | undefined>(undefined)
   const targetIsTerminal = targetItem
@@ -794,6 +825,109 @@ export function IndustryReviewInbox({
     }
   }, [loadActiveQueue, requestJson, t])
 
+  const openIdentityDialog = useCallback(async (items: ReviewInboxItem[]) => {
+    if (items.length === 0) return
+    setIdentityPreparing(true)
+    const packetMap = new Map<string, IdentityDialogPacket>()
+    await Promise.allSettled(items.map(async (item) => {
+      try {
+        const packet = await loadPacket(item)
+        packetMap.set(item.proposal.proposalId, {
+          candidates: packet.identityCandidates,
+          proposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
+        })
+      } catch {
+        // Items without a loadable packet stay in the excluded group.
+      }
+    }))
+    setIdentityPackets(packetMap)
+    setIdentityDialogItems(items)
+    setIdentityDialogOpen(true)
+    setIdentityPreparing(false)
+  }, [loadPacket])
+
+  const openRegistryCompanies = useCallback(async () => {
+    setRegistryCompaniesLoading(true)
+    try {
+      const payload = await requestJson('/api/companies')
+      if (!isRecord(payload) || !Array.isArray(payload.items)) return
+      setRegistryCompanies(payload.items.filter((item): item is RegistryCompany => (
+        isRecord(item)
+        && typeof item.companyKey === 'string'
+        && typeof item.displayName === 'string'
+        && item.status !== 'merged'
+      )))
+    } catch {
+      // The provisional path remains available if the registry is degraded.
+    } finally {
+      setRegistryCompaniesLoading(false)
+    }
+  }, [requestJson])
+
+  const openIdentityDialogFromRows = useCallback(async (items: ReviewInboxItem[]) => {
+    void openIdentityDialog(items)
+    void openRegistryCompanies()
+  }, [openIdentityDialog, openRegistryCompanies])
+
+  const handleRowResolveIdentity = useCallback(async (item: ReviewInboxItem) => {
+    setIdentityTarget(item)
+    await openIdentityDialogFromRows([item])
+  }, [openIdentityDialogFromRows])
+
+  const handleBatchResolveIdentity = useCallback(async () => {
+    setIdentityTarget(undefined)
+    await openIdentityDialogFromRows(batchSelectedItems)
+  }, [batchSelectedItems, openIdentityDialogFromRows])
+
+  const handleResolveIdentitySubmit = useCallback(async (actions: IdentityResolutionAction[]) => {
+    if (actions.length === 0) return
+    setIdentitySubmitting(true)
+    const succeeded: string[] = []
+    const failed: Array<{ proposalId: string; kind: InboxErrorKind; message: string }> = []
+    for (const action of actions) {
+      try {
+        await requestJson(`/api/company-industry-proposals/${encodeURIComponent(action.proposalId)}/identity-resolution`, {
+          method: 'POST',
+          body: JSON.stringify(action),
+        })
+        succeeded.push(action.proposalId)
+        setPacketCache((current) => {
+          const next = new Map(current)
+          next.delete(action.proposalId)
+          return next
+        })
+      } catch (error) {
+        failed.push({
+          proposalId: action.proposalId,
+          kind: rowErrorKind(errorStatus(error)),
+          message: errorMessage(error, t('industryEvidence.identityResolveFailed', {
+            defaultValue: 'Identity resolution failed.',
+          })),
+        })
+      }
+    }
+    setBatchSelection((current) => {
+      const next = new Set(current)
+      for (const proposalId of succeeded) next.delete(proposalId)
+      return next
+    })
+    setIdentityTarget(undefined)
+    const summary = t('industryEvidence.identityResolveDone', {
+      defaultValue: 'Identity resolution complete: {{resolved}} mapped, {{failed}} failed.',
+      resolved: succeeded.length,
+      failed: failed.length,
+    })
+    setAnnouncement(summary)
+    if (failed.length > 0) {
+      toast.warning(summary)
+      for (const failure of failed) setRowError(failure.proposalId, { kind: failure.kind, message: failure.message })
+    } else {
+      toast.success(summary)
+    }
+    setIdentityDialogOpen(false)
+    void loadActiveQueue()
+  }, [loadActiveQueue, requestJson, setRowError, t])
+
   useEffect(() => {
     const proposalId = targetItem?.proposal.proposalId
     const targetListLoading = targetIsTerminal ? historyLoading : loading
@@ -977,9 +1111,11 @@ export function IndustryReviewInbox({
 
           <IndustryBatchActionBar
             selectedCount={batchSelectedItems.length}
-            disabled={batchSubmitting}
+            disabled={batchSubmitting || identityPreparing}
             onApprove={() => setBatchDialog('approve')}
             onReject={() => setBatchDialog('reject')}
+            onResolveIdentity={() => void handleBatchResolveIdentity()}
+            resolveIdentityDisabled={!batchSelectedItems.some((item) => requiresIdentityResolution(item))}
             onClear={clearBatchSelection}
           />
 
@@ -1047,6 +1183,12 @@ export function IndustryReviewInbox({
                   onApprove={() => void handleApprove(row.item)}
                   onUndo={() => void handleUndo(row.item)}
                   onRetry={() => handleRowRetry(row)}
+                  onResolveIdentity={
+                    requiresIdentityResolution(row.item)
+                      ? () => void handleRowResolveIdentity(row.item)
+                      : undefined
+                  }
+                  resolveIdentityPending={identityPreparing && identityTarget?.proposal.proposalId === proposalId}
                 />
               )
             })
@@ -1072,6 +1214,20 @@ export function IndustryReviewInbox({
         submitting={batchSubmitting}
         onSubmit={(actions) => void handleBatchReject(actions)}
         onOpenChange={(open) => setBatchDialog(open ? 'reject' : null)}
+      />
+
+      <IndustryIdentityResolutionDialog
+        open={identityDialogOpen}
+        items={identityDialogItems}
+        packets={identityPackets}
+        companies={registryCompanies}
+        companiesLoading={registryCompaniesLoading}
+        submitting={identitySubmitting}
+        onSubmit={(actions) => void handleResolveIdentitySubmit(actions)}
+        onOpenChange={(open) => {
+          setIdentityDialogOpen(open)
+          if (!open) setIdentityTarget(undefined)
+        }}
       />
 
       <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="industry-review-announcement">
