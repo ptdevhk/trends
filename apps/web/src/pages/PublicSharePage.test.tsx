@@ -17,7 +17,7 @@ const {
   unblockCandidateMock,
   updateStatusMock,
   useCandidateActionsMock,
-  useSearchPrefetchMock,
+  useSearchPreloadMock,
   useQueryMock,
 } = vi.hoisted(() => ({
   apiGetMock: vi.fn(),
@@ -36,7 +36,7 @@ const {
   unblockCandidateMock: vi.fn(async () => true),
   updateStatusMock: vi.fn(async () => true),
   useCandidateActionsMock: vi.fn(),
-  useSearchPrefetchMock: vi.fn(),
+  useSearchPreloadMock: vi.fn(),
   useQueryMock: vi.fn(),
 }))
 
@@ -74,7 +74,7 @@ vi.mock('convex/react', () => ({
 }))
 
 vi.mock('@/hooks/useSearchPrefetch', () => ({
-  useSearchPrefetch: (...args: unknown[]) => useSearchPrefetchMock(...args),
+  useSearchPreload: (...args: unknown[]) => useSearchPreloadMock(...args),
 }))
 
 vi.mock('@/hooks/useCandidateStatus', () => ({
@@ -177,7 +177,7 @@ describe('PublicSharePage', () => {
     unblockCandidateMock.mockClear()
     updateStatusMock.mockClear()
     useCandidateActionsMock.mockReset()
-    useSearchPrefetchMock.mockClear()
+    useSearchPreloadMock.mockClear()
     useCandidateActionsMock.mockReturnValue({
       actionsByResume: {
         'resume-1': 'star',
@@ -251,7 +251,7 @@ describe('PublicSharePage', () => {
     expect(apiPostMock).not.toHaveBeenCalled()
     expect(useQueryMock).not.toHaveBeenCalled()
     expect(useCandidateActionsMock).not.toHaveBeenCalled()
-    expect(useSearchPrefetchMock).not.toHaveBeenCalled()
+    expect(useSearchPreloadMock).not.toHaveBeenCalled()
   })
 
   it('hydrates member-visible shared resume keys and enables review controls', async () => {
@@ -648,7 +648,7 @@ describe('PublicSharePage', () => {
     expect(screen.getByText('Resume AI analysis')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Share/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /复制搜索链接|Copy link/i })).toBeInTheDocument()
-    expect(useSearchPrefetchMock).toHaveBeenCalledWith('CNC 销售 China', false)
+    expect(useSearchPreloadMock).toHaveBeenCalledWith('CNC 销售 China', false)
     expect(screen.queryByText('Snapshot')).not.toBeInTheDocument()
   })
 

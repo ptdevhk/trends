@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SurfaceNavDefinition } from '@trends/shared'
-import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { apiClient } from '@/lib/api-client'
 
 type SystemMetadataIdentity = {
   appVersion: string
@@ -29,14 +29,13 @@ export function useSystemMetadata(): SystemMetadata | null {
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/config/system-metadata', {
-      headers: withWorkspaceHeaders(),
-    })
-      .then(async (response) => {
+    apiClient
+      .GET('/api/config/system-metadata')
+      .then(({ data, response }) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
-        return response.json() as Promise<SystemMetadataPayload>
+        return data as unknown as SystemMetadataPayload
       })
       .then((payload) => {
         if (!cancelled && payload.success) {

@@ -6,6 +6,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { reportUiError } from '@/lib/ui-error-reporting'
+import { fetchExtensionMetaJson } from '@/lib/external-fetch'
 
 const STORAGE_KEY_PREFIX = 'setup-step-'
 
@@ -21,8 +22,6 @@ function useStepDone(step: number): [boolean, () => void] {
   return [done, markDone]
 }
 
-const EXTENSION_META_URL = '/extension/extension-meta.json'
-
 type ExtensionMeta = { version: string }
 
 function isExtensionMeta(value: unknown): value is ExtensionMeta {
@@ -37,9 +36,7 @@ function useExtensionVersion() {
     let cancelled = false
     const load = async () => {
       try {
-        const response = await fetch(EXTENSION_META_URL)
-        if (!response.ok) return
-        const payload: unknown = await response.json()
+        const payload: unknown = await fetchExtensionMetaJson()
         if (!cancelled && isExtensionMeta(payload)) {
           setVersion(payload.version)
         }

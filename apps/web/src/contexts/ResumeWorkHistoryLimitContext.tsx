@@ -3,6 +3,7 @@ import {
   DEFAULT_RESUME_WORK_HISTORY_LIMIT,
   normalizeResumeWorkHistoryLimit,
 } from '@trends/shared'
+import { apiClient } from '@/lib/api-client'
 
 type ResumeWorkHistoryLimitContextValue = {
   limit: number
@@ -25,12 +26,13 @@ export function ResumeWorkHistoryLimitProvider({ children }: { children: ReactNo
   useEffect(() => {
     let active = true
 
-    void fetch('/api/system/resume-work-history-limit')
-      .then(async (response) => {
+    void apiClient
+      .GET('/api/system/resume-work-history-limit')
+      .then(({ data, response }) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
-        return response.json() as Promise<ResumeWorkHistoryLimitResponse>
+        return data as ResumeWorkHistoryLimitResponse
       })
       .then((payload) => {
         if (active && payload.success === true) {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import type {
   ConfigSourceMetadata,
   InspectableSourceDetail as ConfigSourceDetail,
@@ -7,35 +7,10 @@ import type {
   SurfaceNavDefinition,
 } from '@trends/shared'
 import { isRecord, SYSTEM_SETTINGS_NAV_ITEMS } from '@trends/shared'
-import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { apiBaseUrl } from '@/lib/api-client'
+import { requestJson as requestJsonFromLib } from '@/lib/raw-endpoints'
 
-const csrfCookieName = 'trends_csrf'
-const csrfHeaderName = 'X-CSRF-Token'
-const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-
-export class SettingsRequestError extends Error {
-  readonly status: number
-  readonly body: unknown
-
-  constructor(status: number, body: unknown) {
-    super(`HTTP ${status}`)
-    this.name = 'SettingsRequestError'
-    this.status = status
-    this.body = body
-  }
-}
-
-function readCookie(name: string): string | null {
-  if (typeof document === 'undefined') {
-    return null
-  }
-  const prefix = `${name}=`
-  const match = document.cookie
-    .split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix))
-  return match ? decodeURIComponent(match.slice(prefix.length)) : null
-}
+export { SettingsRequestError } from '@/lib/raw-endpoints'
 
 export type {
   ConfigSourceMetadata,
@@ -843,37 +818,7 @@ export function useSettingsRequestJson(): {
   apiBaseUrl: string
   requestJson: (path: string, init?: RequestInit) => Promise<unknown>
 } {
-  const apiBaseUrl = useMemo(() => {
-    const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
-    return rawBaseUrl.replace(/\/api\/?$/, '')
-  }, [])
-
-  const requestJson = useCallback(async (path: string, init?: RequestInit): Promise<unknown> => {
-    const headers = withWorkspaceHeaders({
-      ...(init?.headers ?? {}),
-      'Content-Type': 'application/json',
-    })
-    const method = (init?.method ?? 'GET').toUpperCase()
-    if (mutatingMethods.has(method) && !headers.has(csrfHeaderName)) {
-      const csrfToken = readCookie(csrfCookieName)
-      if (csrfToken) {
-        headers.set(csrfHeaderName, csrfToken)
-      }
-    }
-
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...init,
-      headers,
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
-      const body: unknown = await response.json().catch(() => null)
-      throw new SettingsRequestError(response.status, body)
-    }
-
-    return response.json() as Promise<unknown>
-  }, [apiBaseUrl])
+  const requestJson = useCallback((path: string, init?: RequestInit) => requestJsonFromLib(path, init), [])
 
   return { apiBaseUrl, requestJson }
 }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { resolveResumeFieldUsagePolicy, type ResumeFieldUsagePolicy } from '@trends/shared'
-import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { apiClient } from '@/lib/api-client'
 import { useWorkspace } from './WorkspaceContext'
 
 type ResumeFieldUsagePolicyResponse = {
@@ -20,16 +20,13 @@ export function ResumeFieldUsagePolicyProvider({ children }: { children: ReactNo
     let active = true
     setPolicy(DEFAULT_RESUME_FIELD_USAGE_POLICY)
 
-    void fetch('/api/config/resume-field-usage-policy', {
-      headers: withWorkspaceHeaders({
-        'X-Workspace-Slug': slug,
-      }),
-    })
-      .then(async (response) => {
+    void apiClient
+      .GET('/api/config/resume-field-usage-policy')
+      .then(({ data, response }) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
         }
-        return response.json() as Promise<ResumeFieldUsagePolicyResponse>
+        return data as ResumeFieldUsagePolicyResponse
       })
       .then((payload) => {
         if (!active || payload.success !== true) {

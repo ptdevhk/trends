@@ -2,7 +2,7 @@ import { useDeferredValue } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
-export function useSearchPrefetch(query: string | undefined, enabled = true) {
+export function useSearchPreload(query: string | undefined, enabled = true) {
   const deferredQuery = useDeferredValue(query)
   const trimmed = (deferredQuery ?? '').trim()
   return useQuery(

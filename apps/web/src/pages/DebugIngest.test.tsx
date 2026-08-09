@@ -4,6 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import DebugIngest from './DebugIngest'
 
+const getMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    GET: (...args: unknown[]) => getMock(...args),
+  },
+}))
+
 type BatchResetResult = {
   cleared: number
   hasMore: boolean
@@ -125,11 +133,10 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       error: undefined,
     }
-    globalThis.fetch = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, version: 3, ingestComputeEpoch: 1 }),
-    })) as unknown as typeof fetch
+    getMock.mockResolvedValue({
+      data: { success: true, version: 3, ingestComputeEpoch: 1 },
+      response: { ok: true, status: 200 },
+    })
   })
 
   it('renders loaded counts and loads more results when available', async () => {

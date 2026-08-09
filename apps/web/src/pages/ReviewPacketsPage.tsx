@@ -13,10 +13,9 @@ import { PageHeader } from '@/components/PageHeader'
 import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { apiBaseUrl } from '@/lib/api-client'
-import type { components } from '@/lib/api-types'
 import { rawApiClient } from '@/lib/api-helpers'
-import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import type { components } from '@/lib/api-types'
+import { downloadReviewPacket } from '@/lib/raw-endpoints'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ReviewPacketRun = components['schemas']['ReviewPacketRun']
@@ -429,14 +428,7 @@ export function ReviewPacketsPage() {
   async function handleDownload(run: ReviewPacketRun) {
     setDownloadingRunId(run.id)
     try {
-      const downloadUrl = new URL(
-        `${apiBaseUrl}/api/resumes/review-packets/${encodeURIComponent(run.id)}/download`,
-        window.location.origin,
-      ).toString()
-
-      const response = await fetch(downloadUrl, {
-        headers: withWorkspaceHeaders(),
-      })
+      const response = await downloadReviewPacket(run.id)
 
       if (!response.ok) {
         throw new Error(await readResponseError(response))
@@ -478,21 +470,16 @@ export function ReviewPacketsPage() {
         formData.append('updatedBy', normalizedUpdatedBy)
       }
 
-      const response = await fetch(
-        new URL(
-          `${apiBaseUrl}/api/resumes/review-packets/${encodeURIComponent(selectedRun.id)}/feedback-import`,
-          window.location.origin,
-        ).toString(),
+      const { data, error: apiError, response } = await rawApiClient.POST<ReviewPacketFeedbackImportResponse>(
+        `/api/resumes/review-packets/${encodeURIComponent(selectedRun.id)}/feedback-import`,
         {
-          method: 'POST',
-          headers: withWorkspaceHeaders(),
           body: formData,
         },
       )
 
-      const payload: unknown = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(extractApiErrorMessage(payload) ?? `Import failed (HTTP ${response.status})`)
+      const payload: unknown = response?.ok ? data : apiError
+      if (!response?.ok) {
+        throw new Error(extractApiErrorMessage(payload) ?? `Import failed (HTTP ${response?.status})`)
       }
 
       if (!isReviewPacketFeedbackImportResponse(payload)) {

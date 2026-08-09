@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { SchedulerStatus } from '@/components/SchedulerStatus'
 
 const mockT = (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
@@ -21,38 +21,40 @@ vi.mock('date-fns/formatDistanceToNow', () => ({
   formatDistanceToNow: () => '2 hours ago',
 }))
 
-const mockFetch = vi.fn()
+const getMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    GET: (...args: unknown[]) => getMock(...args),
+  },
+}))
 
 function mockStatusResponse(overrides: Record<string, unknown> = {}) {
-  return mockFetch.mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
+  return getMock.mockResolvedValueOnce({
+    data: {
       jobs_executed: 0, jobs_failed: 0, jobs_missed: 0,
       last_run: null, last_success: null, last_failure: null,
       schedule_type: null, schedule_value: null, running: false, jobs: [],
       ...overrides,
-    }),
+    },
+    response: { ok: true, status: 200 },
   })
 }
 
 describe('SchedulerStatus', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    vi.clearAllMocks()
   })
 
   it('shows loading state initially', () => {
-    mockFetch.mockReturnValue(new Promise(() => {}))
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    getMock.mockReturnValue(new Promise(() => {}))
+    render(<SchedulerStatus />)
     expect(screen.getByText('Loading from i18n')).toBeInTheDocument()
   })
 
   it('shows error state when fetch fails', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('network error'))
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    getMock.mockRejectedValueOnce(new Error('network error'))
+    render(<SchedulerStatus />)
     await waitFor(() => {
       expect(screen.getByText('Scheduler Offline')).toBeInTheDocument()
     })
@@ -60,8 +62,8 @@ describe('SchedulerStatus', () => {
   })
 
   it('shows error state when response is not ok', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 })
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    getMock.mockResolvedValueOnce({ data: undefined, response: { ok: false, status: 500 } })
+    render(<SchedulerStatus />)
     await waitFor(() => {
       expect(screen.getByText('Scheduler Offline')).toBeInTheDocument()
     })
@@ -75,7 +77,7 @@ describe('SchedulerStatus', () => {
       schedule_type: 'cron', schedule_value: '0 */2 * * *', running: true,
       jobs: [{ id: 'crawl_analyze', name: 'Analyze', next_run: '2026-05-13T02:00:00Z', trigger: 'cron' }],
     })
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    render(<SchedulerStatus />)
     await waitFor(() => { expect(screen.getByText('42')).toBeInTheDocument() })
     expect(screen.getByText('3')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
@@ -90,7 +92,7 @@ describe('SchedulerStatus', () => {
         { id: 'crawl_profile_1', name: 'Profile Crawl', next_run: null, trigger: 'manual' },
       ],
     })
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    render(<SchedulerStatus />)
     await waitFor(() => { expect(screen.getByText('Analyze Resumes')).toBeInTheDocument() })
     expect(screen.getByText('Profile Crawl')).toBeInTheDocument()
     expect(screen.getByText('crawl_analyze')).toBeInTheDocument()
@@ -98,13 +100,13 @@ describe('SchedulerStatus', () => {
 
   it('shows "no scheduled jobs" when jobs array is empty', async () => {
     mockStatusResponse({ running: false })
-    render(<SchedulerStatus apiBaseUrl="http://localhost:3001" />)
+    render(<SchedulerStatus />)
     await waitFor(() => { expect(screen.getByText('debugConfig.noScheduledJobs')).toBeInTheDocument() })
   })
 
-  it('fetches from the correct URL', async () => {
+  it('fetches worker status through the shared api client', async () => {
     mockStatusResponse()
-    render(<SchedulerStatus apiBaseUrl="http://example.com" />)
-    await waitFor(() => { expect(mockFetch).toHaveBeenCalledWith('http://example.com/api/worker/status') })
+    render(<SchedulerStatus />)
+    await waitFor(() => { expect(getMock).toHaveBeenCalledWith('/api/worker/status') })
   })
 })

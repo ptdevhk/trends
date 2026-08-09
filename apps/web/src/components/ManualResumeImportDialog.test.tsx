@@ -32,19 +32,24 @@ vi.mock('sonner', () => ({
   },
 }))
 
+const postMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: (...args: unknown[]) => postMock(...args),
+  },
+}))
+
 describe('ManualResumeImportDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('fetch', vi.fn())
   })
 
   it('uploads selected files and refreshes after a successful import', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    postMock.mockResolvedValue({
+      data: {
         success: true,
         source: { key: '51job-manual', label: '51job-manual' },
         summary: {
@@ -71,8 +76,10 @@ describe('ManualResumeImportDialog', () => {
           },
         ],
         warnings: [],
-      }),
-    } as Response)
+      },
+      error: undefined,
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ManualResumeImportDialog
@@ -93,17 +100,13 @@ describe('ManualResumeImportDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Import resumes' }))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(postMock).toHaveBeenCalledTimes(1)
     })
 
-    const [url, init] = fetchMock.mock.calls[0] ?? []
-    expect(String(url)).toContain('/api/resumes/manual-import')
-    expect(init?.method).toBe('POST')
-    expect(init?.headers).toBeInstanceOf(Headers)
-    expect((init?.headers as Headers).get('X-Workspace-Slug')).toBe('dev')
-    expect(init?.body).toBeInstanceOf(FormData)
-
-    const submittedForm = init?.body as FormData
+    const [path, options] = postMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/resumes/manual-import')
+    const submittedForm = (options as { body: FormData }).body
+    expect(submittedForm).toBeInstanceOf(FormData)
     expect(submittedForm.getAll('files')).toHaveLength(1)
     expect(submittedForm.get('location')).toBe('东莞')
     expect(submittedForm.get('keyword')).toBe('销售工程师')
@@ -119,14 +122,11 @@ describe('ManualResumeImportDialog', () => {
   it('shows API errors without calling refresh', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      json: async () => ({
-        success: false,
-        error: 'Upload exceeds size limit',
-      }),
-    } as Response)
+    postMock.mockResolvedValue({
+      data: undefined,
+      error: { success: false, error: 'Upload exceeds size limit' },
+      response: { ok: false, status: 400 },
+    })
 
     render(
       <ManualResumeImportDialog
@@ -152,10 +152,8 @@ describe('ManualResumeImportDialog', () => {
   it('shows unreadable PDF extraction failures without refreshing', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    postMock.mockResolvedValue({
+      data: {
         success: true,
         source: { key: '51job-manual', label: '51job-manual' },
         summary: {
@@ -181,8 +179,10 @@ describe('ManualResumeImportDialog', () => {
           },
         ],
         warnings: [],
-      }),
-    } as Response)
+      },
+      error: undefined,
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ManualResumeImportDialog
@@ -211,10 +211,8 @@ describe('ManualResumeImportDialog', () => {
   it('does not show a success toast or refresh when every uploaded file fails', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    postMock.mockResolvedValue({
+      data: {
         success: true,
         source: { key: '51job-manual', label: '51job-manual' },
         summary: {
@@ -240,8 +238,10 @@ describe('ManualResumeImportDialog', () => {
           },
         ],
         warnings: [],
-      }),
-    } as Response)
+      },
+      error: undefined,
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ManualResumeImportDialog
@@ -269,10 +269,8 @@ describe('ManualResumeImportDialog', () => {
   it('keeps success toast and refresh when imported rows exist alongside skipped files', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    postMock.mockResolvedValue({
+      data: {
         success: true,
         source: { key: '51job-manual', label: '51job-manual' },
         summary: {
@@ -307,8 +305,10 @@ describe('ManualResumeImportDialog', () => {
           },
         ],
         warnings: [],
-      }),
-    } as Response)
+      },
+      error: undefined,
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ManualResumeImportDialog
