@@ -30,6 +30,15 @@ import {
   type ReviewRowAction,
   type ReviewRowError,
 } from './IndustryReviewRow'
+import {
+  IndustryBatchActionBar,
+  IndustryBatchApproveDialog,
+  IndustryBatchRejectDialog,
+  type BatchApproveAction,
+  type BatchAttestationInput,
+  type BatchDialogKind,
+  type BatchRejectAction,
+} from './IndustryBatchReview'
 
 type ReviewQueueStatus = ReviewInboxProposal['status']
 type CleanReviewPacket = {
@@ -73,6 +82,34 @@ function parseQueue(value: unknown): ReviewInboxItem[] {
     return typeof item.proposal.proposalId === 'string'
       && typeof item.recommendation.proposalId === 'string'
   }) as ReviewInboxItem[]
+}
+
+function parseBatchReviewResults(value: unknown): Array<{
+  proposalId: string
+  kind: 'approve' | 'reject'
+  ok: boolean
+  revisionId?: string
+  companyKey?: string
+  status?: string
+  code?: string
+  error?: string
+}> {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  return value.items.filter((item): item is {
+    proposalId: string
+    kind: 'approve' | 'reject'
+    ok: boolean
+    revisionId?: string
+    companyKey?: string
+    status?: string
+    code?: string
+    error?: string
+  } => (
+    isRecord(item)
+    && typeof item.proposalId === 'string'
+    && (item.kind === 'approve' || item.kind === 'reject')
+    && typeof item.ok === 'boolean'
+  ))
 }
 
 function parseHistory(value: unknown): IndustryHistoryItem[] {
@@ -237,6 +274,9 @@ export function IndustryReviewInbox({
   const [undoBlocked, setUndoBlocked] = useState<Set<string>>(new Set())
   const [packetCache, setPacketCache] = useState<Map<string, CleanReviewPacket>>(new Map())
   const [announcement, setAnnouncement] = useState('')
+  const [batchSelection, setBatchSelection] = useState<Set<string>>(new Set())
+  const [batchDialog, setBatchDialog] = useState<BatchDialogKind | null>(null)
+  const [batchSubmitting, setBatchSubmitting] = useState(false)
   const syncedTargetStatusRef = useRef<string | undefined>(undefined)
   const focusedTargetRef = useRef<string | undefined>(undefined)
   const targetIsTerminal = targetItem
@@ -643,6 +683,117 @@ export function IndustryReviewInbox({
     else void handleApprove(row.item)
   }, [handleApprove, handleUndo])
 
+  const toggleBatchSelect = useCallback((proposalId: string) => {
+    setBatchSelection((current) => {
+      const next = new Set(current)
+      if (next.has(proposalId)) next.delete(proposalId)
+      else next.add(proposalId)
+      return next
+    })
+  }, [])
+
+  const clearBatchSelection = useCallback(() => setBatchSelection(new Set()), [])
+
+  const batchSelectedItems = useMemo(
+    () => items.filter((item) => batchSelection.has(item.proposal.proposalId)),
+    [items, batchSelection],
+  )
+
+  const handleBatchApprove = useCallback(async (
+    actions: BatchApproveAction[],
+    attestation: BatchAttestationInput,
+  ) => {
+    if (actions.length === 0) return
+    setBatchSubmitting(true)
+    try {
+      const response = await requestJson('/api/company-industry-proposals/batch-review', {
+        method: 'POST',
+        body: JSON.stringify({ actions, attestation }),
+      })
+      const results = parseBatchReviewResults(response)
+      const succeeded = results.filter((item) => item.ok)
+      const failed = results.filter((item) => !item.ok)
+      setBatchSelection((current) => {
+        const next = new Set(current)
+        for (const item of succeeded) next.delete(item.proposalId)
+        return next
+      })
+      const approvedAt = Date.now()
+      setSessionApprovals((current) => {
+        const next = new Map(current)
+        for (const item of succeeded) {
+          if (item.kind !== 'approve' || !item.revisionId) continue
+          next.set(item.proposalId, {
+            proposalId: item.proposalId,
+            approvedRevisionId: item.revisionId,
+            approvedAt,
+          })
+        }
+        return next
+      })
+      const approvedCount = succeeded.filter((item) => item.kind === 'approve').length
+      const summary = t('industryEvidence.batchDone', {
+        defaultValue: 'Batch review complete: {{approved}} approved, {{rejected}} rejected, {{failed}} failed.',
+        approved: approvedCount,
+        rejected: succeeded.length - approvedCount,
+        failed: failed.length,
+      })
+      setAnnouncement(summary)
+      if (failed.length > 0) {
+        toast.warning(summary)
+      } else {
+        toast.success(summary)
+      }
+      setBatchDialog(null)
+      void loadActiveQueue()
+    } catch (error) {
+      const message = errorMessage(error, t('industryEvidence.batchFailed', {
+        defaultValue: 'Batch review failed. Refresh the queue and retry.',
+      }))
+      setAnnouncement(message)
+      toast.error(message)
+    } finally {
+      setBatchSubmitting(false)
+    }
+  }, [loadActiveQueue, requestJson, t])
+
+  const handleBatchReject = useCallback(async (actions: BatchRejectAction[]) => {
+    if (actions.length === 0) return
+    setBatchSubmitting(true)
+    try {
+      const response = await requestJson('/api/company-industry-proposals/batch-review', {
+        method: 'POST',
+        body: JSON.stringify({ actions }),
+      })
+      const results = parseBatchReviewResults(response)
+      const succeeded = results.filter((item) => item.ok)
+      const failed = results.filter((item) => !item.ok)
+      setBatchSelection((current) => {
+        const next = new Set(current)
+        for (const item of succeeded) next.delete(item.proposalId)
+        return next
+      })
+      const summary = t('industryEvidence.batchRejectDone', {
+        defaultValue: 'Batch review complete: {{rejected}} rejected, {{failed}} failed.',
+        rejected: succeeded.length,
+        failed: failed.length,
+      })
+      setAnnouncement(summary)
+      if (failed.length > 0) toast.warning(summary)
+      else toast.success(summary)
+      setBatchDialog(null)
+      void loadActiveQueue()
+    } catch (error) {
+      const message = errorMessage(error, t('industryEvidence.batchFailed', {
+        defaultValue: 'Batch review failed. Refresh the queue and retry.',
+      }))
+      setAnnouncement(message)
+      toast.error(message)
+    } finally {
+      setBatchSubmitting(false)
+    }
+  }, [loadActiveQueue, requestJson, t])
+
   useEffect(() => {
     const proposalId = targetItem?.proposal.proposalId
     const targetListLoading = targetIsTerminal ? historyLoading : loading
@@ -824,6 +975,14 @@ export function IndustryReviewInbox({
             </div>
           </details>
 
+          <IndustryBatchActionBar
+            selectedCount={batchSelectedItems.length}
+            disabled={batchSubmitting}
+            onApprove={() => setBatchDialog('approve')}
+            onReject={() => setBatchDialog('reject')}
+            onClear={clearBatchSelection}
+          />
+
           {queueError ? (
             <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950" role="alert" data-testid="industry-review-queue-error">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -869,6 +1028,7 @@ export function IndustryReviewInbox({
           ) : (
             visibleRows.map((row) => {
               const proposalId = row.item.proposal.proposalId
+              const batchSelectable = !isTerminalIndustryProposalStatus(row.item.proposal.status)
               return (
                 <IndustryReviewRow
                   key={proposalId}
@@ -878,6 +1038,11 @@ export function IndustryReviewInbox({
                   pendingAction={pendingActions.get(proposalId)}
                   error={rowErrors.get(proposalId)}
                   undoDisabled={undoBlocked.has(proposalId)}
+                  batchSelected={batchSelection.has(proposalId)}
+                  batchDisabled={!batchSelectable}
+                  onToggleBatchSelect={batchSelectable
+                    ? () => toggleBatchSelect(proposalId)
+                    : undefined}
                   onSelect={() => onSelectProposal(row.item.proposal)}
                   onApprove={() => void handleApprove(row.item)}
                   onUndo={() => void handleUndo(row.item)}
@@ -893,6 +1058,21 @@ export function IndustryReviewInbox({
           ) : null}
         </div>
       )}
+
+      <IndustryBatchApproveDialog
+        open={batchDialog === 'approve'}
+        items={batchSelectedItems}
+        submitting={batchSubmitting}
+        onSubmit={(actions, attestation) => void handleBatchApprove(actions, attestation)}
+        onOpenChange={(open) => setBatchDialog(open ? 'approve' : null)}
+      />
+      <IndustryBatchRejectDialog
+        open={batchDialog === 'reject'}
+        items={batchSelectedItems}
+        submitting={batchSubmitting}
+        onSubmit={(actions) => void handleBatchReject(actions)}
+        onOpenChange={(open) => setBatchDialog(open ? 'reject' : null)}
+      />
 
       <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="industry-review-announcement">
         {announcement}

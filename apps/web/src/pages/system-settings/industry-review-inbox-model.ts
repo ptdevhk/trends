@@ -128,6 +128,67 @@ export function getOneClickEligibility(item: ReviewInboxItem): OneClickEligibili
   return { eligible: true, safeSourceIds }
 }
 
+export type BatchApproveEligibility =
+  | {
+      eligible: true
+      safeSourceIds: string[]
+      /** Attestation required: any visible risk flag or a CNC class. */
+      requiresAttestation: boolean
+      /** Explicit classification required: the recommendation has no class. */
+      requiresClass: boolean
+    }
+  | { eligible: false; reason: 'terminal' | 'status' | 'source' | 'hard_risk' }
+
+/**
+ * Batch-approve eligibility. Mirrors the server-side gates of the
+ * batch-review endpoint: open status, at least one approval-safe source,
+ * and no non-overridable risk flags. Attended overrides for
+ * `weak_industry_signal` are expressed through the batch attestation, so
+ * flag presence alone does not block — it only demands acknowledgement.
+ */
+export function getBatchApproveEligibility(item: ReviewInboxItem): BatchApproveEligibility {
+  if (isTerminalIndustryProposalStatus(item.proposal.status)) {
+    return { eligible: false, reason: 'terminal' }
+  }
+  if (item.proposal.status !== 'ready_for_review') {
+    return { eligible: false, reason: 'status' }
+  }
+  const safeSourceIds = getApprovalSafeSourceIds(item.recommendation)
+  if (safeSourceIds.length === 0) {
+    return { eligible: false, reason: 'source' }
+  }
+  if (item.recommendation.riskDecision.nonOverridableRiskFlags.length > 0) {
+    return { eligible: false, reason: 'hard_risk' }
+  }
+  return {
+    eligible: true,
+    safeSourceIds,
+    requiresAttestation:
+      item.recommendation.riskFlags.length > 0
+      || item.recommendation.recommendedIndustryClass === 'cnc',
+    requiresClass: item.recommendation.recommendedIndustryClass === 'unknown',
+  }
+}
+
+export function unionRiskFlags(items: readonly ReviewInboxItem[]): string[] {
+  return [...new Set(items.flatMap((item) => item.recommendation.riskFlags))].sort()
+}
+
+export function batchAttestationMode(riskFlags: readonly string[]): 'standard' | 'risk_override' {
+  return riskFlags.length > 0 ? 'risk_override' : 'standard'
+}
+
+export function batchRequiresCncAcknowledgement(
+  items: readonly ReviewInboxItem[],
+  classOverrides: Readonly<Record<string, string>>,
+): boolean {
+  return items.some((item) => {
+    const effectiveClass =
+      classOverrides[item.proposal.proposalId] ?? item.recommendation.recommendedIndustryClass
+    return effectiveClass === 'cnc' || item.recommendation.riskFlags.includes('cnc_claim_inferred')
+  })
+}
+
 export function partitionReviewQueue(
   items: readonly ReviewInboxItem[],
   sessionApprovals: ReadonlyMap<string, SessionApproval>,

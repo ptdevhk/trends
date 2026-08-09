@@ -99,6 +99,50 @@ describe("industry review policy", () => {
     });
   });
 
+  it("allows an attended reviewer to override weak_industry_signal with an explicit class", () => {
+    expect(INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS).not.toContain(
+      "weak_industry_signal",
+    );
+    expect(reviewAttestationDecision(["weak_industry_signal"])).toEqual({
+      requiresAcknowledgement: true,
+      nonOverridableRiskFlags: [],
+      canApproveWithRiskOverride: true,
+    });
+    const attestation: IndustryReviewAttestation = {
+      schemaVersion: INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
+      inputFingerprint: "fingerprint-3",
+      decisionMode: "risk_override",
+      acknowledgedRiskFlags: ["weak_industry_signal"],
+      cncEvidenceAcknowledged: false,
+      acknowledgementReason:
+        "Official site confirms a retail chain; classifying non_industry.",
+    };
+    expect(
+      validateIndustryReviewAttestation({
+        attestation,
+        expectedInputFingerprint: "fingerprint-3",
+        visibleRiskFlags: ["weak_industry_signal"],
+        recommendedIndustryClass: "non_industry",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("keeps canonical mapping and source conflicts hard-blocked", () => {
+    for (const flag of [
+      "canonical_mapping_missing",
+      "only_discovery_sources",
+      "source_conflict",
+      "stale_or_failed_source",
+    ] as const) {
+      expect(INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS).toContain(flag);
+      expect(reviewAttestationDecision([flag])).toEqual({
+        requiresAcknowledgement: true,
+        nonOverridableRiskFlags: [flag],
+        canApproveWithRiskOverride: false,
+      });
+    }
+  });
+
   it("Lane A auto-verify accepts only structured registry/taxonomy sources with explicit CNC text", () => {
     expect(AUTO_VERIFY_SOURCE_TYPES).toEqual(
       new Set(["registry", "taxonomy"]),

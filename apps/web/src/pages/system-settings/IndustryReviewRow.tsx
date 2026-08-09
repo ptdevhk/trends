@@ -22,6 +22,10 @@ type IndustryReviewRowProps = {
   pendingAction?: ReviewRowAction
   error?: ReviewRowError
   undoDisabled?: boolean
+  /** Batch selection affordance (bulk approve/reject). */
+  batchSelected?: boolean
+  batchDisabled?: boolean
+  onToggleBatchSelect?: () => void
   onSelect: () => void
   onApprove: () => void
   onUndo: () => void
@@ -75,6 +79,9 @@ export function IndustryReviewRow({
   pendingAction,
   error,
   undoDisabled = false,
+  batchSelected = false,
+  batchDisabled = false,
+  onToggleBatchSelect,
   onSelect,
   onApprove,
   onUndo,
@@ -111,6 +118,21 @@ export function IndustryReviewRow({
       }}
     >
       <div className="flex items-start gap-2.5">
+        {onToggleBatchSelect ? (
+          <input
+            type="checkbox"
+            aria-label={t('industryEvidence.batchSelectRow', {
+              defaultValue: 'Select for bulk action',
+            })}
+            checked={batchSelected}
+            disabled={batchDisabled}
+            onChange={onToggleBatchSelect}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            className="mt-1.5 shrink-0"
+            data-testid={`industry-batch-check-${proposal.proposalId}`}
+          />
+        ) : null}
         <div
           className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
             isApproved

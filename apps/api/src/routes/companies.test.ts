@@ -1233,4 +1233,499 @@ describe("companies routes", () => {
     const body = await parseJsonBody<{ items: Array<{ action: string }> }>(response);
     expect(body.items[0].action).toBe("needs_more_evidence");
   });
+
+  describe("batch review", () => {
+    function reviewPacket(overrides: Record<string, unknown> = {}) {
+      return {
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true },
+            { sourceId: "source-2", approvalSafe: false },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official site confirms industrial equipment sales.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-current" } },
+        proposal: { companyKey: "acme-cnc" },
+        ...overrides,
+      } as never;
+    }
+
+    function batchFetchMock(calls: ConvexCall[]) {
+      return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: call.args.industryClass === "non_industry" ? "watsons-my" : "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            status: "rejected",
+          });
+        }
+        if (call.pathName === "companies:startIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "running",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "completed",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+          return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-x" });
+        }
+        if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+          return convexSuccess(null);
+        }
+        if (call.pathName === "companies:listAffectedResumesByCompany") {
+          return convexSuccess({ items: [], continueCursor: "", isDone: true });
+        }
+        if (call.pathName === "companies:reserveIndustryRecomputePage") {
+          return convexSuccess({ runId: "run-1" });
+        }
+        return convexSuccess({});
+      });
+    }
+
+    it("approves and rejects a mixed batch with one shared attestation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockImplementation(
+        async (proposalId: string) => {
+          if (proposalId === "proposal-1") return reviewPacket();
+          if (proposalId === "proposal-2") {
+            return reviewPacket({
+              recommendation: {
+                proposalStatus: "ready_for_review",
+                recommendedIndustryClass: "unknown",
+                recommendedSourceIds: ["source-1"],
+                sourceDecisions: [
+                  { sourceId: "source-1", approvalSafe: true },
+                ],
+                riskFlags: ["weak_industry_signal"],
+                evidenceSummaryDraft: "",
+                decisionReasonDraft: "Additional evidence or canonical-company review is required before changing verified truth.",
+              },
+              proposal: { companyKey: "watsons-my" },
+            });
+          }
+          throw new Error(`Unexpected proposal ${proposalId}`);
+        },
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1" },
+              {
+                kind: "approve",
+                proposalId: "proposal-2",
+                industryClass: "non_industry",
+              },
+              { kind: "reject", proposalId: "proposal-3", reviewNote: "Noise" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Official site confirms a retail chain.",
+            },
+            batchNote: "Weekly bulk review",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        batchId: string;
+        batchFingerprint: string;
+        summary: { total: number; succeeded: number; failed: number };
+        items: Array<{ proposalId: string; ok: boolean; code?: string; error?: string }>;
+      }>(response);
+      expect(body.batchId).toMatch(/^industry-batch-/);
+      expect(body.batchFingerprint).toHaveLength(64);
+      expect(body.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ proposalId: "proposal-1", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-2", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-3", ok: true, status: "rejected" }),
+        ]),
+      );
+
+      const approveCalls = calls.filter(
+        (call) => call.pathName === "companies:approveIndustryProposal",
+      );
+      expect(approveCalls).toHaveLength(2);
+      const [clean, nonIndustry] = approveCalls;
+      expect(clean.args).toMatchObject({
+        proposalId: "proposal-1",
+        verificationLevel: "verified",
+        industryClass: "industrial",
+        approvedSourceIds: ["source-1"],
+        expectedInputFingerprint: "fingerprint-1",
+        expectedProposalUpdatedAt: 123,
+        expectedCurrentRevisionId: "revision-current",
+      });
+      expect(nonIndustry.args).toMatchObject({
+        proposalId: "proposal-2",
+        industryClass: "non_industry",
+      });
+      // One attestation covers the batch: same batchId, per-item fingerprint,
+      // per-item decision mode and flags.
+      expect(clean.args.reviewAttestation).toMatchObject({
+        schemaVersion: "industry-review-attestation.v1",
+        inputFingerprint: "fingerprint-1",
+        decisionMode: "standard",
+        acknowledgedRiskFlags: [],
+        batchId: body.batchId,
+      });
+      expect(nonIndustry.args.reviewAttestation).toMatchObject({
+        inputFingerprint: "fingerprint-1",
+        decisionMode: "risk_override",
+        acknowledgedRiskFlags: ["weak_industry_signal"],
+        batchId: body.batchId,
+      });
+      const rejectCall = calls.find(
+        (call) => call.pathName === "companies:resolveIndustryProposal",
+      );
+      expect(rejectCall?.args).toMatchObject({
+        proposalId: "proposal-3",
+        resolution: "rejected",
+        reviewNote: "Noise",
+      });
+    });
+
+    it("fails per item when the attestation is missing for a flagged proposal", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+          proposal: { companyKey: "acme-cnc" },
+        }),
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "non_industry" },
+            ],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ summary: { failed: number }; items: Array<{ code: string }> }>(response);
+      expect(body.summary.failed).toBe(1);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_ATTESTATION_REQUIRED");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("still hard-blocks non-overridable flags even with an attestation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal", "source_conflict"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+        }),
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "industrial" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal", "source_conflict"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Reviewed the conflict.",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ items: Array<{ code: string; error: string }> }>(response);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_HARD_RISK");
+      expect(body.items[0].error).toContain("source_conflict");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("keeps a stale item from aborting the rest of the batch", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockImplementation(
+        async (proposalId: string) => {
+          if (proposalId === "proposal-good") return reviewPacket();
+          if (proposalId === "proposal-stale") {
+            return reviewPacket({
+              dataset: {
+                inputFingerprint: "fingerprint-2",
+                proposalUpdatedAt: 456,
+                sourceVersions: [{ sourceId: "source-1", updatedAt: 8 }],
+              },
+            });
+          }
+          throw new Error(`Unexpected proposal ${proposalId}`);
+        },
+      );
+      // Override the mutation for the stale proposal: the Convex boundary
+      // rejects with a stale error, which must surface per-item only.
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (
+          call.pathName === "companies:approveIndustryProposal" &&
+          call.args.proposalId === "proposal-stale"
+        ) {
+          return convexFailure("INDUSTRY_REVIEW_STALE: recommendation fingerprint changed during review");
+        }
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({ proposalId: call.args.proposalId, status: "rejected" });
+        }
+        if (call.pathName === "companies:startIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "running",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "completed",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+          return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-x" });
+        }
+        if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+          return convexSuccess(null);
+        }
+        if (call.pathName === "companies:listAffectedResumesByCompany") {
+          return convexSuccess({ items: [], continueCursor: "", isDone: true });
+        }
+        if (call.pathName === "companies:reserveIndustryRecomputePage") {
+          return convexSuccess({ runId: "run-1" });
+        }
+        return convexSuccess({});
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-good" },
+              { kind: "approve", proposalId: "proposal-stale" },
+            ],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        summary: { succeeded: number; failed: number };
+        items: Array<{ proposalId: string; ok: boolean; code?: string }>;
+      }>(response);
+      expect(body.summary).toEqual({ total: 2, succeeded: 1, failed: 1 });
+      expect(body.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ proposalId: "proposal-good", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-stale", ok: false }),
+        ]),
+      );
+    });
+
+    it("requires an explicit class when the recommendation has none", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: [],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+        }),
+      );
+      const calls: ConvexCall[] = [];
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [{ kind: "approve", proposalId: "proposal-1" }],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ items: Array<{ code: string }> }>(response);
+      expect(body.items[0].code).toBe("CLASS_REQUIRED");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("requires an admin for batch review", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [{ kind: "reject", proposalId: "proposal-1" }],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(403);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
 });

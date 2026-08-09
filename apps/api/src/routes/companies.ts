@@ -465,6 +465,7 @@ const IndustryReviewAttestationSchema = z.object({
   acknowledgedRiskFlags: z.array(z.enum(INDUSTRY_REVIEW_RISK_FLAGS)),
   cncEvidenceAcknowledged: z.boolean(),
   acknowledgementReason: z.string(),
+  batchId: z.string().min(1).optional(),
 });
 
 const IndustryProfileSchema = z.object({
@@ -1720,6 +1721,111 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     }
     throw error;
   }
+});
+
+const BatchReviewActionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("approve"),
+    proposalId: z.string().min(1),
+    industryClass: IndustryClassEnum.optional(),
+    decisionReason: z.string().min(1).max(2000).optional(),
+    evidenceSummary: z.string().min(1).max(4000).optional(),
+  }),
+  z.object({
+    kind: z.literal("reject"),
+    proposalId: z.string().min(1),
+    reviewNote: z.string().max(4000).optional(),
+  }),
+]);
+
+const BatchReviewAttestationSchema = z.object({
+  schemaVersion: z.literal("industry-review-attestation.v1"),
+  decisionMode: z.enum(["standard", "risk_override"]),
+  acknowledgedRiskFlags: z.array(z.enum(INDUSTRY_REVIEW_RISK_FLAGS)),
+  cncEvidenceAcknowledged: z.boolean(),
+  acknowledgementReason: z.string(),
+});
+
+const batchReviewIndustryProposalsRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/batch-review",
+  tags: ["company-industry-evidence"],
+  summary: "Governed bulk approve/reject of industry proposals",
+  description:
+    "One attestation covers the whole batch; per-item governance (packet fingerprint, risk flags, CNC evidence, stale checks) still applies to every item. Items fail individually — a stale or hard-blocked item never aborts the batch. The server materializes the per-item attestation (item fingerprint + shared batchId) on each immutable revision.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            actions: z.array(BatchReviewActionSchema).min(1).max(50),
+            attestation: BatchReviewAttestationSchema.optional(),
+            batchNote: z.string().max(4000).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            batchId: z.string(),
+            batchFingerprint: z.string(),
+            summary: z.object({
+              total: z.number(),
+              succeeded: z.number(),
+              failed: z.number(),
+            }),
+            items: z.array(
+              z.object({
+                proposalId: z.string(),
+                kind: z.enum(["approve", "reject"]),
+                ok: z.boolean(),
+                revisionId: z.string().optional(),
+                companyKey: z.string().optional(),
+                status: ProposalStatusEnum.optional(),
+                code: z.string().optional(),
+                error: z.string().optional(),
+              }),
+            ),
+          }),
+        },
+      },
+      description: "Per-item batch outcomes",
+    },
+    422: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+            code: z.string(),
+          }),
+        },
+      },
+      description: "Invalid batch payload",
+    },
+  },
+});
+
+app.openapi(batchReviewIndustryProposalsRoute, async (c) => {
+  const body = c.req.valid("json");
+  const { batchReviewIndustryProposals } = await import(
+    "../services/company-industry-batch-review-service.js"
+  );
+  const result = await batchReviewIndustryProposals(
+    {
+      workspaceSlug: c.var.workspaceSlug,
+      actions: body.actions,
+      ...(body.attestation ? { attestation: body.attestation } : {}),
+      ...(body.batchNote ? { batchNote: body.batchNote } : {}),
+    },
+    getAuthenticatedActorId(c),
+  );
+  return c.json({ success: true as const, ...result }, 200);
 });
 
 const listIndustryEvidenceSourcesRoute = createRoute({

@@ -129,10 +129,41 @@ Write the flag → condition → override table into dev-docs (it took 4 drain r
 
 ## Open questions for the next session
 
-1. **Drain or build?** Continue agent-driven sweeps (bounded value; 50/run) or invest the session in C1+C3 to make humans self-sufficient? Recommendation: one sweep round to keep the queue fresh, then C1.
-2. **Batch semantics**: should a batch approve require per-item confirmation, or one attestation covering the batch (with item list in the audit row)?
-3. **non_industry classification**: does it need its own verification level, or is `verified` + class `non_industry` sufficient?
-4. **Tag policy**: handoff doc commit is on the branch but the `v0.4.23` tag stays at `3ebc673a` (app code state) — retag on next app-code change.
+1. **Drain or build?** Continue agent-driven sweeps (bounded value; 50/run) or invest the session in C1+C3 to make humans self-sufficient? Recommendation: one sweep round to keep the queue fresh, then C1. **→ Decided in follow-up: build (C1).**
+2. **Batch semantics**: should a batch approve require per-item confirmation, or one attestation covering the batch (with item list in the audit row)? **→ Decided: one attestation per batch** (server materializes per-item clones with the shared `batchId` on every approved revision).
+3. **non_industry classification**: does it need its own verification level, or is `verified` + class `non_industry` sufficient? **→ Decided: `verified` + `non_industry` class, no schema change.**
+4. **Tag policy**: handoff doc commit is on the branch but the `v0.4.23` tag stays at `3ebc673a` (app code state) — retag on next app-code change. **→ Follow-up retagged `v0.4.23` after shipping app code.**
+
+---
+
+## Follow-up session (2026-08-09): C1 shipped — bulk approve/reject workflow
+
+The bulk approve/reject workflow (the original product ask) shipped end-to-end: API batch endpoint, governance override lane for `weak_industry_signal`, and multi-select UI with one-attestation-per-batch dialogs. Deployed to preview and live-verified; prod untouched.
+
+### What shipped
+
+| Piece | Change |
+|---|---|
+| Governance (C2-lite) | `weak_industry_signal` moved out of `INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS` (`packages/shared/src/industry-review.ts`) — an attended reviewer who explicitly classifies the employer may override it via `risk_override` attestation + reason. New `INDUSTRY_REVIEW_OVERRIDABLE_RISK_FLAGS` constant documents the policy. `cnc_claim_inferred` stays hard (it additionally trips `INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED`); `canonical_mapping_missing`, `source_conflict`, `only_discovery_sources`, `stale_or_failed_source` stay hard. |
+| API batch endpoint | `POST /api/company-industry-proposals/batch-review` (`apps/api/src/services/company-industry-batch-review-service.ts` + route in `apps/api/src/routes/companies.ts`). Body: `actions[]` (kind `approve` with optional `industryClass` override, or kind `reject` with optional `reviewNote`) + one `attestation` + optional `batchNote`. Per-item governance: packet fingerprint, ready_for_review status, explicit class (CLASS_REQUIRED), approval-safe sources, hard-flag gate, attestation validation, stale checks. Items fail individually (`summary.total/succeeded/failed` + per-item `code`/`error`); one batch never aborts the rest. Server generates revisionIds and materializes per-item attestation clones (`inputFingerprint` = item fingerprint, per-item mode/flags, shared `batchId`) stored on each immutable revision. Approvals trigger one coalesced maintenance run. Max 50 actions. |
+| Attestation extension | `batchId?: string` added (optional, backward-compatible) to `IndustryReviewAttestation` in shared types, API route schema, Convex validator, and contracts parser — the audit trail links every revision approved in a batch. |
+| Bug fixed (found live) | Convex `companies:resolveIndustryProposal` required `reviewNote` while the API contract marks it optional — any reject without a note 500'd. Made `reviewNote` optional in the mutation (`(args.reviewNote ?? "").trim()`), matching the contract; new convex test covers it. |
+| Web UI | `apps/web/src/pages/system-settings/IndustryBatchReview.tsx`: batch action bar (sticky, shows selection count, Approve/Reject/Clear), approve dialog (per-item classification select incl. `non_industry`, risk-flag union chips, decision mode, reason textarea, CNC acknowledgement, excluded-item warnings), reject dialog (shared note). `IndustryReviewRow` gained a batch checkbox. Inbox wires selection → POST → per-item results → session undo-ability for batch approvals + queue refresh. Model helpers (`getBatchApproveEligibility`, `unionRiskFlags`, `batchAttestationMode`, `batchRequiresCncAcknowledgement`) mirror the server gates. |
+
+### Live verification (preview, workspace hr, 2026-08-09)
+
+- T1: approve `industry-maintenance-956530723aa8da63a89b` (only flag `weak_industry_signal`) with class `non_industry`, no attestation → per-item `INDUSTRY_REVIEW_ATTESTATION_REQUIRED` (proves the flag no longer hard-blocks; previously this was impossible).
+- T2: approve Lovisa (`canonical_mapping_missing` + `weak_industry_signal`) with full risk-override attestation → per-item `INDUSTRY_REVIEW_HARD_RISK` — governance preserved live; mapping lane still required.
+- T3: reject without `reviewNote` → before fix: `ArgumentValidationError`; after convex fix: clean mutation call failing only on business rule ("Proposal is not open: rejected" for an already-rejected id).
+- No data mutated by smoke tests (coverage unchanged: openTotal 9,776 · ready 16 · rejected 25 · approved 5). Web bundle contains the new chunk; API + convex restarted healthy.
+
+### Remaining (from this handoff's plan)
+
+- **C3 (partial)**: `non_industry` lane exists in the batch UI (verified + class `non_industry`) but held items also carry `canonical_mapping_missing`/`source_conflict`, so the queue still needs the **identity-resolution** workflow (7 audit items) before batch approval can drain them.
+- **C2 (partial)**: only `weak_industry_signal` is overridable. `cnc_claim_inferred` intentionally still hard.
+- **C4** candidate-quality gate, **C5** coverage consolidation, **C6** audit UI, **C7** governance dev-docs — not started.
+- **P0** throughput (batch/parallel sweep) — not started.
+- Success criteria status: C1 shipped ✅ · ready queue below 5 ❌ (needs identity lane) · openWithSources ↑ ❌ (P0) · junk candidates gate ❌ (C4) · governance docs ❌ (C7) · prod pinned `64fa1dfb` ✅ · preview parity ✅.
 
 ---
 

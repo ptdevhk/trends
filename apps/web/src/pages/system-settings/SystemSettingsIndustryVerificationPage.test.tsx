@@ -1025,3 +1025,244 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(await screen.findByText('completed; 0 ready.')).toBeInTheDocument()
   })
 })
+
+describe('SystemSettingsIndustryVerificationPage batch review', () => {
+  function makeQueueItem(
+    proposalOverrides: Record<string, unknown>,
+    recommendationOverrides: Record<string, unknown>,
+  ) {
+    return {
+      proposal: {
+        ...cleanInboxProposal,
+        ...proposalOverrides,
+      },
+      recommendation: {
+        ...cleanInboxRecommendation,
+        ...recommendationOverrides,
+      },
+      sourceCount: 1,
+    }
+  }
+
+  function installBatchMock(items: Array<Record<string, unknown>>) {
+    let batchBody: { actions: unknown[]; attestation?: unknown } | null = null
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items,
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-proposals/batch-review' && init?.method === 'POST') {
+        batchBody = JSON.parse(String(init.body))
+        return Promise.resolve({
+          success: true,
+          batchId: 'industry-batch-test',
+          batchFingerprint: 'f'.repeat(64),
+          summary: { total: 1, succeeded: 1, failed: 0 },
+          items: [
+            {
+              proposalId: 'clean-proposal',
+              kind: 'approve',
+              ok: true,
+              revisionId: 'revision-batch',
+              companyKey: 'clean-company',
+            },
+          ],
+        })
+      }
+      return Promise.resolve({ success: true })
+    })
+    return {
+      batchBody: () => batchBody,
+    }
+  }
+
+  it('batch-approves a clean proposal without attestation details', async () => {
+    const harness = installBatchMock([makeQueueItem({}, {})])
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    const checkbox = await screen.findByTestId('industry-batch-check-clean-proposal')
+    await user.click(checkbox)
+
+    expect(screen.getByTestId('industry-batch-action-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('industry-batch-selected-count')).toHaveTextContent('1 selected')
+
+    await user.click(screen.getByTestId('industry-batch-approve-button'))
+    expect(await screen.findByTestId('industry-batch-approve-items')).toBeInTheDocument()
+    await user.click(screen.getByTestId('industry-batch-approve-submit'))
+
+    await waitFor(() => {
+      expect(harness.batchBody()).toEqual({
+        actions: [
+          { kind: 'approve', proposalId: 'clean-proposal', industryClass: 'industrial' },
+        ],
+        attestation: {
+          schemaVersion: 'industry-review-attestation.v1',
+          decisionMode: 'standard',
+          acknowledgedRiskFlags: [],
+          cncEvidenceAcknowledged: false,
+          acknowledgementReason: '',
+        },
+      })
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('1 approved'))
+  })
+
+  it('classifies a weak-signal proposal as non_industry with a risk-override attestation', async () => {
+    const harness = installBatchMock([makeQueueItem(
+      {
+        proposalId: 'weak-proposal',
+        companyKey: 'watsons-my',
+        suggestedIndustryClass: 'unknown',
+      },
+      {
+        proposalId: 'weak-proposal',
+        recommendedIndustryClass: 'unknown',
+        recommendedAction: 'inspect',
+        riskFlags: ['weak_industry_signal'],
+        riskDecision: {
+          requiresAcknowledgement: true,
+          nonOverridableRiskFlags: [],
+          canApproveWithRiskOverride: true,
+        },
+      },
+    )])
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    const checkbox = await screen.findByTestId('industry-batch-check-weak-proposal')
+    await user.click(checkbox)
+    await user.click(screen.getByTestId('industry-batch-approve-button'))
+
+    const classSelect = await screen.findByTestId('industry-batch-class-weak-proposal')
+    await user.selectOptions(classSelect, 'non_industry')
+    const reason = screen.getByTestId('industry-batch-reason')
+    await user.type(reason, 'Official site confirms a retail chain; classifying non_industry.')
+    await user.click(screen.getByTestId('industry-batch-approve-submit'))
+
+    await waitFor(() => {
+      expect(harness.batchBody()).toEqual({
+        actions: [
+          { kind: 'approve', proposalId: 'weak-proposal', industryClass: 'non_industry' },
+        ],
+        attestation: {
+          schemaVersion: 'industry-review-attestation.v1',
+          decisionMode: 'risk_override',
+          acknowledgedRiskFlags: ['weak_industry_signal'],
+          cncEvidenceAcknowledged: false,
+          acknowledgementReason: 'Official site confirms a retail chain; classifying non_industry.',
+        },
+      })
+    })
+  })
+
+  it('batch-rejects selected proposals with a shared note', async () => {
+    let batchBody: { actions: unknown[] } | null = null
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [makeQueueItem({}, {})],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.startsWith('/api/company-industry-proposals?status=')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-maintenance-runs')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path.startsWith('/api/company-industry-profiles')) {
+        return Promise.resolve({ success: true, items: [] })
+      }
+      if (path === '/api/company-industry-proposals/batch-review' && init?.method === 'POST') {
+        batchBody = JSON.parse(String(init.body))
+        return Promise.resolve({
+          success: true,
+          batchId: 'industry-batch-reject',
+          batchFingerprint: 'r'.repeat(64),
+          summary: { total: 1, succeeded: 1, failed: 0 },
+          items: [
+            { proposalId: 'clean-proposal', kind: 'reject', ok: true, status: 'rejected' },
+          ],
+        })
+      }
+      return Promise.resolve({ success: true })
+    })
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    const checkbox = await screen.findByTestId('industry-batch-check-clean-proposal')
+    await user.click(checkbox)
+    await user.click(screen.getByTestId('industry-batch-reject-button'))
+
+    const note = await screen.findByTestId('industry-batch-reject-note')
+    await user.type(note, 'Noise listing without a real company.')
+    await user.click(screen.getByTestId('industry-batch-reject-submit'))
+
+    await waitFor(() => {
+      expect(batchBody).toEqual({
+        actions: [
+          {
+            kind: 'reject',
+            proposalId: 'clean-proposal',
+            reviewNote: 'Noise listing without a real company.',
+          },
+        ],
+      })
+    })
+  })
+
+  it('excludes hard-blocked proposals from the approve dialog', async () => {
+    installBatchMock([makeQueueItem(
+      {
+        proposalId: 'conflict-proposal',
+        companyKey: 'conflict-company',
+        suggestedIndustryClass: 'unknown',
+      },
+      {
+        proposalId: 'conflict-proposal',
+        recommendedIndustryClass: 'unknown',
+        recommendedAction: 'needs_more_evidence',
+        riskFlags: ['weak_industry_signal', 'source_conflict'],
+        riskDecision: {
+          requiresAcknowledgement: true,
+          nonOverridableRiskFlags: ['source_conflict'],
+          canApproveWithRiskOverride: false,
+        },
+      },
+    )])
+    renderPage('/dev/settings/industry-verification')
+
+    const user = userEvent.setup()
+    const checkbox = await screen.findByTestId('industry-batch-check-conflict-proposal')
+    await user.click(checkbox)
+    await user.click(screen.getByTestId('industry-batch-approve-button'))
+
+    expect(await screen.findByTestId('industry-batch-excluded')).toBeInTheDocument()
+    expect(screen.getByText(/has a non-overridable risk flag/)).toBeInTheDocument()
+    expect(screen.getByTestId('industry-batch-approve-submit')).toBeDisabled()
+  })
+})

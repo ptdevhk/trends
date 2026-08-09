@@ -75,6 +75,9 @@ function parseReviewAttestation(value: unknown): IndustryReviewAttestation | und
     acknowledgedRiskFlags: acknowledgedRiskFlags as IndustryReviewRiskFlag[],
     cncEvidenceAcknowledged: value.cncEvidenceAcknowledged,
     acknowledgementReason,
+    ...(typeof value.batchId === "string" && value.batchId.trim()
+      ? { batchId: value.batchId.trim() }
+      : {}),
   };
 }
 

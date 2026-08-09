@@ -141,9 +141,21 @@ export const INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS = [
   "canonical_mapping_missing",
   "only_discovery_sources",
   "source_conflict",
-  "weak_industry_signal",
   "cnc_claim_inferred",
   "stale_or_failed_source",
+] as const satisfies readonly IndustryReviewRiskFlag[];
+
+/**
+ * Flags a human reviewer may override through the attended risk-override
+ * path (decisionMode "risk_override" + acknowledgement reason + explicit
+ * industry class). `weak_industry_signal` means "no class was suggested" —
+ * an attended reviewer who explicitly classifies the employer (e.g.
+ * `non_industry`) resolves the ambiguity, so the flag becomes overridable.
+ * CNC claims stay hard-blocked: `cnc_claim_inferred` additionally trips
+ * `INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED` in validation.
+ */
+export const INDUSTRY_REVIEW_OVERRIDABLE_RISK_FLAGS = [
+  "weak_industry_signal",
 ] as const satisfies readonly IndustryReviewRiskFlag[];
 
 export const INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION =
@@ -164,6 +176,13 @@ export interface IndustryReviewAttestation {
   acknowledgedRiskFlags: IndustryReviewRiskFlag[];
   cncEvidenceAcknowledged: boolean;
   acknowledgementReason: string;
+  /**
+   * Batch linkage: set when the attestation was submitted as part of a
+   * bulk review (`/api/company-industry-proposals/batch-review`). One
+   * attestation covers the whole batch; the shared id lets auditors find
+   * every revision approved in that batch.
+   */
+  batchId?: string;
 }
 
 export type IndustryReviewAttestationErrorCode =

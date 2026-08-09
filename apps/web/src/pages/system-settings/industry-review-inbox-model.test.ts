@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  batchAttestationMode,
+  batchRequiresCncAcknowledgement,
   filterHistoryForSession,
   getApprovalSafeSourceIds,
+  getBatchApproveEligibility,
   getOneClickEligibility,
   parseReviewInboxFilter,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
+  unionRiskFlags,
   type ReviewInboxItem,
   type SessionApproval,
 } from './industry-review-inbox-model'
@@ -311,5 +315,83 @@ describe('filterHistoryForSession', () => {
 
     expect(filtered).not.toBe(historyItems)
     expect(historyItems).toHaveLength(2)
+  })
+})
+
+describe('batch approve eligibility', () => {
+  const weakSignalItem = makeItem(
+    {
+      _id: 'proposal-weak-row',
+      proposalId: 'proposal-weak',
+      companyKey: 'company-weak',
+      suggestedIndustryClass: 'unknown',
+    },
+    {
+      proposalId: 'proposal-weak',
+      recommendedIndustryClass: 'unknown',
+      riskFlags: ['weak_industry_signal'],
+      riskDecision: {
+        requiresAcknowledgement: true,
+        nonOverridableRiskFlags: [],
+        canApproveWithRiskOverride: true,
+      },
+      recommendedAction: 'inspect',
+    },
+  )
+
+  it('accepts a clean proposal without attestation or class choice', () => {
+    expect(getBatchApproveEligibility(cleanItem)).toEqual({
+      eligible: true,
+      safeSourceIds: ['source-official'],
+      requiresAttestation: false,
+      requiresClass: false,
+    })
+  })
+
+  it('treats weak_industry_signal as batch-approvable with acknowledgement', () => {
+    expect(getBatchApproveEligibility(weakSignalItem)).toEqual({
+      eligible: true,
+      safeSourceIds: ['source-official'],
+      requiresAttestation: true,
+      requiresClass: true,
+    })
+  })
+
+  it('keeps non-overridable flags out of the batch lane', () => {
+    expect(getBatchApproveEligibility(riskyItem)).toEqual({
+      eligible: false,
+      reason: 'hard_risk',
+    })
+  })
+
+  it.each([
+    ['terminal', makeItem({ status: 'approved' })],
+    ['status', makeItem({ status: 'needs_more_evidence' })],
+    ['source', unsafeSourceItem],
+  ] as const)('excludes %s items', (reason, item) => {
+    expect(getBatchApproveEligibility(item)).toEqual({
+      eligible: false,
+      reason,
+    })
+  })
+
+  it('unions risk flags across the selection in sorted order', () => {
+    expect(unionRiskFlags([
+      weakSignalItem,
+      makeItem({}, { riskFlags: ['source_conflict', 'low_source_diversity'] }),
+    ])).toEqual(['low_source_diversity', 'source_conflict', 'weak_industry_signal'])
+  })
+
+  it('derives the attestation mode from the union of flags', () => {
+    expect(batchAttestationMode([])).toBe('standard')
+    expect(batchAttestationMode(['weak_industry_signal'])).toBe('risk_override')
+  })
+
+  it('requires CNC acknowledgement only when a class or flag demands it', () => {
+    expect(batchRequiresCncAcknowledgement([cleanItem], {})).toBe(false)
+    expect(batchRequiresCncAcknowledgement([cncItem], {})).toBe(true)
+    expect(batchRequiresCncAcknowledgement([weakSignalItem], {
+      'proposal-weak': 'cnc',
+    })).toBe(true)
   })
 })

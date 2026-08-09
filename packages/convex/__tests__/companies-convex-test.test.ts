@@ -779,6 +779,37 @@ describe("companies (convex-test)", () => {
     expect(proposal?.status).toBe("needs_more_evidence");
   });
 
+  it("accepts a resolution without a review note (bulk reject contract)", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      companyKey: "acme-cnc",
+      triggerReasons: ["recruiter_refresh_request"],
+      priority: 100,
+      writeSecret: WRITE_SECRET,
+    });
+
+    const result = await t.mutation(api.companies.resolveIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      resolution: "rejected",
+      reviewer: "admin@example.com",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toEqual({ proposalId: "proposal-bulk-reject", status: "rejected" });
+    const proposal = await t.query(api.companies.getIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposal?.reviewNote).toBe("");
+  });
+
   it("allows worker research to enrich only an open proposal", async () => {
     const t = createTest();
     await t.mutation(api.companies.upsert, {

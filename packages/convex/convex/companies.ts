@@ -1591,6 +1591,7 @@ const industryReviewAttestationValidator = v.object({
   acknowledgedRiskFlags: v.array(industryReviewRiskFlagValidator),
   cncEvidenceAcknowledged: v.boolean(),
   acknowledgementReason: v.string(),
+  batchId: v.optional(v.string()),
 });
 
 const INDUSTRY_REVIEW_STALE_PREFIX = "INDUSTRY_REVIEW_STALE:";
@@ -3612,7 +3613,7 @@ export const resolveIndustryProposal = mutation({
     ),
     expectedProposalUpdatedAt: v.optional(v.number()),
     reviewer: v.string(),
-    reviewNote: v.string(),
+    reviewNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
@@ -3629,7 +3630,7 @@ export const resolveIndustryProposal = mutation({
       status: args.resolution,
       reviewedAt: now,
       reviewedBy: args.reviewer.trim(),
-      reviewNote: args.reviewNote.trim(),
+      reviewNote: (args.reviewNote ?? "").trim(),
       updatedAt: now,
     });
     return { proposalId: proposal.proposalId, status: args.resolution };
