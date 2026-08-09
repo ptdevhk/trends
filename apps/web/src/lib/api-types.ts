@@ -10041,8 +10041,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10237,8 +10236,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10327,8 +10325,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10395,8 +10392,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
