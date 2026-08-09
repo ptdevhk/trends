@@ -9,19 +9,24 @@ from __future__ import annotations
 
 import hashlib
 import html
+import http.client
 import ipaddress
 import json
 import logging
 import os
 import re
 import socket
+import threading
 import time
+import urllib.request
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager, nullcontext
+from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, urlopen
 
 from apps.worker.research_convex import ResearchConvexClient
 
@@ -361,6 +366,26 @@ def industry_evidence_maintenance_enabled(
     return value in {"1", "true", "yes", "on"}
 
 
+def _env_clamped_int(name: str, default: int, lo: int, hi: int) -> int:
+    """Read an int env var clamped to [lo, hi]; fall back to default."""
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, value))
+
+
+def _env_connect_timeout_seconds() -> float:
+    """Connect-phase timeout (split from the read timeout), clamped < 10s."""
+    try:
+        value = float(
+            os.environ.get("INDUSTRY_RESEARCH_CONNECT_TIMEOUT_SECONDS", "5")
+        )
+    except (TypeError, ValueError):
+        return 5.0
+    return max(1.0, min(9.0, value))
+
+
 def _unsafe_hostname(hostname: str) -> bool:
     normalized = hostname.strip().rstrip(".").lower()
     if (
@@ -462,19 +487,278 @@ def classify_industry_excerpt(text: str) -> Dict[str, Any]:
     return {"industryClass": best_class, "confidence": round(confidence, 2)}
 
 
+# ---------------------------------------------------------------------------
+# Transport: split connect/read timeouts (P0.2)
+#
+# stdlib's HTTPConnection uses one timeout for both the connect phase and the
+# body reads; a dead host then burns the full read timeout on connect alone.
+# The connection classes below bound the connect phase with the shorter
+# connect timeout (env INDUSTRY_RESEARCH_CONNECT_TIMEOUT_SECONDS, default 5s)
+# and reset the socket to the caller's read timeout before the body is read.
+# ---------------------------------------------------------------------------
+
+class _SplitConnectTimeoutHTTPConnection(http.client.HTTPConnection):
+    """HTTPConnection whose connect phase uses a short timeout while reads
+    keep the caller's (longer) read timeout."""
+
+    def __init__(self, *args, connect_timeout: Optional[float] = None, **kwargs):
+        self._connect_timeout = connect_timeout
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self.host, self.port),
+            timeout=self._connect_timeout,
+            source_address=self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        self.sock.settimeout(self.timeout)
+
+
+class _SplitConnectTimeoutHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS twin of _SplitConnectTimeoutHTTPConnection."""
+
+    def __init__(self, *args, connect_timeout: Optional[float] = None, **kwargs):
+        self._connect_timeout = connect_timeout
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self.host, self.port),
+            timeout=self._connect_timeout,
+            source_address=self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        self.sock.settimeout(self.timeout)
+        server_hostname = self._tunnel_host or self.host
+        self.sock = self._context.wrap_socket(
+            self.sock, server_hostname=server_hostname
+        )
+
+
+def _connection_factory(connection_cls, connect_timeout: Optional[float]):
+    """Return a ``do_open``-compatible factory binding ``connect_timeout``."""
+
+    def factory(host, timeout, source_address=None, **kwargs):
+        return connection_cls(
+            host,
+            timeout=timeout,
+            source_address=source_address,
+            connect_timeout=connect_timeout,
+            **kwargs,
+        )
+
+    return factory
+
+
+class _SplitConnectTimeoutHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, *, connect_timeout: Optional[float] = None, **kwargs):
+        super().__init__(**kwargs)
+        self._connect_timeout = connect_timeout
+
+    def http_open(self, req):
+        return self.do_open(
+            _connection_factory(
+                _SplitConnectTimeoutHTTPConnection, self._connect_timeout
+            ),
+            req,
+        )
+
+
+class _SplitConnectTimeoutHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, *, connect_timeout: Optional[float] = None, **kwargs):
+        super().__init__(**kwargs)
+        self._connect_timeout = connect_timeout
+
+    def https_open(self, req):
+        return self.do_open(
+            _connection_factory(
+                _SplitConnectTimeoutHTTPSConnection, self._connect_timeout
+            ),
+            req,
+        )
+
+
+@lru_cache(maxsize=8)
+def _transport_opener(connect_timeout_seconds: float) -> Any:
+    """Opener whose HTTP/HTTPS connections split connect vs read timeouts."""
+    return build_opener(
+        _SplitConnectTimeoutHTTPHandler(connect_timeout=connect_timeout_seconds),
+        _SplitConnectTimeoutHTTPSHandler(connect_timeout=connect_timeout_seconds),
+    )
+
+
+def _module_urlopen(request, timeout):
+    """Transport seam used by GuardedEvidenceFetcher.
+
+    Production routes through an opener that splits the connect timeout
+    (INDUSTRY_RESEARCH_CONNECT_TIMEOUT_SECONDS, default 5s) from the read
+    timeout. Tests patch this module's ``urlopen`` attribute — kept as the
+    seam name for backward compatibility.
+    """
+    return _transport_opener(_env_connect_timeout_seconds()).open(
+        request, timeout=timeout
+    )
+
+
+# Rebind the module-level name so ``urlopen(...)`` calls inside the fetcher
+# route through the split-timeout opener in production while remaining the
+# patchable seam for tests.
+urlopen = _module_urlopen
+
+
+class DomainConcurrencyLimiter:
+    """Per-domain bounded concurrency, shared across fetchers in one job.
+
+    Thread-safe: each host gets its own BoundedSemaphore, created lazily
+    under a lock. ``hold(host)`` is a context manager that acquires the cap
+    before connecting and releases it when the fetch finishes.
+    """
+
+    def __init__(self, per_domain: int = 2):
+        self.per_domain = max(1, int(per_domain))
+        self._semaphores: Dict[str, threading.BoundedSemaphore] = {}
+        self._lock = threading.Lock()
+
+    def _semaphore_for(self, host: str) -> threading.BoundedSemaphore:
+        key = str(host or "").strip().lower()
+        with self._lock:
+            semaphore = self._semaphores.get(key)
+            if semaphore is None:
+                semaphore = threading.BoundedSemaphore(self.per_domain)
+                self._semaphores[key] = semaphore
+            return semaphore
+
+    @contextmanager
+    def hold(self, host: str):
+        semaphore = self._semaphore_for(host)
+        semaphore.acquire()
+        try:
+            yield
+        finally:
+            semaphore.release()
+
+
+class HostCircuitBreaker:
+    """Per-host consecutive-failure circuit breaker for one job/sweep.
+
+    A host that fails ``threshold`` consecutive fetch attempts is marked open
+    and every later fetch to it fails fast with
+    ``RuntimeError("fetch_failed:circuit_open:<host>")`` without attempting a
+    connection. Any success resets the failure count. Only transport-level
+    failures (HTTP/URLError/timeout) are recorded — policy rejections
+    (unsafe_url / unsafe_or_unresolved_host) never open the circuit.
+    """
+
+    def __init__(self, threshold: int = 3):
+        self.threshold = max(1, int(threshold))
+        self._consecutive_failures: Dict[str, int] = {}
+        self._open_hosts: set = set()
+        self._lock = threading.Lock()
+
+    def check(self, host: str) -> None:
+        key = str(host or "").strip().lower()
+        with self._lock:
+            if key in self._open_hosts:
+                raise RuntimeError(f"fetch_failed:circuit_open:{key}")
+
+    def record_failure(self, host: str) -> None:
+        key = str(host or "").strip().lower()
+        with self._lock:
+            count = self._consecutive_failures.get(key, 0) + 1
+            self._consecutive_failures[key] = count
+            if count >= self.threshold:
+                self._open_hosts.add(key)
+
+    def record_success(self, host: str) -> None:
+        key = str(host or "").strip().lower()
+        with self._lock:
+            self._consecutive_failures.pop(key, None)
+
+
+def _normalize_evidence_url(url: str) -> str:
+    """Normalize a URL for per-sweep evidence cache identity.
+
+    Lowercases scheme+host, drops the fragment, strips the trailing slash,
+    and keeps path/query. Not a general canonicalizer — only the shapes the
+    evidence pipeline compares across proposals.
+    """
+    raw = str(url or "").strip()
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        return raw
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower()
+    if not scheme or not host:
+        return raw
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    netloc = host if port is None else f"{host}:{port}"
+    path = parsed.path.rstrip("/") or "/"
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"{scheme}://{netloc}{path}{query}"
+
+
 class GuardedEvidenceFetcher:
-    """Bounded public HTTP fetcher with DNS, redirect-domain, and excerpt guards."""
+    """Bounded public HTTP fetcher with DNS, redirect-domain, and excerpt guards.
+
+    P0.2/P0.3 safety rails, all optional and per-instance:
+    - ``domain_limiter``: per-host concurrency cap shared across fetchers in
+      one job (default None = unlimited).
+    - ``circuit_breaker``: per-host consecutive-failure breaker, fail-fast
+      once a host trips (default: HostCircuitBreaker with the env threshold).
+    - ``evidence_cache``: per-sweep normalized-URL result cache (default: a
+      private per-instance dict). Cache hits return a shallow copy.
+    """
 
     def __init__(
         self,
         *,
         timeout_seconds: int = DEFAULT_FETCH_TIMEOUT_SECONDS,
         max_attempts: int = DEFAULT_FETCH_RETRIES,
+        domain_limiter: Optional[DomainConcurrencyLimiter] = None,
+        circuit_breaker: Optional[HostCircuitBreaker] = None,
+        evidence_cache: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         self.timeout_seconds = max(1, min(30, int(timeout_seconds)))
         self.max_attempts = max(1, min(3, int(max_attempts)))
+        self.domain_limiter = domain_limiter
+        self.circuit_breaker = circuit_breaker or HostCircuitBreaker(
+            threshold=_env_clamped_int(
+                "INDUSTRY_RESEARCH_CIRCUIT_BREAKER_THRESHOLD", 3, 1, 10
+            )
+        )
+        self._evidence_cache: Dict[str, Dict[str, Any]] = (
+            evidence_cache if evidence_cache is not None else {}
+        )
+        self._cache_lock = threading.Lock()
 
-    def fetch(self, url: str, expected_domain: Optional[str] = None) -> Dict[str, Any]:
+    def _cache_get(self, key: str) -> Optional[Dict[str, Any]]:
+        with self._cache_lock:
+            return self._evidence_cache.get(key)
+
+    def _cache_set(self, key: str, value: Dict[str, Any]) -> None:
+        with self._cache_lock:
+            self._evidence_cache[key] = dict(value)
+
+    def fetch(
+        self,
+        url: str,
+        expected_domain: Optional[str] = None,
+        *,
+        use_cache: bool = True,
+    ) -> Dict[str, Any]:
+        cache_key = _normalize_evidence_url(url) if use_cache else None
+        if cache_key is not None:
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                # Shallow copy: callers must not be able to mutate the cache.
+                return dict(cached)
         if not safe_public_evidence_url(url):
             raise ValueError("unsafe_url")
         initial = urlparse(url)
@@ -491,45 +775,58 @@ class GuardedEvidenceFetcher:
                 candidate_urls.append(url.replace(f"://{host}", f"://{host[4:]}", 1))
             else:
                 candidate_urls.append(url.replace(f"://{host}", f"://www.{host}", 1))
-        for url_index, attempt_url in enumerate(candidate_urls):
-            attempts = self.max_attempts if url_index == 0 else 1
-            for attempt in range(attempts):
-                try:
-                    request = Request(
-                        attempt_url,
-                        headers={
-                            "Accept": "text/html,application/xhtml+xml,text/plain",
-                            "User-Agent": "TrendsIndustryEvidenceBot/1.0",
-                        },
-                    )
-                    with urlopen(request, timeout=self.timeout_seconds) as response:
-                        final_url = response.geturl()
-                        if not safe_public_evidence_url(final_url):
-                            raise ValueError("unsafe_redirect")
-                        final_host = (urlparse(final_url).hostname or "").lower()
-                        if not _resolved_host_is_public(final_host):
-                            raise ValueError("unsafe_redirect_host")
-                        body = response.read(1_000_000)
-                        charset = response.headers.get_content_charset() or "utf-8"
-                        raw = body.decode(charset, errors="replace")
-                        text = _text_from_html(raw)
-                        excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
-                        excerpt = _excerpt_with_organization_names(excerpt, raw)
-                        return {
-                            "finalUrl": final_url,
-                            "status": int(getattr(response, "status", 200)),
-                            "title": _title_from_html(raw),
-                            "excerpt": excerpt,
-                            "contentFingerprint": "sha256:"
-                            + hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                            "domainGuardPassed": (
-                                not expected_domain
-                                or final_host == expected_domain.lower()
-                                or final_host.endswith("." + expected_domain.lower())
-                            ),
-                        }
-                except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
-                    last_error = error
+        with self.domain_limiter.hold(host) if self.domain_limiter else nullcontext():
+            for url_index, attempt_url in enumerate(candidate_urls):
+                attempts = self.max_attempts if url_index == 0 else 1
+                for attempt in range(attempts):
+                    try:
+                        # Fail fast even mid-fetch: the breaker may have
+                        # opened after an earlier attempt of this same call.
+                        self.circuit_breaker.check(urlparse(attempt_url).hostname)
+                        request = Request(
+                            attempt_url,
+                            headers={
+                                "Accept": "text/html,application/xhtml+xml,text/plain",
+                                "User-Agent": "TrendsIndustryEvidenceBot/1.0",
+                            },
+                        )
+                        with urlopen(request, timeout=self.timeout_seconds) as response:
+                            final_url = response.geturl()
+                            if not safe_public_evidence_url(final_url):
+                                raise ValueError("unsafe_redirect")
+                            final_host = (urlparse(final_url).hostname or "").lower()
+                            if not _resolved_host_is_public(final_host):
+                                raise ValueError("unsafe_redirect_host")
+                            body = response.read(1_000_000)
+                            charset = response.headers.get_content_charset() or "utf-8"
+                            raw = body.decode(charset, errors="replace")
+                            text = _text_from_html(raw)
+                            excerpt = _excerpt_with_legal_name(text[:MAX_EXCERPT_LENGTH], text)
+                            excerpt = _excerpt_with_organization_names(excerpt, raw)
+                            result = {
+                                "finalUrl": final_url,
+                                "status": int(getattr(response, "status", 200)),
+                                "title": _title_from_html(raw),
+                                "excerpt": excerpt,
+                                "contentFingerprint": "sha256:"
+                                + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                                "domainGuardPassed": (
+                                    not expected_domain
+                                    or final_host == expected_domain.lower()
+                                    or final_host.endswith("." + expected_domain.lower())
+                                ),
+                            }
+                        self.circuit_breaker.record_success(
+                            urlparse(attempt_url).hostname
+                        )
+                        if cache_key is not None:
+                            self._cache_set(cache_key, result)
+                        return result
+                    except (HTTPError, URLError, TimeoutError, socket.timeout) as error:
+                        self.circuit_breaker.record_failure(
+                            urlparse(attempt_url).hostname
+                        )
+                        last_error = error
         raise RuntimeError(f"fetch_failed:{last_error}")
 
 
@@ -786,10 +1083,32 @@ class IndustryEvidenceMaintenanceJob:
     ):
         self.client = client or ResearchConvexClient()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
-        self.researcher = researcher or IndustryEvidenceResearcher(now_ms=self.now_ms)
+        # P0.2: one per-domain limiter shared across every fetcher in this
+        # job; P0.3: one per-sweep evidence cache on the job's shared fetcher.
+        # A caller-supplied researcher keeps its own fetcher (tests use
+        # fakes); the job-built researcher shares this fetcher.
+        self._domain_limiter = DomainConcurrencyLimiter(
+            per_domain=_env_clamped_int(
+                "INDUSTRY_RESEARCH_DOMAIN_CONCURRENCY", 2, 1, 8
+            )
+        )
+        self._shared_fetcher = GuardedEvidenceFetcher(
+            domain_limiter=self._domain_limiter
+        )
+        self.researcher = researcher or IndustryEvidenceResearcher(
+            fetcher=self._shared_fetcher, now_ms=self.now_ms
+        )
+        # The per-domain cap is shared across all GuardedEvidenceFetcher
+        # instances in one job — including the discovery fetcher's page-fetch
+        # path (duck-typed so fake discovery jobs are untouched).
+        if discovery_job is not None:
+            web_fetcher = getattr(discovery_job, "fetcher", None)
+            page_fetcher = getattr(web_fetcher, "page_fetcher", None)
+            if isinstance(page_fetcher, GuardedEvidenceFetcher):
+                page_fetcher.domain_limiter = self._domain_limiter
+        self.discovery_job = discovery_job
         self.proposal_limit = max(1, min(200, int(proposal_limit)))
         self.freshness_limit = max(1, min(100, int(freshness_limit)))
-        self.discovery_job = discovery_job
         self.mode = mode or "sweep"
         self.target_proposal_ids = list(
             dict.fromkeys(
@@ -817,6 +1136,14 @@ class IndustryEvidenceMaintenanceJob:
             "freshnessRefreshed": 0,
             "errors": 0,
         }
+        # P0.2: the sweep researches proposals in parallel, so count
+        # increments must be guarded.
+        self._counts_lock = threading.Lock()
+
+    def _bump_count(self, key: str, delta: int = 1) -> None:
+        """Thread-safe count increment."""
+        with self._counts_lock:
+            self._counts[key] = self._counts.get(key, 0) + delta
 
     def _complete_claimed_requests(
         self,
@@ -1136,10 +1463,10 @@ class IndustryEvidenceMaintenanceJob:
                 "materialChangeSummary": result["materialChangeSummary"],
             }
         )
-        self._counts["proposalsResearched"] += 1
-        self._counts["sourcesDemoted"] += demoted_count
+        self._bump_count("proposalsResearched")
+        self._bump_count("sourcesDemoted", demoted_count)
         if result["status"] == "ready_for_review":
-            self._counts["readyCreated"] += 1
+            self._bump_count("readyCreated")
             self._ledger(
                 proposal_id,
                 "ready",
@@ -1158,6 +1485,65 @@ class IndustryEvidenceMaintenanceJob:
             "identityCandidates": identity_candidates,
         }
 
+    def _plan_sweep_order(
+        self, proposals_by_id: Dict[str, Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Order open proposals: resume impact first, then priority, then id.
+
+        The resume-impact query is best-effort — a failure (or a fake client
+        without the method) falls back to priority-only ordering.
+        """
+        company_keys = sorted(
+            {
+                str(proposal.get("companyKey") or "").strip()
+                for proposal in proposals_by_id.values()
+                if str(proposal.get("companyKey") or "").strip()
+            }
+        )
+        impact: Dict[str, int] = {}
+        get_impact = getattr(self.client, "get_industry_resume_impact", None)
+        if callable(get_impact) and company_keys:
+            try:
+                raw_impact = get_impact(company_keys)
+                impact = {
+                    str(key): int(value)
+                    for key, value in (raw_impact or {}).items()
+                }
+            except Exception as error:  # noqa: BLE001 - ordering is best-effort
+                logger.warning(
+                    "[IndustryEvidenceMaintenance] resume-impact query failed; "
+                    "falling back to priority-only ordering: %s",
+                    error,
+                )
+                impact = {}
+
+        def sort_key(proposal: Dict[str, Any]) -> tuple:
+            company_key = str(proposal.get("companyKey") or "").strip()
+            return (
+                -int(impact.get(company_key, 0)),
+                -float(proposal.get("priority") or 0),
+                str(proposal.get("proposalId") or ""),
+            )
+
+        return sorted(proposals_by_id.values(), key=sort_key)[: self.proposal_limit]
+
+    def _research_one_proposal_guarded(self, proposal: Dict[str, Any]) -> None:
+        """Run one proposal; a per-proposal failure must not abort the sweep.
+
+        P0.2 deliberate behavior change: sequential mode failed the whole run
+        on one proposal's exception; the sweep logs and counts it instead.
+        """
+        proposal_id = str(proposal.get("proposalId") or "")
+        try:
+            self._research_one_proposal(proposal)
+        except Exception as error:  # noqa: BLE001 - per-proposal isolation
+            self._bump_count("errors")
+            logger.warning(
+                "[IndustryEvidenceMaintenance] proposal %s failed: %s",
+                proposal_id,
+                error,
+            )
+
     def _research_open_proposals(self) -> None:
         proposals_by_id: Dict[str, Dict[str, Any]] = {}
         # Pass proposal_limit * 3 (clamped to the Convex list's 500-row
@@ -1168,15 +1554,30 @@ class IndustryEvidenceMaintenanceJob:
                 proposal_id = str(proposal.get("proposalId") or "")
                 if proposal_id:
                     proposals_by_id[proposal_id] = proposal
-        proposals = sorted(
-            proposals_by_id.values(),
-            key=lambda proposal: (
-                -float(proposal.get("priority") or 0),
-                str(proposal.get("proposalId") or ""),
-            ),
-        )[: self.proposal_limit]
-        for proposal in proposals:
-            self._research_one_proposal(proposal)
+        proposals = self._plan_sweep_order(proposals_by_id)
+        # P0.2: the sweep is fetch-bound, so proposals run with bounded
+        # concurrency instead of strictly sequentially. A per-proposal
+        # exception is isolated (logged + counted) and never aborts the run.
+        concurrency = _env_clamped_int("INDUSTRY_RESEARCH_CONCURRENCY", 4, 1, 16)
+        if concurrency <= 1 or len(proposals) <= 1:
+            for proposal in proposals:
+                self._research_one_proposal_guarded(proposal)
+            return
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [
+                executor.submit(self._research_one_proposal_guarded, proposal)
+                for proposal in proposals
+            ]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as error:  # pragma: no cover - the guarded
+                    # wrapper already contains per-proposal failures
+                    self._bump_count("errors")
+                    logger.warning(
+                        "[IndustryEvidenceMaintenance] sweep proposal failed: %s",
+                        error,
+                    )
 
     def _research_targeted_proposals(self) -> None:
         """Process only the leased target IDs; never fall back to a sweep."""
@@ -1229,7 +1630,7 @@ class IndustryEvidenceMaintenanceJob:
                     ),
                 )
             except Exception as error:  # noqa: BLE001 - isolate one target
-                self._counts["errors"] += 1
+                self._bump_count("errors")
                 logger.warning(
                     "[IndustryEvidenceMaintenance] targeted proposal %s failed: %s",
                     proposal_id,
@@ -1260,9 +1661,22 @@ class IndustryEvidenceMaintenanceJob:
         def check_source(source: Dict[str, Any]) -> Dict[str, Any]:
             checked_at = self.now_ms()
             try:
-                fetched = self.researcher.fetcher.fetch(
-                    source["url"], expected_domain=source.get("sourceDomain")
-                )
+                # Freshness re-checks must observe live content: bypass the
+                # per-sweep evidence cache (use_cache=False). Duck-typed
+                # fetchers (test fakes) without the knob fall back to the
+                # plain two-arg call — the cache bypass only matters for the
+                # shipped GuardedEvidenceFetcher.
+                try:
+                    fetched = self.researcher.fetcher.fetch(
+                        source["url"],
+                        expected_domain=source.get("sourceDomain"),
+                        use_cache=False,
+                    )
+                except TypeError:
+                    fetched = self.researcher.fetcher.fetch(
+                        source["url"],
+                        expected_domain=source.get("sourceDomain"),
+                    )
                 new_fingerprint = str(fetched.get("contentFingerprint") or "")
                 classification = classify_industry_excerpt(
                     str(fetched.get("excerpt") or "")
@@ -1406,10 +1820,10 @@ class IndustryEvidenceMaintenanceJob:
             }
             self.client.record_industry_evidence_freshness_check(payload)
             # Count + ledger each freshness observation.
-            self._counts["freshnessChecked"] += 1
+            self._bump_count("freshnessChecked")
             outcome = observation["outcome"]
             if outcome != "unchanged":
-                self._counts["freshnessRefreshed"] += 1
+                self._bump_count("freshnessRefreshed")
             if self.run_id:
                 source_id = str(source.get("sourceId") or "")
                 self._ledger(
@@ -1437,7 +1851,7 @@ class IndustryEvidenceMaintenanceJob:
             return True
         except Exception as error:  # noqa: BLE001
             logger.error("[IndustryEvidenceMaintenance] failed: %s", error)
-            self._counts["errors"] += 1
+            self._bump_count("errors")
             self._finish_run("failed", failure_message=str(error))
             return False
 
@@ -1611,7 +2025,9 @@ def run_industry_evidence_maintenance(
 
 
 __all__ = [
+    "DomainConcurrencyLimiter",
     "GuardedEvidenceFetcher",
+    "HostCircuitBreaker",
     "IndustryEvidenceMaintenanceJob",
     "IndustryEvidenceResearcher",
     "build_discovery_job_from_env",
