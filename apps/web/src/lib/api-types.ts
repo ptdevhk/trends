@@ -9496,6 +9496,7 @@ export interface paths {
                                         acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                         cncEvidenceAcknowledged: boolean;
                                         acknowledgementReason: string;
+                                        batchId?: string;
                                     };
                                     supersedesRevisionId?: string;
                                     proposalId?: string;
@@ -10172,6 +10173,7 @@ export interface paths {
                             acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                             cncEvidenceAcknowledged: boolean;
                             acknowledgementReason: string;
+                            batchId?: string;
                         };
                     };
                 };
@@ -10406,6 +10408,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/company-industry-proposals/batch-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Governed bulk approve/reject of industry proposals
+         * @description One attestation covers the whole batch; per-item governance (packet fingerprint, risk flags, CNC evidence, stale checks) still applies to every item. Items fail individually — a stale or hard-blocked item never aborts the batch. The server materializes the per-item attestation (item fingerprint + shared batchId) on each immutable revision.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        actions: ({
+                            /** @enum {string} */
+                            kind: "approve";
+                            proposalId: string;
+                            /** @enum {string} */
+                            industryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                            decisionReason?: string;
+                            evidenceSummary?: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: "reject";
+                            proposalId: string;
+                            reviewNote?: string;
+                        })[];
+                        attestation?: {
+                            /** @enum {string} */
+                            schemaVersion: "industry-review-attestation.v1";
+                            /** @enum {string} */
+                            decisionMode: "standard" | "risk_override";
+                            acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                            cncEvidenceAcknowledged: boolean;
+                            acknowledgementReason: string;
+                        };
+                        batchNote?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Per-item batch outcomes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            batchId: string;
+                            batchFingerprint: string;
+                            summary: {
+                                total: number;
+                                succeeded: number;
+                                failed: number;
+                            };
+                            items: {
+                                proposalId: string;
+                                /** @enum {string} */
+                                kind: "approve" | "reject";
+                                ok: boolean;
+                                revisionId?: string;
+                                companyKey?: string;
+                                /** @enum {string} */
+                                status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                                code?: string;
+                                error?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid batch payload */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            code: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/company-industry-evidence-sources": {
         parameters: {
             query?: never;
@@ -10581,6 +10687,7 @@ export interface paths {
                                     acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                     cncEvidenceAcknowledged: boolean;
                                     acknowledgementReason: string;
+                                    batchId?: string;
                                 };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
@@ -11282,6 +11389,7 @@ export interface paths {
                                     acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                     cncEvidenceAcknowledged: boolean;
                                     acknowledgementReason: string;
+                                    batchId?: string;
                                 };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
