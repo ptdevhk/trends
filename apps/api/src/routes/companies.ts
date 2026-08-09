@@ -1335,8 +1335,8 @@ app.openapi(resolveIndustryProposalIdentityRoute, async (c) => {
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("INDUSTRY_REVIEW_STALE:")) {
-      return c.json({ success: false as const, error: error.message, code: INDUSTRY_REVIEW_STALE_CODE }, 409);
+    if (isIndustryReviewStaleError(error)) {
+      return c.json(industryReviewConflictResponse(error), 409);
     }
     throw error;
   }

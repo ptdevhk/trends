@@ -12,6 +12,7 @@ import {
   resolveIndustryProposal,
 } from "./company-industry-proposal-service.js";
 import { getIndustryReviewPacket } from "./company-industry-review-service.js";
+import { isIndustryReviewStaleError } from "./company-industry-review-errors.js";
 import { buildIndustryApprovalDecision } from "./company-industry-approval-service.js";
 
 const MAX_BATCH_ACTIONS = 50;
@@ -250,11 +251,17 @@ function rejectItemError(
   phase: string,
 ): BatchReviewItemResult {
   const message = error instanceof Error ? error.message : String(error);
-  const code = message.startsWith("INDUSTRY_REVIEW_STALE")
+  // Convex local-backend errors arrive wrapped ("[Request ID: …] Server
+  // Error\nUncaught Error: INDUSTRY_REVIEW_*: …"), so extract the code from
+  // anywhere in the message rather than requiring a leading prefix.
+  const wrappedCode = message.match(/INDUSTRY_REVIEW_[A-Z_]+(?=:)/);
+  const code = isIndustryReviewStaleError(error)
     ? "INDUSTRY_REVIEW_STALE"
     : message.startsWith("INDUSTRY_REVIEW_")
       ? message.slice(0, message.indexOf(":")) || "INDUSTRY_REVIEW_POLICY"
-      : "BATCH_ITEM_FAILED";
+      : wrappedCode
+        ? wrappedCode[0]
+        : "BATCH_ITEM_FAILED";
   return {
     proposalId,
     kind,

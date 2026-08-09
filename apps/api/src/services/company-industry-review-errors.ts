@@ -26,7 +26,11 @@ export function isIndustryReviewStaleError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return (
     error.message === INDUSTRY_REVIEW_STALE_CODE ||
-    error.message.startsWith(`${INDUSTRY_REVIEW_STALE_CODE}:`)
+    // The Convex local backend wraps function errors as
+    // "[Request ID: <id>] Server Error\nUncaught Error: <message>\n<stack>",
+    // so a bare prefix never appears at the start of the transport message.
+    // Match the code anywhere (it is distinctive enough to be unambiguous).
+    error.message.includes(`${INDUSTRY_REVIEW_STALE_CODE}:`)
   );
 }
 
@@ -34,9 +38,13 @@ export function industryReviewStaleReason(error: unknown): string {
   if (error instanceof IndustryReviewStaleError) return error.reason;
   if (error instanceof Error) {
     const prefix = `${INDUSTRY_REVIEW_STALE_CODE}:`;
-    return error.message.startsWith(prefix)
-      ? error.message.slice(prefix.length).trim()
-      : error.message;
+    const marker = error.message.lastIndexOf(prefix);
+    if (marker !== -1) {
+      // Strip the transport wrapper and any trailing stack line.
+      const reason = error.message.slice(marker + prefix.length).trim().split("\n")[0].trim();
+      return reason || error.message;
+    }
+    return error.message;
   }
   return String(error);
 }

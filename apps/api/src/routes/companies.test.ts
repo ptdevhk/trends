@@ -9,6 +9,7 @@ vi.mock("../middleware/maintenance.js", () => ({
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
 import * as industryReviewService from "../services/company-industry-review-service";
+import * as industryEvidenceResearchService from "../services/industry-evidence-research-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -581,6 +582,45 @@ describe("companies routes", () => {
         }),
       },
     );
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_STALE",
+    });
+  });
+
+  it("maps a wrapped convex stale error to 409 on identity resolution", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    // The service forwards the convex transport error verbatim; the route
+    // must recognize the stale code inside the local-backend wrapper
+    // ("[Request ID: …] Server Error\nUncaught Error: INDUSTRY_REVIEW_STALE: …").
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockRejectedValue(
+      new Error(
+        "[Request ID: df43104bb5d07519] Server Error\n"
+        + "Uncaught Error: INDUSTRY_REVIEW_STALE: proposal changed during review\n"
+        + "    at assertExpectedIndustryProposalUpdatedAt (../convex/companies.ts:1828:0)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+
     expect(response.status).toBe(409);
     expect(await parseJsonBody(response)).toMatchObject({
       code: "INDUSTRY_REVIEW_STALE",
@@ -1553,6 +1593,63 @@ describe("companies routes", () => {
       expect(body.summary.failed).toBe(1);
       expect(body.items[0].code).toBe("INDUSTRY_REVIEW_ATTESTATION_REQUIRED");
       expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("extracts wrapped convex codes per item instead of a generic failure", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+          proposal: { companyKey: "acme-cnc" },
+        }),
+      );
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexFailure(
+            "[Request ID: 8f3c1d2e] Server Error\n"
+            + "Uncaught Error: INDUSTRY_REVIEW_STALE: proposal changed during review\n"
+            + "    at commitIndustryVerdictApproval (../convex/companies.ts:3155:4)",
+          );
+        }
+        return convexSuccess({});
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "non_industry" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Wrapped-code extraction probe.",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ summary: { failed: number }; items: Array<{ code: string }> }>(response);
+      expect(body.summary.failed).toBe(1);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_STALE");
     });
 
     it("still hard-blocks non-overridable flags even with an attestation", async () => {
