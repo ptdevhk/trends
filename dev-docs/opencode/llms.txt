@@ -1,3 +1,16 @@
+### Install and Start Development Server
+
+Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+
+Run these commands from the repository root to install dependencies and start the development server.
+
+```bash
+bun install
+bun dev
+```
+
+--------------------------------
+
 ### Custom Installation Directory Examples
 
 Source: https://github.com/anomalyco/opencode/blob/dev/README.md
@@ -64,18 +77,6 @@ console.log(tmp.extra) // "extra data"
 
 --------------------------------
 
-### Initialize AGENTS.md in TUI (Bash)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/tui.mdx
-
-Starts a guided setup process for creating or updating the 'AGENTS.md' file, defining project rules.
-
-```bash
-/init
-```
-
---------------------------------
-
 ### Install dependencies (Linux)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -125,18 +126,6 @@ brew install anomalyco/tap/opencode
 
 --------------------------------
 
-### Install OpenCode on Windows using Scoop
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using Scoop.
-
-```bash
-scoop install opencode
-```
-
---------------------------------
-
 ### Install dependencies (Windows)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -161,6 +150,18 @@ const config = {
   performance: { cache: true, timeout: 30000 },
   security: { encryption: 'AES-256' }
 };
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using Scoop
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Scoop.
+
+```bash
+scoop install opencode
 ```
 
 --------------------------------
@@ -242,18 +243,6 @@ npm install @opencode-ai/sdk
 
 --------------------------------
 
-### Install Mintlify CLI
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Command to install the Mintlify CLI globally using npm.
-
-```bash
-npm i -g mint
-```
-
---------------------------------
-
 ### OpenAPI Configuration Examples
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/essentials/settings.mdx
@@ -270,21 +259,6 @@ Examples demonstrating different ways to configure the 'openapi' property.
 
 ```json
 "openapi": ["https://example.com/openapi1.json", "/openapi2.json", "/openapi3.json"]
-```
-
---------------------------------
-
-### Required YAML frontmatter
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
-
-Example of the YAML frontmatter required at the beginning of every documentation page.
-
-```yaml
----
-title: "Clear, specific, keyword-rich title"
-description: "Concise description explaining page purpose and value"
----
 ```
 
 --------------------------------
@@ -466,19 +440,6 @@ mint dev
 
 --------------------------------
 
-### Ask OpenCode a question
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Example of asking OpenCode to explain a part of the codebase.
-
-```txt
-@packages/functions/src/api/index.ts
-How is authentication handled in @packages/functions/src/api/index.ts
-```
-
---------------------------------
-
 ### Install Claude Code globally
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
@@ -499,6 +460,19 @@ An example of a GET request to retrieve a file system tree, specifying a path, d
 
 ```HTTP
 GET /api/fs/tree?path=.&directory=/repo/app&workspace=ws_123
+```
+
+--------------------------------
+
+### Ask OpenCode a question
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of asking OpenCode to explain a part of the codebase.
+
+```txt
+@packages/functions/src/api/index.ts
+How is authentication handled in @packages/functions/src/api/index.ts
 ```
 
 --------------------------------
@@ -532,20 +506,6 @@ description: "Concise description for SEO and navigation"
 
 --------------------------------
 
-### Describe the feature in Plan mode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Example of describing a new feature to OpenCode in Plan mode.
-
-```txt
-When a user deletes a note, we'd like to flag it as deleted in the database.
-Then create a screen that shows all the recently deleted notes.
-From this screen, the user can undelete a note or permanently delete it.
-```
-
---------------------------------
-
 ### Partial Service Stub Example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -563,17 +523,16 @@ const failingAccountLayer = Layer.mock(Account.Service, {
 
 --------------------------------
 
-### Paste API key
+### Describe the feature in Plan mode
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Example of the prompt to paste your API key.
+Example of describing a new feature to OpenCode in Plan mode.
 
 ```txt
-┌ API key
-│
-│
-└ enter
+When a user deletes a note, we'd like to flag it as deleted in the database.
+Then create a screen that shows all the recently deleted notes.
+From this screen, the user can undelete a note or permanently delete it.
 ```
 
 --------------------------------
@@ -586,6 +545,33 @@ Example of initializing a temporary directory as a Git repository.
 
 ```typescript
 await using tmp = await tmpdir({ git: true })
+```
+
+--------------------------------
+
+### Run Web App
+
+Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+
+Start the web application development server.
+
+```bash
+bun run --cwd packages/app dev
+```
+
+--------------------------------
+
+### Paste API key
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of the prompt to paste your API key.
+
+```txt
+┌ API key
+│
+│
+└ enter
 ```
 
 --------------------------------
@@ -606,6 +592,46 @@ gh pr diff $ARGUMENTS
 
 --------------------------------
 
+### Path API Get Current Path
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Example of using `path.get()` to retrieve current path information.
+
+```javascript
+// Get current path information
+const pathInfo = await client.path.get()
+```
+
+--------------------------------
+
+### Install Mintlify CLI
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
+
+Command to install the Mintlify CLI globally using npm.
+
+```bash
+npm i -g mint
+```
+
+--------------------------------
+
+### Required YAML frontmatter
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of the YAML frontmatter required at the beginning of every documentation page.
+
+```yaml
+---
+title: "Clear, specific, keyword-rich title"
+description: "Concise description explaining page purpose and value"
+---
+```
+
+--------------------------------
+
 ### Instalando o aplicativo desktop OpenCode (BETA)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/README.br.md
@@ -620,31 +646,6 @@ brew install --cask opencode-desktop
 ```bash
 # Windows (Scoop)
 scoop bucket add extras; scoop install extras/opencode-desktop
-```
-
---------------------------------
-
-### Path API Get Current Path
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
-
-Example of using `path.get()` to retrieve current path information.
-
-```javascript
-// Get current path information
-const pathInfo = await client.path.get()
-```
-
---------------------------------
-
-### Example: Run OpenCode with a Specific Prompt
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-This example demonstrates how to pass a specific question directly to the `opencode run` command.
-
-```bash
-opencode run Explain the use of context in Go
 ```
 
 --------------------------------
@@ -675,6 +676,65 @@ const projects = await client.project.list()
 
 // Get current project
 const currentProject = await client.project.current()
+```
+
+--------------------------------
+
+### Code group with multiple languages
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of a code group demonstrating API calls in Node.js, Python, and cURL.
+
+```javascript
+const response = await fetch('/api/endpoint', {
+  headers: { Authorization: `Bearer ${apiKey}` }
+});
+```
+
+```python
+import requests
+response = requests.get('/api/endpoint',
+  headers={'Authorization': f'Bearer {api_key}'})
+```
+
+```curl
+curl -X GET '/api/endpoint' \
+  -H 'Authorization: Bearer YOUR_API_KEY'
+```
+
+--------------------------------
+
+### Example: Run OpenCode with a Specific Prompt
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+This example demonstrates how to pass a specific question directly to the `opencode run` command.
+
+```bash
+opencode run Explain the use of context in Go
+```
+
+--------------------------------
+
+### tmpdir with custom cleanup
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example showing how to use a custom `dispose` function for specific cleanup logic.
+
+```typescript
+await using tmp = await tmpdir({
+  init: async (dir) => {
+    const specialDir = path.join(dir, "special")
+    await fs.mkdir(specialDir)
+    return specialDir
+  },
+  dispose: async (dir) => {
+    // Custom cleanup logic
+    await fs.rm(path.join(dir, "special"), { recursive: true })
+  },
+})
 ```
 
 --------------------------------
@@ -710,65 +770,6 @@ await client.session.prompt({
     parts: [{ type: "text", text: "You are a helpful assistant." }],
   },
 })
-```
-
---------------------------------
-
-### Code group with multiple languages
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
-
-Example of a code group demonstrating API calls in Node.js, Python, and cURL.
-
-```javascript
-const response = await fetch('/api/endpoint', {
-  headers: { Authorization: `Bearer ${apiKey}` }
-});
-```
-
-```python
-import requests
-response = requests.get('/api/endpoint',
-  headers={'Authorization': f'Bearer {api_key}'})
-```
-
-```curl
-curl -X GET '/api/endpoint' \
-  -H 'Authorization: Bearer YOUR_API_KEY'
-```
-
---------------------------------
-
-### tmpdir with custom cleanup
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example showing how to use a custom `dispose` function for specific cleanup logic.
-
-```typescript
-await using tmp = await tmpdir({
-  init: async (dir) => {
-    const specialDir = path.join(dir, "special")
-    await fs.mkdir(specialDir)
-    return specialDir
-  },
-  dispose: async (dir) => {
-    // Custom cleanup logic
-    await fs.rm(path.join(dir, "special"), { recursive: true })
-  },
-})
-```
-
---------------------------------
-
-### Prompting with a Local MCP Tool (TXT)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
-
-Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
-
-```txt
-use the mcp_everything tool to add the number 3 and 4
 ```
 
 --------------------------------
@@ -837,14 +838,14 @@ Example content for the CLAUDE.md file, used to train Claude Code on documentati
 
 --------------------------------
 
-### Run the project
+### Prompting with a Local MCP Tool (TXT)
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
 
-Command to run the project's main script using Bun.
+Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
 
-```bash
-bun run index.ts
+```txt
+use the mcp_everything tool to add the number 3 and 4
 ```
 
 --------------------------------
@@ -868,14 +869,14 @@ it.instance("uses the temp directory", () =>
 
 --------------------------------
 
-### Connect to LLM provider
+### Run the project
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
 
-Run the /connect command in the TUI to configure an LLM provider.
+Command to run the project's main script using Bun.
 
-```txt
-/connect
+```bash
+bun run index.ts
 ```
 
 --------------------------------
@@ -955,32 +956,4 @@ variables:
   - ANTHROPIC_API_KEY
   - GITLAB_TOKEN_OPENCODE
   - GITLAB_HOST
-```
-
---------------------------------
-
-### Switch to Plan mode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Command to switch OpenCode to Plan mode using the Tab key.
-
-```bash
-<TAB>
-```
-
---------------------------------
-
-### OpenCode CLI: Attach TUI to Remote Backend Example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-Demonstrates how to start an OpenCode backend server and then attach a TUI from another terminal to that running server using its URL.
-
-```bash
-opencode web --port 4096 --hostname 0.0.0.0
-```
-
-```bash
-opencode attach http://10.20.30.40:4096
 ```
