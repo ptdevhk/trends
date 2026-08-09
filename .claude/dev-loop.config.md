@@ -356,6 +356,26 @@ ci_discovery: runtime
 # Branch protection on main requires: test, verify, i18n-check, secret-scan
 # ci-health-worker queries protection API at MERGE time — now resolves (was 404 before 2026-05-27)
 # Existing workflows: checks.yml (secret-scan, i18n-check, verify), tests.yml (test)
+# Trigger semantics (2026-08-09, PR #1360): Checks/Tests fire ONLY on
+# main/master pushes AND PRs — feature-branch pushes dispatch nothing.
+# To observe CI on preview-v0.4.23, keep the PR open; pushing alone shows
+# no runs. verify runs `make check-build` = python checks + check-node
+# (api-types sync, extension content.js sync, workspace typechecks, web/ext
+# lint) + check-node-tests-types (hard test-file typecheck gate).
+```
+
+## Merge policy
+
+> Repo reality (2026-08-09): main has branch protection (4 required checks),
+> squash merges, NO auto-merge; preview-v0.4.23 → main PRs are human-merge
+> only (PR #1360 human gate — agents drive CI green but never merge).
+
+```yaml
+merge_policy:
+  strategy: repo-policy
+  auto_merge: false
+  merge_method: squash
+  require_work_item_approval: true
 ```
 
 ## Notes
@@ -369,6 +389,8 @@ notes:
   planning: EnterPlanMode gated — TDD-first pipeline uses superpowers:writing-plans for plan, then superpowers:test-driven-development for execute
   gotchas:
     - api-types.ts regenerates on make check after API schema edits — always stage it
+    - check-node-tests-types is a HARD gate: apps/api test files are typechecked via tsconfig.tests.json; inline parseJsonBody<T> types must declare every field the test asserts (phantom-type assertions fail CI even when tests pass)
+    - Checks/Tests workflows fire only on main/master pushes and PRs — branch-push alone shows no CI runs; open/keep a PR to observe CI
     - better-sqlite3 needs npm rebuild after Node version bumps
     - Convex 16 MiB per-query byte limit — keep paginate batches ≤200 docs (~5.4MB)
     - localhost:5173 only — never the external hostname when verifying
