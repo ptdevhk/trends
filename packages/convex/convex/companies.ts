@@ -19,7 +19,7 @@ export {
   getEffectivePolicy,
   appendPolicyRevision,
   seedCanonicalCompanies,
-} from "./company-registry.js";
+} from "./company_registry.js";
 export {
   listIndustryProfiles,
   getIndustryProfile,
@@ -27,7 +27,7 @@ export {
   getReviewedIndustryCatalogByKeys,
   upsertIndustryProfile,
   deleteIndustryProfile,
-} from "./industry-profiles.js";
+} from "./industry_profiles.js";
 export {
   listAffectedResumesByCompany,
   getCompanyBackfillCatalog,
@@ -35,11 +35,11 @@ export {
   scheduleCompanyLinkBackfill,
   backfillCompanyResumeLinks,
   resolveIndustryRefreshResumeReference,
-} from "./company-resume-links.js";
+} from "./company_resume_links.js";
 export type {
   CompanyLinkBackfillHit,
   CompanyLinkBackfillResult,
-} from "./company-resume-links.js";
+} from "./company_resume_links.js";
 export {
   upsertIndustryProposal,
   listIndustryProposalsPage,
@@ -49,7 +49,7 @@ export {
   listIndustryRefreshRequests,
   getIndustryProposal,
   setIndustryProposalResearchState,
-} from "./industry-proposals.js";
+} from "./industry_proposals.js";
 export {
   upsertIndustryEvidenceSource,
   listIndustryEvidenceSources,
@@ -57,7 +57,7 @@ export {
   markIndustryEvidenceProfilesChecking,
   recordIndustryEvidenceFreshnessCheck,
   listIndustryEvidenceChecks,
-} from "./industry-evidence-sources.js";
+} from "./industry_evidence_sources.js";
 export {
   approveIndustryProposal,
   autoApproveIndustryProposal,
@@ -65,7 +65,7 @@ export {
   resolveIndustryProposal,
   listIndustryVerdictRevisions,
   listAutoApprovedVerdictRevisions,
-} from "./industry-verdicts.js";
+} from "./industry_verdicts.js";
 export {
   getIndustryRecomputeRevisionState,
   startIndustryRecomputeRun,
@@ -79,7 +79,7 @@ export {
   finalizeIndustryRecomputeRun,
   markIndustryRecomputeRunSuperseded,
   retryIndustryRecomputeRun,
-} from "./industry-recompute.js";
+} from "./industry_recompute.js";
 export {
   enqueueIndustryEvidenceResearchRequest,
   enqueueScheduledIndustryEvidenceResearchSweep,
@@ -93,7 +93,7 @@ export {
   recoverExpiredIndustryEvidenceResearchLeases,
   retryIndustryEvidenceResearchRequest,
   cancelIndustryEvidenceResearchRequest,
-} from "./industry-research-requests.js";
+} from "./industry_research_requests.js";
 export {
   upsertIndustryIdentityCandidate,
   listIndustryIdentityCandidates,
@@ -101,7 +101,7 @@ export {
   deleteIndustryIdentityCandidates,
   resolveIndustryProposalIdentity,
   attachProposalToCompany,
-} from "./industry-identity.js";
+} from "./industry_identity.js";
 export {
   startIndustryMaintenanceRun,
   claimNextIndustryMaintenanceRun,
@@ -112,7 +112,7 @@ export {
   getIndustryMaintenanceRun,
   listIndustryMaintenanceLedger,
   findActiveIndustryMaintenanceRun,
-} from "./industry-maintenance-runs.js";
+} from "./industry_maintenance_runs.js";
 export {
   upsertIndustryDataEntry,
   deleteIndustryDataEntry,
@@ -123,10 +123,10 @@ export {
   listIndustryDataChanges,
   setIndustryMaintenanceSchedulePaused,
   getIndustryMaintenanceSchedulePaused,
-} from "./industry-data-entries.js";
+} from "./industry_data_entries.js";
 export {
   getIndustryCoverageSummary,
   refreshIndustryCoverageProposalCounters,
   refreshIndustryCoverageEvidenceCounters,
   getIndustryCoverageCounters,
-} from "./industry-coverage.js";
+} from "./industry_coverage.js";

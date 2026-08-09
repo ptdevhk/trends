@@ -8,7 +8,7 @@ import {
   hasExplicitCncEvidence,
   normalizeIndustryEvidenceUrl,
 } from "@trends/shared";
-import { scheduleCompanyLinkBackfill } from "./company-resume-links.js";
+import { scheduleCompanyLinkBackfill } from "./company_resume_links.js";
 import {
   assertExpectedIndustryProposalUpdatedAt,
   findIndustryEvidenceSource,

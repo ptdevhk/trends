@@ -1,10 +1,10 @@
 /// Shared helpers for the company / industry-evidence domain modules.
 ///
 /// These helpers are used by two or more of the companies.ts successor
-/// modules (company-registry, industry-profiles, company-resume-links,
-/// industry-proposals, industry-evidence-sources, industry-verdicts,
-/// industry-recompute, industry-research-requests, industry-identity,
-/// industry-maintenance-runs, industry-data-entries, industry-coverage)
+/// modules (company_registry, industry_profiles, company_resume_links,
+/// industry_proposals, industry_evidence_sources, industry_verdicts,
+/// industry_recompute, industry_research_requests, industry_identity,
+/// industry_maintenance_runs, industry_data_entries, industry_coverage)
 /// and live here so each module stays cohesive. Semantics are unchanged
 /// from the original single-file definitions.
 import { v } from "convex/values";

@@ -300,7 +300,7 @@ class ResearchConvexClient:
             return {}
         result = self._querier(
             self.convex_url,
-            "industry-resume-impact:getIndustryResumeImpactByCompanyKey",
+            "industry_resume_impact:getIndustryResumeImpactByCompanyKey",
             self._args({"companyKeys": keys}),
         )
         if not isinstance(result, dict):
