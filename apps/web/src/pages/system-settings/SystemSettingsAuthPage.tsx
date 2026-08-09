@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Ban, Copy, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Ban, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -10,147 +10,25 @@ import {
   fetchProviderMemberships,
   preapproveProviderMembership,
   revokeProviderMembership,
-  type AuthProvider,
   type HrDemoSilentLoginInfo,
   type ProviderMembershipApiError,
   type ProviderMembershipPreapproval,
   type ProviderMembershipsResponse,
-  type WorkspaceRole,
 } from '@/lib/auth'
 import { formatAuthUserLabel } from '@/lib/auth-user-label'
 import { reportUiError } from '@/lib/ui-error-reporting'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { UsersPanel } from './admin-users/UsersPanel'
-
-type FormState = {
-  provider: AuthProvider
-  providerSubject: string
-  providerTenant: string
-  workspaceSlug: string
-  role: WorkspaceRole
-}
-
-function createInitialForm(workspaceSlug: string): FormState {
-  return {
-    provider: 'casdoor',
-    providerSubject: '',
-    providerTenant: '',
-    workspaceSlug,
-    role: 'user',
-  }
-}
-
-function toActionId(value: string): string {
-  return value.replace(/[^a-zA-Z0-9-]+/g, '-')
-}
-
-function formatProviderMembershipError(error: ProviderMembershipApiError): string {
-  return error.status === undefined ? error.error : `${error.error} (${error.status})`
-}
-
-function Pill({ children, active = true }: { children: string; active?: boolean }) {
-  return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
-      {children}
-    </span>
-  )
-}
-
-function StatusPill({ active }: { active: boolean }) {
-  return <Pill active={active}>{active ? 'Active' : 'Revoked'}</Pill>
-}
-
-function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="px-3 py-6 text-center text-sm text-muted-foreground">
-        {label}
-      </td>
-    </tr>
-  )
-}
-
-function FieldLabel({ children }: { children: string }) {
-  return <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{children}</dt>
-}
-
-function PolicyField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <FieldLabel>{label}</FieldLabel>
-      <dd className="text-sm">{children}</dd>
-    </div>
-  )
-}
-
-function StackedRecord({
-  title,
-  fields,
-  action,
-}: {
-  title: ReactNode
-  fields: Array<{ label: string; value: ReactNode }>
-  action?: ReactNode
-}) {
-  return (
-    <div className="rounded-md border p-3 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 text-sm font-medium">{title}</div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      <dl className="grid gap-3 sm:grid-cols-2">
-        {fields.map((field) => (
-          <PolicyField key={field.label} label={field.label}>
-            {field.value}
-          </PolicyField>
-        ))}
-      </dl>
-    </div>
-  )
-}
-
-function ResponsiveTable({
-  headers,
-  emptyLabel,
-  isEmpty,
-  minWidthClassName,
-  children,
-  stacked,
-}: {
-  headers: string[]
-  emptyLabel: string
-  isEmpty: boolean
-  minWidthClassName: string
-  children: ReactNode
-  stacked: ReactNode
-}) {
-  return (
-    <>
-      <div className="hidden lg:block overflow-x-auto">
-        <table className={`w-full ${minWidthClassName} text-sm`}>
-          <thead className="border-b text-left text-xs uppercase text-muted-foreground">
-            <tr>
-              {headers.map((header) => (
-                <th key={header || 'actions'} className="px-3 py-2">{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isEmpty ? <EmptyRow colSpan={headers.length} label={emptyLabel} /> : children}
-          </tbody>
-        </table>
-      </div>
-      <div className="space-y-3 lg:hidden" data-testid="auth-stacked-records">
-        {isEmpty ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">{emptyLabel}</p>
-        ) : (
-          stacked
-        )}
-      </div>
-    </>
-  )
-}
+import {
+  createInitialForm,
+  formatProviderMembershipError,
+  toActionId,
+  type FormState,
+} from './auth-access-model'
+import { Pill, ResponsiveTable, StackedRecord, StatusPill } from './AuthAccessTables'
+import { HrDemoSilentLoginPanel } from './HrDemoSilentLoginPanel'
+import { TemporaryPasswordBanner } from './TemporaryPasswordBanner'
 
 export function SystemSettingsAuthPage() {
   const { t } = useTranslation()
@@ -332,171 +210,14 @@ export function SystemSettingsAuthPage() {
       </div>
 
       {hrDemoSilent ? (
-        <Card data-testid="hr-demo-silent-login-panel" className="border-sky-200 bg-sky-50/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              {t('debugConfig.hrDemoSilentTitle', { defaultValue: 'HR demo silent login' })}
-            </CardTitle>
-            <CardDescription>
-              {t('debugConfig.hrDemoSilentDescription', {
-                defaultValue:
-                  'Shared desk bookmark token (AUTH_HR_DEMO_TOKEN). Append as ?auth=… on /hr/resumes deep links for passwordless full member desk access.',
-              })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <dl className="grid gap-2 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Username</dt>
-                <dd className="font-mono">{hrDemoSilent.username}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt>
-                <dd>
-                  {!hrDemoSilent.configured ? (
-                    <Pill active={false}>not configured</Pill>
-                  ) : hrDemoSilent.revealable ? (
-                    <Pill>configured · revealable</Pill>
-                  ) : (
-                    <Pill active={false}>configured · hash only</Pill>
-                  )}
-                </dd>
-              </div>
-            </dl>
-
-            {hrDemoSilent.configured && hrDemoSilent.tokenFingerprint ? (
-              <p className="text-xs text-muted-foreground">
-                Fingerprint: <code className="font-mono">{hrDemoSilent.tokenFingerprint}</code>
-              </p>
-            ) : null}
-
-            {hrDemoSilent.revealable && hrDemoSilent.token ? (
-              <>
-                <div className="space-y-1">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    AUTH_HR_DEMO_TOKEN
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <code
-                      data-testid="hr-demo-silent-token"
-                      className="rounded bg-white px-2 py-1 font-mono text-sm break-all border"
-                    >
-                      {hrDemoSilent.token}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      data-testid="copy-hr-demo-silent-token"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(hrDemoSilent.token ?? '')
-                        toast.success(t('debugConfig.hrDemoSilentTokenCopied', {
-                          defaultValue: 'Silent login token copied',
-                        }))
-                      }}
-                    >
-                      <Copy className="mr-1 h-3 w-3" />
-                      {t('debugConfig.hrDemoSilentCopyToken', { defaultValue: 'Copy token' })}
-                    </Button>
-                  </div>
-                </div>
-                {hrDemoSilent.samplePath ? (
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Sample HR path
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <code
-                        data-testid="hr-demo-silent-sample-path"
-                        className="rounded bg-white px-2 py-1 font-mono text-xs break-all border"
-                      >
-                        {hrDemoSilent.samplePath}
-                      </code>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        data-testid="copy-hr-demo-silent-sample"
-                        onClick={() => {
-                          const absolute = `${window.location.origin}${hrDemoSilent.samplePath}`
-                          void navigator.clipboard.writeText(absolute)
-                          toast.success(t('debugConfig.hrDemoSilentLinkCopied', {
-                            defaultValue: 'Silent login link copied',
-                          }))
-                        }}
-                      >
-                        <Copy className="mr-1 h-3 w-3" />
-                        {t('debugConfig.hrDemoSilentCopyLink', { defaultValue: 'Copy full URL' })}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t('debugConfig.hrDemoSilentHint', {
-                        defaultValue:
-                          'Paste filters after the path if needed, e.g. &location=China&q=CNC. Treat the token like a shared password.',
-                      })}
-                    </p>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {!hrDemoSilent.configured
-                  ? t('debugConfig.hrDemoSilentNotConfigured', {
-                      defaultValue:
-                        'Set AUTH_HR_DEMO_TOKEN on the API host and restart the service to enable silent login bookmarks.',
-                    })
-                  : t('debugConfig.hrDemoSilentHashOnly', {
-                      defaultValue:
-                        'Only AUTH_HR_DEMO_TOKEN_HASH is configured — the plaintext token cannot be revealed from the admin UI. Rotate via env if you need a new shareable link.',
-                    })}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <HrDemoSilentLoginPanel info={hrDemoSilent} />
       ) : null}
 
       {temporaryPasswordBanner !== null && (
-        <div
-          data-testid="temp-password-panel"
-          className="sticky top-16 z-30 rounded-md border border-amber-200 bg-amber-50 p-4 shadow-sm"
-        >
-          <div className="mb-2 text-sm font-medium text-amber-800">
-            {t('debugConfig.adminUsersTempPasswordTitle', { defaultValue: 'Temporary password' })}
-          </div>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <code className="rounded bg-white px-2 py-1 font-mono text-sm break-all">
-              {temporaryPasswordBanner}
-            </code>
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="copy-temp-password"
-              onClick={() => {
-                void navigator.clipboard.writeText(temporaryPasswordBanner)
-                toast.success(t('debugConfig.adminUsersTempPasswordCopied', {
-                  defaultValue: 'Password copied to clipboard',
-                }))
-              }}
-            >
-              <Copy className="mr-1 h-3 w-3" />
-              {t('debugConfig.adminUsersTempPasswordCopy', { defaultValue: 'Copy password' })}
-            </Button>
-          </div>
-          <p className="text-xs text-amber-700">
-            {t('debugConfig.adminUsersTempPasswordWarning', {
-              defaultValue: 'Copy this now. It will not be shown again after you close this dialog.',
-            })}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            data-testid="close-temp-password"
-            onClick={() => {
-              setTemporaryPasswordBanner(null)
-            }}
-          >
-            Dismiss
-          </Button>
-        </div>
+        <TemporaryPasswordBanner
+          password={temporaryPasswordBanner}
+          onDismiss={() => setTemporaryPasswordBanner(null)}
+        />
       )}
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
