@@ -202,6 +202,42 @@ The rsync-based deploy (`rsync -az --delete` from the working tree) needs the **
 
 ---
 
+## Follow-up session 3 (2026-08-09): C2 identity-resolution lane shipped + batch-attestation schema bug fixed
+
+Third follow-up: shipped the **identity-resolution lane in the review inbox** (the C2 queue bottleneck — 61 of 67 ready items carried `canonical_mapping_missing`), and found + fixed a **latent C1 bug** that made every batch approval fail at insert time on the local backend. All suites green; deployed to preview and live-drained 3 real items; prod untouched (pinned `64fa1dfb`).
+
+### What shipped (branch `industry-identity-resolution-lane`, commits `47a54ff9` + `ee7080de`)
+
+| Piece | Change |
+|---|---|
+| Identity lane UI | `IndustryIdentityResolutionDialog.tsx`: per-item identity candidates (name, confidence, jurisdiction, registration, conflict codes, source count, review state) with the best non-rejected candidate pre-selected; mapping mode choice — **create provisional** (display name pre-filled, optional alias) or **map to existing** registry company (client-side filter over `GET /api/companies`, merged rows excluded); candidate sources auto-attached; one shared review note (defaults to "Identity mapping reviewed from the batch review lane."). |
+| Queue affordances | Batch action bar gains **Resolve identity** (enabled when the selection contains resolvable rows); `IndustryReviewRow` gains a per-row **Resolve identity** button for rows blocked by `canonical_mapping_missing`. Both open the same dialog (single item or selection). |
+| Submission | Sequential per-item POSTs to the existing governed `/identity-resolution` endpoint (no new API surface); per-item failures become row errors (409 → conflict, 422 → policy); succeeded items leave the selection; queue + packet cache refresh. Items without candidates are shown as an excluded group with a "queue targeted research" hint. |
+| Model helpers | `getIdentityResolutionEligibility` (any non-terminal, unmapped proposal) + `requiresIdentityResolution` (eligibility ∧ flag) in `industry-review-inbox-model.ts`; 4 new tests. |
+| Tests | 8 dialog tests (default selection, both mapping payloads, validation gating, registry filter, excluded group) + 2 page-level inbox flow tests (batch-bar and row-entry, asserting the exact POST bodies) — all green (web 1849, api+convex+shared 3851). |
+| **Bug fixed (found live)** | `company_industry_verdict_revisions` **table schema validator** never gained `batchId` on `reviewAttestation` — C1's function-level validator and the API contracts parser have it, but the table validator does not, so **every batch approval 500'd at insert** ("Object contains extra field `batchId`"). C1's smoke tests never actually approved, so it shipped undetected; my first live drain attempt caught it. Added `batchId: v.optional(v.string())` to `packages/convex/convex/schema.ts` + convex regression test (approve with a batch attestation, assert batchId persists on the revision). |
+
+### Live verification (preview, workspace hr, 2026-08-09)
+
+- **Queue census**: 67 ready → 61 with `canonical_mapping_missing` → **28 have identity candidates**, **22 candidate-bearing are blocked only by mapping (± weak_industry_signal)**; the other 39 have no candidates and need targeted research before resolution.
+- **Full drain cycle × 3** (resolve identity → batch approve, governance intact):
+  - Creative Precision Engineering Sdn. Bhd. → provisional + `industrial`
+  - Do Re Mi Sound & Light Sdn. Bhd. → provisional + `non_industry`
+  - Ghazco Energy Sdn Bhd. → provisional + `industrial`
+  - All approvals carried `risk_override` attestations (weak_industry_signal) with reasons; revisions persisted with `batchId` (verified via `listIndustryVerdictRevisions`), identity audits in `industry_identity_resolution_audits`.
+- **Counters converged**: approved 5→8, ready_for_review 67→64, openTotal 9,776→9,773 (open excludes approved), openWithSources 172. The approvals also triggered one coalesced maintenance run (by design — `researching: 1` observed).
+- **Deploy note (learned live)**: schema.ts changes require **restarting the preview convex container** (`docker restart trends-preview-convex`) — the local backend loads the schema at boot; file sync alone leaves the old table validator running. Also, the coverage counters refresh is fire-and-forget on TTL expiry; a refresh in flight during approvals can write a pre-change snapshot — the next TTL cycle converges (observed: stale 67/5 for ~2 min, then 64/8).
+
+### Remaining (deferred)
+
+- **~19 candidate-bearing ready items** are now resolvable + approvable through the new lane (operator work in the UI); **39 ready items without candidates** need targeted research first (research → candidates → resolve → approve).
+- **C6 audit UI** (auditId/batchId rows surfaced in the UI) — not started.
+- **Arch#3** convex `companies.ts` split, **Arch#5** web HTTP convergence, **Arch#7** settings-page split — documented candidates, not started.
+- **P0.2–P0.5** worker parallelism, source dedup, resume-impact ordering, CN hotlist batching — not started.
+- Success criteria status: C1 ✅ (now actually working end-to-end) · C2 ✅ (identity lane) · C4 ✅ · C7 ✅ · ready queue below 5 ❌ (needs the operator pass + research for candidate-less items) · openWithSources ↑ (in progress via sweep) · prod pinned `64fa1dfb` ✅.
+
+---
+
 ## Live state snapshot (observed 2026-08-09, workspace `hr`)
 
 - Coverage (HTTP 200): `openTotal 9,776` · `openWithSources 81` · `openWithoutSources 9,695` · `emptyEvidenceBottleneck true` · `readyBacklogBottleneck false` · proposals by status: approved 5, needs_more_evidence 85, new 9,675, ready_for_review 16, rejected 25
@@ -253,14 +289,15 @@ bash scripts/industry-data/drain-backlog.sh   # PROPOSAL_LIMIT default 50
 systemctl restart trends-preview-worker-api   # byte-identical unit in deploy/
 ```
 
-## Success criteria for the next session
+## Success criteria status (as of follow-up session 3, 2026-08-09)
 
-- [ ] C1 bulk approve/reject ships (UI + batch endpoint, attestation intact) — **or** explicit decision to defer with reason
-- [ ] `ready_for_review` queue drops below 5 without agent intervention (C2/C3 unblock)
-- [ ] `openWithSources` ↑ measurably (P0 batch+parallel), ideally with a per-run duration benchmark before/after
-- [ ] Junk page-title candidates no longer created (C4 gate + test)
-- [ ] Governance model documented in dev-docs (C7)
-- [ ] Prod still pinned at `64fa1dfb`; preview parity green
+- [x] C1 bulk approve/reject ships (UI + batch endpoint, attestation intact) — shipped; **batchId table-schema bug fixed** so batch approvals actually persist (was failing at insert on the local backend)
+- [x] C2 identity-resolution lane ships (candidates → provisional/existing mapping from the inbox, row + batch affordances)
+- [ ] `ready_for_review` queue drops below 5 without agent intervention (needs the operator pass over ~19 candidate-bearing items + targeted research for the 39 candidate-less ones)
+- [ ] `openWithSources` ↑ measurably (P0 batch+parallel) — sweep 200/run delivers 51 ready/run; further parallelism is P0.2
+- [x] Junk page-title candidates no longer created (C4 gate + test)
+- [x] Governance model documented in dev-docs (C7)
+- [x] Prod still pinned at `64fa1dfb`; preview parity green
 
 ## Code pointers
 
