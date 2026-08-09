@@ -186,7 +186,7 @@ Second follow-up: completed C4 (candidate gate), C5 (coverage consolidation), C7
 
 - Coverage endpoint now reads the counters doc: first request 12.6s (inline refresh of both counters), subsequent **0.058s**. Numbers match baseline exactly: openTotal 9,776 · openWithSources 81 · openWithoutSources 9,695 · resumes 8,958/0 · ready 16 · approved 5 · rejected 25.
 - Prune applied: `CNC MACHINIST CAREERS - GMI CORP` (the handoff's observed junk) flagged by the gate mirror and deleted via `companies:deleteIndustryIdentityCandidates` (39 candidates remain).
-- Sweep duration before/after P0.1: before ≈ minutes @50; after (200/run) — **TO BE FILLED after measurement run**.
+- Sweep duration before/after P0.1: **before (50/run): 7.8 min for 50 proposals (9.3s/proposal, 2 ready) · after (200/run): exactly 50.0 min for 200 proposals (15s/proposal, 51 ready, 0 errors)** — run `cc2026ef-b4ac-4f5a-9a54-31be0768375d`, measured 2026-08-09 17:57→18:47 HKT. Batch raise delivered 4× the drain per run; per-proposal cost rose (dead-host discovery timeouts — see P0.2 note) but 51 ready items created vs 2 in the baseline run. Endpoint latency untouched (0.058s cached).
 - Direct convex HTTP works at `http://127.0.0.1:4210/api/query|mutation` with `{"path","args"}` (NOT 127.0.0.1:3210 — that's **prod's** local backend; the `npx convex run` CLI path does not resolve on the host without a cloud token).
 
 ### Deploy pitfalls (learned live — avoid next time)
