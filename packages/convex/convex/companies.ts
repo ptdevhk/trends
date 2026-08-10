@@ -105,6 +105,9 @@ export {
   attachProposalToCompany,
 } from "./industry_identity.js";
 export {
+  getIndustryResumeImpactByCompanyKey,
+} from "./industry_resume_impact.js";
+export {
   startIndustryMaintenanceRun,
   claimNextIndustryMaintenanceRun,
   patchIndustryMaintenanceRunContext,
