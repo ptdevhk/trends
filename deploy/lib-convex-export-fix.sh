@@ -14,8 +14,16 @@ fix_convex_export() {
     local schema_ts="$2"
     local out_zip="$3"
     local work
+    local prev_ret
     work="$(mktemp -d)"
-    trap 'rm -rf "$work"' RETURN
+    # Preserve any pre-existing RETURN trap and restore it when this trap
+    # fires; otherwise the trap survives the function's return and a later
+    # function/source completion fires it with `work` already gone (aborts
+    # the caller with "work: unbound variable" under `set -u`). The trap body
+    # runs while this function's locals still exist, so this is safe on every
+    # return path.
+    prev_ret="$(trap -p RETURN 2>/dev/null || true)"
+    trap 'rm -rf "$work"; if [ -n "$prev_ret" ]; then eval "$prev_ret"; else trap - RETURN; fi' RETURN
 
     ( cd "$work" && unzip -q "$in_zip" ) || return 1
 
