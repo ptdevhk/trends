@@ -109,7 +109,7 @@ backfill_dev_digests() {
         iter=$((iter + 1))
         local args='{"limit":100}'
         [ -n "$cursor" ] && args="{\"limit\":100,\"cursor\":\"$cursor\"}"
-        out="$(CONVEX_URL="$DEV_CONVEX_URL" npx convex run resumes_search:backfillResumeDigests "$args" 2>/dev/null)"
+        out="$(cd "$DEV_ROOT/packages/convex" && CONVEX_URL="$DEV_CONVEX_URL" npx convex run resumes_search:backfillResumeDigests "$args" 2>/dev/null)"
         out="$(printf '%s' "$out" | python3 -c '
 import json, sys
 t = sys.stdin.read(); s = t.find("{"); e = t.rfind("}")
