@@ -8918,7 +8918,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -8963,7 +8963,7 @@ export interface paths {
                         proposalId: string;
                         companyKey?: string;
                         normalizedEmployerSurface?: string;
-                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
                         priority: number;
                         sampleReferences?: {
                             workspaceSlug: string;
@@ -9045,7 +9045,7 @@ export interface paths {
                                     proposalId: string;
                                     companyKey?: string;
                                     normalizedEmployerSurface?: string;
-                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
                                     priority: number;
                                     sampleReferences?: {
                                         workspaceSlug: string;
@@ -9385,7 +9385,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -10087,7 +10087,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -11510,6 +11510,80 @@ export interface paths {
             requestBody?: never;
             responses: {
                 /** @description Retried recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset a targeted recompute run to queued, clearing batches and progress regardless of current status */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reset recompute state */
                 200: {
                     headers: {
                         [name: string]: unknown;
