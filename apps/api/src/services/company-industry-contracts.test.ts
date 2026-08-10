@@ -22,21 +22,25 @@ const revision = {
 };
 
 describe("industry proposal contract", () => {
-  it("parses proposals triggered by corpus evidence (curate/promote scripts)", () => {
-    const proposal = {
-      _id: "proposal-row",
-      proposalId: "curated-my-acme-cnc",
-      companyKey: "acme-cnc",
-      status: "approved",
-      priority: 100,
-      triggerReasons: ["corpus_evidence"],
-      createdAt: 10,
-      updatedAt: 11,
-    };
-    const parsed = parseIndustryProposal(proposal);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.companyKey).toBe("acme-cnc");
-  });
+  it.each(["curated", "corpus_evidence"])(
+    "parses proposals triggered by %s (bootstrap scripts)",
+    (triggerReason) => {
+      const proposal = {
+        _id: "proposal-row",
+        proposalId: "curated-my-acme-cnc",
+        companyKey: "acme-cnc",
+        status: "approved",
+        priority: 100,
+        triggerReasons: [triggerReason],
+        createdAt: 10,
+        updatedAt: 11,
+      };
+      const parsed = parseIndustryProposal(proposal);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.companyKey).toBe("acme-cnc");
+      expect(parsed?.triggerReasons).toEqual([triggerReason]);
+    },
+  );
 });
 
 describe("industry verdict revision contract", () => {

@@ -66,6 +66,7 @@ export const INDUSTRY_MAINTENANCE_TRIGGER_REASONS = [
   "material_source_change",
   "source_unavailable",
   "recruiter_refresh_request",
+  "curated",
   "corpus_evidence",
   "manual",
 ] as const;

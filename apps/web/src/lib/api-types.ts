@@ -8918,7 +8918,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -8963,7 +8963,7 @@ export interface paths {
                         proposalId: string;
                         companyKey?: string;
                         normalizedEmployerSurface?: string;
-                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
+                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                         priority: number;
                         sampleReferences?: {
                             workspaceSlug: string;
@@ -9045,7 +9045,7 @@ export interface paths {
                                     proposalId: string;
                                     companyKey?: string;
                                     normalizedEmployerSurface?: string;
-                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
+                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                     priority: number;
                                     sampleReferences?: {
                                         workspaceSlug: string;
@@ -9385,7 +9385,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -10087,7 +10087,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "corpus_evidence" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
