@@ -69,8 +69,9 @@ if [ "$SOURCE" = "preview" ]; then
 set -euo pipefail
 TS="$1"; WITH_STORAGE="$2"
 F="/app/preview-convex-export-$TS.zip"
+if [ "$WITH_STORAGE" = "1" ]; then EXTRA="--include-file-storage"; else EXTRA=""; fi
 docker exec trends-preview-convex bash -c \
-  "cd /app/packages/convex && npx convex export --path $F${WITH_STORAGE:+ --include-file-storage}" >/dev/null
+  "cd /app/packages/convex && npx convex export --path $F $EXTRA" >/dev/null
 sudo mv "/home/ubuntu/trends-preview/preview-convex-export-$TS.zip" "/tmp/preview-convex-export-$TS.zip"
 sudo chmod 0644 "/tmp/preview-convex-export-$TS.zip"
 sqlite3 /home/ubuntu/trends-preview/output/resume_screening.db ".timeout 5000" ".backup '/tmp/preview-rs-sync-$TS.db'"
@@ -81,9 +82,10 @@ else
     ssh ptcloud "bash -s" "$TS" "$WITH_STORAGE" <<'REMOTE'
 set -euo pipefail
 TS="$1"; WITH_STORAGE="$2"
+if [ "$WITH_STORAGE" = "1" ]; then EXTRA="--include-file-storage"; else EXTRA=""; fi
 cd /opt/trends/packages/convex
 sudo -u trends env CONVEX_URL=http://127.0.0.1:3210 npx convex export \
-  --path "/tmp/prod-convex-export-$TS.zip"${WITH_STORAGE:+ --include-file-storage} >/dev/null
+  --path "/tmp/prod-convex-export-$TS.zip" $EXTRA >/dev/null
 sudo chmod 0644 "/tmp/prod-convex-export-$TS.zip"
 sudo -u trends sqlite3 /opt/trends/output/resume_screening.db ".timeout 5000" ".backup '/tmp/prod-rs-sync-$TS.db'"
 ls -lh "/tmp/prod-convex-export-$TS.zip" "/tmp/prod-rs-sync-$TS.db"
