@@ -1341,7 +1341,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + canonical policy validation)
-check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins check-local-convex-write-secret
+check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
@@ -1352,6 +1352,12 @@ check-route-auth:
 # in packages/convex/convex/_mutations_registry.ts (quiesce-coverage audit).
 check-mutation-entry-points:
 	@bash scripts/check-mutation-entry-points.sh
+
+# Convex function-path lint — verify every BFF callConvex*("module:name") resolves
+# to a public query/mutation/action export (or a barrel re-export); prevents
+# "Could not find public function" runtime 500s after module refactors.
+check-convex-function-paths:
+	@npx tsx scripts/check-convex-function-paths.ts
 
 # Bootstrap admin seeding — verify seed_bootstrap_admins() parsing/no-op logic
 # in scripts/install.sh (deploy-time admin seeding for the auth refactor).
