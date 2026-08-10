@@ -23,4 +23,10 @@ grep -q 'fix_convex_export' "$ROOT/deploy/dev-sync-from-preview.sh" && pass "cal
 OUT="$(cd "$ROOT" && ASSUME_YES=1 bash deploy/dev-sync-from-preview.sh --dry-run 2>&1 || true)"
 echo "$OUT" | grep -qi "dry-run" && pass "dry-run prints marker" || fail "dry-run marker missing"
 
+# Wiring: npm role, Makefile target, docs
+grep -q '"auth:bootstrap-hr-demo".*--role admin' "$ROOT/package.json" && pass "npm hr-demo seeds admin" || fail "npm hr-demo not admin"
+grep -q 'on-host-dev-sync-from-preview' "$ROOT/Makefile" && pass "Makefile target present" || fail "Makefile target missing"
+grep -q 'dev-sync-from-preview' "$ROOT/docs/agent-runbook.md" && pass "runbook documents dev sync" || fail "runbook missing dev sync"
+grep -q 'dev-sync-from-preview' "$ROOT/docs/backup-restore-architecture.md" && pass "arch doc mentions dev sync" || fail "arch doc missing dev sync"
+
 [ "$FAIL" -eq 0 ] && echo "ALL PASS" || { echo "$FAIL FAILURES"; exit 1; }

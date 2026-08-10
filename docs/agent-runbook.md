@@ -131,6 +131,13 @@ make check-project-skills
 ## Known Gotchas
 - `EMBEDDING_ENABLED` gates embedding/vector operations; default is OFF.
 - Protected `/dev/*` routes are authenticated. Seed a local account with `npm run auth:bootstrap-demo` (or `npm run auth:bootstrap-hr-demo`) and sign in at `/dev/login`.
+- Refresh dev data to mirror preview (prod data + industry evidence + same code):
+  `bash deploy/dev-sync-from-preview.sh` (preview source, parity-gated).
+  `--prod-base` syncs from prod instead; `--with-file-storage` adds raw
+  attachments; `--digest-backfill=always|skip` overrides the adaptive digest
+  policy. Requires `AUTH_HR_DEMO_PASSWORD` and `AUTH_BOOTSTRAP_PASSWORD` in
+  `.env` (seeds hr-demo as admin, matching preview roles). Local state is
+  backed up first; a failed parity gate prints rollback instructions.
 - Never `bun run scripts/auth/manage-user.ts` directly — it opens SQLite via `better-sqlite3`, which the Bun runtime cannot load (`Fatal error: 'better-sqlite3' is not yet supported in Bun`). `bun run <npm-script>` is fine (the script shells out to `tsx` on Node); otherwise use `npx tsx scripts/auth/manage-user.ts ...` or `bunx tsx ...`.
 - `AUTH_BOOTSTRAP_PASSWORD` / `AUTH_HR_DEMO_PASSWORD` are **seed-time only**: read by `scripts/auth/manage-user.ts` and `deploy/preview-seed-auth.sh`, never by the login endpoint (`apps/api/src/routes/auth.ts` verifies against the stored scrypt hash in SQLite). Editing the env file does NOT change the stored password — re-run the seed to apply (idempotent upsert).
 - Local dev credentials are independent of preview: `hr-demo`'s local password is whatever the local seed used, not the preview bootstrap password. If in doubt, re-run the seed and restart the API.

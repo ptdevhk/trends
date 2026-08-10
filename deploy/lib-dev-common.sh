@@ -82,7 +82,7 @@ dev_seed_auth() {
     [ -n "$hr_pw" ] || { log_error "AUTH_HR_DEMO_PASSWORD is required in dev .env (hr-demo seed)"; return 1; }
     [ -n "$admin_pw" ] || { log_error "AUTH_BOOTSTRAP_PASSWORD is required in dev .env (admin seed)"; return 1; }
     log_step "Seeding auth: hr-demo (admin@hr) + admin (admin@dev)"
-    ( cd "$DEV_ROOT" && npm run auth:bootstrap-hr-demo >/dev/null && npm run auth:bootstrap-demo >/dev/null ) || return 1
+    ( cd "$DEV_ROOT" && npm run auth:bootstrap-hr-demo >/dev/null && npm run auth:bootstrap-admin >/dev/null ) || return 1
 }
 
 digest_epoch_from_export() {

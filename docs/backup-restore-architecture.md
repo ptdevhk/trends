@@ -29,11 +29,25 @@ flowchart TB
     VE[.env.preview]
     VA[trends-preview-api :3002]
   end
+  subgraph dev [Local dev this host]
+    DC[Local Convex :3210]
+    DS[SQLite under output/]
+    DA[trends-api :3000]
+  end
   PA --> PC
   PA --> PS
   VA --> VC
   VA --> VS
+  DA --> DC
+  DA --> DS
+  VC --> DC
+  VS --> DS
 ```
+
+Local dev (this host) is refreshed from preview by `deploy/dev-sync-from-preview.sh`
+— same Convex export/import + SQLite swap mechanics as preview, with a hard
+source-aware parity gate (corpus, candidate_actions, verified-employer count,
+baseline query totals) and preview-matching auth roles (hr-demo = admin).
 
 | Surface | Holds | Needed for UI parity? |
 |---------|--------|------------------------|

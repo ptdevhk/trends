@@ -557,6 +557,10 @@ on-host-preview-parity-check:
 on-host-preview-seed-auth:
 	bash ./deploy/preview-seed-auth.sh
 
+# On-host: sync preview (default) or prod data into local dev + parity gate
+on-host-dev-sync-from-preview:
+	bash ./deploy/dev-sync-from-preview.sh
+
 # On-host: full migration gate (seed + doctor + parity)
 on-host-preview-gate:
 	bash ./deploy/preview-migration-gate.sh
