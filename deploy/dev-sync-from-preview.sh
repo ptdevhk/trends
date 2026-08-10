@@ -96,6 +96,26 @@ scp "ptcloud:$SRC_EXPORT_REMOTE" "$SRC_ZIP"
 scp "ptcloud:$SRC_DB_REMOTE" "$SRC_DB"
 log_info "Downloaded: $(ls -lh "$SRC_ZIP" | awk '{print $5}') export, $(ls -lh "$SRC_DB" | awk '{print $5}') sqlite"
 
+# Hygiene: drop the export + sqlite backup this script created on ptcloud
+# /tmp (written via sudo on the remote; /tmp is sticky, so rm needs sudo).
+# Non-fatal: stale /tmp files never block a later run (fresh TS each time).
+ssh ptcloud "sudo rm -f '$SRC_EXPORT_REMOTE' '$SRC_DB_REMOTE'" \
+    || log_warn "Could not remove remote temp files $SRC_EXPORT_REMOTE $SRC_DB_REMOTE (non-fatal)"
+
+# Phase 1 -> 2 boundary sanity: the export must actually contain resumes
+# before any destructive step (fix/import/swap). Convex export layout is
+# <table>/documents.jsonl inside the zip.
+if ! unzip -l "$SRC_ZIP" | grep -q 'resumes/documents\.jsonl'; then
+    log_error "Export $SRC_ZIP is missing resumes/documents.jsonl — aborting before fix/import"
+    exit 1
+fi
+RESUME_DOC_COUNT="$(unzip -p "$SRC_ZIP" resumes/documents.jsonl | wc -l)"
+if [ "${RESUME_DOC_COUNT:-0}" -le 0 ]; then
+    log_error "Export $SRC_ZIP has $RESUME_DOC_COUNT resume docs (expected > 0) — aborting before fix/import"
+    exit 1
+fi
+log_info "Export sanity: resumes/documents.jsonl present with $RESUME_DOC_COUNT docs"
+
 # Phase 2 — adaptive fix
 log_step "2/5 Fix export"
 FIXED_ZIP="$SYNC_TMP/$SOURCE-convex-export-fixed-$TS.zip"

@@ -10,7 +10,7 @@ parity gate — equivalent guarantees to the canonical `prod → preview` flow.
 
 A manual `prod → dev` sync (2026-08-10) reproduced preview's *corpus* but not its
 *behavior*. On the baseline UAT query
-(`hr/resumes?location=Malaysia&q=CNC+Sales&minRoleYears=1&roleType=sales`):
+(`hr/resumes?location=Malaysia&q=CNC+Sales&minRoleYears=1&roleFilterType=sales`):
 
 | Environment | Code | Results | Notice (verified employers) |
 |---|---|---|---|

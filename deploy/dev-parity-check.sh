@@ -57,6 +57,68 @@ set -euo pipefail
 # env file, API base, db path and convex run prefix. Credentials are read from
 # the source env file inside this session only — never echoed, never written
 # to a local file.
+
+# NOTE: this copy of corpus_total must stay byte-identical to the local
+# definition below (enforced by dev-parity-check.test.sh).
+corpus_total() {
+    local mode="$1" prefix="$2" max_pages="${CORPUS_MAX_PAGES:-100}" out rc=0
+    out="$(python3 - "$mode" "$prefix" "$max_pages" <<'PY'
+import json, shlex, subprocess, sys
+
+PAGE_SIZE = 200  # scanResumePageSlim caps numItems at 200 (resumes_search.ts)
+max_pages = int(sys.argv[3])
+
+def run_page(mode, prefix, args_json):
+    if mode == "docker":
+        inner = prefix.replace("__ARGS__", shlex.quote(args_json))
+        proc = subprocess.run(
+            ["docker", "exec", "trends-preview-convex", "bash", "-c", inner],
+            capture_output=True, text=True,
+        )
+    else:
+        proc = subprocess.run(
+            prefix.replace("__ARGS__", shlex.quote(args_json)),
+            shell=True, capture_output=True, text=True,
+        )
+    raw = proc.stdout or ""
+    s, e = raw.find("{"), raw.rfind("}")
+    if s < 0 or e <= s:
+        return None
+    try:
+        return json.loads(raw[s : e + 1])
+    except ValueError:
+        return None
+
+mode, prefix = sys.argv[1], sys.argv[2]
+total, cursor = 0, None
+for _ in range(max_pages):
+    args = {"numItems": PAGE_SIZE}
+    if cursor is not None:
+        args["cursor"] = cursor
+    data = run_page(mode, prefix, json.dumps(args))
+    if data is None:
+        print("NA")  # parse failure -> existing degradation
+        sys.exit(0)
+    total += len(data.get("docs") or [])
+    if data.get("isDone"):
+        print(total)
+        sys.exit(0)
+    cursor = data.get("cursor")
+    if not cursor:
+        print("NA")  # no cursor and not done -> cannot continue
+        sys.exit(0)
+print("ERR")  # page cap hit without isDone -> hard error
+sys.exit(1)
+PY
+)" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "corpus pagination error: $max_pages-page cap hit without isDone" >&2
+        printf 'ERR\n'
+        return 0
+    fi
+    printf '%s' "$out"
+}
+
 source_cmd_remote() {
     local cmd="${1:-}" src="${2:-}" q="${3:-}"
     local env_file api_base db_path
@@ -71,12 +133,12 @@ source_cmd_remote() {
     fi
     case "$cmd" in
         corpus)
+            # Pagination loop: scanResumePageSlim caps numItems at 200, so a
+            # single call can never yield the true corpus total.
             if [ "$src" = "prod" ]; then
-                ( cd /opt/trends/packages/convex && sudo -u trends env CONVEX_URL=http://127.0.0.1:3210 npx convex run resumes_search:scanResumePageSlim '{"numItems":100000}' ) 2>/dev/null \
-                    | python3 -c 'import json,sys; t=sys.stdin.read(); s=t.find("{"); e=t.rfind("}"); print(len(json.loads(t[s:e+1]).get("docs") or []) if s>=0 and e>s else "NA")'
+                corpus_total shell "cd /opt/trends/packages/convex && sudo -u trends env CONVEX_URL=http://127.0.0.1:3210 npx convex run resumes_search:scanResumePageSlim __ARGS__ 2>/dev/null"
             else
-                docker exec trends-preview-convex bash -c "cd /app/packages/convex && npx convex run resumes_search:scanResumePageSlim '{\"numItems\":100000}'" 2>/dev/null \
-                    | python3 -c 'import json,sys; t=sys.stdin.read(); s=t.find("{"); e=t.rfind("}"); print(len(json.loads(t[s:e+1]).get("docs") or []) if s>=0 and e>s else "NA")'
+                corpus_total docker "cd /app/packages/convex && npx convex run resumes_search:scanResumePageSlim __ARGS__ 2>/dev/null"
             fi
             ;;
         actions)
@@ -92,7 +154,13 @@ source_cmd_remote() {
                 curl -s -b "$jar" "$api_base/api/company-industry-verified-employer-count" -H "X-Workspace-Slug: hr" \
                     | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("count","NA") if d.get("success") else "NA")'
             else
-                curl -s -b "$jar" "$api_base/api/resumes?source=convex&paged=true&limit=1&offset=0&$q" -H "X-Workspace-Slug: hr" \
+                # Build the request URL with printf so the base64-decoded
+                # query is bound to a variable and can never be re-parsed as
+                # shell syntax (a future query containing $(...) must stay
+                # inert text in the URL).
+                local url
+                printf -v url '%s/api/resumes?source=convex&paged=true&limit=1&offset=0&%s' "$api_base" "$q"
+                curl -s -b "$jar" "$url" -H "X-Workspace-Slug: hr" \
                     | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("summary",{}).get("total","NA"))'
             fi
             rm -f "$jar"
@@ -110,12 +178,86 @@ source_cmd_remote "$1" "$2" "$Q"
 REMOTE
 }
 
+# --- corpus pagination ------------------------------------------------------
+# scanResumePageSlim caps numItems at 200 (packages/convex/convex/resumes_search.ts),
+# so a single call can never return the true corpus total. corpus_total runs
+# the pagination loop: sums docs across pages and follows the returned cursor
+# until isDone (cap 100 pages; the cap hit without isDone prints ERR and fails
+# the gate — see compare_field). Parse failure of a page prints "NA" (existing
+# degradation). $1 = runner mode (shell|docker), $2 = page command template
+# with a __ARGS__ placeholder for the JSON args; the args are shell-escaped
+# with shlex.quote so the shell can never re-parse them.
+# NOTE: the copy inside SOURCE_SSH's REMOTE heredoc must stay byte-identical
+# to this definition (enforced by dev-parity-check.test.sh).
+corpus_total() {
+    local mode="$1" prefix="$2" max_pages="${CORPUS_MAX_PAGES:-100}" out rc=0
+    out="$(python3 - "$mode" "$prefix" "$max_pages" <<'PY'
+import json, shlex, subprocess, sys
+
+PAGE_SIZE = 200  # scanResumePageSlim caps numItems at 200 (resumes_search.ts)
+max_pages = int(sys.argv[3])
+
+def run_page(mode, prefix, args_json):
+    if mode == "docker":
+        inner = prefix.replace("__ARGS__", shlex.quote(args_json))
+        proc = subprocess.run(
+            ["docker", "exec", "trends-preview-convex", "bash", "-c", inner],
+            capture_output=True, text=True,
+        )
+    else:
+        proc = subprocess.run(
+            prefix.replace("__ARGS__", shlex.quote(args_json)),
+            shell=True, capture_output=True, text=True,
+        )
+    raw = proc.stdout or ""
+    s, e = raw.find("{"), raw.rfind("}")
+    if s < 0 or e <= s:
+        return None
+    try:
+        return json.loads(raw[s : e + 1])
+    except ValueError:
+        return None
+
+mode, prefix = sys.argv[1], sys.argv[2]
+total, cursor = 0, None
+for _ in range(max_pages):
+    args = {"numItems": PAGE_SIZE}
+    if cursor is not None:
+        args["cursor"] = cursor
+    data = run_page(mode, prefix, json.dumps(args))
+    if data is None:
+        print("NA")  # parse failure -> existing degradation
+        sys.exit(0)
+    total += len(data.get("docs") or [])
+    if data.get("isDone"):
+        print(total)
+        sys.exit(0)
+    cursor = data.get("cursor")
+    if not cursor:
+        print("NA")  # no cursor and not done -> cannot continue
+        sys.exit(0)
+print("ERR")  # page cap hit without isDone -> hard error
+sys.exit(1)
+PY
+)" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "corpus pagination error: $max_pages-page cap hit without isDone" >&2
+        printf 'ERR\n'
+        return 0
+    fi
+    printf '%s' "$out"
+}
+
 # compare_field LABEL DEV_VALUE SRC_VALUE HARD_IF_SOURCE
 # Numeric fields honor TOTAL_TOLERANCE; "NA" never fails informational checks.
+# "ERR" (measurement-error sentinel, e.g. corpus pagination cap hit) ALWAYS
+# fails, even when both sides agree and even for informational checks.
 compare_field() {
     local label="$1" dev_v="$2" src_v="$3" hard="$4"
     local ok=1
-    if [ "$src_v" = "NA" ] || [ "$dev_v" = "NA" ]; then
+    if [ "$dev_v" = "ERR" ] || [ "$src_v" = "ERR" ]; then
+        ok=0
+    elif [ "$src_v" = "NA" ] || [ "$dev_v" = "NA" ]; then
         [ "$hard" = "1" ] && ok=0
     elif [[ "$dev_v" =~ ^[0-9]+$ ]] && [[ "$src_v" =~ ^[0-9]+$ ]]; then
         local diff=$(( dev_v - src_v )); [ ${diff#-} -le "${TOTAL_TOLERANCE:-0}" ] || ok=0
@@ -126,7 +268,7 @@ compare_field() {
         log_info "parity OK   $label: dev=$dev_v src=$src_v${hard:+ (hard)}"
         return 0
     fi
-    if [ "$hard" = "1" ]; then
+    if [ "$hard" = "1" ] || [ "$dev_v" = "ERR" ] || [ "$src_v" = "ERR" ]; then
         log_error "parity FAIL $label: dev=$dev_v src=$src_v (hard)"
         return 1
     fi
@@ -142,8 +284,9 @@ set +e
 DEV_LOGIN_CODE="$(dev_login "$DEV_JAR")" || true
 compare_field "auth-smoke(hr-demo login)" "$DEV_LOGIN_CODE" 200 1 || FAILED=$((FAILED + 1))
 
-# corpus (resumes) via convex scan on both backends
-DEV_CORPUS="$(cd "$DEV_ROOT/packages/convex" && CONVEX_URL="$DEV_CONVEX_URL" npx convex run resumes_search:scanResumePageSlim '{"numItems":100000}' 2>/dev/null | python3 -c 'import json,sys; t=sys.stdin.read(); s=t.find("{"); e=t.rfind("}"); print(len(json.loads(t[s:e+1]).get("docs") or []) if s>=0 and e>s else "NA")')"
+# corpus (resumes) via convex scan on both backends — paginated sum, because
+# scanResumePageSlim caps numItems at 200 and a single page is never the total
+DEV_CORPUS="$(corpus_total shell "cd '$DEV_ROOT/packages/convex' && CONVEX_URL='$DEV_CONVEX_URL' npx convex run resumes_search:scanResumePageSlim __ARGS__ 2>/dev/null")"
 SRC_CORPUS="$(SOURCE_SSH --source-cmd corpus "$SOURCE" 2>/dev/null)"
 compare_field "corpus(resumes)" "$DEV_CORPUS" "$SRC_CORPUS" 1 || FAILED=$((FAILED + 1))
 
