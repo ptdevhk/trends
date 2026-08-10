@@ -2466,6 +2466,36 @@ app.openapi(retryIndustryRecomputeRunRoute, async (c) => {
   return c.json({ success: true as const, item }, 200);
 });
 
+const resetIndustryRecomputeRunRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/:runId/reset",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Reset a targeted recompute run to queued, clearing batches and progress regardless of current status",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Reset recompute state",
+    },
+  },
+});
+
+app.openapi(resetIndustryRecomputeRunRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = await companyIndustryRecomputeService.reset(runId, {
+    requestedBy: getAuthenticatedActorId(c),
+  });
+  return c.json({ success: true as const, item }, 200);
+});
+
 const getCompanyIndustryEvidenceBundleRoute = createRoute({
   method: "get",
   path: "/api/company-industry-bundles/:companyKey",

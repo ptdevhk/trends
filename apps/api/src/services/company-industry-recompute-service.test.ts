@@ -356,6 +356,38 @@ describe("CompanyIndustryRecomputeService", () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it("resets a run through the reset mutation with requestedBy and parses the result without auto-advancing", async () => {
+    const mutate = vi.fn(async (path: string, args: Record<string, unknown>) => {
+      if (path === "companies:resetIndustryRecomputeRun") {
+        expect(args).toMatchObject({
+          runId: "run-1",
+          requestedBy: "operator@example.com",
+        });
+        return run({
+          runId: "run-1",
+          status: "queued",
+          attempt: 2,
+          sourceDone: false,
+        });
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ mutate }),
+    );
+
+    const result = await service.reset("run-1", {
+      requestedBy: "operator@example.com",
+    });
+
+    expect(result).toMatchObject({
+      runId: "run-1",
+      status: "queued",
+      attempt: 2,
+    });
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
   it("marks a run superseded instead of dispatching when the current revision changed", async () => {
     const query = vi.fn(async (path: string) => {
       if (path === "companies:getIndustryRecomputeRun") {

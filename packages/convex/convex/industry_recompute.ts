@@ -667,3 +667,56 @@ export const retryIndustryRecomputeRun = mutation({
     return ctx.db.get(run._id);
   },
 });
+
+export const resetIndustryRecomputeRun = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    runId: v.string(),
+    requestedBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const run = await findIndustryRecomputeRun(ctx, args.runId.trim());
+    if (!run) throw new Error(`Unknown industry recompute run: ${args.runId}`);
+    if (run.status === "superseded") {
+      throw new Error(
+        "Cannot retry an industry recompute for a superseded revision",
+      );
+    }
+
+    const batches = await ctx.db
+      .query("company_industry_recompute_batches")
+      .withIndex("by_run", (q) => q.eq("runId", run.runId))
+      .collect();
+    for (const batch of batches) {
+      await ctx.db.delete(batch._id);
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(run._id, {
+      status: "queued",
+      attempt: run.attempt + 1,
+      cursor: undefined,
+      sourceDone: false,
+      pageCount: 0,
+      affectedCount: 0,
+      alreadyCurrentCount: 0,
+      scheduledCount: 0,
+      readyCount: 0,
+      failureCount: 0,
+      batchCount: 0,
+      failures: [],
+      lastError: undefined,
+      completedAt: undefined,
+      ...(args.requestedBy?.trim()
+        ? { requestedBy: args.requestedBy.trim() }
+        : {}),
+      updatedAt: now,
+    });
+    await patchProposalRecomputeState(ctx, run.proposalId, {
+      applicationState: "recompute_pending",
+      updatedAt: now,
+    });
+    return ctx.db.get(run._id);
+  },
+});

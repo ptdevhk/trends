@@ -513,6 +513,20 @@ export class CompanyIndustryRecomputeService {
     return options.advance === false ? retried : this.advance(retried.runId);
   }
 
+  async reset(
+    runId: string,
+    options: { requestedBy?: string } = {},
+  ): Promise<CompanyIndustryRecomputeRun> {
+    return parseCompanyIndustryRecomputeRun(
+      await this.mutate("companies:resetIndustryRecomputeRun", {
+        runId: runId.trim(),
+        ...(options.requestedBy?.trim()
+          ? { requestedBy: options.requestedBy.trim() }
+          : {}),
+      }),
+    );
+  }
+
   async advance(runId: string): Promise<CompanyIndustryRecomputeRun> {
     const current = await this.get(runId);
     if (!current) {

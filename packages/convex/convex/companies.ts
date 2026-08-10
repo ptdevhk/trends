@@ -80,6 +80,7 @@ export {
   finalizeIndustryRecomputeRun,
   markIndustryRecomputeRunSuperseded,
   retryIndustryRecomputeRun,
+  resetIndustryRecomputeRun,
 } from "./industry_recompute.js";
 export {
   enqueueIndustryEvidenceResearchRequest,

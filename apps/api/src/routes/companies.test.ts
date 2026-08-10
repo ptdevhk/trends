@@ -2302,6 +2302,68 @@ describe("companies routes", () => {
     });
   });
 
+  it("resets a recompute run to queued for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:resetIndustryRecomputeRun") {
+        expect(call.args).toMatchObject({
+          runId: "run-1",
+          requestedBy: auth.userId,
+        });
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "queued",
+          attempt: 2,
+          sourceDone: false,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/reset",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { runId: string; status: string } }>(response);
+    expect(body).toEqual({
+      success: true,
+      item: expect.objectContaining({ runId: "run-1", status: "queued", attempt: 2 }),
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps the recompute run reset admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/reset",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("returns the cached verified employer count for an admin", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     const { verifiedEmployerCatalog } = await import(
