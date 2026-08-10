@@ -27,7 +27,10 @@ done
 dev_login() {
     local jar="$1" pw="${AUTH_HR_DEMO_PASSWORD:-}"
     [ -n "$pw" ] || { log_error "AUTH_HR_DEMO_PASSWORD unset"; return 1; }
-    curl -s -c "$jar" -X POST "http://127.0.0.1:$DEV_API_PORT/api/auth/login" \
+    # Emit only the HTTP status code (body discarded) so callers can compare
+    # it against 200; -c still populates the cookie jar for later vec/query
+    # checks, and a failed connection yields "000" (never an empty string).
+    curl -s -o /dev/null -c "$jar" -w '%{http_code}' -X POST "http://127.0.0.1:$DEV_API_PORT/api/auth/login" \
         -H "Content-Type: application/json" -H "X-Workspace-Slug: hr" \
         -d "{\"username\":\"hr-demo\",\"password\":\"$pw\"}"
 }
@@ -136,8 +139,8 @@ main() {
 HARD="1"; [ "$SOURCE" = "prod" ] && HARD="0"
 DEV_JAR="$(mktemp)"; SRC_JAR="$(mktemp)"; FAILED=0
 set +e
-dev_login "$DEV_JAR" >/dev/null 2>&1
-compare_field "auth-smoke(hr-demo login)" 200 200 1 || FAILED=$((FAILED + 1))
+DEV_LOGIN_CODE="$(dev_login "$DEV_JAR")" || true
+compare_field "auth-smoke(hr-demo login)" "$DEV_LOGIN_CODE" 200 1 || FAILED=$((FAILED + 1))
 
 # corpus (resumes) via convex scan on both backends
 DEV_CORPUS="$(cd "$DEV_ROOT/packages/convex" && CONVEX_URL="$DEV_CONVEX_URL" npx convex run resumes_search:scanResumePageSlim '{"numItems":100000}' 2>/dev/null | python3 -c 'import json,sys; t=sys.stdin.read(); s=t.find("{"); e=t.rfind("}"); print(len(json.loads(t[s:e+1]).get("docs") or []) if s>=0 and e>s else "NA")')"
