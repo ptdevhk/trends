@@ -117,6 +117,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "industry_recompute.ts", name: "finalizeIndustryRecomputeRun", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
     { file: "industry_recompute.ts", name: "markIndustryRecomputeRunSuperseded", quiesceAware: true, reason: "Targeted exact reingest orchestration via write-secret and BFF middleware" },
     { file: "industry_recompute.ts", name: "retryIndustryRecomputeRun", quiesceAware: true, reason: "Attended targeted recompute retry via write-secret and BFF middleware" },
+    { file: "industry_recompute.ts", name: "resetIndustryRecomputeRun", quiesceAware: true, reason: "Attended recompute-run reset (recovery) via write-secret and BFF admin middleware" },
 
     // Industry evidence research, identity review, and maintenance ledger —
     // all are write-secret gated and enter through the BFF or worker
