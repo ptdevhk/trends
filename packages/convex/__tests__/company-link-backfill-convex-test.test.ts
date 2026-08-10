@@ -55,6 +55,21 @@ async function seedCompanyAndProposal(
     status: "confirmed",
     writeSecret: WRITE_SECRET,
   });
+  // The backfill now matches registered aliases only (exact normalized match,
+  // aligned with the BFF's resolveAliasesBatch). Register the surfaces the
+  // approval-lane tests rely on so they resolve exactly.
+  await t.mutation(api.companies.addAlias, {
+    companyKey,
+    alias: "ACME CNC",
+    source: "operator",
+    writeSecret: WRITE_SECRET,
+  });
+  await t.mutation(api.companies.addAlias, {
+    companyKey,
+    alias: "ACME CNC Sdn Bhd",
+    source: "operator",
+    writeSecret: WRITE_SECRET,
+  });
   await t.mutation(api.companies.upsertIndustryProposal, {
     proposalId,
     companyKey,
@@ -330,6 +345,125 @@ describe("company-link backfill (F1)", () => {
     expect(affectedAgain.items).toHaveLength(3);
   });
 
+  it("exact-alias contract: a bare generic suffix surface (SDN BHD) never links (regression: previously soft-matched)", async () => {
+    const t = createTest();
+    await seedCompany(t);
+
+    await seedResume(t, {
+      content: { workHistory: [{ companyName: "SDN BHD" }] },
+      externalId: "generic-suffix-1",
+      identityKey: "id:generic-suffix-1",
+    });
+
+    const result = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompany,
+      { companyKey: "seco-tools-sdn-bhd" },
+    );
+    expect(result).toMatchObject({
+      status: "completed",
+      scannedRows: 1,
+      matchedRows: 0,
+      linkedRows: 0,
+      isDone: true,
+    });
+
+    const affected = await t.query(api.companies.listAffectedResumesByCompany, {
+      workspaceSlug: "dev",
+      companyKey: "seco-tools-sdn-bhd",
+      limit: 50,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(affected.items).toHaveLength(0);
+  });
+
+  it("exact-alias contract: surface exactly equal to a registered alias links (display name registered via addAlias)", async () => {
+    const t = createTest();
+    // displayName "ACME CNC" is ALSO registered as an alias — the only way
+    // the BFF reingest (resolveAliasesBatch) can stamp this surface.
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.addAlias, {
+      companyKey: "acme-cnc",
+      alias: "ACME CNC",
+      source: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const matching = await seedResume(t, {
+      content: { workHistory: [{ companyName: "ACME CNC" }] },
+      externalId: "alias-exact-1",
+      identityKey: "id:alias-exact-1",
+    });
+
+    const result = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompany,
+      { companyKey: "acme-cnc" },
+    );
+    expect(result).toMatchObject({
+      status: "completed",
+      scannedRows: 1,
+      matchedRows: 1,
+      linkedRows: 1,
+      isDone: true,
+    });
+
+    const affected = await t.query(api.companies.listAffectedResumesByCompany, {
+      workspaceSlug: "dev",
+      companyKey: "acme-cnc",
+      limit: 50,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(affected.items.map((item) => String(item.resumeId))).toEqual([
+      String(matching),
+    ]);
+    expect(affected.items[0]?.matchedEmployerSurfaces).toEqual(["ACME CNC"]);
+  });
+
+  it("exact-alias contract: displayName-only match does not link (alignment with resolveAliasesBatch)", async () => {
+    const t = createTest();
+    // displayName "ACME CNC" is NOT registered as an alias — the BFF's
+    // resolveAliasesBatch (exact company_aliases lookup) cannot stamp this
+    // surface either, so the backfill must not link it.
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await seedResume(t, {
+      content: { workHistory: [{ companyName: "ACME CNC" }] },
+      externalId: "display-name-only-1",
+      identityKey: "id:display-name-only-1",
+    });
+
+    const result = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompany,
+      { companyKey: "acme-cnc" },
+    );
+    // No registered aliases → the exact-alias index is empty and the scan
+    // short-circuits before scanning any resume (scannedRows stays 0).
+    expect(result).toMatchObject({
+      status: "completed",
+      scannedRows: 0,
+      matchedRows: 0,
+      linkedRows: 0,
+      isDone: true,
+    });
+
+    const affected = await t.query(api.companies.listAffectedResumesByCompany, {
+      workspaceSlug: "dev",
+      companyKey: "acme-cnc",
+      limit: 50,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(affected.items).toHaveLength(0);
+  });
+
   it("bounded invocations self-chain via the scheduler cursor until the corpus is done", async () => {
     vi.useFakeTimers();
     const t = createTest();
@@ -337,10 +471,12 @@ describe("company-link backfill (F1)", () => {
 
     // > 100 rows so a single 100-row page cannot finish the corpus
     // (scan pages are capped at MAX_RESUME_SCAN_BATCH_SIZE = 100).
+    // All surfaces equal a registered alias exactly (the #N suffixes would
+    // only match via the old soft contains-match).
     for (let index = 0; index < 130; index += 1) {
       await seedResume(t, {
         content: {
-          workHistory: [{ companyName: `SECO TOOLS (M) SDN. BHD. #${index}` }],
+          workHistory: [{ companyName: "SECO TOOLS (M) SDN. BHD." }],
         },
         externalId: `bulk-${index}`,
         identityKey: `id:bulk-${index}`,
@@ -443,10 +579,12 @@ describe("company-link backfill (F1)", () => {
 
     // > 1000 rows: the default 10-page budget cannot finish the corpus in one
     // invocation, so the first sync call must return "continued" with a cursor.
+    // All surfaces equal a registered alias exactly (the #N suffixes would
+    // only match via the old soft contains-match).
     for (let index = 0; index < 1001; index += 1) {
       await seedResume(t, {
         content: {
-          workHistory: [{ companyName: `SECO TOOLS (M) SDN. BHD. #${index}` }],
+          workHistory: [{ companyName: "SECO TOOLS (M) SDN. BHD." }],
         },
         externalId: `sync-bulk-${index}`,
         identityKey: `id:sync-bulk-${index}`,

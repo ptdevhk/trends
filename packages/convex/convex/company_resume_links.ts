@@ -10,8 +10,7 @@ import {
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
-  buildCompanyAliasIndex,
-  resolveCompanyAlias,
+  normalizeCompanyAlias,
 } from "@trends/shared";
 import { deriveWorkEntryFingerprint } from "./lib/company_resume_links.js";
 import type { ResumeScanRow } from "./resumes_mutations.js";
@@ -72,10 +71,11 @@ export const listAffectedResumesByCompany = query({
 // company_resume_links are derived only from computed ingestData, so newly
 // approved companies have zero links and every targeted recompute no-ops with
 // processedCount 0. The backfill scans resumes, matches raw work-history
-// employer surfaces against the company's display names + registered aliases
-// (case/punctuation-insensitive, longest-alias soft match), and upserts
-// idempotent links. It is bounded per invocation and self-chains via the
-// scheduler until the corpus is done.
+// employer surfaces against the company's REGISTERED aliases (exact
+// normalized match only — the same contract as the BFF reingest's
+// resolveAliasesBatch, which stamps companyKey only via exact company_aliases
+// lookups), and upserts idempotent links. It is bounded per invocation and
+// self-chains via the scheduler until the corpus is done.
 // ---------------------------------------------------------------------------
 
 const BACKFILL_DEFAULT_MAX_PAGES = 10;
@@ -142,7 +142,11 @@ function collectContentEmployerSurfaces(
 }
 
 /**
- * Match one resume's employer surfaces against a company's alias index.
+ * Match one resume's employer surfaces against a company's exact-alias index
+ * (aliasNormalized → companyKey, built from registered aliases ONLY). A
+ * surface links only when its normalizeCompanyAlias-normalized form EXACTLY
+ * equals a registered alias — the same contract as the BFF reingest's
+ * resolveAliasesBatch, so every backfilled link is reproducible on reingest.
  * Returns null when no surface resolves to the company; otherwise the link
  * payload. currentVerdictRevisionId is set only when the resume's computed
  * entries carry exactly one verdict revision for this company (mirroring the
@@ -152,7 +156,7 @@ function collectContentEmployerSurfaces(
 
 function matchResumeEmployerSurfaces(
   resume: ResumeScanRow,
-  aliasIndex: Map<string, string>,
+  exactAliasIndex: Map<string, string>,
   companyKey: string,
 ): CompanyLinkBackfillHit | null {
   const surfaces = new Set<string>();
@@ -163,7 +167,7 @@ function matchResumeEmployerSurfaces(
     ...collectIngestEmployerSurfaces(resume.ingestData),
     ...collectContentEmployerSurfaces(resume.content),
   ]) {
-    if (resolveCompanyAlias(aliasIndex, item.surface) !== companyKey) {
+    if (exactAliasIndex.get(normalizeCompanyAlias(item.surface)) !== companyKey) {
       continue;
     }
     surfaces.add(item.surface);
@@ -258,7 +262,14 @@ async function runCompanyLinkBackfillScan(
       isDone: true,
     };
   }
-  const aliasIndex = buildCompanyAliasIndex([catalog]);
+  // Exact-alias index ONLY (registered aliases, aliasNormalized → companyKey):
+  // displayName/nameCn/nameEn are deliberately excluded because the BFF
+  // reingest can only stamp companyKey on surfaces that resolve through the
+  // company_aliases table (resolveAliasesBatch), and a link the reingest
+  // cannot reproduce would leave readiness PARKed forever.
+  const aliasIndex = new Map(
+    catalog.aliases.map((alias) => [alias.aliasNormalized, normalizedCompanyKey]),
+  );
   if (aliasIndex.size === 0) {
     return {
       status: "completed",
