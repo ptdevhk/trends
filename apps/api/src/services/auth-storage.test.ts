@@ -326,6 +326,81 @@ describe("auth sqlite schema", () => {
       { userId: user.id, workspaceSlug: "hr", role: "admin" },
     ]);
   });
+
+  it("applies and lists reviewer-role Casdoor preapprovals on every read path", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-casdoor-reviewer-"));
+    const storage = new AuthStorage(root);
+
+    const user = storage.createUser({
+      email: "reviewer-user@example.com",
+      displayName: "Reviewer User",
+    });
+    storage.linkIdentity({
+      userId: user.id,
+      provider: "casdoor",
+      providerSubject: "casdoor-reviewer-user",
+      providerTenant: "https://casdoor.example.com",
+      email: user.email,
+      displayName: user.displayName,
+    });
+
+    storage.preapproveProviderMembership({
+      provider: "casdoor",
+      providerSubject: "casdoor-reviewer-user",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      role: "reviewer",
+      operatorId: "operator@example.com",
+    });
+
+    // Apply path must not silently drop the reviewer preapproval.
+    expect(storage.applyProviderMembershipPreapprovals({
+      provider: "casdoor",
+      providerSubject: "casdoor-reviewer-user",
+      providerTenant: "https://casdoor.example.com",
+      userId: user.id,
+    })).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "reviewer" },
+    ]);
+
+    expect(storage.listMemberships(user.id)).toEqual([
+      { userId: user.id, workspaceSlug: "hr", role: "reviewer" },
+    ]);
+    expect(storage.listProviderMembershipPreapprovals({
+      provider: "casdoor",
+    })).toMatchObject([
+      {
+        providerSubject: "casdoor-reviewer-user",
+        workspaceSlug: "hr",
+        role: "reviewer",
+        active: true,
+      },
+    ]);
+    expect(storage.listProviderMembershipGrants({
+      provider: "casdoor",
+    })).toMatchObject([
+      {
+        providerSubject: "casdoor-reviewer-user",
+        workspaceSlug: "hr",
+        role: "reviewer",
+        active: true,
+      },
+    ]);
+    expect(storage.listUsers().find((u) => u.id === user.id)?.memberships).toEqual([
+      { workspaceSlug: "hr", role: "reviewer" },
+    ]);
+
+    // Revocation path must also see the reviewer grant and remove the membership.
+    storage.revokeProviderMembershipPreapproval({
+      provider: "casdoor",
+      providerSubject: "casdoor-reviewer-user",
+      providerTenant: "https://casdoor.example.com",
+      workspaceSlug: "hr",
+      operatorId: "operator@example.com",
+    });
+
+    expect(storage.listMemberships(user.id)).toEqual([]);
+  });
 });
 
 describe("auth session revocation by user", () => {

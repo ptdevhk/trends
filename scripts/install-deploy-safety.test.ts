@@ -13,6 +13,7 @@ const convexPackageJson = JSON.parse(
 ) as { scripts: Record<string, string | undefined> };
 const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const convexExportFixLibrary = readFileSync(new URL("../deploy/lib-convex-export-fix.sh", import.meta.url), "utf8");
 const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
 const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
 const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", import.meta.url), "utf8");
@@ -338,16 +339,25 @@ describe("non-Docker Convex startup safety", () => {
 
 describe("preview restore export compatibility", () => {
   it("strips removed screening-session fields before importing production data", () => {
-    expect(restorePreviewScript).toContain("showBlocked");
-    expect(restorePreviewScript).toContain("Stripped showBlocked");
+    // Stripping lives in the shared export-fix lib (sourced by restore + dev-sync).
+    expect(convexExportFixLibrary).toContain("showBlocked");
+    expect(convexExportFixLibrary).toContain("Stripped showBlocked");
+    expect(restorePreviewScript).toContain('source "$SCRIPT_DIR/lib-convex-export-fix.sh"');
+    expect(restorePreviewScript).toContain("fix_convex_export");
+    expect(restorePreviewScript).toContain("Strip schema-incompatible fields from export");
   });
 
   it("materializes missing preview schema tables as empty before replace-all import", () => {
-    expect(restorePreviewScript).toContain("packages/convex/convex/schema.ts");
-    expect(restorePreviewScript).toContain("defineTable");
-    expect(restorePreviewScript).toContain("generated_schema.jsonl");
-    expect(restorePreviewScript).toContain("documents.jsonl");
-    expect(restorePreviewScript).toContain("Materialized missing schema tables as empty");
+    expect(convexExportFixLibrary).toContain("defineTable");
+    expect(convexExportFixLibrary).toContain("generated_schema.jsonl");
+    expect(convexExportFixLibrary).toContain("documents.jsonl");
+    expect(convexExportFixLibrary).toContain("Materialized missing schema tables as empty");
+    // restore-preview-from-prod passes the preview schema to the lib fixer
+    // and imports the fixed export (fix must run before replace-all import).
+    expect(restorePreviewScript).toContain("$PREVIEW_DIR/packages/convex/convex/schema.ts");
+    expect(restorePreviewScript.indexOf("fix_convex_export")).toBeLessThan(
+      restorePreviewScript.indexOf("convex import --replace-all"),
+    );
   });
 
   it("supports optional digest backfill in bounded batches after replace-all import", () => {

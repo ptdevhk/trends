@@ -215,7 +215,7 @@ function isAuthProvider(value: unknown): value is AuthProvider {
 }
 
 function isWorkspaceRole(value: unknown): value is WorkspaceRole {
-  return value === "user" || value === "admin";
+  return value === "user" || value === "reviewer" || value === "admin";
 }
 
 export class AuthStorage {
