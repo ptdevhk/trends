@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { createAdminUser } from '@/lib/admin-users'
+import { createAdminUser, type AdminAssignableRole } from '@/lib/admin-users'
 import {
   getWorkspaceDisplayName,
   isReservedWorkspaceSlug,
@@ -20,7 +20,6 @@ import {
   slugifyUsernameForWorkspace,
   type SystemWorkspaceSlug,
 } from '@trends/shared'
-import type { WorkspaceRole } from '@/lib/auth'
 
 type Props = {
   open: boolean
@@ -30,7 +29,7 @@ type Props = {
 
 type SystemJoin = {
   workspaceSlug: SystemWorkspaceSlug
-  role: WorkspaceRole
+  role: AdminAssignableRole
   enabled: boolean
 }
 
@@ -288,7 +287,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
                       value={join.role}
                       disabled={!join.enabled}
                       onChange={(e) => {
-                        const role: WorkspaceRole = e.target.value === 'admin' ? 'admin' : 'user'
+                        const role: AdminAssignableRole = e.target.value === 'admin' ? 'admin' : 'user'
                         setSystemJoins((current) =>
                           current.map((row) =>
                             row.workspaceSlug === join.workspaceSlug

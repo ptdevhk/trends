@@ -12,9 +12,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { getWorkspaceDisplayName, listSystemWorkspaceSlugs, type WorkspaceSlug } from '@trends/shared'
-import type { AdminUserRecord } from '@/lib/admin-users'
+import type { AdminUserRecord, AdminAssignableRole } from '@/lib/admin-users'
 import { addAdminUserMembership, removeAdminUserMembership } from '@/lib/admin-users'
-import type { WorkspaceRole } from '@/lib/auth'
 
 type Props = {
   open: boolean
@@ -26,7 +25,7 @@ type Props = {
 export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props) {
   const { t } = useTranslation()
   const [addWorkspaceSlug, setAddWorkspaceSlug] = useState<WorkspaceSlug | ''>('')
-  const [addRole, setAddRole] = useState<WorkspaceRole>('user')
+  const [addRole, setAddRole] = useState<AdminAssignableRole>('user')
   const [submitting, setSubmitting] = useState(false)
 
   const workspaceOptions = listSystemWorkspaceSlugs()

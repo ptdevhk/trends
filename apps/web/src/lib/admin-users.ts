@@ -15,9 +15,16 @@ export type AdminUserRecord = {
   }[]
   memberships: {
     workspaceSlug: string
-    role: 'user' | 'admin'
+    role: WorkspaceRole
   }[]
 }
+
+/**
+ * Roles accepted on admin-user create/membership input. The server's request
+ * schemas are strictly z.enum(["user", "admin"]) (see admin_users.ts), so
+ * "reviewer" is only valid on the output/record side, never on input.
+ */
+export type AdminAssignableRole = 'user' | 'admin'
 
 export type AdminUsersError = { success: false; error: string; status?: number }
 
@@ -94,9 +101,9 @@ export async function createAdminUser(input: {
   email?: string
   displayName?: string
   /** Optional system team seats (hr/dev). Personal desk is always created server-side. */
-  systemMemberships?: Array<{ workspaceSlug: WorkspaceSlug; role: WorkspaceRole }>
+  systemMemberships?: Array<{ workspaceSlug: WorkspaceSlug; role: AdminAssignableRole }>
   /** @deprecated Prefer systemMemberships */
-  initialMembership?: { workspaceSlug: WorkspaceSlug; role: WorkspaceRole }
+  initialMembership?: { workspaceSlug: WorkspaceSlug; role: AdminAssignableRole }
 }): Promise<{ success: true; user: AdminUserRecord; temporaryPassword: string } | AdminUsersError> {
   const { data, error, response } = await rawApiClient.POST<{
     success: true
@@ -133,7 +140,7 @@ export async function enableAdminUser(id: string): Promise<{ success: true } | A
 
 export async function addAdminUserMembership(
   id: string,
-  input: { workspaceSlug: WorkspaceSlug; role: WorkspaceRole },
+  input: { workspaceSlug: WorkspaceSlug; role: AdminAssignableRole },
 ): Promise<{ success: true; created: boolean } | AdminUsersError> {
   const { data, error, response } = await rawApiClient.POST<{ success: true; created: boolean }>(
     `/api/admin/users/${id}/memberships`,

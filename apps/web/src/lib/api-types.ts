@@ -88,7 +88,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             csrfToken: string;
                             expiresAt: string;
@@ -173,7 +173,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             csrfToken: string;
                             expiresAt: string;
@@ -250,10 +250,10 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             /** @enum {string|null} */
-                            workspaceRole: "user" | "admin" | null;
+                            workspaceRole: "user" | "reviewer" | "admin" | null;
                         } | {
                             /** @enum {boolean} */
                             success: false;
@@ -675,7 +675,7 @@ export interface paths {
             parameters: {
                 query?: {
                     limit?: string;
-                    type?: "login_success" | "login_failure" | "login_throttled" | "logout" | "sessions_revoked" | "password_reset_completed" | "password_change_throttled" | "login_lockout_cleared" | "csrf_reject" | "workspace_access_denied" | "admin_access_denied" | "oidc_state_invalid" | "provider_membership_preapproved" | "provider_membership_revoked" | "workspace_membership_granted" | "workspace_membership_revoked" | "public_share_created" | "public_share_read" | "public_share_unavailable" | "user_created" | "user_disabled" | "user_enabled" | "membership_granted_by_admin" | "membership_revoked_by_admin";
+                    type?: "login_success" | "login_failure" | "login_throttled" | "logout" | "sessions_revoked" | "password_reset_completed" | "password_change_throttled" | "login_lockout_cleared" | "csrf_reject" | "workspace_access_denied" | "admin_access_denied" | "review_access_denied" | "oidc_state_invalid" | "provider_membership_preapproved" | "provider_membership_revoked" | "workspace_membership_granted" | "workspace_membership_revoked" | "public_share_created" | "public_share_read" | "public_share_unavailable" | "user_created" | "user_disabled" | "user_enabled" | "membership_granted_by_admin" | "membership_revoked_by_admin";
                     userId?: string;
                     workspaceSlug?: string;
                 };
@@ -793,7 +793,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -808,7 +808,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 userId: string;
                                 preapprovalId: string;
                                 active: boolean;
@@ -915,7 +915,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -927,7 +927,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                         };
                     };
@@ -1023,7 +1023,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -1291,7 +1291,7 @@ export interface paths {
                                 memberships: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    role: "user" | "admin";
+                                    role: "user" | "reviewer" | "admin";
                                 }[];
                             }[];
                         };
@@ -1381,7 +1381,7 @@ export interface paths {
                                 memberships: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    role: "user" | "admin";
+                                    role: "user" | "reviewer" | "admin";
                                 }[];
                             };
                             temporaryPassword: string;
@@ -9484,6 +9484,8 @@ export interface paths {
                                     approvedSourceIds: string[];
                                     evidenceSummary: string;
                                     reviewedBy: string;
+                                    /** @enum {string} */
+                                    reviewedByRole?: "admin" | "reviewer";
                                     reviewedAt: number;
                                     decisionReason: string;
                                     taxonomyVersion: string;
@@ -10671,6 +10673,8 @@ export interface paths {
                                 approvedSourceIds: string[];
                                 evidenceSummary: string;
                                 reviewedBy: string;
+                                /** @enum {string} */
+                                reviewedByRole?: "admin" | "reviewer";
                                 reviewedAt: number;
                                 decisionReason: string;
                                 taxonomyVersion: string;
@@ -11705,6 +11709,8 @@ export interface paths {
                                 approvedSourceIds: string[];
                                 evidenceSummary: string;
                                 reviewedBy: string;
+                                /** @enum {string} */
+                                reviewedByRole?: "admin" | "reviewer";
                                 reviewedAt: number;
                                 decisionReason: string;
                                 taxonomyVersion: string;

@@ -173,7 +173,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     if (reviewError) {
       const auth = c.var.auth;
       if (auth) {
-        const eventType = reviewError.status === 401 ? "workspace_access_denied" as const : "admin_access_denied" as const;
+        const eventType = reviewError.status === 401 ? "workspace_access_denied" as const : "review_access_denied" as const;
         getEventStorage(c)?.append({
           type: eventType,
           userId: auth.user.id,
