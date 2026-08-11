@@ -125,12 +125,15 @@ async function loadDeterministicSearchResults(page: Page) {
         await keywordInput.press('Enter');
     }
 
+    // The local backend can take 5–10s per search and the hook retries failed
+    // fetches (ERR_FAILED under collection/analysis churn), so the results
+    // settle window can stretch well past 30s — poll generously.
     await expect.poll(async () => {
         const hasResetBtn = await resetBtn.isVisible().catch(() => false);
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
         return hasResetBtn || hasCheckbox || hasEmptyState;
-    }, { timeout: 15000 }).toBe(true);
+    }, { timeout: 60000 }).toBe(true);
 
     const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
     if (hasResetBtn) {
@@ -141,7 +144,7 @@ async function loadDeterministicSearchResults(page: Page) {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
         return hasCheckbox || hasEmptyState;
-    }, { timeout: 15000 }).toBe(true);
+    }, { timeout: 60000 }).toBe(true);
 
     return {
         keywordInput,
@@ -615,6 +618,53 @@ async function runErrorStateTest(page: Page) {
     console.log('✅ Error State test passed.');
 }
 
+async function ensureDevAdminSession(page: Page) {
+    // The e2e drives the shared chrome-debug profile, which other UAT flows
+    // leave logged in as various users (hr-demo, uat-reviewer, ...). The
+    // collection smoke needs a dev-workspace admin for /admin/* routes; any
+    // other session silently bounces to the workspace home and the limit
+    // label times out after 30s. Detect the session up front and re-login as
+    // demo-admin instead of failing on the label wait.
+    const baseUrl = DEFAULT_OPTIONS.baseUrl;
+    await page.goto(`${baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
+    const isDevWorkspace = await page
+        .getByTestId('resume-search-input')
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .then(() => page.url().includes('/dev/resumes'))
+        .catch(() => false);
+    if (isDevWorkspace) {
+        console.log('✅ Dev-admin session confirmed.');
+        return;
+    }
+
+    const password = process.env.AUTH_BOOTSTRAP_PASSWORD?.trim();
+    if (!password) {
+        throw new Error('AUTH_BOOTSTRAP_PASSWORD is required to ensure the dev-admin session for /admin/* routes');
+    }
+    console.log('⚠️ Dev-admin session missing — logging in as demo-admin.');
+    // An authenticated non-dev-admin session bounces /login back to the
+    // workspace home, so revoke the session first.
+    await page.evaluate(async () => {
+        const csrf = document.cookie
+            .split(';')
+            .map((c) => c.trim())
+            .find((c) => c.startsWith('trends_csrf='));
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+                ...(csrf ? { 'x-csrf-token': csrf.split('=')[1] } : {}),
+                'X-Workspace-Slug': 'dev',
+            },
+        });
+    });
+    await page.goto(`${baseUrl}/login`);
+    await page.getByLabel(/用户名|Username/i).fill('demo-admin');
+    await page.getByLabel(/密码|Password/i).fill(password);
+    await page.getByRole('button', { name: /登录|Sign in|Log in/i }).click();
+    await page.getByTestId('resume-search-input').waitFor({ state: 'visible', timeout: 15000 });
+    console.log('✅ Logged in as demo-admin.');
+}
+
 async function main() {
     const collectOnly = process.argv.includes('--collect-only');
     const liveJob5156Detail = getFlagValue('--live-job5156-detail');
@@ -624,6 +674,7 @@ async function main() {
     const { browser, page } = await connectToChrome();
 
     try {
+        await ensureDevAdminSession(page);
         await runCollectUrlKeywordModeTest(page);
         if (collectOnly) {
             console.log('\n🌟 Collect URL smoke test passed!');
