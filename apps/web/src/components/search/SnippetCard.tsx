@@ -1,10 +1,12 @@
 import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
 import {
+  Check,
   ChevronDown,
   ChevronUp,
+  Link2,
   User,
 } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,6 +44,8 @@ type SnippetCardProps = {
   item: ResumeSearchResultItem
   itemKey: string
   showAiScore?: boolean
+  /** When true (deep link target), the card renders with a highlight ring. */
+  highlighted?: boolean
   onToggleExpanded: (key: string) => void
   onViewDetails?: (item: ResumeSearchResultItem) => void
   // Candidate management props
@@ -95,6 +99,27 @@ const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
   withdrawn: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Clipboard API may reject (e.g. permission denied); fall through to the legacy path.
+    }
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  return ok
+}
+
 function getPrimaryHeadline(
   item: ResumeSearchResultItem,
   fallbackLabel: string,
@@ -115,6 +140,7 @@ export const SnippetCard = memo(function SnippetCard({
   item,
   itemKey,
   showAiScore = false,
+  highlighted = false,
   onToggleExpanded,
   onViewDetails,
   selected,
@@ -204,6 +230,36 @@ export const SnippetCard = memo(function SnippetCard({
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const linkCopiedResetTimer = useRef<number | null>(null)
+
+  // Deep-link anchor: each card exposes a shareable `#resume-<id>` hash.
+  const cardAnchorId = item.resume.resumeId != null ? `resume-${item.resume.resumeId}` : undefined
+  const copyLinkLabel = t('resumes.searchPage.card.copyLink', { defaultValue: '复制链接' })
+  const linkCopiedLabel = t('resumes.searchPage.card.linkCopied', { defaultValue: '已复制' })
+
+  useEffect(() => () => {
+    if (linkCopiedResetTimer.current !== null) {
+      window.clearTimeout(linkCopiedResetTimer.current)
+    }
+  }, [])
+
+  const handleCopyLink = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!cardAnchorId) {
+      return
+    }
+    const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${cardAnchorId}`
+    window.history.replaceState(null, '', `#${cardAnchorId}`)
+    document.getElementById(cardAnchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    void copyTextToClipboard(shareUrl)
+    setLinkCopied(true)
+    if (linkCopiedResetTimer.current !== null) {
+      window.clearTimeout(linkCopiedResetTimer.current)
+    }
+    linkCopiedResetTimer.current = window.setTimeout(() => setLinkCopied(false), 2000)
+  }
 
   const profileOverviewLabel = t('resumes.searchPage.card.profileOverview', {
     defaultValue: '摘要总览',
@@ -226,7 +282,14 @@ export const SnippetCard = memo(function SnippetCard({
   const primaryHeadline = getPrimaryHeadline(item, profileOverviewLabel, workHistoryLimit)
 
   return (
-    <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-[0_18px_50px_-40px_rgba(15,23,42,0.7)]" lang={contentLocale}>
+    <Card
+      id={cardAnchorId}
+      className={cn(
+        'overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-[0_18px_50px_-40px_rgba(15,23,42,0.7)] scroll-mt-24',
+        highlighted && 'ring-2 ring-primary/50',
+      )}
+      lang={contentLocale}
+    >
       {/* Header metadata bar */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
         <span className="text-muted-foreground">{t('resumes.columns.intention')}</span>
@@ -324,6 +387,28 @@ export const SnippetCard = memo(function SnippetCard({
           </Badge>
         ))}
         <CompanyPolicyBadges hits={companyPolicyHits} />
+        {cardAnchorId ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={`#${cardAnchorId}`}
+                  aria-label={linkCopied ? linkCopiedLabel : copyLinkLabel}
+                  data-testid="resume-card-anchor"
+                  onClick={handleCopyLink}
+                  className="ml-auto inline-flex items-center rounded-full p-1.5 text-muted-foreground/60 transition-colors hover:bg-slate-200/70 hover:text-slate-900"
+                >
+                  {linkCopied
+                    ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                    : <Link2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                {linkCopied ? linkCopiedLabel : copyLinkLabel}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
       </div>
 
       {companyPolicyHits.length > 0 ? (

@@ -138,6 +138,9 @@ export function SearchResultsList({
   const [localDetailItem, setLocalDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const [queueingIndustryResearch, setQueueingIndustryResearch] = useState(false)
+  const [highlightedResumeId, setHighlightedResumeId] = useState<string | null>(null)
+  const [hashVersion, setHashVersion] = useState(0)
+  const handledHashRef = useRef<string | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
   const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
   const hasLegacyIndustryEvidence = useMemo(() =>
@@ -342,6 +345,52 @@ export function SearchResultsList({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [items, focusedIndex, onToggleExpanded, onAction])
 
+  // Deep-link support: `#resume-<id>` scrolls to the matching card and flashes
+  // a highlight ring. Re-arms on hashchange (back/forward, manual hash edit).
+  useEffect(() => {
+    const handleHashChange = () => {
+      handledHashRef.current = null
+      setHashVersion((version) => version + 1)
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  useEffect(() => {
+    const rawHash = window.location.hash.replace(/^#/, '')
+    if (!rawHash.startsWith('resume-') || rawHash === handledHashRef.current) {
+      return
+    }
+
+    const targetIndex = items.findIndex(
+      (item) => item.resume.resumeId != null && `resume-${item.resume.resumeId}` === rawHash,
+    )
+    if (targetIndex === -1) {
+      // Target resume is not part of the loaded result set; keep the hash so it
+      // resolves once the card is present.
+      return
+    }
+
+    handledHashRef.current = rawHash
+    if (shouldVirtualize) {
+      rowVirtualizer.scrollToIndex(targetIndex, { align: 'start' })
+    }
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(rawHash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+    setHighlightedResumeId(rawHash)
+    return () => window.clearTimeout(scrollTimer)
+  }, [items, shouldVirtualize, rowVirtualizer, hashVersion])
+
+  useEffect(() => {
+    if (!highlightedResumeId) {
+      return
+    }
+    const clearTimer = window.setTimeout(() => setHighlightedResumeId(null), 3500)
+    return () => window.clearTimeout(clearTimer)
+  }, [highlightedResumeId])
+
   function scrollCardIntoView(index: number) {
     const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
     if (card) {
@@ -389,6 +438,8 @@ export function SearchResultsList({
     onCandidateStatusChange,
     onToggleBlock,
   })
+  const isHighlighted = (item: ResumeSearchResultItem) =>
+    item.resume.resumeId != null && highlightedResumeId === `resume-${item.resume.resumeId}`
 
   return (
     <div ref={listRef} className="space-y-4">
@@ -466,6 +517,7 @@ export function SearchResultsList({
                     itemKey={item.key}
                     expanded={false}
                     showAiScore={showAiScore}
+                    highlighted={isHighlighted(item)}
                     onToggleExpanded={onToggleExpanded}
                     onViewDetails={handleViewDetails}
                     searchQuery={searchQuery}
@@ -498,6 +550,7 @@ export function SearchResultsList({
                   itemKey={item.key}
                   expanded={expandedIds.has(item.key)}
                   showAiScore={showAiScore}
+                  highlighted={isHighlighted(presentationItem)}
                   onToggleExpanded={onToggleExpanded}
                   onViewDetails={handleViewDetails}
                   searchQuery={searchQuery}

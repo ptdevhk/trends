@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SnippetCard } from '@/components/search/SnippetCard'
@@ -153,6 +153,11 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
 describe('SnippetCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Element.prototype.scrollIntoView = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    })
   })
 
   it('renders the compact approved evidence summary on an ordinary search result', () => {
@@ -736,7 +741,7 @@ describe('SnippetCard', () => {
       />
     )
 
-    const link = screen.getByRole('link')
+    const link = screen.getByRole('link', { name: 'Candidate 1' })
     expect(link).toHaveAttribute('href')
   })
 
@@ -752,7 +757,9 @@ describe('SnippetCard', () => {
       />
     )
 
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Candidate 1' })).not.toBeInTheDocument()
+    // The card's own shareable anchor is still present.
+    expect(screen.getByTestId('resume-card-anchor')).toBeInTheDocument()
   })
 
   it('renders expected salary when present', () => {
@@ -929,5 +936,46 @@ describe('SnippetCard', () => {
     await user.click(screen.getByRole('button', { name: /展开/i }))
 
     expect(onToggleExpanded).toHaveBeenCalled()
+  })
+
+  it('renders a shareable deep-link anchor and copies the link on click', () => {
+    const scrollIntoViewMock = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    const writeTextMock = vi.mocked(navigator.clipboard.writeText)
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    const anchor = screen.getByTestId('resume-card-anchor')
+    expect(anchor).toHaveAttribute('href', '#resume-resume-1')
+    expect(anchor).toHaveAttribute('aria-label', '复制链接')
+    expect(document.getElementById('resume-resume-1')).not.toBeNull()
+
+    fireEvent.click(anchor)
+
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('#resume-resume-1'))
+    expect(scrollIntoViewMock).toHaveBeenCalled()
+    expect(anchor).toHaveAttribute('aria-label', '已复制')
+  })
+
+  it('renders a highlight ring when the card is the deep-link target', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        highlighted
+        item={createResult(3)}
+        itemKey="result-3"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    const card = document.getElementById('resume-resume-3')
+    expect(card).not.toBeNull()
+    expect(card?.className).toContain('ring-2 ring-primary/50')
   })
 })

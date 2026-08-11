@@ -36,6 +36,7 @@ const virtualizer = {
   getVirtualItems: () => virtualRows,
   measureElement: vi.fn(),
   measure: vi.fn(),
+  scrollToIndex: vi.fn(),
 }
 const useWindowVirtualizerMock = vi.fn((options: unknown) => {
   void options
@@ -50,13 +51,18 @@ vi.mock('@/components/search/SnippetCard', () => ({
   SnippetCard: ({
     expanded,
     item,
+    highlighted,
     onViewDetails,
   }: {
     expanded: boolean
     item: ResumeSearchResultItem
+    highlighted?: boolean
     onViewDetails?: (item: ResumeSearchResultItem) => void
   }) => (
-    <div>
+    <div
+      id={`resume-${item.resume.resumeId}`}
+      data-highlighted={highlighted ? 'true' : 'false'}
+    >
       <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>
       <button type="button" onClick={() => onViewDetails?.(item)}>view-details-{item.key}</button>
     </div>
@@ -98,6 +104,8 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
     useAuthMock.mockReturnValue({ memberships: [] })
+    Element.prototype.scrollIntoView = vi.fn()
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
     observeMock.mockImplementation(() => { })
     disconnectMock.mockImplementation(() => { })
@@ -600,5 +608,44 @@ describe('SearchResultsList', () => {
       expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
     })
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
+  })
+
+  it('scrolls to a card and highlights it when the URL hash matches a loaded resume', async () => {
+    const scrollIntoViewMock = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    window.location.hash = '#resume-resume-0'
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'smooth', block: 'start' }),
+      )
+    })
+    expect(screen.getByText('resume-0:collapsed').parentElement)
+      .toHaveAttribute('data-highlighted', 'true')
+  })
+
+  it('scrolls a virtualized list to a card when the URL hash matches a loaded resume', () => {
+    window.location.hash = '#resume-resume-44'
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={Array.from({ length: 45 }, (_, index) => createItem(index))}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(44, { align: 'start' })
   })
 })
