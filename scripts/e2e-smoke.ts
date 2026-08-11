@@ -104,7 +104,9 @@ async function preferVisibleLocator(primary: Locator, fallback: Locator, timeout
 }
 
 async function loadDeterministicSearchResults(page: Page) {
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    // The SPA renders from JS; waiting for full "load" can hang on fonts/images
+    // when the local backend is slow. domcontentloaded is sufficient here.
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await page.setViewportSize(SMOKE_VIEWPORT);
 
     const keywordInput = await preferVisibleLocator(
@@ -315,7 +317,8 @@ async function runCollectUrlKeywordModeTest(page: Page) {
 
     // Legacy flow: collect limit input is present on the search page.
     await page.goto(
-        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`
+        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`,
+        { waitUntil: 'domcontentloaded' }
     );
     await installOpenSpy();
 
@@ -337,7 +340,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     }
 
     // Search-first flow: collect launches from quick-start cards without inline page-limit input.
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await installOpenSpy();
     const collectButton = await preferVisibleLocator(
         page.getByTestId('search-hero-collect').first(),
@@ -368,7 +371,7 @@ async function runCollectionTest(page: Page) {
     // Set up CWV observers before navigation
     const vitals = await measureWebVitals(page);
 
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/admin/system/settings/operations`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/admin/system/settings/operations`, { waitUntil: 'domcontentloaded' });
 
     const keywordInput = await preferVisibleLocator(
         page.getByTestId('ops-collection-keyword'),
@@ -553,7 +556,7 @@ async function runErrorStateTest(page: Page) {
     console.log('Testing Error State & Recovery...');
 
     // 1. Navigate to the shell first, then intercept the deterministic search request.
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await page.setViewportSize(SMOKE_VIEWPORT);
 
     // 2. Mock API failure for resumes before the deterministic query submits.
