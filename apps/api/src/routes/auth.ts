@@ -223,7 +223,10 @@ const ProviderMembershipPreapproveRequestSchema = z.object({
   providerSubject: z.string().min(1),
   providerTenant: z.string().min(1),
   workspaceSlug: z.string().min(1),
-  role: WorkspaceRoleSchema,
+  // Strict request-side enum: storage READ paths do not accept "reviewer"
+  // preapprovals yet, so the request body must stay user/admin-only even
+  // though response schemas are widened to include "reviewer".
+  role: z.enum(["user", "admin"]),
 });
 
 const ProviderMembershipRevokeRequestSchema = z.object({
