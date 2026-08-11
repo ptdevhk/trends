@@ -79,6 +79,12 @@ export const approveIndustryProposal = mutation({
     approvedSourceIds: v.array(v.string()),
     evidenceSummary: v.string(),
     reviewer: v.string(),
+    // Workspace role of the acting reviewer, resolved server-side from the
+    // session membership at the API layer (never client input).
+    reviewerRole: v.optional(v.union(
+      v.literal("admin"),
+      v.literal("reviewer"),
+    )),
     decisionReason: v.string(),
     taxonomyVersion: v.string(),
     ruleVersion: v.optional(v.string()),
@@ -99,6 +105,7 @@ export const approveIndustryProposal = mutation({
       approvedSourceIds: args.approvedSourceIds,
       evidenceSummary: args.evidenceSummary,
       reviewer: args.reviewer,
+      reviewerRole: args.reviewerRole,
       reviewerType: "human",
       decisionReason: args.decisionReason,
       taxonomyVersion: args.taxonomyVersion,
@@ -274,6 +281,7 @@ async function commitIndustryVerdictApproval(
     approvedSourceIds: string[];
     evidenceSummary: string;
     reviewer: string;
+    reviewerRole?: "admin" | "reviewer";
     reviewerType: "human" | "auto-verify-bot";
     decisionReason: string;
     taxonomyVersion: string;
@@ -465,6 +473,9 @@ async function commitIndustryVerdictApproval(
     approvedSourceIds,
     evidenceSummary,
     reviewedBy: reviewer,
+    ...(args.reviewerRole
+      ? { reviewedByRole: args.reviewerRole }
+      : {}),
     reviewerType: args.reviewerType,
     reviewedAt: now,
     decisionReason,
@@ -538,6 +549,9 @@ async function commitIndustryVerdictApproval(
     status: "approved",
     reviewedAt: now,
     reviewedBy: reviewer,
+    ...(args.reviewerRole
+      ? { reviewedByRole: args.reviewerRole }
+      : {}),
     reviewNote: decisionReason,
     approvedRevisionId: revisionId,
     applicationState: "recompute_pending",
@@ -573,6 +587,12 @@ export const undoIndustryProposalApproval = mutation({
     expectedProposalUpdatedAt: v.optional(v.number()),
     recomputeRunId: v.optional(v.string()),
     reviewer: v.string(),
+    // Workspace role of the acting reviewer, resolved server-side from the
+    // session membership at the API layer (never client input).
+    reviewerRole: v.optional(v.union(
+      v.literal("admin"),
+      v.literal("reviewer"),
+    )),
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
@@ -746,6 +766,9 @@ export const undoIndustryProposalApproval = mutation({
       approvedSourceIds: restoredSourceIds,
       evidenceSummary: restoredEvidenceSummary,
       reviewedBy: reviewer,
+      ...(args.reviewerRole
+        ? { reviewedByRole: args.reviewerRole }
+        : {}),
       reviewerType: "human",
       reviewedAt: now,
       decisionReason: restoredDecisionReason,
@@ -811,6 +834,9 @@ export const undoIndustryProposalApproval = mutation({
       status: "ready_for_review",
       reviewedAt: now,
       reviewedBy: reviewer,
+      ...(args.reviewerRole
+        ? { reviewedByRole: args.reviewerRole }
+        : {}),
       reviewNote: restoredDecisionReason,
       approvedRevisionId: undefined,
       applicationState: undefined,
@@ -847,6 +873,12 @@ export const resolveIndustryProposal = mutation({
     ),
     expectedProposalUpdatedAt: v.optional(v.number()),
     reviewer: v.string(),
+    // Workspace role of the acting reviewer, resolved server-side from the
+    // session membership at the API layer (never client input).
+    reviewerRole: v.optional(v.union(
+      v.literal("admin"),
+      v.literal("reviewer"),
+    )),
     reviewNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -864,6 +896,9 @@ export const resolveIndustryProposal = mutation({
       status: args.resolution,
       reviewedAt: now,
       reviewedBy: args.reviewer.trim(),
+      ...(args.reviewerRole
+        ? { reviewedByRole: args.reviewerRole }
+        : {}),
       reviewNote: (args.reviewNote ?? "").trim(),
       updatedAt: now,
     });

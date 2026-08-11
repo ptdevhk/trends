@@ -246,6 +246,7 @@ describe("listIndustryIdentityResolutionAudits (C6 audit surface)", () => {
       writeSecret: WRITE_SECRET,
       workspaceSlug,
       actor: "hr-demo@example.com",
+      actorRole: "reviewer",
       proposalId,
       expectedProposalUpdatedAt: proposal?.updatedAt ?? 0,
       candidateFingerprint: fingerprint,
@@ -267,6 +268,7 @@ describe("listIndustryIdentityResolutionAudits (C6 audit surface)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].proposalId).toBe("proposal-1");
     expect(rows[0].actor).toBe("hr-demo@example.com");
+    expect(rows[0].actorRole).toBe("reviewer");
     expect(rows[0].mappingMode).toBe("create_provisional");
     expect(rows[0].targetCompanyKey).toBe("candidate-fp-1");
     expect(rows[0].sourceIds).toEqual(["audit-source-proposal-1"]);

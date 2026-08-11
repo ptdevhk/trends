@@ -24,6 +24,7 @@ import {
   requireIndustryReviewer,
   requireWorkspaceUser,
 } from "../middleware/auth.js";
+import type { AuthContext } from "../services/auth-types.js";
 import {
   addCompanyAlias,
   appendWorkspacePolicy,
@@ -83,6 +84,24 @@ import {
 } from "../services/company-industry-review-errors.js";
 
 const app = new OpenAPIHono();
+
+/**
+ * Workspace role of the authenticated actor on the active workspace.
+ * The industry review gates only admit admin/reviewer, so the resolved role
+ * is one of those two; the value comes from the session membership, never
+ * from client input.
+ */
+function getAuthenticatedActorRole(c: {
+  var: { auth?: AuthContext; workspaceSlug: string };
+}): "admin" | "reviewer" {
+  const role = c.var.auth?.memberships.find(
+    (membership) => membership.workspaceSlug === c.var.workspaceSlug,
+  )?.role;
+  if (role !== "admin" && role !== "reviewer") {
+    throw new Error("Authenticated actor role required");
+  }
+  return role;
+}
 
 app.use("/api/companies", async (c, next) => {
   if (["GET", "POST"].includes(c.req.method)) {
@@ -678,6 +697,7 @@ const IndustryVerdictRevisionSchema = z.object({
   approvedSourceIds: z.array(z.string()),
   evidenceSummary: z.string(),
   reviewedBy: z.string(),
+  reviewedByRole: z.enum(["admin", "reviewer"]).optional(),
   reviewedAt: z.number(),
   decisionReason: z.string(),
   taxonomyVersion: z.string(),
@@ -1379,6 +1399,7 @@ app.openapi(resolveIndustryProposalIdentityRoute, async (c) => {
       ...c.req.valid("json"),
       workspaceSlug: c.var.workspaceSlug,
       actor: getAuthenticatedActorId(c),
+      actorRole: getAuthenticatedActorRole(c),
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
@@ -1588,6 +1609,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     const result = await approveIndustryProposalAndStartRecompute(
       decision.payload,
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
     // proposals re-chew automatically after a human approval. Fire-and-forget;
@@ -1668,6 +1690,7 @@ app.openapi(undoIndustryProposalRoute, async (c) => {
         workspaceSlug: c.var.workspaceSlug,
       },
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
@@ -1729,6 +1752,7 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     const result = await resolveIndustryProposal(
       { proposalId, ...c.req.valid("json") },
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
@@ -1843,6 +1867,7 @@ app.openapi(batchReviewIndustryProposalsRoute, async (c) => {
       ...(body.batchNote ? { batchNote: body.batchNote } : {}),
     },
     getAuthenticatedActorId(c),
+    getAuthenticatedActorRole(c),
   );
   return c.json({ success: true as const, ...result }, 200);
 });

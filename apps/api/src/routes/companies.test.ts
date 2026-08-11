@@ -11,6 +11,7 @@ import { resetResumeScreeningDb } from "../services/database";
 import * as industryReviewService from "../services/company-industry-review-service";
 import * as industryEvidenceResearchService from "../services/industry-evidence-research-service";
 import * as industryProposalService from "../services/company-industry-proposal-service";
+import { companyIndustryRecomputeService } from "../services/company-industry-recompute-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -1001,6 +1002,325 @@ describe("companies routes", () => {
 
     expect(response.status).toBe(403);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  describe("industry review audit writes record the acting workspace role", () => {
+    it("approves a proposal as reviewer and passes reviewerRole to the verdict mutation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official catalog confirms CNC products.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-1" } },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
+      } as never);
+      vi.spyOn(companyIndustryRecomputeService, "start").mockResolvedValue({
+        runId: "run-1",
+        workspaceSlug: "hr",
+        companyKey: "acme-cnc",
+        targetRevisionId: "revision-2",
+        proposalId: "proposal-1",
+        requestedBy: auth.userId,
+        status: "running",
+        attempt: 1,
+        sourceDone: true,
+        pageCount: 1,
+        affectedCount: 0,
+        alreadyCurrentCount: 0,
+        scheduledCount: 0,
+        readyCount: 0,
+        failureCount: 0,
+        batchCount: 0,
+        failures: [],
+        createdAt: 10,
+        startedAt: 10,
+        updatedAt: 11,
+      } as never);
+      let approveCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          approveCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/approve",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revisionId: "revision-2",
+            expectedInputFingerprint: "fingerprint-1",
+            verificationLevel: "verified",
+            industryClass: "cnc",
+            approvedSourceIds: ["source-1"],
+            evidenceSummary: "Official catalog confirms CNC products.",
+            decisionReason: "Reviewed primary evidence",
+            taxonomyVersion: "industry-v1",
+            reviewAttestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              inputFingerprint: "fingerprint-1",
+              decisionMode: "standard",
+              acknowledgedRiskFlags: [],
+              cncEvidenceAcknowledged: true,
+              acknowledgementReason: "",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(approveCall).toBeDefined();
+      expect(approveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        reviewer: auth.userId,
+        // Task 4: the acting membership role is resolved server-side from the
+        // session (never from client input) and recorded on the audit write.
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on identity-resolution audit writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let capturedInput: Record<string, unknown> | undefined;
+      vi.spyOn(
+        industryEvidenceResearchService,
+        "resolveIndustryProposalIdentity",
+      ).mockImplementation(async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return {
+          proposalId: "proposal-1",
+          companyKey: "acme-cnc",
+          auditId: "audit-1",
+        } as never;
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/identity-resolution",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expectedProposalUpdatedAt: 1,
+            candidateFingerprint: "candidate-fingerprint-1",
+            mappingMode: "create_provisional",
+            sourceIds: ["source-1"],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(capturedInput).toMatchObject({
+        actor: auth.userId,
+        actorRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on proposal resolution writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let resolveCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          resolveCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            status: "rejected",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/resolve",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resolution: "rejected",
+            reviewNote: "Noise",
+            expectedProposalUpdatedAt: 1,
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(resolveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        resolution: "rejected",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on undo-approval revision writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let undoCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:undoIndustryProposalApproval") {
+          undoCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            companyKey: "acme-industrial",
+            reversalRevisionId: "undo-revision-2",
+            restoredRevisionId: "revision-1",
+            previousRunId: "run-approved",
+            previousRunStatus: "running",
+            replacementRecomputeRequired: false,
+            idempotent: false,
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/undo-approval",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(undoCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        approvedRevisionId: "revision-2",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on every batch review mutation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official catalog confirms CNC products.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-1" } },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
+      } as never);
+      vi.spyOn(companyIndustryRecomputeService, "start").mockResolvedValue({
+        runId: "run-1",
+        workspaceSlug: "hr",
+        companyKey: "acme-cnc",
+        targetRevisionId: "revision-2",
+        proposalId: "proposal-1",
+        requestedBy: auth.userId,
+        status: "running",
+        attempt: 1,
+        sourceDone: true,
+        pageCount: 1,
+        affectedCount: 0,
+        alreadyCurrentCount: 0,
+        scheduledCount: 0,
+        readyCount: 0,
+        failureCount: 0,
+        batchCount: 0,
+        failures: [],
+        createdAt: 10,
+        startedAt: 10,
+        updatedAt: 11,
+      } as never);
+      const calls: ConvexCall[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            status: "rejected",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1" },
+              { kind: "reject", proposalId: "proposal-3", reviewNote: "Noise" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "standard",
+              acknowledgedRiskFlags: [],
+              cncEvidenceAcknowledged: true,
+              acknowledgementReason: "",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const approveCall = calls.find(
+        (call) => call.pathName === "companies:approveIndustryProposal",
+      );
+      const rejectCall = calls.find(
+        (call) => call.pathName === "companies:resolveIndustryProposal",
+      );
+      expect(approveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+      expect(rejectCall?.args).toMatchObject({
+        proposalId: "proposal-3",
+        resolution: "rejected",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
   });
 
   it("returns the materialized company evidence bundle to workspace members", async () => {

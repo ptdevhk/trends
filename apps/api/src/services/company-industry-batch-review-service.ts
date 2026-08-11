@@ -10,6 +10,7 @@ import { enqueueIndustryMaintenance } from "./industry-maintenance-pipeline-serv
 import {
   approveIndustryProposalAndStartRecompute,
   resolveIndustryProposal,
+  type IndustryReviewActorRole,
 } from "./company-industry-proposal-service.js";
 import { getIndustryReviewPacket } from "./company-industry-review-service.js";
 import { isIndustryReviewStaleError } from "./company-industry-review-errors.js";
@@ -75,6 +76,7 @@ export async function batchReviewIndustryProposals(
     batchNote?: string;
   },
   actorId: string,
+  actorRole: IndustryReviewActorRole,
 ): Promise<BatchReviewResult> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Review actor is required");
@@ -114,6 +116,7 @@ export async function batchReviewIndustryProposals(
             ...(action.reviewNote ? { reviewNote: action.reviewNote } : {}),
           },
           reviewer,
+          actorRole,
         );
         succeeded += 1;
         items.push({
@@ -193,6 +196,7 @@ export async function batchReviewIndustryProposals(
       const result = await approveIndustryProposalAndStartRecompute(
         decision.payload,
         reviewer,
+        actorRole,
       );
       succeeded += 1;
       approvedFingerprints.push(

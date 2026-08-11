@@ -178,6 +178,36 @@ describe("approveIndustryProposal evidence-source guard", () => {
       acknowledgedRiskFlags: ["weak_industry_signal"],
     });
   });
+
+  it("records the acting workspace role on the stored verdict revision", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs({ reviewerRole: "reviewer" }),
+    );
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0].reviewedBy).toBe("reviewer@example.com");
+    expect(revisions[0].reviewedByRole).toBe("reviewer");
+  });
 });
 
 describe("listVerifiedIndustryEmployerAliases", () => {

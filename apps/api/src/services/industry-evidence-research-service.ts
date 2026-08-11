@@ -323,6 +323,9 @@ export async function listIndustryIdentityCandidates(proposalId: string): Promis
 export async function resolveIndustryProposalIdentity(input: {
   workspaceSlug: string;
   actor: string;
+  // Workspace role of the acting member, resolved server-side from the
+  // session membership at the API layer (never client input).
+  actorRole: "admin" | "reviewer";
   proposalId: string;
   expectedProposalUpdatedAt: number;
   candidateFingerprint: string;

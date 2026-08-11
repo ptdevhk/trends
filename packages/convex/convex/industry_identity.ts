@@ -200,6 +200,12 @@ export const resolveIndustryProposalIdentity = mutation({
     writeSecret: v.optional(v.string()),
     workspaceSlug: v.string(),
     actor: v.string(),
+    // Workspace role of the acting member, resolved server-side from the
+    // session membership at the API layer (never client input).
+    actorRole: v.optional(v.union(
+      v.literal("admin"),
+      v.literal("reviewer"),
+    )),
     proposalId: v.string(),
     expectedProposalUpdatedAt: v.number(),
     candidateFingerprint: v.string(),
@@ -313,6 +319,9 @@ export const resolveIndustryProposalIdentity = mutation({
     await ctx.db.patch(proposal._id, {
       companyKey: targetCompanyKey,
       reviewedBy: actor,
+      ...(args.actorRole
+        ? { reviewedByRole: args.actorRole }
+        : {}),
       ...(args.reviewNote?.trim() ? { reviewNote: args.reviewNote.trim().slice(0, 800) } : {}),
       updatedAt: now,
     });
@@ -336,6 +345,9 @@ export const resolveIndustryProposalIdentity = mutation({
       proposalId,
       workspaceSlug,
       actor,
+      ...(args.actorRole
+        ? { actorRole: args.actorRole }
+        : {}),
       candidateFingerprint: candidate.candidateFingerprint,
       mappingMode: args.mappingMode,
       targetCompanyKey,

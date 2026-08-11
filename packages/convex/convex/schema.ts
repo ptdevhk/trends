@@ -970,6 +970,13 @@ export default defineSchema({
         readyForReviewAt: v.optional(v.number()),
         reviewedAt: v.optional(v.number()),
         reviewedBy: v.optional(v.string()),
+        // Workspace role of the acting reviewer ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional: system/auto-verify-bot writes and legacy rows carry none.
+        reviewedByRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
         reviewNote: v.optional(v.string()),
         approvedRevisionId: v.optional(v.string()),
         recomputeRunId: v.optional(v.string()),
@@ -1075,6 +1082,13 @@ export default defineSchema({
         proposalId: v.string(),
         workspaceSlug: v.string(),
         actor: v.string(),
+        // Workspace role of the acting member ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional for backward compatibility with pre-role rows.
+        actorRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
         candidateFingerprint: v.string(),
         mappingMode: v.union(v.literal("existing"), v.literal("create_provisional")),
         targetCompanyKey: v.string(),
@@ -1152,6 +1166,13 @@ export default defineSchema({
         approvedSourceIds: v.array(v.string()),
         evidenceSummary: v.string(),
         reviewedBy: v.string(),
+        // Workspace role of the acting reviewer ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional for backward compatibility with pre-role rows.
+        reviewedByRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
         /**
          * Who advanced the verdict: "human" (attended cockpit) or
          * "auto-verify-bot" (governed Lane A). Optional for backward

@@ -113,6 +113,7 @@ describe("company industry API services", () => {
           workspaceSlug: "hr",
         },
         "reviewer-42",
+        "admin",
       ),
     ).resolves.toEqual({
       proposalId: "proposal-1",
@@ -136,6 +137,7 @@ describe("company industry API services", () => {
         expectedProposalUpdatedAt: 123,
         recomputeRunId: "run-approved",
         reviewer: "reviewer-42",
+        reviewerRole: "admin",
         writeSecret: "test-secret",
       },
     );
@@ -180,6 +182,7 @@ describe("company industry API services", () => {
           workspaceSlug: "hr",
         },
         "reviewer-42",
+        "admin",
       ),
     ).resolves.toMatchObject({
       recompute: {
@@ -215,6 +218,7 @@ describe("company industry API services", () => {
           workspaceSlug: "hr",
         },
         "reviewer-42",
+        "admin",
       ),
     ).rejects.toMatchObject({
       name: "IndustryReviewStaleError",
@@ -326,12 +330,14 @@ describe("company industry API services", () => {
         taxonomyVersion: "industry-v1",
       },
       "reviewer-42",
+      "admin",
     );
 
     expect(mocks.mutation).toHaveBeenCalledWith(
       "companies:approveIndustryProposal",
       expect.objectContaining({
         reviewer: "reviewer-42",
+        reviewerRole: "admin",
         writeSecret: "test-secret",
       }),
     );
