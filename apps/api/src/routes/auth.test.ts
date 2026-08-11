@@ -1406,6 +1406,37 @@ describe("provider membership admin routes", () => {
     expect(JSON.stringify(events)).not.toMatch(/secret-access-token|secret-profile|rawProfile/i);
   });
 
+  it("rejects preapprove requests with reviewer role (request schema is user/admin-only)", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-preapprove-reviewer-"));
+    const storage = new AuthStorage(root);
+    const eventStorage = new AuthEventStorage(root);
+    const admin = await seedWorkspaceUser(storage, {
+      username: "hr-admin",
+      email: "admin@example.com",
+      role: "admin",
+    });
+    const app = createTestApp(storage, eventStorage);
+
+    const response = await app.request("/api/auth/provider-memberships/preapprove", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...createSessionHeaders(storage, admin.id),
+      },
+      body: JSON.stringify({
+        provider: "casdoor",
+        providerSubject: "sub-reviewer",
+        providerTenant: "tenant-1",
+        workspaceSlug: "hr",
+        role: "reviewer",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const preapprovals = storage.listProviderMembershipPreapprovals();
+    expect(preapprovals.some((p) => p.providerSubject === "sub-reviewer")).toBe(false);
+  });
+
   it("lets admins revoke provider-derived access without deleting unrelated manual memberships", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "trends-auth-provider-admin-revoke-"));
     const storage = new AuthStorage(root);

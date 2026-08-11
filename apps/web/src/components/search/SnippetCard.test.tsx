@@ -1,33 +1,35 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
+const mockT = (key: string, options?: string | Record<string, string | number | undefined>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+
+  // Simple mock for score labels if no defaultValue present
+  let result = defaultValue
+  if (result === 'resumes.matching.scoreLabel' && typeof options?.score === 'number') {
+    result = String(Math.round(options.score))
+  }
+
+  return result.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, string | number | undefined>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-
-      // Simple mock for score labels if no defaultValue present
-      let result = defaultValue
-      if (result === 'resumes.matching.scoreLabel' && typeof options?.score === 'number') {
-        result = String(Math.round(options.score))
-      }
-
-      return result.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 
@@ -151,6 +153,11 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
 describe('SnippetCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Element.prototype.scrollIntoView = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    })
   })
 
   it('renders the compact approved evidence summary on an ordinary search result', () => {
@@ -186,7 +193,7 @@ describe('SnippetCard', () => {
       />,
     )
 
-    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
     expect(screen.getByText('Human-approved CNC machinery evidence.')).toBeInTheDocument()
   })
 
@@ -212,7 +219,10 @@ describe('SnippetCard', () => {
     )
 
     expect(screen.getByText('Candidate 1')).toBeInTheDocument()
-    expect(screen.getByText('Regional Sales Manager')).toBeInTheDocument()
+    // Latest job title appears both in the headline and in the work-history role line
+    // (the work-history row renders company and role as visually distinct parts).
+    expect(screen.getAllByText('Regional Sales Manager')).toHaveLength(2)
+    expect(screen.getByText('Company 1')).toBeInTheDocument()
     expect(screen.getByTitle('Led machine tools growth across Malaysia.')).toBeInTheDocument()
     expect(screen.getByText(/Kuala Lumpur/)).toBeInTheDocument()
     expect(screen.getByText(/6 years/)).toBeInTheDocument()
@@ -731,7 +741,7 @@ describe('SnippetCard', () => {
       />
     )
 
-    const link = screen.getByRole('link')
+    const link = screen.getByRole('link', { name: 'Candidate 1' })
     expect(link).toHaveAttribute('href')
   })
 
@@ -747,7 +757,9 @@ describe('SnippetCard', () => {
       />
     )
 
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Candidate 1' })).not.toBeInTheDocument()
+    // The card's own shareable anchor is still present.
+    expect(screen.getByTestId('resume-card-anchor')).toBeInTheDocument()
   })
 
   it('renders expected salary when present', () => {
@@ -924,5 +936,46 @@ describe('SnippetCard', () => {
     await user.click(screen.getByRole('button', { name: /展开/i }))
 
     expect(onToggleExpanded).toHaveBeenCalled()
+  })
+
+  it('renders a shareable deep-link anchor and copies the link on click', () => {
+    const scrollIntoViewMock = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    const writeTextMock = vi.mocked(navigator.clipboard.writeText)
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    const anchor = screen.getByTestId('resume-card-anchor')
+    expect(anchor).toHaveAttribute('href', '#resume-resume-1')
+    expect(anchor).toHaveAttribute('aria-label', '复制链接')
+    expect(document.getElementById('resume-resume-1')).not.toBeNull()
+
+    fireEvent.click(anchor)
+
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('#resume-resume-1'))
+    expect(scrollIntoViewMock).toHaveBeenCalled()
+    expect(anchor).toHaveAttribute('aria-label', '已复制')
+  })
+
+  it('renders a highlight ring when the card is the deep-link target', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        highlighted
+        item={createResult(3)}
+        itemKey="result-3"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    const card = document.getElementById('resume-resume-3')
+    expect(card).not.toBeNull()
+    expect(card?.className).toContain('ring-2 ring-primary/50')
   })
 })

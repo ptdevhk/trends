@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -43,17 +43,19 @@ import {
 } from '@/components/ui/tooltip'
 import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
-import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
 import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
 import {
+  findVerifiedIndustrySummaryForCompany,
   getRoleSignalApprovedIndustryYears,
   getRoleSignalIndustryEvidenceProvenance,
   getVerifiedIndustryEvidenceSummaries,
   type IndustryEvidenceProvenance,
 } from '@/components/industry-evidence/industry-evidence'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 
 const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
@@ -461,7 +463,9 @@ export const ResumeCard = memo(function ResumeCard({
   const roleEvidenceLabel = primaryRoleSignal
     ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${hasCurrentApprovedRoleEvidence ? industryVerifiedSuffix : ''}`
     : null
-  const showLegacyRoleSignal = primaryRoleEvidenceProvenance === 'legacy' && hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const showLegacyRoleSignal = primaryRoleEvidenceProvenance === 'legacy'
+    && (hasSystemAdminAccess(memberships) || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug))
   const normalizedExperienceLevel = normalizeExperienceLevel(experienceLevel)
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
     normalizedExperienceLevel ?? undefined
@@ -637,6 +641,7 @@ export const ResumeCard = memo(function ResumeCard({
           <IndustryEvidenceSummary
             summaries={verifiedIndustryEvidenceSummaries}
             preferredRoleTypes={activeRoleFilterType ? [activeRoleFilterType] : undefined}
+            onCompanyClick={onCompanyClick}
           />
         </div>
       ) : null}
@@ -830,14 +835,49 @@ export const ResumeCard = memo(function ResumeCard({
 
         {workHistory.length > 0 ? (
           <div className="min-w-0 space-y-1 text-sm lg:w-[420px]">
-            {workHistory.map(({ item, text }, index) => (
-              <div key={`${resume.name}-${index}`} className="flex gap-2">
-                <span className="text-muted-foreground">●</span>
-                <span className="truncate" title={item.raw || text}>
-                  {text}
-                </span>
-              </div>
-            ))}
+            {workHistory.map(({ item, text }, index) => {
+              const verifiedSummary = findVerifiedIndustrySummaryForCompany(
+                item.companyName,
+                verifiedIndustryEvidenceSummaries,
+                { roleSignals: roleSignals ?? resume.ingestData?.roleSignals, jobTitle: item.jobTitle, rawText: text },
+              )
+              const dateLine = buildWorkHistoryDisplayDateLine(item)
+              const hasStructuredParts = Boolean(item.companyName || item.jobTitle || dateLine)
+              return (
+                <div key={`${resume.name}-${index}`} className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-muted-foreground shrink-0">●</span>
+                  <span className="truncate" title={item.raw || text}>
+                    {hasStructuredParts ? (
+                      <>
+                        {item.companyName ? (
+                          <span className="font-medium text-slate-900">{item.companyName}</span>
+                        ) : null}
+                        {item.companyName && (item.jobTitle || dateLine) ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {item.jobTitle ? (
+                          <span className="text-slate-600">{item.jobTitle}</span>
+                        ) : null}
+                        {item.jobTitle && dateLine ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {dateLine ? (
+                          <span className="text-muted-foreground">{dateLine}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      text
+                    )}
+                  </span>
+                  {verifiedSummary ? (
+                    <VerifiedCompanyBadge
+                      summary={verifiedSummary}
+                      onCompanyClick={onCompanyClick}
+                    />
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         ) : null}
       </div>

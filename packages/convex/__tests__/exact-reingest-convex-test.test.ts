@@ -1,9 +1,49 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../convex/_generated/api.js";
 import { createTest, MINIMAL_INGEST_DATA, seedResume } from "./test-helpers.js";
 
 const WRITE_SECRET = "test-exact-reingest-secret";
+
+/**
+ * Minimal BFF ingest-compute result for a single resume (the shape
+ * processNewResumes maps into updateIngestDataBatch).
+ */
+function bffIngestResult(resumeId: string) {
+  return {
+    resumeId,
+    market: "MY",
+    evidenceText: "cnc machining",
+    industryTags: ["CNC"],
+    synonymHits: ["cnc"],
+    brandHits: [],
+    brandOrigin: "international",
+    productClass: "complete_machine",
+    companyHits: ["ACME CNC"],
+    roleSignals: [],
+    ruleScores: { skills: 12 },
+    experienceLevel: "senior",
+    computedAt: 9_999,
+    skillsVersion: 4,
+    ingestComputeEpoch: 3,
+    evidenceProjectionVersion: 2,
+    companyPatternAliasTokens: "acme",
+    primaryRuleScore: 12,
+  };
+}
+
+function installBffIngestSuccess(resumeId: string) {
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    text: async () => "",
+    json: async () => ({
+      success: true,
+      results: [bffIngestResult(resumeId)],
+    }),
+  })));
+}
 
 function target(overrides: Record<string, unknown>) {
   return {
@@ -19,6 +59,7 @@ describe("exact target re-ingest", () => {
 
   afterEach(() => {
     delete process.env.CONVEX_WRITE_SECRET;
+    vi.unstubAllGlobals();
   });
 
   it("resolves every stable selector to the same current resume", async () => {
@@ -417,5 +458,60 @@ describe("exact target re-ingest", () => {
       ["resume_archived"],
       ["workspace_mismatch"],
     ]);
+  });
+
+  it("runs exact re-ingest synchronously, deduplicates, and recomputes every target", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, {
+      externalId: "sync-reingest-1",
+      ingestData: { ...MINIMAL_INGEST_DATA, computedAt: 1, skillsVersion: 1 },
+    });
+    installBffIngestSuccess(String(resumeId));
+
+    const result = await t.action(api.ingest_agent.runExactReingestSync, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      // Duplicate IDs are deduped before execution.
+      resumeIds: [resumeId, resumeId],
+    });
+    expect(result).toEqual({ processed: 1, error: null, requested: 1 });
+
+    const resume = await t.run((ctx) => ctx.db.get(resumeId));
+    expect(resume?.ingestData?.computedAt).toBe(9_999);
+    expect(resume?.ingestData?.skillsVersion).toBe(4);
+    expect(resume?.ingestData?.industryTags).toEqual(["CNC"]);
+    expect(resume?.ingestData?.market).toBe("MY");
+  });
+
+  it("validates runExactReingestSync payloads and the write secret before running", async () => {
+    const t = createTest();
+    const resumeId = await seedResume(t, { externalId: "sync-invalid-1" });
+    const foreignId = await seedResume(t, {
+      externalId: "sync-invalid-foreign",
+      workspaceSlug: "hr",
+    });
+
+    await expect(t.action(api.ingest_agent.runExactReingestSync, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      resumeIds: [],
+    })).rejects.toThrow(/at least one resolved resume ID/);
+
+    await expect(t.action(api.ingest_agent.runExactReingestSync, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      resumeIds: Array(501).fill(resumeId),
+    })).rejects.toThrow(/at most 500 targets/);
+
+    await expect(t.action(api.ingest_agent.runExactReingestSync, {
+      workspaceSlug: "dev",
+      writeSecret: WRITE_SECRET,
+      resumeIds: [foreignId],
+    })).rejects.toThrow(/belongs to workspace hr, not dev/);
+
+    await expect(t.action(api.ingest_agent.runExactReingestSync, {
+      workspaceSlug: "dev",
+      resumeIds: [resumeId],
+    })).rejects.toThrow(/Unauthorized Convex write/);
   });
 });

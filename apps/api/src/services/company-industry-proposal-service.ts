@@ -10,8 +10,11 @@ import {
   type IndustryProposal,
 } from "./company-industry-contracts.js";
 import {
+  IndustryReviewNotOpenError,
   IndustryReviewStaleError,
+  industryReviewNotOpenReason,
   industryReviewStaleReason,
+  isIndustryReviewNotOpenError,
   isIndustryReviewStaleError,
 } from "./company-industry-review-errors.js";
 import {
@@ -28,6 +31,13 @@ const terminalIndustryProposalStatuses = new Set<IndustryProposalStatus>([
   "rejected",
   "superseded",
 ]);
+
+/**
+ * Workspace role of the acting reviewer on industry review audit writes.
+ * Resolved server-side from the session membership at the API layer (never
+ * client input); the review gates only admit admin and reviewer.
+ */
+export type IndustryReviewActorRole = "admin" | "reviewer";
 
 function isTerminalIndustryProposalStatus(value: unknown): boolean {
   return (
@@ -69,6 +79,57 @@ export async function listIndustryProposals(
     });
   }
   return parsedItems;
+}
+
+export interface IndustryProposalPage {
+  items: IndustryProposal[];
+  nextCursor?: string;
+}
+
+export async function listIndustryProposalsPage(
+  options: {
+    status?: IndustryProposalStatus;
+    limit?: number;
+    cursor?: string;
+  } = {},
+): Promise<IndustryProposalPage> {
+  const value = await callConvexQuery("companies:listIndustryProposalsPage", {
+    writeSecret: config.auth.convexWriteSecret,
+    ...(options.status ? { status: options.status } : {}),
+    ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    ...(options.cursor ? { cursor: options.cursor } : {}),
+  });
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new Error("Invalid companies:listIndustryProposalsPage response");
+  }
+  const parsedItems: IndustryProposal[] = [];
+  for (const item of value.items) {
+    const parsed = parseIndustryProposal(item);
+    if (parsed) {
+      parsedItems.push(parsed);
+      continue;
+    }
+    const rawStatus = isRecord(item) ? item.status : undefined;
+    if (
+      !isTerminalIndustryProposalStatus(options.status) &&
+      !isTerminalIndustryProposalStatus(rawStatus)
+    ) {
+      throw new Error("Invalid industry proposal response");
+    }
+    logger.warn("Skipping invalid industry proposal record", {
+      status: options.status ?? "all",
+      proposalId:
+        isRecord(item) && typeof item.proposalId === "string"
+          ? item.proposalId
+          : undefined,
+    });
+  }
+  return {
+    items: parsedItems,
+    ...(typeof value.nextCursor === "string"
+      ? { nextCursor: value.nextCursor }
+      : {}),
+  };
 }
 
 export async function getIndustryProposal(
@@ -138,6 +199,7 @@ export async function approveIndustryProposal(
     };
   },
   actorId: string,
+  actorRole: IndustryReviewActorRole,
 ): Promise<{ proposalId: string; revisionId: string; companyKey: string }> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Approval actor is required");
@@ -146,6 +208,7 @@ export async function approveIndustryProposal(
     value = await callConvexMutation("companies:approveIndustryProposal", {
       ...input,
       reviewer,
+      reviewerRole: actorRole,
       writeSecret: config.auth.convexWriteSecret,
     });
   } catch (error) {
@@ -171,6 +234,59 @@ export async function approveIndustryProposal(
 }
 
 /**
+ * Governed Lane A auto-approval (auto-verify-bot).
+ *
+ * Thin driver over the Convex `autoApproveIndustryProposal` mutation — the
+ * Lane A gate (structured registry/taxonomy sources only, explicit CNC text,
+ * fetched+active+unreviewed, canonical companyKey, verified-only) is enforced
+ * server-side in the mutation, never in the caller. The revisionId is
+ * deterministic, so re-approving the same proposal is a no-op.
+ */
+export async function autoApproveIndustryProposal(input: {
+  proposalId: string;
+  industryClass: IndustryClass;
+  approvedSourceIds: string[];
+  evidenceSummary: string;
+  decisionReason: string;
+  taxonomyVersion: string;
+  ruleVersion?: string;
+  expectedInputFingerprint?: string;
+}): Promise<{
+  proposalId: string;
+  revisionId: string;
+  companyKey: string;
+  idempotent?: boolean;
+}> {
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:autoApproveIndustryProposal", {
+      ...input,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewStaleError(error)) {
+      throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    throw error;
+  }
+  if (
+    !isRecord(value) ||
+    typeof value.proposalId !== "string" ||
+    typeof value.revisionId !== "string" ||
+    typeof value.companyKey !== "string"
+  ) {
+    throw new Error("Invalid companies:autoApproveIndustryProposal response");
+  }
+  invalidateIndustryReviewIndex();
+  return {
+    proposalId: value.proposalId,
+    revisionId: value.revisionId,
+    companyKey: value.companyKey,
+    ...(value.idempotent === true ? { idempotent: true } : {}),
+  };
+}
+
+/**
  * Attended approval boundary used by the future stewardship route.
  *
  * Truth is committed first as an immutable revision. The proposal remains in
@@ -182,6 +298,7 @@ export async function approveIndustryProposalAndStartRecompute(
     workspaceSlug: string;
   },
   actorId: string,
+  actorRole: IndustryReviewActorRole,
 ): Promise<{
   proposalId: string;
   revisionId: string;
@@ -189,7 +306,7 @@ export async function approveIndustryProposalAndStartRecompute(
   recompute: CompanyIndustryRecomputeRun;
 }> {
   const { workspaceSlug, ...approvalInput } = input;
-  const approval = await approveIndustryProposal(approvalInput, actorId);
+  const approval = await approveIndustryProposal(approvalInput, actorId, actorRole);
   const recompute = await companyIndustryRecomputeService.start({
     workspaceSlug,
     companyKey: approval.companyKey,
@@ -236,6 +353,7 @@ function optionalResponseString(
 export async function undoIndustryProposalApproval(
   input: UndoIndustryApprovalInput,
   actorId: string,
+  actorRole: IndustryReviewActorRole,
 ): Promise<UndoIndustryApprovalResult> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Review actor is required");
@@ -255,6 +373,7 @@ export async function undoIndustryProposalApproval(
         ? { recomputeRunId: input.recomputeRunId }
         : {}),
       reviewer,
+      reviewerRole: actorRole,
       writeSecret: config.auth.convexWriteSecret,
     });
   } catch (error) {
@@ -346,6 +465,7 @@ export async function resolveIndustryProposal(
     expectedProposalUpdatedAt?: number;
   },
   actorId: string,
+  actorRole: IndustryReviewActorRole,
 ): Promise<{ proposalId: string; status: IndustryProposalStatus }> {
   const reviewer = actorId.trim();
   if (!reviewer) throw new Error("Review actor is required");
@@ -354,11 +474,15 @@ export async function resolveIndustryProposal(
     value = await callConvexMutation("companies:resolveIndustryProposal", {
       ...input,
       reviewer,
+      reviewerRole: actorRole,
       writeSecret: config.auth.convexWriteSecret,
     });
   } catch (error) {
     if (isIndustryReviewStaleError(error)) {
       throw new IndustryReviewStaleError(industryReviewStaleReason(error));
+    }
+    if (isIndustryReviewNotOpenError(error)) {
+      throw new IndustryReviewNotOpenError(industryReviewNotOpenReason(error));
     }
     throw error;
   }

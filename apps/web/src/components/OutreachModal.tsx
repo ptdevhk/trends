@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Send, Wand2 } from "lucide-react";
 import type { ResumeItem } from "@/hooks/useResumes";
 import type { MatchingResult } from "@/types/resume";
+import { apiClient } from "@/lib/api-client";
 import { useResumeFieldUsagePolicy } from "@/contexts/ResumeFieldUsagePolicyContext";
 
 interface OutreachModalProps {
@@ -56,10 +57,8 @@ export function OutreachModal({
         if (!analysis) return;
         setGenerating(true);
         try {
-            const res = await fetch("/api/notifications/draft", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+            const res = await apiClient.POST("/api/notifications/draft", {
+                body: {
                     resume: {
                         id: resume.resumeId || resume.name,
                         name: outreachResume.name,
@@ -80,15 +79,17 @@ export function OutreachModal({
                     },
                     jobDescription,
                     analysis,
-                }),
+                },
             });
 
-            const data = await res.json();
-            if (res.ok) {
-                setSubject(data.subject);
-                setBody(data.body);
+            const data = (res.response.ok ? res.data : res.error) as
+                | { subject?: string; body?: string; error?: string }
+                | undefined;
+            if (res.response.ok && data) {
+                setSubject(data.subject ?? "");
+                setBody(data.body ?? "");
             } else {
-                throw new Error(data.error);
+                throw new Error(data?.error);
             }
         } catch (error) {
             setError(error instanceof Error ? error.message : "Draft generation failed");
@@ -114,22 +115,22 @@ export function OutreachModal({
                 : null;
             const email = emailMatch ? emailMatch[0] : "candidate@example.com";
 
-            const res = await fetch("/api/notifications/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+            const res = await apiClient.POST("/api/notifications/send", {
+                body: {
                     to: email,
                     subject,
                     body,
-                }),
+                },
             });
 
-            const data = await res.json();
-            if (res.ok) {
+            const data = (res.response.ok ? res.data : res.error) as
+                | { success?: boolean; error?: string }
+                | undefined;
+            if (res.response.ok) {
                 onSuccess?.();
                 onClose();
             } else {
-                throw new Error(data.error);
+                throw new Error(data?.error);
             }
         } catch (error) {
             setError(error instanceof Error ? error.message : "Sending failed");

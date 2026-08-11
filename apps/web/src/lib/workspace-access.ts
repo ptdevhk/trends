@@ -6,10 +6,14 @@ export const SYSTEM_AUTH_WORKSPACE: WorkspaceSlug = 'dev'
 export const PUBLIC_RESUME_WORKSPACE: WorkspaceSlug = 'hr'
 export const SYSTEM_ROUTE_PREFIX = '/admin/system'
 
+/**
+ * Reviewer inherits member access (the API grants reviewers all
+ * MEMBER_PERMISSIONS), so the default membership role set includes it.
+ */
 export function hasWorkspaceMembership(
   memberships: readonly WorkspaceMembership[],
   workspaceSlug: string,
-  roles: readonly WorkspaceRole[] = ['user', 'admin'],
+  roles: readonly WorkspaceRole[] = ['user', 'reviewer', 'admin'],
 ): boolean {
   return memberships.some(
     (membership) => membership.workspaceSlug === workspaceSlug && roles.includes(membership.role),
@@ -18,6 +22,33 @@ export function hasWorkspaceMembership(
 
 export function hasSystemAdminAccess(memberships: readonly WorkspaceMembership[]): boolean {
   return hasWorkspaceMembership(memberships, SYSTEM_AUTH_WORKSPACE, ['admin'])
+}
+
+/**
+ * Admin membership of a specific workspace. The industry review surfaces
+ * are workspace-scoped: an HR workspace admin can attend the HR industry
+ * evidence queue even though the ops-only system settings remain gated on
+ * the dev workspace (SYSTEM_AUTH_WORKSPACE).
+ */
+export function hasWorkspaceAdminAccess(
+  memberships: readonly WorkspaceMembership[],
+  workspaceSlug: string,
+): boolean {
+  return hasWorkspaceMembership(memberships, workspaceSlug, ['admin'])
+}
+
+/**
+ * Admin or reviewer membership of a specific workspace. The industry
+ * review surfaces (proposals, evidence sources, verdict revisions,
+ * identity resolution) accept the active workspace's reviewer alongside
+ * its admin; ops surfaces (recompute runs, maintenance runs, coverage,
+ * industry-data administration) stay gated on hasWorkspaceAdminAccess.
+ */
+export function hasWorkspaceIndustryReviewAccess(
+  memberships: readonly WorkspaceMembership[],
+  workspaceSlug: string,
+): boolean {
+  return hasWorkspaceMembership(memberships, workspaceSlug, ['admin', 'reviewer'])
 }
 
 export function getFirstAuthorizedWorkspaceSlug(

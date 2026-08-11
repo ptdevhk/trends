@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseIndustryVerdictRevision } from "./company-industry-contracts.js";
+import {
+  parseIndustryProposal,
+  parseIndustryVerdictRevision,
+} from "./company-industry-contracts.js";
 
 const revision = {
   _id: "revision-row",
@@ -17,6 +20,28 @@ const revision = {
   createdAt: 10,
   proposalId: "proposal-1",
 };
+
+describe("industry proposal contract", () => {
+  it.each(["curated", "corpus_evidence"])(
+    "parses proposals triggered by %s (bootstrap scripts)",
+    (triggerReason) => {
+      const proposal = {
+        _id: "proposal-row",
+        proposalId: "curated-my-acme-cnc",
+        companyKey: "acme-cnc",
+        status: "approved",
+        priority: 100,
+        triggerReasons: [triggerReason],
+        createdAt: 10,
+        updatedAt: 11,
+      };
+      const parsed = parseIndustryProposal(proposal);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.companyKey).toBe("acme-cnc");
+      expect(parsed?.triggerReasons).toEqual([triggerReason]);
+    },
+  );
+});
 
 describe("industry verdict revision contract", () => {
   it("preserves a standard explicit-CNC attestation with an empty risk reason", () => {

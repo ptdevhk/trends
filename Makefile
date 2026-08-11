@@ -6,7 +6,7 @@
 		preview-backup-prod on-host-backup-prod-complete on-host-preview-preflight on-host-preview-clone-from-prod on-host-preview-upgrade on-host-preview-isolate preview-deploy preview-restore-data preview-doctor preview-smoke \
 		on-host-preview-rehearse-backup on-host-preview-rehearse-resume on-host-preview-rehearse-rollback on-host-preview-verify-snapshot on-host-preview-run-migrations \
 		install-deps fetch-docs clean check help docker docker-build docker-down \
-		check-python check-node check-node-tests-types check-build \
+		check-python check-node check-node-tests-types check-build ci-local \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke my-scoring my-scoring-e2e \
 		migration-test migration-test-fresh-sandbox \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -483,6 +483,8 @@ remote-backup-prod:
 	ssh -f -N -L "$$TUNNEL_PORT:127.0.0.1:3000" "$$SSH_HOST" || { echo "ssh tunnel failed"; exit 1; }; \
 	trap "kill $$(lsof -ti:$$TUNNEL_PORT) 2>/dev/null || true" EXIT; \
 	API_URL="http://127.0.0.1:$$TUNNEL_PORT" WORKSPACE="$$WORKSPACE" OUT="$$OUT" \
+		TRENDS_AUTH_USERNAME="$${TRENDS_AUTH_USERNAME:-}" \
+		TRENDS_AUTH_PASSWORD="$${TRENDS_AUTH_PASSWORD:-}" \
 		$(MAKE) --no-print-directory backup-resumes
 
 backup-prod: remote-backup-prod
@@ -495,7 +497,10 @@ local-restore-from-prod:
 	@echo "→ clearing dev resumes (loop until partial:false)"
 	@while $(MAKE) --no-print-directory clear-resumes 2>&1 | tee /tmp/clear-resumes.out | grep -q '"partial": true'; do :; done
 	@$(MAKE) --no-print-directory restore-resumes FILE="$(FILE)" MODE=replace YES=1 \
-		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}"
+		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}" \
+		TRENDS_AUTH_USERNAME="$${TRENDS_AUTH_USERNAME:-}" \
+		TRENDS_AUTH_PASSWORD="$${TRENDS_AUTH_PASSWORD:-}" \
+		SKIP_AUTO_BACKUP="$${SKIP_AUTO_BACKUP:-1}"
 	@echo "→ backfilling derived fields and resume digests"
 	@$(MAKE) --no-print-directory backfill-derived-fields
 	@echo "→ checking derived field coverage"
@@ -551,6 +556,10 @@ on-host-preview-parity-check:
 # On-host: seed admin@dev + hr-demo@hr (+ orphan purge)
 on-host-preview-seed-auth:
 	bash ./deploy/preview-seed-auth.sh
+
+# On-host: sync preview (default) or prod data into local dev + parity gate
+on-host-dev-sync-from-preview:
+	bash ./deploy/dev-sync-from-preview.sh $(ARGS)
 
 # On-host: full migration gate (seed + doctor + parity)
 on-host-preview-gate:
@@ -1336,7 +1345,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + canonical policy validation)
-check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-seed-bootstrap-admins check-local-convex-write-secret
+check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
@@ -1347,6 +1356,12 @@ check-route-auth:
 # in packages/convex/convex/_mutations_registry.ts (quiesce-coverage audit).
 check-mutation-entry-points:
 	@bash scripts/check-mutation-entry-points.sh
+
+# Convex function-path lint — verify every BFF callConvex*("module:name") resolves
+# to a public query/mutation/action export (or a barrel re-export); prevents
+# "Could not find public function" runtime 500s after module refactors.
+check-convex-function-paths:
+	@npx tsx scripts/check-convex-function-paths.ts
 
 # Bootstrap admin seeding — verify seed_bootstrap_admins() parsing/no-op logic
 # in scripts/install.sh (deploy-time admin seeding for the auth refactor).
@@ -1454,6 +1469,20 @@ check-build: check
 		bun run --filter '@trends/shared' --filter '@trends/api' --filter '@trends/web' build; \
 		if [ -n "$$CONVEX_DEPLOYMENT" ]; then bun run --filter '@trends/convex' build; else echo "Skipping @trends/convex build (CONVEX_DEPLOYMENT not set)"; fi; \
 	fi
+
+# CI-parity local gate: run the same steps as the Checks + Tests workflows
+# (node-version parity, i18n, agent policy, check-build, test-coverage) so the
+# loop-class failures of 2026-07 (React 18 root hoist, unstable i18n-mock `t`,
+# vitest hangs) surface locally instead of burning a 30-minute CI run.
+# NODE_VERSION_STRICT=1 makes the node-major check a hard failure.
+ci-local:
+	@bash scripts/check-node-version.sh
+	@$(MAKE) i18n-check
+	@$(MAKE) check-agent-policy
+	@CI=true $(MAKE) check-build
+	@$(MAKE) test-coverage
+	@echo ""
+	@echo "✅ ci-local: all CI gates passed (Checks + Tests parity)"
 
 # =============================================================================
 # Tests

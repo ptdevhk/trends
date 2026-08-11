@@ -13,6 +13,7 @@ import {
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
   INDUSTRY_VERIFICATION_LEVELS,
+  isRecord,
   validateIndustryReviewAttestation,
   type IndustryReviewAttestation,
 } from "@trends/shared";
@@ -20,14 +21,17 @@ import {
 import {
   getAuthenticatedActorId,
   requireAdmin,
+  requireIndustryReviewer,
   requireWorkspaceUser,
 } from "../middleware/auth.js";
+import type { AuthContext } from "../services/auth-types.js";
 import {
   addCompanyAlias,
   appendWorkspacePolicy,
   listCompanies,
   listWorkspacePolicies,
   seedCanonicalCompanies,
+  setCompanyArchived,
   upsertCompany,
 } from "../services/company-policy-service.js";
 import {
@@ -43,6 +47,7 @@ import {
   approveIndustryProposalAndStartRecompute,
   getIndustryProposal,
   listIndustryProposals,
+  listIndustryProposalsPage,
   resolveIndustryProposal,
   undoIndustryProposalApproval,
   upsertIndustryProposal,
@@ -66,15 +71,37 @@ import {
 } from "../services/industry-evidence-research-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
 import { config } from "../services/config.js";
+import { verifiedEmployerCatalog } from "../services/verified-employer-catalog-service.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
   INDUSTRY_REVIEW_STALE_CODE,
+  INDUSTRY_REVIEW_NOT_OPEN_CODE,
+  industryReviewNotOpenReason,
   industryReviewStaleReason,
+  isIndustryReviewNotOpenError,
   isIndustryReviewStaleError,
   IndustryReviewStaleError,
 } from "../services/company-industry-review-errors.js";
 
 const app = new OpenAPIHono();
+
+/**
+ * Workspace role of the authenticated actor on the active workspace.
+ * The industry review gates only admit admin/reviewer, so the resolved role
+ * is one of those two; the value comes from the session membership, never
+ * from client input.
+ */
+function getAuthenticatedActorRole(c: {
+  var: { auth?: AuthContext; workspaceSlug: string };
+}): "admin" | "reviewer" {
+  const role = c.var.auth?.memberships.find(
+    (membership) => membership.workspaceSlug === c.var.workspaceSlug,
+  )?.role;
+  if (role !== "admin" && role !== "reviewer") {
+    throw new Error("Authenticated actor role required");
+  }
+  return role;
+}
 
 app.use("/api/companies", async (c, next) => {
   if (["GET", "POST"].includes(c.req.method)) {
@@ -106,13 +133,15 @@ app.use("/api/company-industry-profiles/*", async (c, next) => {
   }
   await next();
 });
-app.use("/api/company-industry-proposals", requireAdmin);
-app.use("/api/company-industry-proposals/*", requireAdmin);
-app.use("/api/company-industry-evidence-sources", requireAdmin);
-app.use("/api/company-industry-evidence-sources/*", requireAdmin);
-app.use("/api/company-industry-revisions/*", requireAdmin);
+app.use("/api/company-industry-proposals", requireIndustryReviewer);
+app.use("/api/company-industry-proposals/*", requireIndustryReviewer);
+app.use("/api/company-industry-evidence-sources", requireIndustryReviewer);
+app.use("/api/company-industry-evidence-sources/*", requireIndustryReviewer);
+app.use("/api/company-industry-revisions/*", requireIndustryReviewer);
 app.use("/api/company-industry-recompute-runs", requireAdmin);
 app.use("/api/company-industry-recompute-runs/*", requireAdmin);
+app.use("/api/company-industry-link-backfill", requireAdmin);
+app.use("/api/company-industry-verified-employer-count", requireWorkspaceUser);
 app.use("/api/company-industry-maintenance-runs", requireAdmin);
 app.use("/api/company-industry-maintenance-runs/*", requireAdmin);
 app.use("/api/company-industry-coverage", requireAdmin);
@@ -130,6 +159,7 @@ const CompanySchema = z.object({
   createdAt: z.number(),
   updatedAt: z.number(),
   createdBy: z.string().optional(),
+  archivedAt: z.number().optional(),
   aliases: z.array(
     z.object({
       aliasDisplay: z.string(),
@@ -165,7 +195,12 @@ const listCompaniesRoute = createRoute({
   method: "get",
   path: "/api/companies",
   tags: ["companies"],
-  summary: "List company registry entries",
+  summary: "List company registry entries (archived companies hidden unless includeArchived=true)",
+  request: {
+    query: z.object({
+      includeArchived: z.enum(["true", "false"]).optional(),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -179,7 +214,8 @@ const listCompaniesRoute = createRoute({
 });
 
 app.openapi(listCompaniesRoute, async (c) => {
-  const items = await listCompanies();
+  const { includeArchived } = c.req.valid("query");
+  const items = await listCompanies({ includeArchived: includeArchived === "true" });
   return c.json({ success: true as const, items }, 200);
 });
 
@@ -322,6 +358,47 @@ app.openapi(seedRoute, async (c) => {
   return c.json({ success: true as const, ...result }, 200);
 });
 
+const archiveCompanyRoute = createRoute({
+  method: "post",
+  path: "/api/companies/:companyKey/archive",
+  tags: ["companies"],
+  summary:
+    "Archive (soft delete) or restore a company registry entry; archived companies are hidden from the default list and stop matching resume policies",
+  request: {
+    params: z.object({ companyKey: z.string().min(1) }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ archived: z.boolean() }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            companyKey: z.string(),
+            archived: z.boolean(),
+            archivedAt: z.number().nullable(),
+          }),
+        },
+      },
+      description: "Archive state updated",
+    },
+  },
+});
+
+app.openapi(archiveCompanyRoute, async (c) => {
+  const { companyKey } = c.req.valid("param");
+  const { archived } = c.req.valid("json");
+  const actorId = getAuthenticatedActorId(c);
+  const result = await setCompanyArchived({ companyKey, archived, createdBy: actorId });
+  return c.json({ success: true as const, ...result }, 200);
+});
+
 const listPoliciesRoute = createRoute({
   method: "get",
   path: "/api/company-policies",
@@ -415,6 +492,7 @@ const IndustryReviewAttestationSchema = z.object({
   acknowledgedRiskFlags: z.array(z.enum(INDUSTRY_REVIEW_RISK_FLAGS)),
   cncEvidenceAcknowledged: z.boolean(),
   acknowledgementReason: z.string(),
+  batchId: z.string().min(1).optional(),
 });
 
 const IndustryProfileSchema = z.object({
@@ -619,6 +697,7 @@ const IndustryVerdictRevisionSchema = z.object({
   approvedSourceIds: z.array(z.string()),
   evidenceSummary: z.string(),
   reviewedBy: z.string(),
+  reviewedByRole: z.enum(["admin", "reviewer"]).optional(),
   reviewedAt: z.number(),
   decisionReason: z.string(),
   taxonomyVersion: z.string(),
@@ -676,9 +755,13 @@ const listIndustryProposalsRoute = createRoute({
   method: "get",
   path: "/api/company-industry-proposals",
   tags: ["company-industry-evidence"],
-  summary: "List governed company-industry review proposals",
+  summary: "List governed company-industry review proposals (paginated)",
   request: {
-    query: z.object({ status: ProposalStatusEnum.optional() }),
+    query: z.object({
+      status: ProposalStatusEnum.optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional().default(100),
+      cursor: z.string().optional(),
+    }),
   },
   responses: {
     200: {
@@ -687,18 +770,26 @@ const listIndustryProposalsRoute = createRoute({
           schema: z.object({
             success: z.literal(true),
             items: z.array(IndustryProposalSchema),
+            nextCursor: z.string().optional(),
           }),
         },
       },
-      description: "Proposal queue",
+      description: "Proposal queue page; pass nextCursor to continue",
     },
   },
 });
 
 app.openapi(listIndustryProposalsRoute, async (c) => {
-  const { status } = c.req.valid("query");
-  const items = await listIndustryProposals(status);
-  return c.json({ success: true as const, items }, 200);
+  const { status, limit, cursor } = c.req.valid("query");
+  const page = await listIndustryProposalsPage({ status, limit, cursor });
+  return c.json(
+    {
+      success: true as const,
+      items: page.items,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    },
+    200,
+  );
 });
 
 const IndustryReviewActionEnum = z.enum(INDUSTRY_REVIEW_ACTIONS);
@@ -825,7 +916,10 @@ const IndustryReviewEnvelopeFields = {
 const IndustryReviewConflictSchema = z.object({
   success: z.literal(false),
   error: z.string(),
-  code: z.literal(INDUSTRY_REVIEW_STALE_CODE),
+  code: z.union([
+    z.literal(INDUSTRY_REVIEW_STALE_CODE),
+    z.literal(INDUSTRY_REVIEW_NOT_OPEN_CODE),
+  ]),
 });
 
 const IndustryReviewCursorConflictSchema = z.object({
@@ -839,6 +933,14 @@ function industryReviewConflictResponse(error: unknown) {
     success: false as const,
     error: industryReviewStaleReason(error),
     code: INDUSTRY_REVIEW_STALE_CODE,
+  };
+}
+
+function industryReviewNotOpenResponse(error: unknown) {
+  return {
+    success: false as const,
+    error: industryReviewNotOpenReason(error),
+    code: INDUSTRY_REVIEW_NOT_OPEN_CODE,
   };
 }
 
@@ -869,6 +971,7 @@ const listIndustryReviewQueueRoute = createRoute({
                 recommendation: IndustryReviewRecommendationSchema,
                 inputFingerprint: z.string(),
                 sourceCount: z.number(),
+                resumeImpact: z.number(),
               }),
             ),
             maintenance: IndustryReviewMaintenanceContextSchema,
@@ -903,7 +1006,34 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
       recommendedAction,
       workspaceSlug: c.var.workspaceSlug,
     });
-    return c.json(result, 200);
+    const companyKeys = Array.from(
+      new Set(
+        result.items
+          .map((item) => item.proposal.companyKey)
+          .filter((key): key is string => Boolean(key?.trim())),
+      ),
+    ).slice(0, 200);
+    const impact =
+      companyKeys.length > 0
+        ? await callConvexQuery(
+            "companies:getIndustryResumeImpactByCompanyKey",
+            {
+              companyKeys,
+              writeSecret: config.auth.convexWriteSecret,
+            },
+          )
+        : {};
+    const impactByKey = isRecord(impact) ? impact : {};
+    const items = result.items.map((item) => {
+      const companyKey = item.proposal.companyKey;
+      const resumeImpact =
+        typeof companyKey === "string" &&
+        typeof impactByKey[companyKey] === "number"
+          ? (impactByKey[companyKey] as number)
+          : 0;
+      return { ...item, resumeImpact };
+    });
+    return c.json({ ...result, items }, 200);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -1269,11 +1399,15 @@ app.openapi(resolveIndustryProposalIdentityRoute, async (c) => {
       ...c.req.valid("json"),
       workspaceSlug: c.var.workspaceSlug,
       actor: getAuthenticatedActorId(c),
+      actorRole: getAuthenticatedActorRole(c),
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("INDUSTRY_REVIEW_STALE:")) {
-      return c.json({ success: false as const, error: error.message, code: INDUSTRY_REVIEW_STALE_CODE }, 409);
+    if (isIndustryReviewStaleError(error)) {
+      return c.json(industryReviewConflictResponse(error), 409);
+    }
+    if (isIndustryReviewNotOpenError(error)) {
+      return c.json(industryReviewNotOpenResponse(error), 409);
     }
     throw error;
   }
@@ -1436,79 +1570,46 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const body = c.req.valid("json");
   try {
-    const shouldLoadPacket = Boolean(
-      body.expectedInputFingerprint ||
-        body.reviewAttestation ||
-        body.industryClass === "cnc",
+    const { getIndustryReviewPacket } = await import(
+      "../services/company-industry-review-service.js"
     );
-    let packet: IndustryReviewPacket | null = null;
-    if (shouldLoadPacket) {
-      const { getIndustryReviewPacket } = await import(
-        "../services/company-industry-review-service.js"
-      );
-      packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
-      if (!packet) {
-        throw new Error("Industry proposal not found");
-      }
-      if (
-        body.expectedInputFingerprint &&
-        packet.dataset.inputFingerprint !== body.expectedInputFingerprint
-      ) {
-        throw new IndustryReviewStaleError(
-          "Refresh the recommendation before approving this proposal.",
-        );
-      }
-      const visibleRiskFlags = packet.recommendation.riskFlags;
-      const requiresAttestation =
-        visibleRiskFlags.length > 0 || body.industryClass === "cnc";
-      if (requiresAttestation && !body.reviewAttestation) {
-        return c.json(
-          {
-            success: false as const,
-            error: "A review attestation is required before this elevated decision.",
-            code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
-          },
-          422,
-        );
-      }
-      if (body.reviewAttestation) {
-        const validation = validateIndustryReviewAttestation({
-          attestation: body.reviewAttestation as unknown as IndustryReviewAttestation,
-          expectedInputFingerprint:
-            body.expectedInputFingerprint ?? packet.dataset.inputFingerprint,
-          visibleRiskFlags,
-          recommendedIndustryClass: body.industryClass,
-        });
-        if (!validation.ok) {
-          return c.json(
-            {
-              success: false as const,
-              error: "The review attestation does not satisfy the current evidence policy.",
-              code: validation.code,
-            },
-            422,
-          );
-        }
-      }
+    const { buildIndustryApprovalDecision } = await import(
+      "../services/company-industry-approval-service.js"
+    );
+    const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
+    if (!packet) {
+      throw new Error("Industry proposal not found");
     }
-    const approvalInput = {
-      proposalId,
+    const decision = buildIndustryApprovalDecision({
       workspaceSlug: c.var.workspaceSlug,
-      ...body,
+      packet,
+      ...(body.industryClass ? { industryClass: body.industryClass } : {}),
+      ...(body.evidenceSummary ? { evidenceSummary: body.evidenceSummary } : {}),
+      ...(body.decisionReason ? { decisionReason: body.decisionReason } : {}),
       ...(body.reviewAttestation
         ? {
-            reviewAttestation: {
-              ...body.reviewAttestation,
-              acknowledgedRiskFlags:
-                body.reviewAttestation
-                  .acknowledgedRiskFlags as IndustryReviewAttestation["acknowledgedRiskFlags"],
-            } as IndustryReviewAttestation,
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1" as const,
+              cncEvidenceAcknowledged: body.reviewAttestation.cncEvidenceAcknowledged,
+              acknowledgementReason: body.reviewAttestation.acknowledgementReason,
+            },
           }
         : {}),
-    } as Parameters<typeof approveIndustryProposalAndStartRecompute>[0];
+    });
+    if (!decision.ok) {
+      return c.json(
+        {
+          success: false as const,
+          error: decision.error,
+          code: decision.code,
+        },
+        422,
+      );
+    }
     const result = await approveIndustryProposalAndStartRecompute(
-      approvalInput,
+      decision.payload,
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     // Approval hook: enqueue a maintenance run so recycled needs_more_evidence
     // proposals re-chew automatically after a human approval. Fire-and-forget;
@@ -1589,6 +1690,7 @@ app.openapi(undoIndustryProposalRoute, async (c) => {
         workspaceSlug: c.var.workspaceSlug,
       },
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
@@ -1650,14 +1752,124 @@ app.openapi(resolveIndustryProposalRoute, async (c) => {
     const result = await resolveIndustryProposal(
       { proposalId, ...c.req.valid("json") },
       getAuthenticatedActorId(c),
+      getAuthenticatedActorRole(c),
     );
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
     if (isIndustryReviewStaleError(error)) {
       return c.json(industryReviewConflictResponse(error), 409);
     }
+    if (isIndustryReviewNotOpenError(error)) {
+      return c.json(industryReviewNotOpenResponse(error), 409);
+    }
     throw error;
   }
+});
+
+const BatchReviewActionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("approve"),
+    proposalId: z.string().min(1),
+    industryClass: IndustryClassEnum.optional(),
+    decisionReason: z.string().min(1).max(2000).optional(),
+    evidenceSummary: z.string().min(1).max(4000).optional(),
+  }),
+  z.object({
+    kind: z.literal("reject"),
+    proposalId: z.string().min(1),
+    reviewNote: z.string().max(4000).optional(),
+  }),
+]);
+
+const BatchReviewAttestationSchema = z.object({
+  schemaVersion: z.literal("industry-review-attestation.v1"),
+  decisionMode: z.enum(["standard", "risk_override"]),
+  acknowledgedRiskFlags: z.array(z.enum(INDUSTRY_REVIEW_RISK_FLAGS)),
+  cncEvidenceAcknowledged: z.boolean(),
+  acknowledgementReason: z.string(),
+});
+
+const batchReviewIndustryProposalsRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-proposals/batch-review",
+  tags: ["company-industry-evidence"],
+  summary: "Governed bulk approve/reject of industry proposals",
+  description:
+    "One attestation covers the whole batch; per-item governance (packet fingerprint, risk flags, CNC evidence, stale checks) still applies to every item. Items fail individually — a stale or hard-blocked item never aborts the batch. The server materializes the per-item attestation (item fingerprint + shared batchId) on each immutable revision.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            actions: z.array(BatchReviewActionSchema).min(1).max(50),
+            attestation: BatchReviewAttestationSchema.optional(),
+            batchNote: z.string().max(4000).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            batchId: z.string(),
+            batchFingerprint: z.string(),
+            summary: z.object({
+              total: z.number(),
+              succeeded: z.number(),
+              failed: z.number(),
+            }),
+            items: z.array(
+              z.object({
+                proposalId: z.string(),
+                kind: z.enum(["approve", "reject"]),
+                ok: z.boolean(),
+                revisionId: z.string().optional(),
+                companyKey: z.string().optional(),
+                status: ProposalStatusEnum.optional(),
+                code: z.string().optional(),
+                error: z.string().optional(),
+              }),
+            ),
+          }),
+        },
+      },
+      description: "Per-item batch outcomes",
+    },
+    422: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+            code: z.string(),
+          }),
+        },
+      },
+      description: "Invalid batch payload",
+    },
+  },
+});
+
+app.openapi(batchReviewIndustryProposalsRoute, async (c) => {
+  const body = c.req.valid("json");
+  const { batchReviewIndustryProposals } = await import(
+    "../services/company-industry-batch-review-service.js"
+  );
+  const result = await batchReviewIndustryProposals(
+    {
+      workspaceSlug: c.var.workspaceSlug,
+      actions: body.actions,
+      ...(body.attestation ? { attestation: body.attestation } : {}),
+      ...(body.batchNote ? { batchNote: body.batchNote } : {}),
+    },
+    getAuthenticatedActorId(c),
+    getAuthenticatedActorRole(c),
+  );
+  return c.json({ success: true as const, ...result }, 200);
 });
 
 const listIndustryEvidenceSourcesRoute = createRoute({
@@ -1806,6 +2018,146 @@ app.openapi(listIndustryRecomputeRunsRoute, async (c) => {
     limit,
   });
   return c.json({ success: true as const, items }, 200);
+});
+
+// Registered BEFORE the `:runId` routes below so the literal `start` segment
+// is never captured as a runId (Hono matches in registration order).
+const startIndustryRecomputeRunRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/start",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Start a targeted recompute run from the company's approved proposal; backfills resume links and advances to terminal synchronously",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            workspaceSlug: z.string().min(1),
+            companyKey: z.string().min(1),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Started recompute run",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+          }),
+        },
+      },
+      description: "No approved proposal for the companyKey",
+    },
+  },
+});
+
+app.openapi(startIndustryRecomputeRunRoute, async (c) => {
+  const { workspaceSlug, companyKey } = c.req.valid("json");
+  const proposals = await listIndustryProposals("approved");
+  const proposal = proposals.find(
+    (item) =>
+      item.companyKey?.toLowerCase() === companyKey.trim().toLowerCase() &&
+      Boolean(item.approvedRevisionId?.trim()),
+  );
+  if (!proposal || !proposal.approvedRevisionId) {
+    return c.json(
+      { success: false as const, error: "No approved proposal for companyKey" },
+      404,
+    );
+  }
+  const item = await companyIndustryRecomputeService.start({
+    workspaceSlug,
+    companyKey,
+    targetRevisionId: proposal.approvedRevisionId,
+    requestedBy: getAuthenticatedActorId(c),
+  });
+  return c.json({ success: true as const, item }, 200);
+});
+
+const backfillCompanyResumeLinksRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-link-backfill",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Synchronously backfill company-resume links for a company (loops the bounded sync action until done)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            companyKey: z.string().min(1),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            result: z.object({
+              status: z.string(),
+              scannedRows: z.number(),
+              matchedRows: z.number(),
+              linkedRows: z.number(),
+              iterations: z.number(),
+            }),
+          }),
+        },
+      },
+      description: "Backfill summary",
+    },
+  },
+});
+
+app.openapi(backfillCompanyResumeLinksRoute, async (c) => {
+  const { companyKey } = c.req.valid("json");
+  const result = await companyIndustryRecomputeService.backfillCompanyResumeLinks(
+    companyKey,
+  );
+  return c.json({ success: true as const, result }, 200);
+});
+
+const getVerifiedEmployerCountRoute = createRoute({
+  method: "get",
+  path: "/api/company-industry-verified-employer-count",
+  tags: ["company-industry-evidence"],
+  summary: "Count of currently verified employers in the cached catalog",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            count: z.number(),
+          }),
+        },
+      },
+      description: "Verified employer count",
+    },
+  },
+});
+
+app.openapi(getVerifiedEmployerCountRoute, async (c) => {
+  const count = verifiedEmployerCatalog.getVerifiedEmployers().length;
+  return c.json({ success: true as const, count }, 200);
 });
 
 const getIndustryRecomputeRunRoute = createRoute({
@@ -2083,6 +2435,34 @@ app.openapi(advanceIndustryRecomputeRunRoute, async (c) => {
   return c.json({ success: true as const, item }, 200);
 });
 
+const advanceIndustryRecomputeRunToTerminalRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/:runId/advance-all",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Advance a targeted recompute run repeatedly until it reaches a terminal status or stops making progress",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Terminal (or stalled) recompute state",
+    },
+  },
+});
+
+app.openapi(advanceIndustryRecomputeRunToTerminalRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = await companyIndustryRecomputeService.advanceToTerminal(runId);
+  return c.json({ success: true as const, item }, 200);
+});
+
 const retryIndustryRecomputeRunRoute = createRoute({
   method: "post",
   path: "/api/company-industry-recompute-runs/:runId/retry",
@@ -2107,6 +2487,36 @@ const retryIndustryRecomputeRunRoute = createRoute({
 app.openapi(retryIndustryRecomputeRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await companyIndustryRecomputeService.retry(runId, {
+    requestedBy: getAuthenticatedActorId(c),
+  });
+  return c.json({ success: true as const, item }, 200);
+});
+
+const resetIndustryRecomputeRunRoute = createRoute({
+  method: "post",
+  path: "/api/company-industry-recompute-runs/:runId/reset",
+  tags: ["company-industry-evidence"],
+  summary:
+    "Reset a targeted recompute run to queued, clearing batches and progress regardless of current status",
+  request: { params: z.object({ runId: z.string().min(1) }) },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: IndustryRecomputeRunSchema,
+          }),
+        },
+      },
+      description: "Reset recompute state",
+    },
+  },
+});
+
+app.openapi(resetIndustryRecomputeRunRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = await companyIndustryRecomputeService.reset(runId, {
     requestedBy: getAuthenticatedActorId(c),
   });
   return c.json({ success: true as const, item }, 200);

@@ -22,7 +22,7 @@ function createTestUser(
   email: string,
   displayName: string,
   workspace: string,
-  role: "user" | "admin",
+  role: "user" | "reviewer" | "admin",
 ) {
   const existingIdentity = storage.findIdentity("local", username, "local");
   let userId: string;
@@ -81,6 +81,71 @@ describe("manage-user bootstrap logic", () => {
     const memberships = storage.listMemberships(result.userId);
     expect(memberships).toHaveLength(1);
     expect(memberships[0]).toEqual({ userId: result.userId, workspaceSlug: "hr", role: "admin" });
+  });
+
+  it("creates a reviewer workspace membership", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-review-"));
+    const storage = new AuthStorage(root);
+
+    const result = createTestUser(storage, "hr-reviewer", "review@example.com", "HR Reviewer", "hr", "reviewer");
+
+    expect(result.created).toBe(true);
+    expect(result.membershipCreated).toBe(true);
+
+    const identity = storage.findIdentity("local", "hr-reviewer", "local");
+    expect(identity).not.toBeNull();
+
+    const user = storage.findUser(result.userId);
+    expect(user).not.toBeNull();
+    expect(user!.email).toBe("review@example.com");
+    expect(user!.displayName).toBe("HR Reviewer");
+
+    const memberships = storage.listMemberships(result.userId);
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]).toEqual({ userId: result.userId, workspaceSlug: "hr", role: "reviewer" });
+  });
+
+  it("--role reviewer parses and validates via CLI", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "trends-manage-user-reviewer-cli-"));
+    const result = spawnSync(
+      "node",
+      [
+        "--import",
+        "tsx",
+        manageUserScript,
+        "--username",
+        "review-user",
+        "--email",
+        "review-user@example.com",
+        "--display-name",
+        "Review User",
+        "--workspace",
+        "hr",
+        "--role",
+        "reviewer",
+        "--no-password",
+        "--output",
+        "json",
+      ],
+      {
+        cwd: repoRoot,
+        env: { ...process.env, PROJECT_ROOT: root },
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+
+    const output = JSON.parse(result.stdout) as { success: boolean };
+    expect(output.success).toBe(true);
+
+    const storage = new AuthStorage(root);
+    const identity = storage.findIdentity("local", "review-user", "local");
+    expect(identity).not.toBeNull();
+
+    const memberships = storage.listMemberships(identity!.userId);
+    expect(memberships).toEqual([{ userId: identity!.userId, workspaceSlug: "hr", role: "reviewer" }]);
   });
 
   it("is idempotent: re-running does not create duplicates", () => {

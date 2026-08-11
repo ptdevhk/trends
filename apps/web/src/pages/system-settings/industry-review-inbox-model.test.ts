@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  batchAttestationMode,
+  batchRequiresCncAcknowledgement,
   filterHistoryForSession,
   getApprovalSafeSourceIds,
+  getBatchApproveEligibility,
+  getIdentityResolutionEligibility,
   getOneClickEligibility,
   parseReviewInboxFilter,
+  parseReviewInboxItems,
   partitionReviewQueue,
+  requiresIdentityResolution,
   reviewInboxFilterToSlug,
+  unionRiskFlags,
   type ReviewInboxItem,
   type SessionApproval,
 } from './industry-review-inbox-model'
@@ -65,6 +72,7 @@ function makeItem(
     recommendation: { ...cleanRecommendation, ...recommendation },
     inputFingerprint: 'fingerprint-clean',
     sourceCount: 1,
+    resumeImpact: 0,
   }
 }
 
@@ -311,5 +319,189 @@ describe('filterHistoryForSession', () => {
 
     expect(filtered).not.toBe(historyItems)
     expect(historyItems).toHaveLength(2)
+  })
+})
+
+describe('identity resolution eligibility', () => {
+  const unmappedItem = makeItem(
+    {
+      proposalId: 'proposal-unmapped',
+      companyKey: undefined,
+    },
+    {
+      proposalId: 'proposal-unmapped',
+      riskFlags: ['canonical_mapping_missing'],
+    },
+  )
+
+  it('opens the lane for any non-terminal unmapped proposal', () => {
+    expect(getIdentityResolutionEligibility(unmappedItem)).toEqual({ eligible: true })
+    expect(getIdentityResolutionEligibility(makeItem(
+      { proposalId: 'proposal-evidence', companyKey: undefined, status: 'needs_more_evidence' },
+      { proposalId: 'proposal-evidence', proposalStatus: 'needs_more_evidence' },
+    ))).toEqual({ eligible: true })
+  })
+
+  it('keeps terminal and already-mapped proposals out of the lane', () => {
+    expect(getIdentityResolutionEligibility(makeItem({ status: 'approved' }))).toEqual({
+      eligible: false,
+      reason: 'terminal',
+    })
+    expect(getIdentityResolutionEligibility(makeItem({ status: 'rejected' }))).toEqual({
+      eligible: false,
+      reason: 'terminal',
+    })
+    expect(getIdentityResolutionEligibility(cleanItem)).toEqual({
+      eligible: false,
+      reason: 'already_mapped',
+    })
+  })
+
+  it('flags rows blocked specifically by the missing canonical mapping', () => {
+    expect(requiresIdentityResolution(unmappedItem)).toBe(true)
+    expect(requiresIdentityResolution(makeItem(
+      { proposalId: 'proposal-unmapped-noflag', companyKey: undefined },
+      { proposalId: 'proposal-unmapped-noflag' },
+    ))).toBe(false)
+    expect(requiresIdentityResolution(cleanItem)).toBe(false)
+    expect(requiresIdentityResolution(makeItem(
+      { proposalId: 'proposal-mapped-flag', companyKey: 'company-x' },
+      { proposalId: 'proposal-mapped-flag', riskFlags: ['canonical_mapping_missing'] },
+    ))).toBe(false)
+  })
+})
+
+describe('parseReviewInboxItems', () => {
+  it('parses resumeImpact from review-queue items and defaults missing or invalid values to 0', () => {
+    const parsed = parseReviewInboxItems({
+      success: true,
+      items: [
+        {
+          proposal: cleanProposal,
+          recommendation: cleanRecommendation,
+          inputFingerprint: 'fingerprint-impact',
+          sourceCount: 1,
+          resumeImpact: 12,
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-no-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-no-impact' },
+          inputFingerprint: 'fingerprint-no-impact',
+          sourceCount: 1,
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-string-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-string-impact' },
+          inputFingerprint: 'fingerprint-string-impact',
+          sourceCount: 1,
+          resumeImpact: '7',
+        },
+        {
+          proposal: { ...cleanProposal, proposalId: 'proposal-negative-impact' },
+          recommendation: { ...cleanRecommendation, proposalId: 'proposal-negative-impact' },
+          inputFingerprint: 'fingerprint-negative-impact',
+          sourceCount: 1,
+          resumeImpact: -3,
+        },
+      ],
+    })
+
+    expect(parsed.map((item) => item.resumeImpact)).toEqual([12, 0, 7, 0])
+    expect(parsed[0]?.proposal.proposalId).toBe('proposal-clean')
+    expect(parsed[0]?.inputFingerprint).toBe('fingerprint-impact')
+  })
+
+  it('returns an empty list for payloads without an items array', () => {
+    expect(parseReviewInboxItems({ success: true })).toEqual([])
+    expect(parseReviewInboxItems(undefined)).toEqual([])
+  })
+
+  it('filters items that are missing proposal or recommendation shape', () => {
+    expect(parseReviewInboxItems({
+      success: true,
+      items: [
+        { proposal: {}, recommendation: {} },
+        { proposal: cleanProposal, recommendation: { ...cleanRecommendation, proposalId: undefined } },
+        { proposal: cleanProposal, recommendation: cleanRecommendation, inputFingerprint: 'fp', sourceCount: 1 },
+      ],
+    })).toHaveLength(1)
+  })
+})
+
+describe('batch approve eligibility', () => {
+  const weakSignalItem = makeItem(
+    {
+      _id: 'proposal-weak-row',
+      proposalId: 'proposal-weak',
+      companyKey: 'company-weak',
+      suggestedIndustryClass: 'unknown',
+    },
+    {
+      proposalId: 'proposal-weak',
+      recommendedIndustryClass: 'unknown',
+      riskFlags: ['weak_industry_signal'],
+      riskDecision: {
+        requiresAcknowledgement: true,
+        nonOverridableRiskFlags: [],
+        canApproveWithRiskOverride: true,
+      },
+      recommendedAction: 'inspect',
+    },
+  )
+
+  it('accepts a clean proposal without attestation or class choice', () => {
+    expect(getBatchApproveEligibility(cleanItem)).toEqual({
+      eligible: true,
+      safeSourceIds: ['source-official'],
+      requiresAttestation: false,
+      requiresClass: false,
+    })
+  })
+
+  it('treats weak_industry_signal as batch-approvable with acknowledgement', () => {
+    expect(getBatchApproveEligibility(weakSignalItem)).toEqual({
+      eligible: true,
+      safeSourceIds: ['source-official'],
+      requiresAttestation: true,
+      requiresClass: true,
+    })
+  })
+
+  it('keeps non-overridable flags out of the batch lane', () => {
+    expect(getBatchApproveEligibility(riskyItem)).toEqual({
+      eligible: false,
+      reason: 'hard_risk',
+    })
+  })
+
+  it.each([
+    ['terminal', makeItem({ status: 'approved' })],
+    ['status', makeItem({ status: 'needs_more_evidence' })],
+    ['source', unsafeSourceItem],
+  ] as const)('excludes %s items', (reason, item) => {
+    expect(getBatchApproveEligibility(item)).toEqual({
+      eligible: false,
+      reason,
+    })
+  })
+
+  it('unions risk flags across the selection in sorted order', () => {
+    expect(unionRiskFlags([
+      weakSignalItem,
+      makeItem({}, { riskFlags: ['source_conflict', 'low_source_diversity'] }),
+    ])).toEqual(['low_source_diversity', 'source_conflict', 'weak_industry_signal'])
+  })
+
+  it('derives the attestation mode from the union of flags', () => {
+    expect(batchAttestationMode([])).toBe('standard')
+    expect(batchAttestationMode(['weak_industry_signal'])).toBe('risk_override')
+  })
+
+  it('requires CNC acknowledgement only when a class or flag demands it', () => {
+    expect(batchRequiresCncAcknowledgement([cleanItem], {})).toBe(false)
+    expect(batchRequiresCncAcknowledgement([cncItem], {})).toBe(true)
+    expect(batchRequiresCncAcknowledgement([weakSignalItem], {
+      'proposal-weak': 'cnc',
+    })).toBe(true)
   })
 })

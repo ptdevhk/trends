@@ -15,6 +15,7 @@
 - Vault root: `{WIKI_VAULT}`
 - Trends wiki index: `{WIKI_VAULT}/projects/trends/index.md`
 - Trends project README: `{WIKI_VAULT}/projects/trends/README.md`
+- Completed review-workflow navigation fix (2026-08-11): `docs/superpowers/specs/2026-08-11-industry-review-workflow-navigation-design.md` · workspace-scoped review base (fixes SystemAccessGate bounce on 查看/row/prev-next) · scroll-to-detail · legacy notice for workspace reviewers/admins · 行业验证 settings sidebar entry for reviewers
 - Completed Seek talentsearch detail + MY expand **v0.4.21** (2026-07-24): `{WIKI_VAULT}/projects/trends/work/2026-07-24-seek-talentsearch-detail-v0.4.21/` · `84b20e23` + local tag `v0.4.21` · ext 1.3.6 (not pushed)
 - Completed web-research real-source layer (2026-07-30): `{WIKI_VAULT}/projects/trends/work/2026-07-30-web-research-real-source-layer/` · 16 local commits `c2142e23..830ae8ef` (not pushed) · **CN is the core market (internal users are China users); MY is additional** · CN upstream = NewsNow-compatible API ([ourongxing/newsnow](https://github.com/ourongxing/newsnow), TrendRadar upstream) via existing `RESEARCH_HOTLIST_API_URL` hook · `WEB_RESEARCH_MARKET` default `cn`
 - Completed Research hub CNC + pulse keywords (2026-07-22): `{WIKI_VAULT}/projects/trends/work/2026-07-22-research-hub-cnc-pulse-keywords/` · local tip `c519b6e4` (not pushed)
@@ -28,6 +29,48 @@
 - Workspace portability P2–P4 (human-only, do not auto-claim): `{WIKI_VAULT}/projects/trends/work/2026-07-17-workspace-portability-p2-p4-human-only/`
 - Prod deferred (do not local-claim): `{WIKI_VAULT}/projects/trends/work/2026-06-18-prod-unpin-auth-readiness/`
 - Completed seats/onboarding (2026-07-16): `{WIKI_VAULT}/projects/trends/work/2026-07-16-admin-user-workspace-onboarding/`
+
+## Test/CI Conventions (loop-class regressions — do not reintroduce)
+
+CI Tests workflow stalled for hours in 2026-07 ("Maximum update depth exceeded"
+infinite loops + hangs). The following conventions are hard-won; the guards are
+enforced by tests/CI:
+
+- **React 19 is pinned at the repo root** (root devDeps `react`/`react-dom`
+  `^19`). `apps/web/vitest.config.ts` aliases every react import to the ROOT
+  copy so tests and @testing-library/react share one reconciler; a stale root
+  hoist (July-2026 root cause: a stale lockfile hoisted React 18 to root while
+  the bun tree had 19) silently splits the suite across two React majors in
+  one jsdom process — divergent act()/effect behavior, races, stalls. Note the
+  update-depth guard code is identical in React 18/19; the failure was the
+  mixed-reconciler split, not React 18 being loop-prone. `src/test/setup.ts`
+  hard-fails at test start if resolved React is not 19.x. Never remove the
+  root pin; never let `package-lock.json` drift out of the tree (it is
+  committed and CI-installs it).
+- **Keep `t` in callback deps — `t` is stable.** react-i18next memoizes `t`
+  (stable identity across renders; changes only on a language switch), and the
+  test mocks below return a module-scope `t`, so `useCallback(..., [t])` is
+  stable and mount effects run once. Do NOT omit `t` from deps to "fix" loops:
+  it stalls error strings in the old language after a runtime language switch.
+  If a loop appears, the cause is an unstable mock or an unstable non-`t` dep,
+  not `t`.
+- **react-i18next test mocks must return a module-scope `t`.** An inline
+  `t: (key) => ...` arrow inside a `vi.mock('react-i18next', ...)` factory
+  creates a fresh `t` every render, destabilizing every `useCallback([..., t])`
+  in the tree. Hoist it: `const mockT = (key, opts) => ...` at module scope,
+  then `t: mockT`. `src/test/setup.ts` provides a shared default.
+- **Loop watchdog (smoke signal):** `apps/web/vitest.config.ts` `onConsoleLog`
+  throws when a worker logs "Maximum update depth exceeded" — the throw
+  surfaces in the main process as an unhandled rejection and the run exits 1,
+  instead of streaming warnings until the 30-minute CI timeout. It does NOT
+  fail the offending test and does NOT interrupt a worker stuck in a loop; the
+  stable-mock-`t` convention above is the real protection.
+- **Node 22 / CI parity:** `.nvmrc` pins node 22; both GitHub workflows read
+  it via `node-version-file` so it is the single source of truth. Before
+  pushing, run `make ci-local` (node-major check + i18n + agent policy +
+  `CI=true make check-build` + `make test-coverage`) — it reproduces the CI
+  gates locally. `NODE_VERSION_STRICT=1` upgrades the node-major mismatch to a
+  hard failure.
 
 <!-- AGENT_POLICY:BEGIN -->
 <!--

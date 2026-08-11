@@ -12,8 +12,8 @@ import { Input } from '@/components/ui/input'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { SystemSummary } from '@/pages/system-settings/SystemSummary'
 import { reportUiError } from '@/lib/ui-error-reporting'
+import { fetchExtensionMetaJson } from '@/lib/external-fetch'
 
-const EXTENSION_META_URL = '/extension/extension-meta.json'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
 
 type ExtensionMeta = { version: string }
@@ -30,9 +30,7 @@ function useExtensionVersion() {
     let cancelled = false
     const load = async () => {
       try {
-        const response = await fetch(EXTENSION_META_URL)
-        if (!response.ok) return
-        const payload: unknown = await response.json()
+        const payload: unknown = await fetchExtensionMetaJson()
         if (!cancelled && isExtensionMeta(payload)) {
           setVersion(payload.version)
         }
@@ -171,7 +169,7 @@ function IndustryResearchQueueCard({ requestJson }: { requestJson: (path: string
 
 export function SystemSettingsOperationsPage() {
   const { t } = useTranslation()
-  const { apiBaseUrl, requestJson } = useSettingsRequestJson()
+  const { requestJson } = useSettingsRequestJson()
   const dispatchCollection = useMutation(api.resume_tasks.dispatch)
   const extensionVersion = useExtensionVersion()
 
@@ -217,7 +215,7 @@ export function SystemSettingsOperationsPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <SystemSummary />
-        <SchedulerStatus apiBaseUrl={apiBaseUrl} />
+        <SchedulerStatus />
       </div>
 
       {extensionVersion && (

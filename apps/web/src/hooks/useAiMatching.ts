@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { rawApiClient } from '@/lib/api-helpers'
+import { postMatchStream } from '@/lib/raw-endpoints'
 import type { MatchStats, MatchingResult } from '@/types/resume'
 
 export type MatchMode = 'rules_only' | 'hybrid' | 'ai_only'
@@ -35,9 +36,6 @@ type StreamRulesPayload = {
 type StreamDonePayload = {
   stats?: MatchStats
 }
-
-const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
-const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '')
 
 function mergeResult(results: MatchingResult[], incoming: MatchingResult): MatchingResult[] {
   const idx = results.findIndex((item) => item.resumeId === incoming.resumeId)
@@ -99,14 +97,7 @@ export function useAiMatching() {
   const abortRef = useRef<AbortController | null>(null)
 
   const consumeMatchStream = useCallback(async (payload: MatchRequest, signal?: AbortSignal) => {
-    const response = await fetch(`${baseUrl}/api/resumes/match-stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal,
-    })
+    const response = await postMatchStream(payload, signal)
 
     if (!response.ok || !response.body) {
       throw new Error(`Failed to open stream (${response.status})`)

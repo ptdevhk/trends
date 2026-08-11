@@ -8,11 +8,12 @@ from apps.worker.industry_evidence_research import (
 )
 from apps.worker.web_research.classify import (
     classify_source,
+    distinctive_employer_tokens,
     excerpt_proves_employer,
     looks_like_homepage_title,
 )
 from apps.worker.web_research.config import WebResearchConfig
-from apps.worker.web_research.search import SearchProvider
+from apps.worker.web_research.search import NewsNowSearchProvider, SearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,30 @@ def _employer_tokens(employer_surface: str) -> set[str]:
         t for t in re.findall(r"[a-z0-9一-鿿]+", employer_surface.casefold())
         if len(t) >= 3 and t not in stop
     }
+
+
+# CJK equivalents of the ASCII legal-form/generic stops ("Sdn Bhd Ltd",
+# "company", "group", "tech", ...) for hotlist matching.
+_HOTLIST_STOP_TOKENS = frozenset(
+    {"公司", "有限", "股份", "集团", "科技", "控股", "实业"}
+)
+
+
+def _hotlist_employer_tokens(employer_surface: str) -> set[str]:
+    """CJK-aware distinctive tokens for hotlist matching.
+
+    classify.distinctive_employer_tokens is ASCII-only; CN employer names
+    (the product-core market) need the CJK-aware tokenizer from this module.
+    """
+    base = _employer_tokens(employer_surface)
+    if not base:
+        return set()
+    tokens = distinctive_employer_tokens(employer_surface)
+    tokens.update(
+        token for token in base
+        if not token.isascii() and token not in _HOTLIST_STOP_TOKENS
+    )
+    return tokens
 
 
 def _hit_mentions_employer(hit: Any, tokens: set[str]) -> bool:
@@ -110,6 +135,13 @@ class DiscoveryJob:
         if not employer or not self.config.enabled:
             return {"status": "needs_more_evidence", "sources": []}
 
+        # P0.5: consult the once-per-sweep NewsNow hotlist snapshot first.
+        # A distinctive-token match short-circuits the per-proposal search
+        # chain; no match falls through to the existing per-proposal path.
+        hotlist_candidates = self._hotlist_candidates_for_employer(employer)
+        if hotlist_candidates:
+            return self._finalize_candidates(proposal, employer, hotlist_candidates)
+
         tokens = _employer_tokens(employer)
         market = getattr(self.config, "market", "my")
         seen: set[str] = set()
@@ -142,6 +174,14 @@ class DiscoveryJob:
                     candidate["expectedExcerpt"] = hit.discovery_snippet
                 raw_candidates.append(candidate)
 
+        return self._finalize_candidates(proposal, employer, raw_candidates)
+
+    def _finalize_candidates(
+        self,
+        proposal: Dict[str, Any],
+        employer: str,
+        raw_candidates: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         if not raw_candidates:
             return {"status": "needs_more_evidence", "sources": []}
 
@@ -175,3 +215,46 @@ class DiscoveryJob:
             **({"suggestedIndustryClass": result["suggestedIndustryClass"]}
                if result.get("suggestedIndustryClass") else {}),
         }
+
+    def _newsnow_provider(self) -> Optional[NewsNowSearchProvider]:
+        for provider in self.search_chain:
+            if isinstance(provider, NewsNowSearchProvider):
+                return provider
+        return None
+
+    def _hotlist_candidates_for_employer(
+        self, employer: str
+    ) -> List[Dict[str, Any]]:
+        """Distinctive-token matches from the once-per-sweep hotlist snapshot.
+
+        Empty list when the chain has no NewsNow provider or nothing matched;
+        the caller then falls through to the per-proposal search chain.
+        Matched items become excerpt-provided candidates (the hotlist
+        headline is the evidence excerpt), so no extra page fetch is needed
+        for a headline.
+        """
+        provider = self._newsnow_provider()
+        if provider is None:
+            return []
+        tokens = _hotlist_employer_tokens(employer)
+        if not tokens:
+            return []
+        candidates: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in provider.hotlist_items():
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+            if not title or not url or url in seen:
+                continue
+            if not any(token in title.casefold() for token in tokens):
+                continue
+            seen.add(url)
+            tier = classify_source(url, employer)
+            candidates.append({
+                "url": url,
+                "title": title,
+                "expectedExcerpt": title,
+                "sourceType": tier["sourceType"],
+                "trustTier": tier["trustTier"],
+            })
+        return candidates

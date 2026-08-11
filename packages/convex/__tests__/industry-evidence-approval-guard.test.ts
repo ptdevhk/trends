@@ -135,6 +135,79 @@ describe("approveIndustryProposal evidence-source guard", () => {
       approvedRevisionId: "revision-1",
     });
   });
+
+  it("persists a batch attestation (batchId) on the immutable revision", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs({
+        reviewAttestation: {
+          schemaVersion: "industry-review-attestation.v1" as const,
+          inputFingerprint: "convex-test-fingerprint",
+          decisionMode: "risk_override" as const,
+          acknowledgedRiskFlags: ["weak_industry_signal"],
+          cncEvidenceAcknowledged: true,
+          acknowledgementReason: "Batch approval reviewed by an attended reviewer.",
+          batchId: "industry-batch-test-1234",
+        },
+      }),
+    );
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0].reviewAttestation).toMatchObject({
+      batchId: "industry-batch-test-1234",
+      decisionMode: "risk_override",
+      acknowledgedRiskFlags: ["weak_industry_signal"],
+    });
+  });
+
+  it("records the acting workspace role on the stored verdict revision", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs({ reviewerRole: "reviewer" }),
+    );
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0].reviewedBy).toBe("reviewer@example.com");
+    expect(revisions[0].reviewedByRole).toBe("reviewer");
+  });
 });
 
 describe("listVerifiedIndustryEmployerAliases", () => {

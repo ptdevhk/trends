@@ -32,7 +32,7 @@ describe("resolveResumeScanBatchSize", () => {
     });
 
     it("clamps oversized scan batches to the safe maximum", () => {
-        expect(resolveResumeScanBatchSize(5_000)).toBe(50);
+        expect(resolveResumeScanBatchSize(5_000)).toBe(100);
     });
 
     it("clamps to minimum of 1", () => {

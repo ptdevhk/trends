@@ -159,7 +159,14 @@ async function main(): Promise<number> {
       scanLimit: String(args.scanLimit),
       ...(args.skipGolden ? { skipGolden: "true" } : {}),
     });
-    const res = await fetch(`${base}/api/resumes/search-freshness?${qs}`, { headers });
+    // The lag scan can take 300–400 s on a prod-restored Convex SQLite.
+    // Without an explicit client timeout Node's ~300 s stack ceiling kills
+    // the fetch mid-scan ("fetch failed"). Wait up to 600 s so the preferred
+    // path completes instead of falling back to the slower dry-run path.
+    const res = await fetch(`${base}/api/resumes/search-freshness?${qs}`, {
+      headers,
+      signal: AbortSignal.timeout(600_000),
+    });
     if (res.ok) {
       const body = await res.json() as {
         success?: boolean;

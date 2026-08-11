@@ -120,7 +120,7 @@ describe('SnippetCardExpanded', () => {
       />,
     )
 
-    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
     expect(screen.getByText('Acme CNC')).toBeInTheDocument()
   })
 
@@ -155,8 +155,13 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getAllByText('related exp')).toHaveLength(2)
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('最近工作')).toBeInTheDocument()
-    expect(screen.getByText('FANUC · Sales Engineer')).toBeInTheDocument()
-    expect(screen.getByText('DMG MORI · Account Manager')).toBeInTheDocument()
+    // Work-history headings now render company and role as distinct parts.
+    // FANUC also appears as an AI highlight and a company-hit badge; DMG MORI
+    // also appears as a company-hit badge.
+    expect(screen.getAllByText('FANUC')).toHaveLength(3)
+    expect(screen.getByText('Sales Engineer')).toBeInTheDocument()
+    expect(screen.getAllByText('DMG MORI')).toHaveLength(2)
+    expect(screen.getByText('Account Manager')).toBeInTheDocument()
     expect(screen.getByText('Built CNC pipeline')).toBeInTheDocument()
     expect(screen.getByText('Expanded distributor network')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
@@ -165,8 +170,6 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()
     expect(screen.getByText('Robotics')).toBeInTheDocument()
-    expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
-    expect(screen.getByText('DMG MORI')).toBeInTheDocument()
     expect(screen.getByText('Senior')).toBeInTheDocument()
 
     const link = screen.getByRole('link', { name: /开源档案/i })
@@ -193,7 +196,8 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('California Clothing (Guess Philippines) · Sales Representative')).toBeInTheDocument()
+    expect(screen.getByText('California Clothing (Guess Philippines)')).toBeInTheDocument()
+    expect(screen.getByText('Sales Representative')).toBeInTheDocument()
     expect(screen.getByText(/Nov 2012 - Dec 2014 \(2 years 2 months\)/i)).toBeInTheDocument()
     expect(
       screen.getByText(/Assisted and encouraged customers in selecting and purchasing required products/i),
@@ -269,10 +273,14 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
-    expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
-    expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
-    expect(screen.queryByText('Older Co · Older Role')).not.toBeInTheDocument()
+    expect(screen.getByText('Current Co')).toBeInTheDocument()
+    expect(screen.getByText('Current Role')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co')).toBeInTheDocument()
+    expect(screen.getByText('Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co')).toBeInTheDocument()
+    expect(screen.getByText('Middle Role')).toBeInTheDocument()
+    expect(screen.queryByText('Older Co')).not.toBeInTheDocument()
+    expect(screen.queryByText('Older Role')).not.toBeInTheDocument()
   })
 
   it('shows AI pending text instead of rule scoring when AI mode is enabled and analysis is missing', () => {

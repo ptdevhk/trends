@@ -3,14 +3,16 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CompanyPolicyHiddenToggle } from './CompanyPolicyHiddenToggle'
 
+const mockT = (_key: string, options?: { defaultValue?: string; count?: number }) => {
+  if (options?.defaultValue?.includes('{{count}}') && typeof options.count === 'number') {
+    return options.defaultValue.replace('{{count}}', String(options.count))
+  }
+  return options?.defaultValue ?? _key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string; count?: number }) => {
-      if (options?.defaultValue?.includes('{{count}}') && typeof options.count === 'number') {
-        return options.defaultValue.replace('{{count}}', String(options.count))
-      }
-      return options?.defaultValue ?? _key
-    },
+    t: mockT,
   }),
 }))
 

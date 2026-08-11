@@ -6,22 +6,24 @@ import type { ResumeItem } from '@/hooks/useResumes'
 
 const useAuthMock = vi.hoisted(() => vi.fn())
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 
@@ -97,7 +99,7 @@ describe('ResumeCard brand-hit badges', () => {
       />
     )
 
-    expect(screen.getByText('CNC 行业验证')).toBeInTheDocument()
+    expect(screen.getByText(/CNC (Verified|行业验证)/)).toBeInTheDocument()
     expect(screen.getByText('Acme CNC')).toBeInTheDocument()
     expect(screen.queryByText('Candidate Company')).not.toBeInTheDocument()
   })
@@ -192,9 +194,19 @@ describe('ResumeCard brand-hit badges', () => {
       />
     )
 
-    expect(screen.getByText('2024-02 ~ 至今 Current Co Current Role')).toBeInTheDocument()
-    expect(screen.getByText('2023-01 ~ 2024-01 Recent Co Recent Role')).toBeInTheDocument()
-    expect(screen.getByText('2021-01 ~ 2022-01 Middle Co Middle Role')).toBeInTheDocument()
+    // Work history rows now render company, role, and date range as distinct parts
+    // so users can tell the company apart from the position at a glance.
+    expect(screen.getByText('Current Co')).toBeInTheDocument()
+    expect(screen.getByText('Current Role')).toBeInTheDocument()
+    expect(screen.getByText('2024-02 ~ 至今')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co')).toBeInTheDocument()
+    expect(screen.getByText('Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('2023-01 ~ 2024-01')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co')).toBeInTheDocument()
+    expect(screen.getByText('Middle Role')).toBeInTheDocument()
+    expect(screen.getByText('2021-01 ~ 2022-01')).toBeInTheDocument()
+    expect(screen.queryByText('Oldest Co')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Role')).not.toBeInTheDocument()
     expect(screen.queryByText('2018-01 ~ 2019-01 Oldest Co Old Role')).not.toBeInTheDocument()
   })
 
@@ -482,5 +494,54 @@ describe('ResumeCard brand-hit badges', () => {
 
     expect(screen.queryByText('销售4年 (Industry verified)')).not.toBeInTheDocument()
     expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
+  })
+
+  it('shows the legacy rules badge for an active-workspace reviewer', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[{
+          type: 'sales',
+          matchedSignals: ['CNC Sales'],
+          signalCount: 1,
+          occurrences: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          industryVerifiedYears: 4,
+          matchedWorkEntries: [{
+            companyName: 'Vision Machine Tools',
+            jobTitle: 'Sales Engineer',
+            years: 4,
+            industryVerified: true,
+            matchedSignals: ['CNC Sales'],
+          }],
+          verifyIn: 'workHistory',
+        }]}
+      />,
+    )
+
+    expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
+  })
+
+  it('hides the legacy rules badge from plain members', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'user' }],
+    })
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[{ type: 'sales', matchedSignals: ['CNC Sales'], signalCount: 1, occurrences: 1, years: 4, verifyIn: 'workHistory' }]}
+      />,
+    )
+
+    expect(screen.queryByText('Legacy rules signal')).not.toBeInTheDocument()
   })
 })

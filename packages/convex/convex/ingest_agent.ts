@@ -468,6 +468,35 @@ export const resolveExactReingestTargets = action({
   },
 });
 
+/**
+ * Shared exact-reingest target validation: each target must exist, be
+ * unarchived, and belong to the workspace. Used by scheduleExactReingest
+ * (mutation, ctx.db reads) and runExactReingestSync (action, internal-query
+ * reads) — the fetch mechanism differs, the contract does not.
+ */
+function validateExactReingestTargets(
+  resumeIds: Id<"resumes">[],
+  resumes: Array<Doc<"resumes"> | null>,
+  workspaceSlug: string,
+): void {
+  for (let index = 0; index < resumeIds.length; index += 1) {
+    const resume = resumes[index];
+    if (!resume) {
+      throw new Error(
+        `Exact re-ingest resume ${String(resumeIds[index])} no longer exists`,
+      );
+    }
+    if (resume.isArchived === true) {
+      throw new Error(`Exact re-ingest resume ${String(resume._id)} is archived`);
+    }
+    if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
+      throw new Error(
+        `Exact re-ingest resume ${String(resume._id)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
+      );
+    }
+  }
+}
+
 export const scheduleExactReingest = mutation({
   args: {
     workspaceSlug: v.string(),
@@ -498,21 +527,7 @@ export const scheduleExactReingest = mutation({
     const resumes: Array<Doc<"resumes"> | null> = await Promise.all(
       resumeIds.map((resumeId) => ctx.db.get(resumeId)),
     );
-
-    for (let index = 0; index < resumeIds.length; index += 1) {
-      const resume = resumes[index];
-      if (!resume) {
-        throw new Error(`Exact re-ingest resume ${String(resumeIds[index])} no longer exists`);
-      }
-      if (resume.isArchived === true) {
-        throw new Error(`Exact re-ingest resume ${String(resume._id)} is archived`);
-      }
-      if (!belongsToWorkspace(resume.workspaceSlug, workspaceSlug)) {
-        throw new Error(
-          `Exact re-ingest resume ${String(resume._id)} belongs to workspace ${resume.workspaceSlug ?? "dev"}, not ${workspaceSlug}`,
-        );
-      }
-    }
+    validateExactReingestTargets(resumeIds, resumes, workspaceSlug);
 
     const dispatchedAt = Date.now();
     let batches = 0;
@@ -530,6 +545,62 @@ export const scheduleExactReingest = mutation({
       batches,
       resumeIds,
       dispatchedAt,
+    };
+  },
+});
+
+/**
+ * Synchronous (scheduler-free) variant of scheduleExactReingest for
+ * environments where scheduler jobs never execute (preview). Mirrors the same
+ * validation (non-empty, capped, deduped, exists, not archived, workspace
+ * match) and then runs processNewResumes inline via runAction, returning the
+ * processing outcome directly instead of scheduling batches.
+ */
+export const runExactReingestSync = action({
+  args: {
+    writeSecret: v.optional(v.string()),
+    workspaceSlug: v.string(),
+    resumeIds: v.array(v.id("resumes")),
+  },
+  handler: async (ctx, args): Promise<{
+    processed: number;
+    error: string | null;
+    requested: number;
+  }> => {
+    requireExactReingestWriteSecret(args.writeSecret);
+    if (args.resumeIds.length === 0) {
+      throw new Error("Exact re-ingest requires at least one resolved resume ID");
+    }
+    if (args.resumeIds.length > MAX_EXACT_REINGEST_TARGETS) {
+      throw new Error(`Exact re-ingest supports at most ${MAX_EXACT_REINGEST_TARGETS} targets`);
+    }
+
+    const workspaceSlug = args.workspaceSlug.trim();
+    if (!workspaceSlug) {
+      throw new Error("Exact re-ingest requires a workspaceSlug");
+    }
+    const resumeIds = Array.from(new Set(args.resumeIds));
+    // Action contexts have no direct db reader: fetch via internal query and
+    // diff against the requested set to detect missing resumes.
+    const fetched = await ctx.runQuery(internal.resumes_search.getResumesByIds, {
+      resumeIds,
+    });
+    const fetchedById = new Map(
+      fetched.map((resume) => [String(resume._id), resume]),
+    );
+    validateExactReingestTargets(
+      resumeIds,
+      resumeIds.map((resumeId) => fetchedById.get(String(resumeId)) ?? null),
+      workspaceSlug,
+    );
+
+    const result = await ctx.runAction(internal.ingest_agent.processNewResumes, {
+      resumeIds,
+    });
+    return {
+      processed: result.processed,
+      error: result.error,
+      requested: resumeIds.length,
     };
   },
 });
@@ -872,6 +943,8 @@ export type ReIngestStaleResult = {
   cursor: string | null;
   mode: StaleSelectionMode;
   dryRun: boolean;
+  /** Resume rows actually scanned in this invocation (page rows fetched, not the requested limit). */
+  scannedRows: number;
   /** Rows seen in this scan that are skills-stale (may exceed scheduled when dry-run/count capped). */
   skillsStaleCount: number;
   /** Rows seen in this scan that are compute-stale. */
@@ -926,11 +999,12 @@ export const reIngestStaleResumes = internalAction({
         ? versionPayload.ingestComputeEpoch
         : CURRENT_INGEST_COMPUTE_EPOCH;
 
-    const batchSize = 50;
+    const batchSize = 100;
     let cursor = args.cursor;
     let nextCursor: string | null = null;
     const resumeIds: Id<"resumes">[] = [];
     let batches = 0;
+    let scannedRows = 0;
     let skillsStaleCount = 0;
     let computeStaleCount = 0;
     let matchedCount = 0;
@@ -949,6 +1023,7 @@ export const reIngestStaleResumes = internalAction({
         throw new Error("Resume scan returned an unfinished page without a continuation cursor");
       }
       nextCursor = batch.isDone ? null : batch.continueCursor;
+      scannedRows += batch.page.length;
 
       for (const resume of batch.page) {
         // Skills path historically required ingestData present.
@@ -992,6 +1067,7 @@ export const reIngestStaleResumes = internalAction({
         cursor: nextCursor,
         mode,
         dryRun,
+        scannedRows,
         skillsStaleCount,
         computeStaleCount,
         matchedCount: Math.min(matchedCount, limit),
@@ -1014,6 +1090,7 @@ export const reIngestStaleResumes = internalAction({
       cursor: nextCursor,
       mode,
       dryRun: false,
+      scannedRows,
       skillsStaleCount,
       computeStaleCount,
       matchedCount: resumeIds.length,

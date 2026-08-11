@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import type { components } from '@/lib/api-types'
+import { rawApiClient } from '@/lib/api-helpers'
 import { SearchBar } from '@/components/SearchBar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -189,18 +190,13 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState<string | null>(null)
 
-  const apiBaseUrl = useMemo(() => {
-    const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
-    return rawBaseUrl.replace(/\/api\/?$/, '')
-  }, [])
-
   const fetchJson = useCallback(async <T,>(path: string): Promise<T> => {
-    const response = await fetch(`${apiBaseUrl}${path}`)
-    if (!response.ok) {
+    const { data, response } = await rawApiClient.GET<T>(path)
+    if (response && (response.status ?? 0) >= 300) {
       throw new Error(`HTTP ${response.status}`)
     }
-    return response.json() as Promise<T>
-  }, [apiBaseUrl])
+    return data as T
+  }, [])
 
   const downloadText = useCallback((filename: string, content: string) => {
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })

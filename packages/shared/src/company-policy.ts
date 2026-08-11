@@ -143,6 +143,87 @@ export type CompanyPolicyIndexEntry = {
   preset: CompanyPolicyPreset;
 };
 
+type CompanyAliasCandidateSource = {
+  companyKey: string;
+  displayName: string;
+  aliases?: Array<{ aliasDisplay?: string; aliasNormalized?: string } | string>;
+  nameCn?: string;
+  nameEn?: string;
+};
+
+/**
+ * Collect the normalized-alias candidates for one company: display names,
+ * Chinese/English names, the canonical key, and any registered aliases.
+ * Shared by the policy alias index and the policy-free backfill alias index.
+ */
+export function collectCompanyAliasCandidates(
+  company: CompanyAliasCandidateSource,
+): Array<string | undefined> {
+  return [
+    company.displayName,
+    company.nameCn,
+    company.nameEn,
+    company.companyKey,
+    ...(company.aliases ?? []).map((alias) =>
+      typeof alias === "string" ? alias : alias.aliasDisplay ?? alias.aliasNormalized ?? "",
+    ),
+  ];
+}
+
+/**
+ * Build a normalized-alias → companyKey index without policy coupling.
+ * Used by the Convex company-link backfill to match resume employer
+ * surfaces against a company's display names and aliases.
+ */
+export function buildCompanyAliasIndex(
+  companies: CompanyAliasCandidateSource[],
+): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const company of companies) {
+    for (const candidate of collectCompanyAliasCandidates(company)) {
+      const normalized = normalizeCompanyAlias(candidate ?? "");
+      if (!normalized || index.has(normalized)) {
+        continue;
+      }
+      index.set(normalized, company.companyKey);
+    }
+  }
+  return index;
+}
+
+/**
+ * Resolve an employer surface to a companyKey: exact normalized match first,
+ * then a soft contains match for real-world employer strings that embed a
+ * registered alias (e.g. "东莞市宝力机械科技有限公司" contains "宝力机械").
+ * Prefers the longest matching alias; aliases shorter than 4 characters are
+ * never soft-matched to avoid false positives on generic fragments.
+ */
+export function resolveCompanyAlias(
+  aliasIndex: Map<string, string>,
+  employer: string,
+): string | null {
+  const normalized = normalizeCompanyAlias(employer);
+  if (!normalized) {
+    return null;
+  }
+  const exact = aliasIndex.get(normalized);
+  if (exact) {
+    return exact;
+  }
+  let best: { alias: string; companyKey: string } | null = null;
+  for (const [alias, companyKey] of aliasIndex.entries()) {
+    if (alias.length < 4) {
+      continue;
+    }
+    if (normalized.includes(alias) || (normalized.length >= 4 && alias.includes(normalized))) {
+      if (!best || alias.length > best.alias.length) {
+        best = { alias, companyKey };
+      }
+    }
+  }
+  return best?.companyKey ?? null;
+}
+
 /** Map normalized alias -> policy index entry for O(1) employer matching. */
 export function buildCompanyPolicyAliasIndex(
   companies: Array<{
@@ -151,12 +232,17 @@ export function buildCompanyPolicyAliasIndex(
     aliases?: Array<{ aliasDisplay?: string; aliasNormalized?: string } | string>;
     nameCn?: string;
     nameEn?: string;
+    /** Soft-deleted (archived) companies never match; archive timestamp. */
+    archivedAt?: number;
   }>,
   policiesByCompanyKey: Map<string, CompanyPolicyEffects>,
 ): Map<string, CompanyPolicyIndexEntry> {
   const index = new Map<string, CompanyPolicyIndexEntry>();
 
   for (const company of companies) {
+    if (company.archivedAt) {
+      continue;
+    }
     const effects = policiesByCompanyKey.get(company.companyKey);
     if (!effects) {
       continue;
@@ -171,16 +257,7 @@ export function buildCompanyPolicyAliasIndex(
       effects,
       preset,
     };
-    const candidates = [
-      company.displayName,
-      company.nameCn,
-      company.nameEn,
-      company.companyKey,
-      ...(company.aliases ?? []).map((alias) =>
-        typeof alias === "string" ? alias : alias.aliasDisplay ?? alias.aliasNormalized ?? "",
-      ),
-    ];
-    for (const candidate of candidates) {
+    for (const candidate of collectCompanyAliasCandidates(company)) {
       const normalized = normalizeCompanyAlias(candidate ?? "");
       if (!normalized || index.has(normalized)) {
         continue;
@@ -235,28 +312,14 @@ function resolveAliasEntry(
   employer: string,
   aliasIndex: Map<string, CompanyPolicyIndexEntry>,
 ): CompanyPolicyIndexEntry | null {
-  const normalized = normalizeCompanyAlias(employer);
-  if (!normalized) {
-    return null;
-  }
-  const exact = aliasIndex.get(normalized);
-  if (exact) {
-    return exact;
-  }
-  // Soft contains match for real-world employer strings that embed a seeded alias
-  // (e.g. "东莞市宝力机械科技有限公司" contains "宝力机械"). Prefer longest alias.
-  let best: { alias: string; entry: CompanyPolicyIndexEntry } | null = null;
+  const aliasToCompanyKey = new Map<string, string>();
+  const entryByCompanyKey = new Map<string, CompanyPolicyIndexEntry>();
   for (const [alias, entry] of aliasIndex.entries()) {
-    if (alias.length < 4) {
-      continue;
-    }
-    if (normalized.includes(alias) || (normalized.length >= 4 && alias.includes(normalized))) {
-      if (!best || alias.length > best.alias.length) {
-        best = { alias, entry };
-      }
-    }
+    aliasToCompanyKey.set(alias, entry.companyKey);
+    entryByCompanyKey.set(entry.companyKey, entry);
   }
-  return best?.entry ?? null;
+  const companyKey = resolveCompanyAlias(aliasToCompanyKey, employer);
+  return companyKey ? entryByCompanyKey.get(companyKey) ?? null : null;
 }
 
 export function matchCompanyPoliciesForEmployers(

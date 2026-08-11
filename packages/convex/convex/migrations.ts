@@ -579,6 +579,7 @@ type ReIngestStaleSkillsVersionResult = {
     cursor: string | null;
     mode: string;
     dryRun: boolean;
+    scannedRows: number;
     skillsStaleCount: number;
     computeStaleCount: number;
     matchedCount: number;

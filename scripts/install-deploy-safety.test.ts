@@ -13,6 +13,7 @@ const convexPackageJson = JSON.parse(
 ) as { scripts: Record<string, string | undefined> };
 const setupPreviewScript = readFileSync(new URL("../deploy/setup-preview.sh", import.meta.url), "utf8");
 const restorePreviewScript = readFileSync(new URL("../deploy/restore-preview-from-prod.sh", import.meta.url), "utf8");
+const convexExportFixLibrary = readFileSync(new URL("../deploy/lib-convex-export-fix.sh", import.meta.url), "utf8");
 const restorePreviewFullStateScript = readFileSync(new URL("../deploy/restore-preview-full-state-from-prod.sh", import.meta.url), "utf8");
 const syncPreviewConvexEnvScript = readFileSync(new URL("../deploy/sync-preview-convex-env.sh", import.meta.url), "utf8");
 const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", import.meta.url), "utf8");
@@ -338,16 +339,25 @@ describe("non-Docker Convex startup safety", () => {
 
 describe("preview restore export compatibility", () => {
   it("strips removed screening-session fields before importing production data", () => {
-    expect(restorePreviewScript).toContain("showBlocked");
-    expect(restorePreviewScript).toContain("Stripped showBlocked");
+    // Stripping lives in the shared export-fix lib (sourced by restore + dev-sync).
+    expect(convexExportFixLibrary).toContain("showBlocked");
+    expect(convexExportFixLibrary).toContain("Stripped showBlocked");
+    expect(restorePreviewScript).toContain('source "$SCRIPT_DIR/lib-convex-export-fix.sh"');
+    expect(restorePreviewScript).toContain("fix_convex_export");
+    expect(restorePreviewScript).toContain("Strip schema-incompatible fields from export");
   });
 
   it("materializes missing preview schema tables as empty before replace-all import", () => {
-    expect(restorePreviewScript).toContain("packages/convex/convex/schema.ts");
-    expect(restorePreviewScript).toContain("defineTable");
-    expect(restorePreviewScript).toContain("generated_schema.jsonl");
-    expect(restorePreviewScript).toContain("documents.jsonl");
-    expect(restorePreviewScript).toContain("Materialized missing schema tables as empty");
+    expect(convexExportFixLibrary).toContain("defineTable");
+    expect(convexExportFixLibrary).toContain("generated_schema.jsonl");
+    expect(convexExportFixLibrary).toContain("documents.jsonl");
+    expect(convexExportFixLibrary).toContain("Materialized missing schema tables as empty");
+    // restore-preview-from-prod passes the preview schema to the lib fixer
+    // and imports the fixed export (fix must run before replace-all import).
+    expect(restorePreviewScript).toContain("$PREVIEW_DIR/packages/convex/convex/schema.ts");
+    expect(restorePreviewScript.indexOf("fix_convex_export")).toBeLessThan(
+      restorePreviewScript.indexOf("convex import --replace-all"),
+    );
   });
 
   it("supports optional digest backfill in bounded batches after replace-all import", () => {
@@ -564,6 +574,52 @@ describe("preview release helpers", () => {
     expect(upgradeScript).toContain("Production was not modified");
   });
 
+  it("preview-upgrade rebuilds digests when compute epoch changed since restore", () => {
+    expect(upgradeScript).toContain("Digest rebuild after code upgrade");
+    expect(upgradeScript).toContain("backfillResumeDigests");
+    expect(upgradeScript).toContain("CURRENT_INGEST_COMPUTE_EPOCH");
+    expect(upgradeScript).toContain(".digest-restore-epoch");
+    expect(upgradeScript).toContain("SKIP_DIGEST_REBUILD");
+    expect(upgradeScript).toContain("DIGEST_REBUILD_BATCH_SIZE");
+  });
+
+  it("preview-upgrade does not wipe the digest-restore-epoch marker during tree sync", () => {
+    // The marker is local-only (written by restore-preview-from-prod.sh). The
+    // mirror-to-preview rsync uses --delete, so without an explicit exclude the
+    // marker is removed on every upgrade and the digest-rebuild-on-epoch-change
+    // drift check below can never trigger. Regression: marker vanished in the
+    // ebe46ae7 upgrade (log showed "restore-epoch=none").
+    const deleteSyncStart = upgradeScript.indexOf("rsync -a --delete");
+    expect(deleteSyncStart).toBeGreaterThan(-1);
+    const deleteSyncEnd = upgradeScript.indexOf('"$REPO_MIRROR/" "$PREVIEW_DIR/"', deleteSyncStart);
+    expect(deleteSyncEnd).toBeGreaterThan(deleteSyncStart);
+    const deleteSyncBlock = upgradeScript.slice(deleteSyncStart, deleteSyncEnd);
+    expect(deleteSyncBlock).toContain("--exclude '.digest-restore-epoch'");
+    // The epoch check must read the marker the sync preserved.
+    expect(upgradeScript).toMatch(/RESTORE_EPOCH_MARKER=.*\.digest-restore-epoch/);
+  });
+
+  it("search-freshness-gate uses capacity-safe reingest defaults", () => {
+    const gateScript = readFileSync(new URL("../deploy/search-freshness-gate.sh", import.meta.url), "utf8");
+    expect(gateScript).toContain("REINGEST_BATCH");
+    expect(gateScript).toContain("REINGEST_SLEEP_SECS");
+    // Capacity-safe defaults: batch ≤25, sleep ≥8
+    expect(gateScript).toMatch(/REINGEST_BATCH.*\b25\b/);
+    expect(gateScript).toMatch(/REINGEST_SLEEP_SECS.*\b8\b/);
+    // CLI flags for overrides
+    expect(gateScript).toContain("--reingest-batch");
+    expect(gateScript).toContain("--reingest-sleep");
+    // Cursor-paced loop with sleep between calls
+    expect(gateScript).toContain("time.sleep");
+    expect(gateScript).toContain("cursor");
+  });
+
+  it("restore-preview-from-prod supports if-epoch-changed digest mode", () => {
+    expect(restorePreviewScript).toContain("if-epoch-changed");
+    expect(restorePreviewScript).toContain(".digest-restore-epoch");
+    expect(restorePreviewScript).toContain("DIGEST_BACKFILL_MODE:-skip");
+  });
+
   it("isolate script clears telegram and forces preview URLs", () => {
     expect(isolateScript).toContain("TELEGRAM_BOT_TOKEN");
     expect(isolateScript).toContain("AUTH_ALLOWED_ORIGINS");
@@ -618,5 +674,17 @@ describe("preview Convex container", () => {
     expect(previewConvexStartScript).toContain("ca-certificates");
     expect(previewConvexStartScript).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
     expect(previewCompose).toContain("SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt");
+  });
+
+  it("sizes preview Convex mem_limit above the observed OOM ceiling for prod-restored data", () => {
+    // Observed (2026-08-05, preview ptcloud): convex-local-backend OOM-killed at
+    // ~8.1 GiB anon-rss against mem_limit 8g while reingesting a prod-restored
+    // 1.5 GiB SQLite (8,958 resumes) — three kills in one hour. Host has ~24 GiB.
+    // The limit must leave margin above the kill ceiling, or every reingest
+    // burst crash-loops the backend (jobs resume after each restart and re-kill).
+    const match = previewCompose.match(/mem_limit:\s*(\d+)g/);
+    expect(match).not.toBeNull();
+    const memLimitGiB = Number(match![1]!);
+    expect(memLimitGiB).toBeGreaterThanOrEqual(12);
   });
 });

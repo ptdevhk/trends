@@ -4,6 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import DebugIngest from './DebugIngest'
 
+const getMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    GET: (...args: unknown[]) => getMock(...args),
+  },
+}))
+
 type BatchResetResult = {
   cleared: number
   hasMore: boolean
@@ -73,9 +81,7 @@ vi.mock('convex/react', () => ({
   },
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
+const mockT = (_key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
       if (typeof options === 'string') {
         return options
       }
@@ -83,7 +89,11 @@ vi.mock('react-i18next', () => ({
         return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => String(options[key] ?? `{{${key}}}`))
       }
       return _key
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 
@@ -123,11 +133,10 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       error: undefined,
     }
-    globalThis.fetch = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, version: 3, ingestComputeEpoch: 1 }),
-    })) as unknown as typeof fetch
+    getMock.mockResolvedValue({
+      data: { success: true, version: 3, ingestComputeEpoch: 1 },
+      response: { ok: true, status: 200 },
+    })
   })
 
   it('renders loaded counts and loads more results when available', async () => {

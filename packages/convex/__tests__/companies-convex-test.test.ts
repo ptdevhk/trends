@@ -129,6 +129,141 @@ describe("companies (convex-test)", () => {
     expect(again.policiesSeeded).toBe(0);
   });
 
+  it("restore-cycle guard: empty revisions → seed → no_hire for both → re-seed appends nothing", async () => {
+    // Models a preview data restore (`convex import --replace-all`): tables
+    // missing from the imported snapshot are materialized EMPTY, so the
+    // workspace blacklist starts unset — exactly the state that made
+    // preview's policies page show "no workspace policy" after the upgrade.
+    const t = createTest();
+    const before = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(before).toEqual([]);
+
+    // The restore path re-asserts the canonical no-hire policies.
+    const seed = await t.mutation(api.companies.seedCanonicalCompanies, {
+      workspaceSlug: "hr",
+      seedNoHireForWorkspace: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "seed",
+    });
+    expect(seed.companiesCreated).toBe(2);
+    expect(seed.policiesSeeded).toBe(2);
+
+    // The settings page lookup (`/hr/settings/policies` → listPoliciesForScope
+    // with scopeId "hr") now resolves both companies to no-hire.
+    const after = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(after.map((policy) => policy.companyKey).sort()).toEqual([
+      "polywell",
+      "pro-technic-machinery",
+    ]);
+    for (const policy of after) {
+      expect(policy.scopeId).toBe("hr");
+      expect(policy.revision).toBe(1);
+      expect(policy.effects?.visibility).toBe("hide");
+      expect(policy.effects?.workflow).toBe("blocked");
+      expect(policy.effects?.rankingEffect).toBe("band_known_bad");
+      expect(policy.effects?.summary).toContain("Seeded no-hire employer");
+    }
+
+    // A repeat restore cycle re-runs the same seed: already no-hire → no new
+    // revision rows (idempotent), so revisions stay at 1.
+    const reseed = await t.mutation(api.companies.seedCanonicalCompanies, {
+      workspaceSlug: "hr",
+      seedNoHireForWorkspace: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "seed",
+    });
+    expect(reseed.policiesSeeded).toBe(0);
+    expect(reseed.policyRevision).toBeNull();
+    const afterReseed = await t.query(api.companies.listPoliciesForScope, {
+      scopeType: "workspace",
+      scopeId: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(afterReseed).toHaveLength(2);
+    expect(afterReseed.every((policy) => policy.revision === 1)).toBe(true);
+  });
+
+  it("archives and restores companies (soft delete)", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+
+    // Active by default: visible in the default list.
+    const before = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    expect(before.map((company) => company.companyKey)).toContain("acme-cnc");
+    expect(before.find((company) => company.companyKey === "acme-cnc")?.archivedAt).toBeUndefined();
+
+    // Archive → hidden from the default list, visible with includeArchived.
+    const archived = await t.mutation(api.companies.setCompanyArchived, {
+      companyKey: "acme-cnc",
+      archived: true,
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+    expect(archived.archived).toBe(true);
+    expect(archived.archivedAt).toBeTypeOf("number");
+
+    const defaultList = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    expect(defaultList.map((company) => company.companyKey)).not.toContain("acme-cnc");
+
+    const withArchived = await t.query(api.companies.list, {
+      includeArchived: true,
+      writeSecret: WRITE_SECRET,
+    });
+    const archivedRow = withArchived.find((company) => company.companyKey === "acme-cnc");
+    expect(archivedRow?.archivedAt).toBeTypeOf("number");
+
+    // Status-filtered listing also hides archived rows.
+    const confirmedOnly = await t.query(api.companies.list, {
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(confirmedOnly.map((company) => company.companyKey)).not.toContain("acme-cnc");
+
+    // Restore → visible again, archivedAt cleared.
+    const restored = await t.mutation(api.companies.setCompanyArchived, {
+      companyKey: "acme-cnc",
+      archived: false,
+      writeSecret: WRITE_SECRET,
+      createdBy: "operator",
+    });
+    expect(restored.archived).toBe(false);
+    expect(restored.archivedAt).toBeNull();
+
+    const after = await t.query(api.companies.list, { writeSecret: WRITE_SECRET });
+    const restoredRow = after.find((company) => company.companyKey === "acme-cnc");
+    expect(restoredRow).toBeDefined();
+    expect(restoredRow?.archivedAt).toBeUndefined();
+
+    await expect(
+      t.mutation(api.companies.setCompanyArchived, {
+        companyKey: "no-such-company",
+        archived: true,
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(/Unknown companyKey/);
+
+    await expect(
+      t.mutation(api.companies.setCompanyArchived, {
+        companyKey: "acme-cnc",
+        archived: true,
+      }),
+    ).rejects.toThrow("Unauthorized Convex write");
+  });
+
   it("appends policy revisions and resolves workspace over global", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {
@@ -642,6 +777,37 @@ describe("companies (convex-test)", () => {
       writeSecret: WRITE_SECRET,
     });
     expect(proposal?.status).toBe("needs_more_evidence");
+  });
+
+  it("accepts a resolution without a review note (bulk reject contract)", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      companyKey: "acme-cnc",
+      triggerReasons: ["recruiter_refresh_request"],
+      priority: 100,
+      writeSecret: WRITE_SECRET,
+    });
+
+    const result = await t.mutation(api.companies.resolveIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      resolution: "rejected",
+      reviewer: "admin@example.com",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result).toEqual({ proposalId: "proposal-bulk-reject", status: "rejected" });
+    const proposal = await t.query(api.companies.getIndustryProposal, {
+      proposalId: "proposal-bulk-reject",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposal?.reviewNote).toBe("");
   });
 
   it("allows worker research to enrich only an open proposal", async () => {

@@ -8,6 +8,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/quiesce.sh"
+# shellcheck source=lib-preview-common.sh
+source "$SCRIPT_DIR/lib-preview-common.sh"
+# shellcheck source=lib-convex-export-fix.sh
+source "$SCRIPT_DIR/lib-convex-export-fix.sh"
 
 TARGET_CONVEX_DIR=/home/ubuntu/trends-preview/packages/convex
 SOURCE_CONVEX_DIR=/opt/trends/packages/convex
@@ -203,64 +207,13 @@ ls -lh "$EXPORT_PATH"
 
 echo ""
 echo "=== Step 1b: Strip schema-incompatible fields from export ==="
-# v0.3.0 dropped screening_sessions.config.filters.showBlocked
-# Production data still has it → import aborts. Strip before import.
-FIX_DIR=$(mktemp -d)
-cd "$FIX_DIR"
-unzip -q "$EXPORT_PATH"
-python3 - "$PREVIEW_DIR/packages/convex/convex/schema.ts" <<'PYEOF'
-import json, os
-import pathlib
-import re
-import sys
-
-path = 'screening_sessions/documents.jsonl'
-if os.path.exists(path):
-    docs = [json.loads(line) for line in open(path) if line.strip()]
-    changed = 0
-    for d in docs:
-        if isinstance(d.get('config'), dict) and isinstance(d['config'].get('filters'), dict):
-            if d['config']['filters'].pop('showBlocked', None) is not None:
-                changed += 1
-    with open(path, 'w') as f:
-        f.write('\n'.join(json.dumps(d, ensure_ascii=False) for d in docs) + '\n')
-    print(f"Stripped showBlocked from {changed}/{len(docs)} screening_sessions documents")
-
-# Exclude system_settings table — it carries the source's maintenance flag
-# and should not propagate to the target environment
-import shutil
-if os.path.exists('system_settings'):
-    shutil.rmtree('system_settings')
-    print("Excluded system_settings/ from import (maintenance flag is environment-local)")
-
-schema_path = pathlib.Path(sys.argv[1])
-if not schema_path.exists():
-    raise SystemExit(f"Missing preview Convex schema: {schema_path}")
-
-schema_tables = re.findall(
-    r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*defineTable\(",
-    schema_path.read_text(),
-    flags=re.MULTILINE,
-)
-created_empty_tables = []
-for table in schema_tables:
-    table_dir = pathlib.Path(table)
-    if table_dir.exists():
-        continue
-    table_dir.mkdir()
-    (table_dir / "generated_schema.jsonl").write_text('"uniform"\n')
-    (table_dir / "documents.jsonl").write_text("")
-    created_empty_tables.append(table)
-
-if created_empty_tables:
-    print("Materialized missing schema tables as empty: " + ", ".join(created_empty_tables))
-PYEOF
+fix_convex_export "$EXPORT_PATH" "$PREVIEW_DIR/packages/convex/convex/schema.ts" /tmp/prod-convex-export-fixed.zip || {
+    echo "fix_convex_export failed" >&2
+    exit 1
+}
+# Step 2 copies $EXPORT_PATH — keep it pointing at the fixed zip
 EXPORT_PATH=/tmp/prod-convex-export-fixed.zip
-rm -f "$EXPORT_PATH"
-zip -rq "$EXPORT_PATH" *
-cd /
-rm -rf "$FIX_DIR"
-ls -lh "$EXPORT_PATH"
+ls -lh /tmp/prod-convex-export-fixed.zip
 
 echo ""
 echo "=== Step 2: Copy export into preview workspace (Docker bind mount) ==="
@@ -302,11 +255,33 @@ docker exec trends-preview-convex bash -c "
 "
 
 echo ""
+echo "=== Step 3c: Re-assert canonical no-hire company policies ==="
+# `convex import --replace-all` materializes schema tables missing from the
+# export as EMPTY (see Step 1b). If the export predates the no-hire seed (or
+# lacks the table), the workspace blacklist settings for 宝力机械 / Pro-Technic
+# Machinery and 宝惠 / Polywell would silently vanish on preview while prod
+# keeps them. Re-run the idempotent seed so a repeat restore cycle leaves the
+# blacklist SET (no-op when the latest revision is already no-hire).
+if ! seed_preview_canonical_no_hire "hr"; then
+    echo "FATAL: canonical no-hire re-seed failed — preview blacklist would be unset." >&2
+    echo "Manual fix: docker exec trends-preview-convex bash -c 'cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET | tail -1) && npx convex run companies:seedCanonicalCompanies \"{\\\"workspaceSlug\\\":\\\"hr\\\",\\\"seedNoHireForWorkspace\\\":true,\\\"writeSecret\\\":\\\"\$WS\\\"}\" --env-file .env.local'" >&2
+    exit 1
+fi
+
+echo ""
 echo "=== Step 4: Resume digests (parity-preserving policy) ==="
 # DIGEST_BACKFILL_MODE:
-#   skip     — never recompute (default). Preserve production digests for search parity.
-#   if-empty — only backfill when digests appear empty after import
-#   always   — recompute all digests (destroys prod digest text/score fields; search can drift)
+#   skip              — never recompute (default). Preserve production digests for search parity.
+#   if-empty          — only backfill when digests appear empty after import
+#   if-epoch-changed  — backfill when the code's CURRENT_INGEST_COMPUTE_EPOCH differs from
+#                       the epoch stamped in the imported data (prevents stale roleYearsByType
+#                       after a code upgrade that changes the compute algorithm)
+#   always            — recompute all digests (destroys prod digest text/score fields; search can drift)
+# Note: skip is unsafe when a code upgrade follows the restore. The upgraded code
+# may compute roleYearsByType with a different algorithm (e.g. verified-only gate),
+# but the imported digests still carry the old production values. This causes
+# inconsistent search results — some rows match old digest logic, others new.
+# Use if-epoch-changed or always when restoring before an upgrade.
 DIGEST_BACKFILL_MODE="${DIGEST_BACKFILL_MODE:-skip}"
 DIGEST_IMPORTED_COUNT="$(unzip -l /tmp/prod-convex-export-fixed.zip 2>/dev/null | awk '/resume_digests\/documents\.jsonl/ {print $1; found=1} END{if(!found) print 0}' || echo 0)"
 # Heuristic: documents.jsonl size > 100 bytes means digests were exported
@@ -324,9 +299,29 @@ case "$DIGEST_BACKFILL_MODE" in
             should_backfill_digests=1
         fi
         ;;
+    if-epoch-changed)
+        # Record the code epoch at restore time. preview-upgrade.sh compares
+        # this marker against the post-upgrade epoch and rebuilds digests
+        # if they differ. This defers the rebuild decision to the upgrade
+        # script where the new code is already available.
+        CODE_EPOCH=0
+        if [ -f "$PREVIEW_DIR/packages/shared/dist/ingest-compute-epoch.js" ]; then
+            CODE_EPOCH="$(cd "$PREVIEW_DIR" && node -e \
+                "console.log(require('./packages/shared/dist/ingest-compute-epoch.js').CURRENT_INGEST_COMPUTE_EPOCH)" \
+                2>/dev/null || echo 0)"
+        elif [ -f "$PREVIEW_DIR/packages/shared/src/ingest-compute-epoch.ts" ]; then
+            CODE_EPOCH="$(cd "$PREVIEW_DIR" && npx tsx -e \
+                "process.stdout.write(String(require('./packages/shared/src/ingest-compute-epoch.ts').CURRENT_INGEST_COMPUTE_EPOCH))" \
+                2>/dev/null || echo 0)"
+        fi
+        echo "$CODE_EPOCH" > "$PREVIEW_DIR/.digest-restore-epoch"
+        echo "Recorded restore-time code epoch=$CODE_EPOCH in .digest-restore-epoch"
+        # Do not backfill now — preview-upgrade.sh will decide after code sync.
+        should_backfill_digests=0
+        ;;
     skip|never|0|false|no|"") should_backfill_digests=0 ;;
     *)
-        echo "Unknown DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE (use skip|if-empty|always)" >&2
+        echo "Unknown DIGEST_BACKFILL_MODE=$DIGEST_BACKFILL_MODE (use skip|if-empty|if-epoch-changed|always)" >&2
         exit 2
         ;;
 esac

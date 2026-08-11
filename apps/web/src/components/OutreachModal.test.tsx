@@ -28,14 +28,22 @@ vi.mock('@/components/ui/label', () => ({
   Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
 }))
 
+const postMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    POST: (...args: unknown[]) => postMock(...args),
+  },
+}))
+
 describe('OutreachModal latest work history', () => {
   it('sends only the latest three work history entries to draft generation', async () => {
-    const fetchMock = vi.fn()
+    postMock
       .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ subject: 'Hello', body: 'World' }),
+        data: { subject: 'Hello', body: 'World' },
+        error: undefined,
+        response: { ok: true, status: 200 },
       })
-    vi.stubGlobal('fetch', fetchMock)
 
     render(
       <OutreachModal
@@ -79,9 +87,11 @@ describe('OutreachModal latest work history', () => {
       />
     )
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    const [, init] = fetchMock.mock.calls[0]
-    const body = JSON.parse(String(init?.body ?? '{}'))
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1))
+    const [, options] = postMock.mock.calls[0]
+    const body = ((options as { body?: unknown }).body ?? {}) as {
+      resume: { companies: string[]; summary?: string; jobIntention?: string }
+    }
 
     expect(body.resume.companies).toEqual([
       'Current Co',
@@ -91,7 +101,5 @@ describe('OutreachModal latest work history', () => {
     expect(body.resume.companies).not.toContain('Oldest Co')
     expect(body.resume.summary).toBeUndefined()
     expect(body.resume.jobIntention).toBeUndefined()
-
-    vi.unstubAllGlobals()
   })
 })

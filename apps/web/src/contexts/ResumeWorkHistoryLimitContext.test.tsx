@@ -1,6 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const getMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    GET: (...args: unknown[]) => getMock(...args),
+  },
+}))
+
 import {
   ResumeWorkHistoryLimitProvider,
   useResumeWorkHistoryLimit,
@@ -20,7 +28,7 @@ function LimitConsumer() {
 
 describe('ResumeWorkHistoryLimitProvider', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -28,10 +36,10 @@ describe('ResumeWorkHistoryLimitProvider', () => {
   })
 
   it('loads and applies the configured global limit', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, limit: 5 }),
-    }))
+    getMock.mockResolvedValue({
+      data: { success: true, limit: 5 },
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ResumeWorkHistoryLimitProvider>
@@ -46,13 +54,12 @@ describe('ResumeWorkHistoryLimitProvider', () => {
 
   it('keeps the default when loading fails or returns an invalid value', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const fetchMock = vi.fn()
+    getMock
       .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true, limit: 99 }),
+        data: { success: true, limit: 99 },
+        response: { ok: true, status: 200 },
       })
       .mockRejectedValueOnce(new Error('Network error'))
-    vi.stubGlobal('fetch', fetchMock)
 
     const first = render(
       <ResumeWorkHistoryLimitProvider>
@@ -61,7 +68,7 @@ describe('ResumeWorkHistoryLimitProvider', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(getMock).toHaveBeenCalledTimes(1)
     })
     expect(screen.getByTestId('limit')).toHaveTextContent('3')
     first.unmount()
@@ -73,17 +80,17 @@ describe('ResumeWorkHistoryLimitProvider', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(getMock).toHaveBeenCalledTimes(2)
       expect(consoleErrorSpy).toHaveBeenCalled()
     })
     expect(screen.getByTestId('limit')).toHaveTextContent('3')
   })
 
   it('updates the effective limit and normalizes invalid updates safely', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, limit: 3 }),
-    }))
+    getMock.mockResolvedValue({
+      data: { success: true, limit: 3 },
+      response: { ok: true, status: 200 },
+    })
 
     render(
       <ResumeWorkHistoryLimitProvider>

@@ -9,9 +9,11 @@ const getMock = vi.fn()
 const postMock = vi.fn()
 const putMock = vi.fn()
 
+const mockT = (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+    t: mockT,
   }),
 }))
 

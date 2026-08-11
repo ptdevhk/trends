@@ -33,7 +33,9 @@ type AccessError = {
 type AdminAccessError = AccessError;
 
 /**
- * Member-desk gate: any workspace membership (user or admin) on the active slug.
+ * Member-desk gate: any workspace membership (user, reviewer, or admin) on
+ * the active slug. Reviewers inherit member permissions (resume/candidate
+ * desk), so they pass the same member gate as users and admins.
  * Used for full member desk features on personal seats and HR users (locked B).
  */
 export function getWorkspaceUserAccessError(c: {
@@ -46,7 +48,7 @@ export function getWorkspaceUserAccessError(c: {
       status: 401,
     };
   }
-  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "reviewer", "admin"])) {
     return {
       body: { success: false, error: "Workspace access required" },
       status: 403,
@@ -66,6 +68,29 @@ export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlu
   if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["admin"])) {
     return {
       body: { success: false, error: "Admin access required" },
+      status: 403,
+    };
+  }
+  return null;
+}
+
+/**
+ * Industry review gate: admin or reviewer on the active workspace.
+ * Mirrors getAdminAccessError's 401/403 shape; reviewers get the review
+ * workflow (proposals, evidence sources, revisions, identity resolution)
+ * while ops surfaces stay admin-only (requireAdmin).
+ */
+export function getIndustryReviewAccessError(c: { var: { auth?: AuthContext; workspaceSlug: string } }): AccessError | null {
+  const auth = c.var.auth;
+  if (!auth) {
+    return {
+      body: { success: false, error: "Authentication required" },
+      status: 401,
+    };
+  }
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["admin", "reviewer"])) {
+    return {
+      body: { success: false, error: "Review access required" },
       status: 403,
     };
   }
@@ -113,7 +138,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       });
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
-    if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+    if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "reviewer", "admin"])) {
       getEventStorage(c)?.append({
         type: "workspace_access_denied",
         userId: auth.user.id,
@@ -139,6 +164,24 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
         });
       }
       return c.json(adminError.body, adminError.status);
+    }
+    await next();
+  };
+
+  const requireIndustryReviewer: MiddlewareHandler = async (c, next) => {
+    const reviewError = getIndustryReviewAccessError(c);
+    if (reviewError) {
+      const auth = c.var.auth;
+      if (auth) {
+        const eventType = reviewError.status === 401 ? "workspace_access_denied" as const : "review_access_denied" as const;
+        getEventStorage(c)?.append({
+          type: eventType,
+          userId: auth.user.id,
+          workspaceSlug: c.var.workspaceSlug,
+          sessionId: auth.sessionId,
+        });
+      }
+      return c.json(reviewError.body, reviewError.status);
     }
     await next();
   };
@@ -184,6 +227,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     optionalAuth,
     requireWorkspaceUser,
     requireAdmin,
+    requireIndustryReviewer,
     requireCsrf,
   };
 }
@@ -193,6 +237,7 @@ const defaultAuthMiddleware = createAuthMiddleware();
 export const optionalAuth = defaultAuthMiddleware.optionalAuth;
 export const requireWorkspaceUser = defaultAuthMiddleware.requireWorkspaceUser;
 export const requireAdmin = defaultAuthMiddleware.requireAdmin;
+export const requireIndustryReviewer = defaultAuthMiddleware.requireIndustryReviewer;
 export const requireCsrf = defaultAuthMiddleware.requireCsrf;
 
 export const CONVEX_WRITE_SECRET_HEADER = "X-Convex-Write-Secret";

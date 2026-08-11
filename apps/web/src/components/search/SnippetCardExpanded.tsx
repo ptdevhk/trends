@@ -15,8 +15,8 @@ import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 import type { CandidateStatus } from '@/types/resume'
-import { IndustryEvidenceSummary } from '@/components/industry-evidence/IndustryEvidenceSummary'
-import { getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
+import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { findVerifiedIndustrySummaryForCompany, getVerifiedIndustryEvidenceSummaries } from '@/components/industry-evidence/industry-evidence'
 
 type SnippetCardExpandedProps = {
   item: ResumeSearchResultItem
@@ -268,6 +268,11 @@ export function SnippetCardExpanded({
             <div className="space-y-2">
               {workHistory.length > 0 ? workHistory.map((entry, index) => {
                 const heading = [entry.companyName, entry.jobTitle].filter(Boolean).join(' · ')
+                const verifiedSummary = findVerifiedIndustrySummaryForCompany(
+                  entry.companyName,
+                  verifiedIndustryEvidenceSummaries,
+                  { roleSignals: item.resume.ingestData?.roleSignals, jobTitle: entry.jobTitle, rawText: entry.raw },
+                )
                 const dateLine = buildWorkHistoryDisplayDateLine(entry)
                 const description = entry.description?.trim() || ''
                 const supplement = description ? '' : buildWorkHistorySupplement(entry)
@@ -279,7 +284,20 @@ export function SnippetCardExpanded({
                     className="rounded-2xl border bg-white px-3 py-3 text-sm break-words text-slate-700"
                   >
                     {heading ? (
-                      <div className="font-medium text-slate-900">{heading}</div>
+                      <div className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
+                        <span className="min-w-0">
+                          {entry.companyName ? (
+                            <span className="font-medium text-slate-900">{entry.companyName}</span>
+                          ) : null}
+                          {entry.companyName && entry.jobTitle ? (
+                            <span className="mx-1 font-normal text-slate-400">·</span>
+                          ) : null}
+                          {entry.jobTitle ? (
+                            <span className="font-normal text-slate-600">{entry.jobTitle}</span>
+                          ) : null}
+                        </span>
+                        {verifiedSummary ? <VerifiedCompanyBadge summary={verifiedSummary} /> : null}
+                      </div>
                     ) : (
                       <div className="font-medium text-slate-900">{fallbackLine}</div>
                     )}

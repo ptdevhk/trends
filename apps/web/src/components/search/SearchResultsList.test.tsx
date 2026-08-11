@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -6,23 +6,26 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 
 const useAuthMock = vi.hoisted(() => vi.fn())
+const useWorkspaceMock = vi.hoisted(() => vi.fn())
+
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 
@@ -34,6 +37,7 @@ const virtualizer = {
   getVirtualItems: () => virtualRows,
   measureElement: vi.fn(),
   measure: vi.fn(),
+  scrollToIndex: vi.fn(),
 }
 const useWindowVirtualizerMock = vi.fn((options: unknown) => {
   void options
@@ -48,13 +52,18 @@ vi.mock('@/components/search/SnippetCard', () => ({
   SnippetCard: ({
     expanded,
     item,
+    highlighted,
     onViewDetails,
   }: {
     expanded: boolean
     item: ResumeSearchResultItem
+    highlighted?: boolean
     onViewDetails?: (item: ResumeSearchResultItem) => void
   }) => (
-    <div>
+    <div
+      id={`resume-${item.resume.resumeId}`}
+      data-highlighted={highlighted ? 'true' : 'false'}
+    >
       <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>
       <button type="button" onClick={() => onViewDetails?.(item)}>view-details-{item.key}</button>
     </div>
@@ -70,6 +79,10 @@ vi.mock('@/hooks/useConvexResumes', () => ({
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => useAuthMock(),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => useWorkspaceMock(),
 }))
 
 vi.mock('@/components/ResumeDetail', () => ({
@@ -96,6 +109,9 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
     useAuthMock.mockReturnValue({ memberships: [] })
+    Element.prototype.scrollIntoView = vi.fn()
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
 
     observeMock.mockImplementation(() => { })
     disconnectMock.mockImplementation(() => { })
@@ -444,6 +460,137 @@ describe('SearchResultsList', () => {
     expect(onCloseDetail).toHaveBeenCalledTimes(1)
   })
 
+  describe('verified-only search notice', () => {
+    it('renders the notice when minRoleYears is set and the employer count is known', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).toHaveTextContent('Results limited to industry-verified employers')
+      expect(notice).toHaveTextContent('128')
+    })
+
+    it('renders the notice when roleFilterType is set and the employer count is known', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 0, roleFilterType: 'sales', verifiedEmployerCount: 42 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).toHaveTextContent('42')
+    })
+
+    it('renders a review inbox link when the workspace user may attend the evidence queue', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+          verifiedOnlyReviewHref="/hr/system/settings/industry-verification?status=ready_for_review"
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      const link = within(notice).getByRole('link', { name: 'Review industry evidence' })
+      expect(link).toHaveAttribute(
+        'href',
+        '/hr/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+
+    it('renders no review link when no review href is passed', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(within(notice).queryByRole('link')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when no verifiedOnlyNotice prop is passed', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when the employer count is undefined', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, verifiedEmployerCount: undefined }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when the employer count is zero', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 0 }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
+    it('does not render the notice when no role gate is active', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 0, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+  })
+
   it('loads a directly routed resume when it is not in the current result list', async () => {
     const resume = createItem(0).resume
     vi.mocked(useConvexResumeDetail).mockReturnValue({
@@ -467,5 +614,142 @@ describe('SearchResultsList', () => {
       expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
     })
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
+  })
+
+  it('scrolls to a card and highlights it when the URL hash matches a loaded resume', async () => {
+    const scrollIntoViewMock = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>
+    window.location.hash = '#resume-resume-0'
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'smooth', block: 'start' }),
+      )
+    })
+    expect(screen.getByText('resume-0:collapsed').parentElement)
+      .toHaveAttribute('data-highlighted', 'true')
+  })
+
+  it('scrolls a virtualized list to a card when the URL hash matches a loaded resume', () => {
+    window.location.hash = '#resume-resume-44'
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={Array.from({ length: 45 }, (_, index) => createItem(index))}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(44, { align: 'start' })
+  })
+
+  it('guides an active-workspace reviewer to the workspace review inbox for legacy signals', () => {
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+    const item = createItem(0)
+    item.resume.ingestData = {
+      evidenceText: '',
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      industryDbV2Raw: 0,
+      experienceLevel: 'mid',
+      computedAt: 1,
+      skillsVersion: 1,
+      ruleScores: {},
+      roleSignals: [{
+        type: 'sales',
+        matchedSignals: ['CNC Sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        verifyIn: 'workHistory',
+        matchedWorkEntries: [{
+          companyName: 'Vision Machine Tools',
+          jobTitle: 'Sales Engineer',
+          years: 3,
+          industryVerified: true,
+          matchedSignals: ['CNC Sales'],
+        }],
+      }],
+    }
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Industry evidence needs human review')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/hr/system/settings/industry-verification?status=ready_for_review')
+  })
+
+  it('hides legacy review guidance from plain members', () => {
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'user' }],
+    })
+    const item = createItem(0)
+    item.resume.ingestData = {
+      evidenceText: '',
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      industryDbV2Raw: 0,
+      experienceLevel: 'mid',
+      computedAt: 1,
+      skillsVersion: 1,
+      ruleScores: {},
+      roleSignals: [{
+        type: 'sales',
+        matchedSignals: ['CNC Sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        verifyIn: 'workHistory',
+        matchedWorkEntries: [{
+          companyName: 'Vision Machine Tools',
+          jobTitle: 'Sales Engineer',
+          years: 3,
+          industryVerified: true,
+          matchedSignals: ['CNC Sales'],
+        }],
+      }],
+    }
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText('Industry evidence needs human review')).not.toBeInTheDocument()
   })
 })

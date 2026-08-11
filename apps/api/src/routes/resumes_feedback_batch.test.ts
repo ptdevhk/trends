@@ -15,6 +15,7 @@ import { callConvexMutation, callConvexQuery } from "../services/convex-utils.js
 vi.mock("../services/convex-utils.js", () => ({
   callConvexMutation: vi.fn(),
   callConvexQuery: vi.fn(),
+  callConvexAction: vi.fn(),
 }));
 
 function createTestApp(options: { storage?: AuthStorage } = {}) {

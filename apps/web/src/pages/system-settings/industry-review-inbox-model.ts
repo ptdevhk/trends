@@ -1,10 +1,46 @@
+import { isRecord, requiresReviewAttestation, selectApprovalSafeSources } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
 type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
 
-export type ReviewInboxItem = ReviewQueueResponse['items'][number]
+export type ReviewInboxItem = ReviewQueueResponse['items'][number] & {
+  /**
+   * Linked-resume count for the company (from the review-queue API; the
+   * field is being added server-side, so parse defensively with a 0 default).
+   */
+  resumeImpact: number
+}
 export type ReviewInboxProposal = ReviewInboxItem['proposal']
 export type ReviewInboxRecommendation = ReviewInboxItem['recommendation']
+
+function parseResumeImpact(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/**
+ * Parse one review-queue item, attaching a defensive `resumeImpact` default
+ * of 0 when the server response does not (yet) include the field.
+ */
+export function parseReviewInboxItem(value: unknown): ReviewInboxItem | null {
+  if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
+  if (typeof value.proposal.proposalId !== 'string' || typeof value.recommendation.proposalId !== 'string') return null
+  return {
+    ...(value as unknown as ReviewQueueResponse['items'][number]),
+    resumeImpact: parseResumeImpact(value.resumeImpact),
+  }
+}
+
+/** Parse a review-queue response payload into validated inbox items. */
+export function parseReviewInboxItems(value: unknown): ReviewInboxItem[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  const items: ReviewInboxItem[] = []
+  for (const raw of value.items) {
+    const item = parseReviewInboxItem(raw)
+    if (item) items.push(item)
+  }
+  return items
+}
 
 export const TERMINAL_INDUSTRY_PROPOSAL_STATUSES = [
   'approved',
@@ -72,24 +108,16 @@ export function reviewInboxFilterToSlug(filter: ReviewInboxFilter): ReviewInboxF
 /**
  * Select the sources that can be sent through the standard approval path.
  *
- * Recommendations normally provide an ordered source selection. If that
- * selection is empty, the server's approval-safe decisions are the only safe
- * fallback. In either case, source decisions remain authoritative for the
- * browser affordance.
+ * Delegates to the shared governance rule (`selectApprovalSafeSources`) so
+ * the browser affordance and the server cross the same implementation.
  */
 export function getApprovalSafeSourceIds(
   recommendation: ReviewInboxRecommendation,
 ): string[] {
-  const approvalSafeSourceIds = new Set(
-    recommendation.sourceDecisions
-      .filter((decision) => decision.approvalSafe)
-      .map((decision) => decision.sourceId),
-  )
-  const candidateSourceIds = recommendation.recommendedSourceIds.length > 0
-    ? recommendation.recommendedSourceIds
-    : recommendation.sourceDecisions.map((decision) => decision.sourceId)
-
-  return [...new Set(candidateSourceIds)].filter((sourceId) => approvalSafeSourceIds.has(sourceId))
+  return selectApprovalSafeSources({
+    recommendedSourceIds: recommendation.recommendedSourceIds,
+    sourceDecisions: recommendation.sourceDecisions,
+  })
 }
 
 export function getOneClickEligibility(item: ReviewInboxItem): OneClickEligibility {
@@ -126,6 +154,100 @@ export function getOneClickEligibility(item: ReviewInboxItem): OneClickEligibili
   }
 
   return { eligible: true, safeSourceIds }
+}
+
+export type BatchApproveEligibility =
+  | {
+      eligible: true
+      safeSourceIds: string[]
+      /** Attestation required: any visible risk flag or a CNC class. */
+      requiresAttestation: boolean
+      /** Explicit classification required: the recommendation has no class. */
+      requiresClass: boolean
+    }
+  | { eligible: false; reason: 'terminal' | 'status' | 'source' | 'hard_risk' }
+
+/**
+ * Batch-approve eligibility. Mirrors the server-side gates of the
+ * batch-review endpoint: open status, at least one approval-safe source,
+ * and no non-overridable risk flags. Attended overrides for
+ * `weak_industry_signal` are expressed through the batch attestation, so
+ * flag presence alone does not block — it only demands acknowledgement.
+ */
+export function getBatchApproveEligibility(item: ReviewInboxItem): BatchApproveEligibility {
+  if (isTerminalIndustryProposalStatus(item.proposal.status)) {
+    return { eligible: false, reason: 'terminal' }
+  }
+  if (item.proposal.status !== 'ready_for_review') {
+    return { eligible: false, reason: 'status' }
+  }
+  const safeSourceIds = getApprovalSafeSourceIds(item.recommendation)
+  if (safeSourceIds.length === 0) {
+    return { eligible: false, reason: 'source' }
+  }
+  if (item.recommendation.riskDecision.nonOverridableRiskFlags.length > 0) {
+    return { eligible: false, reason: 'hard_risk' }
+  }
+  return {
+    eligible: true,
+    safeSourceIds,
+    requiresAttestation: requiresReviewAttestation(
+      item.recommendation.riskFlags,
+      item.recommendation.recommendedIndustryClass,
+    ),
+    requiresClass: item.recommendation.recommendedIndustryClass === 'unknown',
+  }
+}
+
+export function unionRiskFlags(items: readonly ReviewInboxItem[]): string[] {
+  return [...new Set(items.flatMap((item) => item.recommendation.riskFlags))].sort()
+}
+
+export type IdentityResolutionEligibility =
+  | { eligible: true }
+  | { eligible: false; reason: 'terminal' | 'status' | 'already_mapped' }
+
+/**
+ * Identity-resolution eligibility. Mirrors the server-side gates of the
+ * identity-resolution endpoint: the proposal must be open (any non-terminal
+ * status) and not yet mapped to a canonical company. Once `companyKey` is
+ * set, `canonical_mapping_missing` recomputes away and the item can move
+ * into the batch approval lane.
+ */
+export function getIdentityResolutionEligibility(item: ReviewInboxItem): IdentityResolutionEligibility {
+  if (isTerminalIndustryProposalStatus(item.proposal.status)) {
+    return { eligible: false, reason: 'terminal' }
+  }
+  if (item.proposal.companyKey?.trim()) {
+    return { eligible: false, reason: 'already_mapped' }
+  }
+  return { eligible: true }
+}
+
+/**
+ * Whether the row is blocked specifically by the missing-canonical-mapping
+ * flag and can therefore be unblocked through the identity-resolution lane.
+ */
+export function requiresIdentityResolution(item: ReviewInboxItem): boolean {
+  return (
+    getIdentityResolutionEligibility(item).eligible
+    && item.recommendation.riskFlags.includes('canonical_mapping_missing')
+  )
+}
+
+export function batchAttestationMode(riskFlags: readonly string[]): 'standard' | 'risk_override' {
+  return riskFlags.length > 0 ? 'risk_override' : 'standard'
+}
+
+export function batchRequiresCncAcknowledgement(
+  items: readonly ReviewInboxItem[],
+  classOverrides: Readonly<Record<string, string>>,
+): boolean {
+  return items.some((item) => {
+    const effectiveClass =
+      classOverrides[item.proposal.proposalId] ?? item.recommendation.recommendedIndustryClass
+    return effectiveClass === 'cnc' || item.recommendation.riskFlags.includes('cnc_claim_inferred')
+  })
 }
 
 export function partitionReviewQueue(

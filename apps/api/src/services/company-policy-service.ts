@@ -14,6 +14,8 @@ export type CompanyRecord = {
   createdAt: number;
   updatedAt: number;
   createdBy?: string;
+  /** Soft-delete marker; set → the company is archived (hidden from default list). */
+  archivedAt?: number;
   aliases: Array<{ aliasDisplay: string; aliasNormalized: string; source: string }>;
 };
 
@@ -77,6 +79,7 @@ function parseCompany(value: unknown): CompanyRecord | null {
     createdAt: typeof value.createdAt === "number" ? value.createdAt : 0,
     updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : 0,
     ...(typeof value.createdBy === "string" ? { createdBy: value.createdBy } : {}),
+    ...(typeof value.archivedAt === "number" ? { archivedAt: value.archivedAt } : {}),
     aliases,
   };
 }
@@ -124,14 +127,36 @@ function parsePolicy(value: unknown): CompanyPolicyRecord | null {
   };
 }
 
-export async function listCompanies(): Promise<CompanyRecord[]> {
+export async function listCompanies(input: { includeArchived?: boolean } = {}): Promise<CompanyRecord[]> {
   const value = await callConvexQuery("companies:list", {
     writeSecret: config.auth.convexWriteSecret,
+    includeArchived: input.includeArchived === true,
   });
   if (!Array.isArray(value)) {
     throw new Error("Invalid companies:list response");
   }
   return value.map(parseCompany).filter((item): item is CompanyRecord => item != null);
+}
+
+export async function setCompanyArchived(input: {
+  companyKey: string;
+  archived: boolean;
+  createdBy?: string;
+}): Promise<{ companyKey: string; archived: boolean; archivedAt: number | null }> {
+  const value = await callConvexMutation("companies:setCompanyArchived", {
+    companyKey: input.companyKey,
+    archived: input.archived === true,
+    createdBy: input.createdBy,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  if (!isRecord(value) || typeof value.companyKey !== "string") {
+    throw new Error("Invalid companies:setCompanyArchived response");
+  }
+  return {
+    companyKey: value.companyKey,
+    archived: value.archived === true,
+    archivedAt: typeof value.archivedAt === "number" ? value.archivedAt : null,
+  };
 }
 
 export async function listWorkspacePolicies(workspaceSlug: string): Promise<CompanyPolicyRecord[]> {

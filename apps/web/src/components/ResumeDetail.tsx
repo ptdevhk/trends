@@ -23,14 +23,16 @@ import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
-import { IndustryEvidenceDetail } from '@/components/industry-evidence/IndustryEvidenceSummary'
+import { IndustryEvidenceDetail, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
 import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
 import {
+  findVerifiedIndustrySummaryForCompany,
   getIndustryEvidenceWorkEntryFingerprint,
   getMatchedWorkEntryIndustryEvidenceProvenance,
   getVerifiedIndustryEvidenceSummaries,
@@ -38,7 +40,7 @@ import {
   mergeIndustryEvidenceProvenance,
   type IndustryEvidenceProvenance,
 } from '@/components/industry-evidence/industry-evidence'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { paths } from '@/lib/api-types'
 
@@ -161,7 +163,12 @@ export function ResumeDetail({
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
-  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const isSystemAdmin = hasSystemAdminAccess(memberships)
+  const showIndustryEvidenceReviewGuidance = isSystemAdmin || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
+  const legacyReviewBasePath = isSystemAdmin
+    ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`
+    : `/${workspaceSlug}/system/settings/industry-verification`
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
@@ -479,9 +486,29 @@ export function ResumeDetail({
                   const annotations = workHistoryAnnotations[index] ?? []
                   const dateLine = buildWorkHistoryDisplayDateLine(item)
                   const heading = [item.companyName, item.jobTitle].filter(Boolean).join(' · ')
+                  const verifiedSummary = findVerifiedIndustrySummaryForCompany(
+                    item.companyName,
+                    verifiedIndustryEvidenceSummaries,
+                    { roleSignals: resume && hasIngestData(resume) ? resume.ingestData?.roleSignals : undefined, jobTitle: item.jobTitle, rawText: item.raw },
+                  )
                   return (
                     <li key={`${displayResume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
-                      {heading ? <div className="font-medium">{heading}</div> : null}
+                      {heading ? (
+                        <div className="font-medium flex items-center gap-2 flex-wrap">
+                          <span className="min-w-0">
+                            {item.companyName ? (
+                              <span className="font-medium text-slate-900">{item.companyName}</span>
+                            ) : null}
+                            {item.companyName && item.jobTitle ? (
+                              <span className="mx-1 font-normal text-slate-400">·</span>
+                            ) : null}
+                            {item.jobTitle ? (
+                              <span className="font-normal text-slate-600">{item.jobTitle}</span>
+                            ) : null}
+                          </span>
+                          {verifiedSummary ? <VerifiedCompanyBadge summary={verifiedSummary} /> : null}
+                        </div>
+                      ) : null}
                       {dateLine ? <div className="text-xs text-muted-foreground">{dateLine}</div> : null}
                       {annotations.length > 0 ? (
                         <div className="flex flex-wrap gap-1 pt-1">
@@ -525,6 +552,7 @@ export function ResumeDetail({
             <LegacyIndustryEvidenceNotice
               showReviewAction
               reviewTarget={industryReviewTarget}
+              reviewBasePath={legacyReviewBasePath}
             />
           ) : null}
 

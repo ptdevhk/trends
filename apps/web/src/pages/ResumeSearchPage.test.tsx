@@ -1,17 +1,18 @@
 import React from 'react'
 import { formatKeywordQuery } from '@trends/shared'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeSearchPage } from './ResumeSearchPage'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import type { AuthUser, WorkspaceRole } from '@/lib/auth'
+import type { AuthUser, WorkspaceMembership, WorkspaceRole } from '@/lib/auth'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
 type AuthMockValue = {
   user: AuthUser | null
   workspaceRole: WorkspaceRole | null
+  memberships?: WorkspaceMembership[]
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<boolean>
@@ -19,47 +20,51 @@ type AuthMockValue = {
   refresh: () => Promise<void>
 }
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+  // Return English text for keys used by ResumeSearchPage
+  const englishTexts: Record<string, string> = {
+    'bulkActions.selected': 'selected',
+    'bulkActions.blocked': 'blocked',
+    'bulkActions.manageBlocked': 'manage',
+    'resumes.searchPage.header.resultsWithQuery': 'Results for "{{query}}": {{count}}',
+    'resumes.searchPage.header.results': 'Found {{count}} results',
+    'resumes.searchPage.header.sort': 'Sort',
+    'resumes.searchPage.header.sortResults': 'Sort results',
+    'resumes.searchPage.header.sortOptions.aiScore': 'AI Score',
+    'resumes.searchPage.header.sortOptions.newest': 'Most Recent',
+    'resumes.searchPage.header.sortOptions.experience': 'Experience',
+    'resumes.searchPage.analysis.title': 'Resume AI analysis',
+    'resumes.searchPage.analysis.description': 'Generate AI summary and detailed score breakdown for the loaded search results.',
+    'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
+    'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
+    'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+    'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
+  }
+  const text = englishTexts[key] ?? key
+  return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-      // Return English text for keys used by ResumeSearchPage
-      const englishTexts: Record<string, string> = {
-        'bulkActions.selected': 'selected',
-        'bulkActions.blocked': 'blocked',
-        'bulkActions.manageBlocked': 'manage',
-        'resumes.searchPage.header.resultsWithQuery': 'Results for "{{query}}": {{count}}',
-        'resumes.searchPage.header.results': 'Found {{count}} results',
-        'resumes.searchPage.header.sort': 'Sort',
-        'resumes.searchPage.header.sortResults': 'Sort results',
-        'resumes.searchPage.header.sortOptions.aiScore': 'AI Score',
-        'resumes.searchPage.header.sortOptions.newest': 'Most Recent',
-        'resumes.searchPage.header.sortOptions.experience': 'Experience',
-        'resumes.searchPage.analysis.title': 'Resume AI analysis',
-        'resumes.searchPage.analysis.description': 'Generate AI summary and detailed score breakdown for the loaded search results.',
-        'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
-        'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
-        'resumes.searchPage.analysis.analyzing': 'Analyzing...',
-        'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
-      }
-      const text = englishTexts[key] ?? key
-      return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 
 const {
+  apiGetMock,
   apiPostMock,
   shareLinkButtonPropsMock,
   useIndustryKeywordsMock,
   useAiSearchSummaryMock,
   useResumeSearchStateMock,
 } = vi.hoisted(() => ({
+  apiGetMock: vi.fn(),
   apiPostMock: vi.fn(),
   shareLinkButtonPropsMock: vi.fn(),
   useIndustryKeywordsMock: vi.fn(),
@@ -84,6 +89,7 @@ const authMock = vi.hoisted((): { value: AuthMockValue } => ({
   value: {
     user: { id: 'user-1', displayName: 'Tester', status: 'active' },
     workspaceRole: 'user',
+    memberships: [],
     isAuthenticated: true,
     isLoading: false,
     login: vi.fn(async () => true),
@@ -110,6 +116,7 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
+    GET: (...args: unknown[]) => apiGetMock(...args),
     POST: (...args: unknown[]) => apiPostMock(...args),
   },
 }))
@@ -369,6 +376,8 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loading,
     loadingMore,
     showAiScore,
+    verifiedOnlyNotice,
+    verifiedOnlyReviewHref,
     onAction,
     onCandidateStatusChange,
     onCloseDetail,
@@ -386,6 +395,12 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loadingMore?: boolean
     showAiScore?: boolean
     detailResumeId?: string
+    verifiedOnlyNotice?: {
+      minRoleYears?: number
+      roleFilterType?: string | null
+      verifiedEmployerCount?: number
+    }
+    verifiedOnlyReviewHref?: string
     onAction?: () => void
     onCandidateStatusChange?: () => void
     onCloseDetail?: () => void
@@ -402,6 +417,8 @@ vi.mock('@/components/search/SearchResultsList', () => ({
         {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
       </div>
+      <div>VerifiedOnlyNotice: {JSON.stringify(verifiedOnlyNotice ?? null)}</div>
+      <div>VerifiedOnlyReviewHref: {verifiedOnlyReviewHref ?? 'none'}</div>
       <div>Detail route: {detailResumeId ?? 'none'}</div>
       <div>Detail routing: {String(Boolean(onOpenDetail && onCloseDetail))}</div>
       <div>
@@ -663,6 +680,10 @@ describe('ResumeSearchPage', () => {
         },
       },
     })
+    apiGetMock.mockResolvedValue({
+      data: { success: true, count: 128 },
+      response: { status: 200 },
+    })
     featureFlagsMock.resumeAiSummaryEnabled = false
     routeMock.search = ''
     routeMock.params = {}
@@ -672,6 +693,7 @@ describe('ResumeSearchPage', () => {
     authMock.value = {
       user: { id: 'user-1', displayName: 'Tester', status: 'active' },
       workspaceRole: 'user',
+      memberships: [],
       isAuthenticated: true,
       isLoading: false,
       login: vi.fn(async () => true),
@@ -1287,5 +1309,157 @@ describe('ResumeSearchPage', () => {
 
     expect(state.setAiModeEnabled).toHaveBeenCalledWith(true)
     expect(state.analyzeResults).not.toHaveBeenCalled()
+  })
+
+  it('passes the verified-only notice props when a role gate filter is active and the count loads', async () => {
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: {
+          minRoleYears: 3,
+          roleFilterType: 'sales',
+        },
+      }),
+      queryInput: 'CNC Sales',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    // The count may come from the hook's 60s module cache (populated by an
+    // earlier test in this file) or from this mount's fetch — either way the
+    // notice props must carry the loaded count.
+    await waitFor(() => {
+      const notice = screen.getByText(/VerifiedOnlyNotice/)
+      expect(notice).toHaveTextContent('"minRoleYears":3')
+      expect(notice).toHaveTextContent('"roleFilterType":"sales"')
+      expect(notice).toHaveTextContent('"verifiedEmployerCount":128')
+    })
+  })
+
+  it('passes no verified-only notice on the public share surface', async () => {
+    routeMock.isPublicSurface = true
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+      queryInput: 'CNC Sales',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyNotice/)).toHaveTextContent('null')
+    })
+    expect(apiGetMock).not.toHaveBeenCalledWith('/api/company-industry-verified-employer-count')
+  })
+
+  it('passes the review inbox href for a workspace reviewer', async () => {
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'reviewer',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'reviewer' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent(
+        '/dev/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+  })
+
+  it('passes the review inbox href for a workspace admin', async () => {
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'admin',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'admin' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent(
+        '/dev/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+  })
+
+  it('omits the review inbox href for a plain workspace member', async () => {
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent('none')
+    })
+  })
+
+  it('omits the review inbox href on the public share surface even for a reviewer', async () => {
+    routeMock.isPublicSurface = true
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'reviewer',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'reviewer' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent('none')
+    })
   })
 })

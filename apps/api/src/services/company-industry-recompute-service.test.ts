@@ -40,6 +40,22 @@ function dependencies(
     getSkillsVersion: () => 7,
     query: vi.fn(),
     mutate: vi.fn(),
+    action: vi.fn(),
+    ...overrides,
+  };
+}
+
+function backfillCompleted(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    status: "completed",
+    companyKey: "acme-cnc",
+    scannedRows: 0,
+    matchedRows: 0,
+    linkedRows: 0,
+    cursor: null,
+    isDone: true,
     ...overrides,
   };
 }
@@ -106,8 +122,14 @@ describe("CompanyIndustryRecomputeService", () => {
       }
       throw new Error(`Unexpected mutation: ${path}`);
     });
+    const action = vi.fn(async (path: string) => {
+      if (path === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return backfillCompleted();
+      }
+      throw new Error(`Unexpected action: ${path}`);
+    });
     const service = new CompanyIndustryRecomputeService(
-      dependencies({ query, mutate }),
+      dependencies({ query, mutate, action }),
     );
 
     const result = await service.start({
@@ -124,13 +146,20 @@ describe("CompanyIndustryRecomputeService", () => {
       affectedCount: 2,
       alreadyCurrentCount: 1,
     });
+    expect(action).toHaveBeenCalledWith(
+      "companies:backfillCompanyResumeLinksByCompanySync",
+      expect.objectContaining({
+        companyKey: "acme-cnc",
+        writeSecret: expect.any(String),
+      }),
+    );
     expect(query).not.toHaveBeenCalledWith(
       "companies:listAffectedResumesByCompany",
       expect.objectContaining({ workspaceSlug: "other" }),
     );
   });
 
-  it("dispatches reserved batches through exact reingest and records durable dispatch metadata", async () => {
+  it("dispatches reserved batches through synchronous exact reingest and records durable dispatch metadata", async () => {
     const query = vi.fn(async (path: string) => {
       if (path === "companies:getIndustryRecomputeRun") {
         return run({ status: "running", sourceDone: true });
@@ -153,18 +182,18 @@ describe("CompanyIndustryRecomputeService", () => {
       }
       throw new Error(`Unexpected query: ${path}`);
     });
-    const mutate = vi.fn(async (path: string) => {
-      if (path === "ingest_agent:scheduleExactReingest") {
-        return {
-          requested: 2,
-          resolved: 2,
-          scheduled: 2,
-          batches: 1,
-          resumeIds: ["resume-1", "resume-2"],
-          dispatchedAt: 150,
-        };
+    let actionCalledAt = 0;
+    const action = vi.fn(async (path: string) => {
+      if (path === "ingest_agent:runExactReingestSync") {
+        actionCalledAt = Date.now();
+        return { processed: 2, error: null, requested: 2 };
       }
+      throw new Error(`Unexpected action: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string, args: Record<string, unknown>) => {
       if (path === "companies:recordIndustryRecomputeBatchDispatch") {
+        expect(typeof args.dispatchedAt).toBe("number");
+        expect(args.dispatchedAt).toBeLessThanOrEqual(actionCalledAt);
         return run({
           status: "waiting",
           scheduledCount: 2,
@@ -174,23 +203,24 @@ describe("CompanyIndustryRecomputeService", () => {
       throw new Error(`Unexpected mutation: ${path}`);
     });
     const service = new CompanyIndustryRecomputeService(
-      dependencies({ query, mutate }),
+      dependencies({ query, mutate, action }),
     );
 
     const result = await service.advance("run-1");
 
-    expect(mutate).toHaveBeenCalledWith(
-      "ingest_agent:scheduleExactReingest",
+    expect(action).toHaveBeenCalledWith(
+      "ingest_agent:runExactReingestSync",
       expect.objectContaining({
         workspaceSlug: "hr",
         resumeIds: ["resume-1", "resume-2"],
+        writeSecret: expect.any(String),
       }),
     );
     expect(mutate).toHaveBeenCalledWith(
       "companies:recordIndustryRecomputeBatchDispatch",
       expect.objectContaining({
         batchId: "run-1:1:1",
-        dispatchedAt: 150,
+        dispatchedAt: expect.any(Number),
         expectedSkillsVersion: 7,
       }),
     );
@@ -284,12 +314,15 @@ describe("CompanyIndustryRecomputeService", () => {
 
     expect(result.status).toBe("partial_failed");
     expect(mutate).not.toHaveBeenCalledWith(
-      "ingest_agent:scheduleExactReingest",
+      "ingest_agent:runExactReingestSync",
       expect.anything(),
     );
   });
 
   it("returns the same run for idempotent start and exposes retry state", async () => {
+    const action = vi.fn(async () => {
+      throw new Error(`Unexpected action`);
+    });
     const mutate = vi.fn(async (path: string) => {
       if (path === "companies:startIndustryRecomputeRun") {
         return run({ runId: "existing-run", status: "waiting" });
@@ -304,7 +337,7 @@ describe("CompanyIndustryRecomputeService", () => {
       throw new Error(`Unexpected mutation: ${path}`);
     });
     const service = new CompanyIndustryRecomputeService(
-      dependencies({ mutate }),
+      dependencies({ mutate, action }),
     );
 
     const started = await service.start({
@@ -320,6 +353,39 @@ describe("CompanyIndustryRecomputeService", () => {
 
     expect(started.runId).toBe("existing-run");
     expect(retried).toMatchObject({ runId: "existing-run", attempt: 2 });
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it("resets a run through the reset mutation with requestedBy and parses the result without auto-advancing", async () => {
+    const mutate = vi.fn(async (path: string, args: Record<string, unknown>) => {
+      if (path === "companies:resetIndustryRecomputeRun") {
+        expect(args).toMatchObject({
+          runId: "run-1",
+          requestedBy: "operator@example.com",
+        });
+        return run({
+          runId: "run-1",
+          status: "queued",
+          attempt: 2,
+          sourceDone: false,
+        });
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ mutate }),
+    );
+
+    const result = await service.reset("run-1", {
+      requestedBy: "operator@example.com",
+    });
+
+    expect(result).toMatchObject({
+      runId: "run-1",
+      status: "queued",
+      attempt: 2,
+    });
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 
   it("marks a run superseded instead of dispatching when the current revision changed", async () => {
@@ -349,8 +415,311 @@ describe("CompanyIndustryRecomputeService", () => {
 
     expect(result.status).toBe("superseded");
     expect(mutate).not.toHaveBeenCalledWith(
-      "ingest_agent:scheduleExactReingest",
+      "ingest_agent:runExactReingestSync",
       expect.anything(),
     );
+  });
+
+  it("backfills company resume links by looping with cursor threading and accumulating counters", async () => {
+    const action = vi.fn(async (path: string, args: Record<string, unknown>) => {
+      if (path !== "companies:backfillCompanyResumeLinksByCompanySync") {
+        throw new Error(`Unexpected action: ${path}`);
+      }
+      if (args.cursor === undefined) {
+        return backfillCompleted({
+          status: "continued",
+          cursor: "c1",
+          isDone: false,
+          scannedRows: 100,
+          matchedRows: 40,
+          linkedRows: 30,
+        });
+      }
+      if (args.cursor === "c1") {
+        return backfillCompleted({
+          scannedRows: 50,
+          matchedRows: 10,
+          linkedRows: 5,
+        });
+      }
+      throw new Error(`Unexpected cursor: ${String(args.cursor)}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ action }),
+    );
+
+    const result = await service.backfillCompanyResumeLinks("acme-cnc");
+
+    expect(action).toHaveBeenCalledTimes(2);
+    expect(action).toHaveBeenNthCalledWith(
+      1,
+      "companies:backfillCompanyResumeLinksByCompanySync",
+      expect.objectContaining({
+        companyKey: "acme-cnc",
+        writeSecret: expect.any(String),
+      }),
+    );
+    expect(action).toHaveBeenNthCalledWith(
+      2,
+      "companies:backfillCompanyResumeLinksByCompanySync",
+      expect.objectContaining({
+        companyKey: "acme-cnc",
+        cursor: "c1",
+      }),
+    );
+    expect(result).toEqual({
+      status: "completed",
+      scannedRows: 150,
+      matchedRows: 50,
+      linkedRows: 35,
+      iterations: 2,
+    });
+  });
+
+  it("throws when the backfill iteration cap is exceeded", async () => {
+    const action = vi.fn(async (path: string) => {
+      if (path === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return backfillCompleted({ status: "continued", cursor: "c1", isDone: false });
+      }
+      throw new Error(`Unexpected action: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ action }),
+    );
+
+    await expect(
+      service.backfillCompanyResumeLinks("acme-cnc", { maxIterations: 5 }),
+    ).rejects.toThrow(/exceeded 5 iterations/);
+    expect(action).toHaveBeenCalledTimes(5);
+  });
+
+  it("records a dispatch failure when synchronous exact reingest returns inconsistent targets", async () => {
+    const query = vi.fn(async (path: string) => {
+      if (path === "companies:getIndustryRecomputeRun") {
+        return run({ status: "running", sourceDone: true });
+      }
+      if (path === "companies:getNextIndustryRecomputeBatch") {
+        return {
+          batchId: "run-1:1:1",
+          runId: "run-1",
+          status: "planned",
+          resumeIds: ["resume-1", "resume-2"],
+          createdAt: 101,
+          updatedAt: 101,
+        };
+      }
+      if (path === "companies:getIndustryRecomputeRevisionState") {
+        return {
+          currentRevisionId: "revision-2",
+          matchesTargetRevision: true,
+        };
+      }
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const action = vi.fn(async (path: string) => {
+      if (path === "ingest_agent:runExactReingestSync") {
+        return { processed: 1, error: null, requested: 2 };
+      }
+      throw new Error(`Unexpected action: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string, args: Record<string, unknown>) => {
+      if (path === "companies:recordIndustryRecomputeBatchFailure") {
+        expect(args).toMatchObject({
+          runId: "run-1",
+          batchId: "run-1:1:1",
+          stage: "dispatch",
+          message: "Exact reingest returned inconsistent targets",
+        });
+        return run({ status: "failed", failureCount: 1 });
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query, mutate, action }),
+    );
+
+    const result = await service.advance("run-1");
+
+    expect(result.status).toBe("failed");
+    expect(mutate).not.toHaveBeenCalledWith(
+      "companies:recordIndustryRecomputeBatchDispatch",
+      expect.anything(),
+    );
+  });
+
+  it("returns immediately when the first advance reaches a terminal status", async () => {
+    const query = vi.fn(async (path: string) => {
+      if (path === "companies:getIndustryRecomputeRun") {
+        return run({ status: "completed", sourceDone: true, readyCount: 3 });
+      }
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query }),
+    );
+
+    const result = await service.advanceToTerminal("run-1");
+
+    expect(result.status).toBe("completed");
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("advances repeatedly until the run reaches a terminal status", async () => {
+    let getCalls = 0;
+    const query = vi.fn(async (path: string) => {
+      if (path === "companies:getIndustryRecomputeRun") {
+        getCalls += 1;
+        if (getCalls === 1) {
+          return run();
+        }
+        return run({ status: "running", sourceDone: true, affectedCount: 1 });
+      }
+      if (path === "companies:getIndustryRecomputeRevisionState") {
+        return {
+          currentRevisionId: "revision-2",
+          matchesTargetRevision: true,
+        };
+      }
+      if (path === "companies:getNextIndustryRecomputeBatch") {
+        return null;
+      }
+      if (path === "companies:listAffectedResumesByCompany") {
+        return { items: [], continueCursor: "", isDone: true };
+      }
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string) => {
+      if (path === "companies:reserveIndustryRecomputePage") {
+        return run({
+          status: "running",
+          sourceDone: true,
+          affectedCount: 1,
+          pageCount: 1,
+        });
+      }
+      if (path === "companies:finalizeIndustryRecomputeRun") {
+        return run({
+          status: "completed",
+          sourceDone: true,
+          affectedCount: 1,
+          readyCount: 1,
+        });
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query, mutate }),
+    );
+
+    const result = await service.advanceToTerminal("run-1");
+
+    expect(result.status).toBe("completed");
+    expect(getCalls).toBe(2);
+    expect(mutate).toHaveBeenCalledWith(
+      "companies:finalizeIndustryRecomputeRun",
+      expect.objectContaining({ runId: "run-1" }),
+    );
+  });
+
+  it("stops after two consecutive no-progress iterations without error", async () => {
+    let getCalls = 0;
+    const query = vi.fn(async (path: string) => {
+      if (path === "companies:getIndustryRecomputeRun") {
+        getCalls += 1;
+        return run();
+      }
+      if (path === "companies:getIndustryRecomputeRevisionState") {
+        return {
+          currentRevisionId: "revision-2",
+          matchesTargetRevision: true,
+        };
+      }
+      if (path === "companies:getNextIndustryRecomputeBatch") {
+        return null;
+      }
+      if (path === "companies:listAffectedResumesByCompany") {
+        return { items: [], continueCursor: "", isDone: true };
+      }
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string) => {
+      if (path === "companies:reserveIndustryRecomputePage") {
+        return run();
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query, mutate }),
+    );
+
+    const result = await service.advanceToTerminal("run-1");
+
+    expect(result.status).toBe("queued");
+    expect(getCalls).toBe(2);
+  });
+
+  it("backfills resume links before advancing when start advances by default", async () => {
+    const events: string[] = [];
+    const action = vi.fn(async (path: string) => {
+      if (path === "companies:backfillCompanyResumeLinksByCompanySync") {
+        events.push("backfill");
+        return backfillCompleted();
+      }
+      throw new Error(`Unexpected action: ${path}`);
+    });
+    const query = vi.fn(async (path: string) => {
+      if (path === "companies:getIndustryRecomputeRun") {
+        events.push("advance");
+        return run({ status: "completed", sourceDone: true });
+      }
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string) => {
+      if (path === "companies:startIndustryRecomputeRun") {
+        events.push("start");
+        return run();
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query, mutate, action }),
+    );
+
+    await service.start({
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+    });
+
+    expect(events).toEqual(["start", "backfill", "advance"]);
+  });
+
+  it("skips backfill and advance when start is called with advance false", async () => {
+    const action = vi.fn(async (path: string) => {
+      throw new Error(`Unexpected action: ${path}`);
+    });
+    const query = vi.fn(async (path: string) => {
+      throw new Error(`Unexpected query: ${path}`);
+    });
+    const mutate = vi.fn(async (path: string) => {
+      if (path === "companies:startIndustryRecomputeRun") {
+        return run();
+      }
+      throw new Error(`Unexpected mutation: ${path}`);
+    });
+    const service = new CompanyIndustryRecomputeService(
+      dependencies({ query, mutate, action }),
+    );
+
+    const result = await service.start({
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+      advance: false,
+    });
+
+    expect(result.runId).toBe("run-1");
+    expect(action).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
   });
 });

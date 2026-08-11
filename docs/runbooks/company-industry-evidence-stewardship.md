@@ -6,10 +6,12 @@ This runbook covers the attended lifecycle for reviewed company-industry evidenc
 
 The governing rule is simple: automated research may discover, fetch, compare, and propose evidence, but it cannot approve, reject, revoke, or replace current truth. Only an authenticated human reviewer can advance an immutable verdict revision.
 
+**Amended by the governed Lane A auto-verify lane (v0.4.24):** automation may approve a `verified` verdict ONLY when every Lane A condition holds — every selected source is a structured `registry`/`taxonomy` record with explicit CNC/industrial signal text (never prose: official sites, reporting, OEM pages, directories route to the human cockpit), all sources are fetched + active + unreviewed, the proposal has a canonical `companyKey`, and the verdict is `verified` only. `rejected` verdicts remain human-only, forever. Every revision records `reviewerType` (`human` | `auto-verify-bot`) for audit, and a ~10% risk-weighted sampling audit re-reviews auto-approved verdicts with override-rate tracking.
+
 ## Runtime boundaries
 
 - Search, filtering, scoring, and Resume Detail read materialized data only.
-- Recruiter-facing cards expose only human-approved `verified` summaries.
+- Recruiter-facing cards expose only approved `verified` summaries (human or governed Lane A).
 - A stale, unavailable, or changed source creates a proposal; it does not remove a current verified badge.
 - `candidate`, `rejected`, worker confidence, conflicts, and unreviewed URLs stay inside stewardship surfaces.
 - Preview and production strict cutover require separate authorization.
@@ -131,6 +133,41 @@ Governance does not change under discovery:
 - `discovery` and `search_result` sources are never approval-safe evidence. Approve only durable public HTTP(S) pages.
 - Unreviewed evidence never reaches recruiters. Discovery-tier sources stay inside stewardship surfaces until a human approves a revision.
 - Hot paths stay network-free. All web access happens in the worker; search, scoring, and Resume Detail never fetch.
+
+## Governed Lane A auto-verify (2026-08-07, v0.4.24)
+
+Lane A is the single, narrow exception to "automation never approves". It exists so that structured registry/taxonomy evidence — the highest-trust, lowest-ambiguity source class — can advance to `verified` without a human click, while everything else still routes to the human cockpit (Lane B). The lane is deliberately conservative: it can only approve, never reject, and it can only approve when every condition below holds.
+
+### Lane A conditions (all must hold)
+
+1. **Structured source types only.** Every selected source must be `registry` or `taxonomy`. Prose sources — `official_site`, `reporting`, `oem_page`, `directory`, `search_result`, `discovery` — are never auto-approvable and route to the human cockpit.
+2. **Explicit CNC/industrial signal text.** Every source must carry explicit CNC/industrial evidence text (`hasExplicitCncEvidence` regex, the same gate used by the attended approval path). A registry row that merely names the company without industrial signal does not qualify.
+3. **Fetched + active + unreviewed.** Every source must be fetched, active, and not previously reviewed/disputed/rejected.
+4. **Canonical `companyKey`.** The proposal must be mapped to a canonical company. Unmapped proposals (the bulk of the Tier-3 backlog) cannot be auto-approved — they stay in the human queue.
+5. **Verdict is `verified` only.** Lane A never writes `rejected`; rejection remains human-only, forever.
+6. **No risk flags.** Proposals with conflicts, worker low confidence, or other risk flags are excluded from the lane.
+
+The shared policy lives in `packages/shared/src/industry-review.ts` (`isAutoApprovableSource` / `hasAutoApprovableEvidence` / `AUTO_VERIFY_SOURCE_TYPES`) and is enforced inside the Convex mutation — the script and API are thin drivers and cannot bypass it.
+
+### Mutation and idempotency
+
+- `companies:autoApproveIndustryProposal` requires `companyKey`, an open proposal, and ≥1 source; if any source fails the Lane A gate it errors with `AUTO_VERIFY_LANE_A_REQUIRED` and writes nothing.
+- The revision is deterministic: `revisionId = auto-<fnv1a8(proposalId + approvedSourceIds + fingerprint)>`. Re-running the same approval is idempotent and returns `{ idempotent: true, revisionId }` instead of duplicating a revision.
+- The attestation fingerprint is derived from the actual approved sources (no caller-supplied fingerprint), so the revision is self-verifying.
+- Every revision records `reviewerType: "auto-verify-bot"` (attended approvals record `"human"`; legacy rows before v0.4.24 are optional and inferred via `reviewedBy`).
+
+### Queue and UI
+
+- `listIndustryReviewQueue` excludes auto-approvable proposals (`excludeAutoApprovableFromQueue`), so the human cockpit only ever shows work the bot cannot do. The recommendation payload exposes `autoApprovable` for observability.
+- Recruiter-facing cards expose approved `verified` summaries regardless of reviewer type; there is no UI distinction, and no additional action is required from `hr`/admin users when the bot approves — the search results update on the next recompute exactly as they do after a human approval.
+
+### Sampling audit (HOTL)
+
+A ~10% risk-weighted sample of auto-approved revisions is re-reviewed by a human steward (`scripts/industry-data/sampling-audit.ts`): single-source approvals are weighted ×2, corroborating multi-source ×1.5, and the sample is drawn deterministically from the revision list. The audit writes a report to `output/industry-data/auto-verify-audit-<ts>.json` with the sampled revisions and an override rate. A rising override rate is the signal to tighten the lane (e.g. require corroboration, or demote a source type).
+
+### Drain script
+
+`scripts/industry-data/auto-verify-proposals.ts` lists auto-approvable proposals and calls the governed mutation for each, reporting approved vs idempotent re-runs. It is a thin driver: all policy enforcement happens in the mutation.
 
 ## Maintenance ops automation (2026-07-30)
 
@@ -368,6 +405,52 @@ Approved verdicts drive recruiter search recall, not just the card badge. When a
 - Query-time behavior: no re-ingest is required when the bridge or verdicts change; only the usual profile→recompute path updates cards.
 - The 60s TTL cache warms at API startup; the first expansion before warm returns synonyms-only.
 
+## Targeted recompute and company-resume links (2026-08-08)
+
+Targeted recompute (`companies:startIndustryRecomputeRun` + BFF
+`company-industry-recompute-service`) drives off `company_resume_links`: the BFF
+lists affected resumes via `companies:listAffectedResumesByCompany`, reserves a
+page, and dispatches `ingest_agent:scheduleExactReingest` batches. If a company
+has zero links, the run finalizes with `processedCount` 0 — a silent no-op.
+
+Links are derived from computed ingestData (`matchedWorkEntries[].companyKey`)
+during every ingest update, so **newly approved companies historically had zero
+links and every recompute no-oped**. Since 2026-08-08 a `verified` approval
+(human lane and governed auto-approve lane alike, via the shared
+`commitIndustryVerdictApproval` path) schedules
+`companies:backfillCompanyResumeLinksByCompany`:
+
+- The backfill scans resumes and matches raw work-history employer surfaces
+  against the company's display names + registered aliases
+  (`company_aliases`), case/punctuation-insensitive with longest-alias soft
+  match (shared `buildCompanyAliasIndex` / `resolveCompanyAlias`).
+- Links are idempotent (delete-then-insert per resume+company), bounded (≤10
+  pages per invocation), and self-chain via the scheduler with a cursor until
+  the corpus is done.
+- A link only carries `currentVerdictRevisionId` when the resume was actually
+  computed under that verdict (from its ingestData entries). Resumes never
+  computed under the company stay revision-less, so the recompute classifies
+  them as stale and processes them.
+- **Backfill for already-verified companies:** the write-secret-gated ops
+  mutation `companies:backfillCompanyResumeLinks` (registry-listed,
+  maintenance-guarded) schedules the same backfill for an existing company —
+  use it after importing a reviewed catalog or adding aliases.
+- Rejected verdicts never schedule a backfill.
+
+**Corpus drain fallback:** when the full-corpus scan
+(`migrations:reIngestStaleSkillsVersion`) cannot run (local-backend overload),
+use exact re-ingest for targeted cohorts
+(`ingest_agent:scheduleExactReingest`, `MAX_EXACT_REINGEST_TARGETS=500`),
+which dispatches `internal.ingest_agent.processNewResumes` per batch. The BFF
+`trigger-reingest` route and the search-freshness doctor report this fallback
+hint explicitly on action failure instead of a bare 500.
+
+**Drain counters are honest:** `reIngestStaleResumes` reports `scannedRows`
+(rows actually fetched) + `hasMore`; the doctor's `lag.scanned` is the real
+scanned window and `scanComplete = !hasMore` — an incomplete window
+understates the true stale population and is called out in doctor messages and
+by `deploy/search-freshness-gate.sh`.
+
 ## Rollback
 
 Verdict revisions are immutable. Never delete or mutate the imported current revision.
@@ -425,3 +508,5 @@ For each attended approval retain:
 - decision reason and taxonomy/rule version;
 - targeted recompute run ID, counts, failures, and final state;
 - rollback packet for bootstrap batches.
+
+For each Lane A auto-approval, the revision itself is the audit record: deterministic `auto-<fnv1a8>` revision ID, `reviewerType: "auto-verify-bot"`, source-derived fingerprint, and the approved source IDs. The ~10% risk-weighted sampling audit (`scripts/industry-data/sampling-audit.ts`) additionally re-reviews a deterministic sample and tracks the override rate in `output/industry-data/auto-verify-audit-<ts>.json`.

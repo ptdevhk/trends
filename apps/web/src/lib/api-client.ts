@@ -22,6 +22,26 @@ function readCookie(name: string): string | null {
 
 export const apiClient = createClient<paths>({ baseUrl: apiBaseUrl, credentials: 'include' })
 
+/**
+ * Builds a Headers object with the same middleware semantics applied to every
+ * apiClient request: X-Workspace-Slug from workspaceRef on all requests, and
+ * X-CSRF-Token from the trends_csrf cookie on mutating methods (POST/PUT/
+ * PATCH/DELETE) unless the caller already set it. Used by the raw lib/ fetch
+ * wrappers (raw-endpoints.ts) so they stay in lock-step with the client
+ * middleware.
+ */
+export function buildApiHeaders(init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers)
+  headers.set('X-Workspace-Slug', workspaceRef.get())
+  if (mutatingMethods.has((init?.method ?? 'GET').toUpperCase()) && !headers.has(csrfHeaderName)) {
+    const csrfToken = readCookie(csrfCookieName)
+    if (csrfToken) {
+      headers.set(csrfHeaderName, csrfToken)
+    }
+  }
+  return headers
+}
+
 apiClient.use({
   onRequest({ request }) {
     request.headers.set('X-Workspace-Slug', workspaceRef.get())

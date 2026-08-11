@@ -6,10 +6,10 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // In tests, force react/react-dom to root node_modules (React 18) so they match
-    // @testing-library/react which is hoisted to root and uses root's react-dom (React 18).
-    // React 19 elements use Symbol.for('react.transitional.element') which React 18's
-    // reconciler doesn't recognise — aliasing everything to React 18 keeps it consistent.
+    // In tests, force react/react-dom to root node_modules (React 19, pinned as a
+    // root devDependency) so they match @testing-library/react which is hoisted to
+    // root and uses root's react-dom (React 19). Mixed React versions (18 at root
+    // via stale hoisting) produce divergent act()/effect behavior in tests.
     alias: [
       { find: '@', replacement: path.resolve(__dirname, './src') },
       { find: /^react\/jsx-runtime$/, replacement: path.resolve(__dirname, '../../node_modules/react/jsx-runtime') },
@@ -25,6 +25,26 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     css: false,
+    // Watchdog: an infinite React update loop ("Maximum update depth exceeded")
+    // used to stream warnings for 30 minutes until the CI job timeout killed
+    // the run. Throwing from onConsoleLog does NOT fail the offending test and
+    // does NOT interrupt a worker genuinely stuck in a loop — the throw
+    // surfaces in the main process as an unhandled rejection and makes vitest
+    // exit 1. Treat this as a smoke signal for logged loops, not a hang guard:
+    // the stable mock-`t` convention (src/test/setup.ts) is the real
+    // protection. The message tells the developer the usual cause (an effect
+    // depending on an unstable callback, e.g. `t` from an unstable
+    // react-i18next mock).
+    onConsoleLog(log, type) {
+      if (type === 'stderr' && log.includes('Maximum update depth exceeded')) {
+        throw new Error(
+          'Detected an infinite React update loop ("Maximum update depth exceeded"). ' +
+            'Likely cause: a mount effect depends on a useCallback that closes over `t` ' +
+            '(or another per-render value) from a react-i18next mock. Omit `t` from the ' +
+            'callback deps and/or make the mock return a module-scope `t`.',
+        )
+      }
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'clover', 'json', 'lcov'],

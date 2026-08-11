@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-07T14:37:04.156Z",
+  "sourceOfTruth": "dev-catalog-2026-08-07",
+  "cohortFilter": "attended-review: cn-market excluded + explicit CNC evidence required",
+  "companyCount": 27
+}

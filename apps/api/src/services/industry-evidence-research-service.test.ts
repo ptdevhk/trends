@@ -22,6 +22,7 @@ import {
   enqueueIndustryEvidenceResearch,
   enqueueIndustryEvidenceResearchBatch,
   resolveExactResumeResearchTargets,
+  resolveIndustryProposalIdentity,
 } from "./industry-evidence-research-service.js";
 
 describe("industry evidence targeted research service", () => {
@@ -87,5 +88,33 @@ describe("industry evidence targeted research service", () => {
     expect(result.requests).toEqual([]);
     expect(result.dispatch).toEqual({ runId: null, coalesced: false });
     expect(enqueueIndustryMaintenance).not.toHaveBeenCalled();
+  });
+
+  it("forwards the acting membership role on identity-resolution audit writes", async () => {
+    callConvexMutation.mockResolvedValue({
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      auditId: "audit-1",
+    });
+    const result = await resolveIndustryProposalIdentity({
+      workspaceSlug: "dev",
+      actor: "reviewer-1",
+      actorRole: "reviewer",
+      proposalId: "proposal-1",
+      expectedProposalUpdatedAt: 123,
+      candidateFingerprint: "fp-1",
+      mappingMode: "existing",
+      companyKey: "acme-cnc",
+      sourceIds: ["source-1"],
+    });
+    expect(result.auditId).toBe("audit-1");
+    expect(callConvexMutation).toHaveBeenCalledWith(
+      "companies:resolveIndustryProposalIdentity",
+      expect.objectContaining({
+        workspaceSlug: "dev",
+        actor: "reviewer-1",
+        actorRole: "reviewer",
+      }),
+    );
   });
 });

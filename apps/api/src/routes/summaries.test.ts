@@ -130,6 +130,11 @@ function convexSuccess(value: unknown): Response {
 
 async function loadSummaryModules(root: string) {
   process.env.PROJECT_ROOT = root;
+  // Hermetic timezone: config.ts lets an ambient TIMEZONE env var win over
+  // config.yaml / the default (Asia/Hong_Kong). Dev shells (e.g. macOS with
+  // TIMEZONE=Asia/Shanghai exported) would otherwise silently change the
+  // resolved timezone and break the assertions below. Pin it explicitly.
+  vi.stubEnv("TIMEZONE", "Asia/Hong_Kong");
   vi.resetModules();
   const { createApp } = await import("../app");
   const { SessionManager } = await import("../services/session-manager");
@@ -188,6 +193,7 @@ describe("summary preview route", () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     delete process.env.PROJECT_ROOT;
     if (root) {
       const { resetResumeScreeningDb } = await import("../services/database");

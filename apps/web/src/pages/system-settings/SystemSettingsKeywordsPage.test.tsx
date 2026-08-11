@@ -28,15 +28,17 @@ vi.mock('@/pages/system-settings/lib', () => ({
   useSettingsRequestJson: () => ({ apiBaseUrl: '/api', requestJson: requestJsonMock }),
 }))
 
+const mockT = (_key: string, fallback?: string | Record<string, unknown>) => {
+  if (typeof fallback === 'string') return fallback
+  if (fallback && typeof fallback === 'object' && 'defaultValue' in fallback) {
+    return fallback.defaultValue as string
+  }
+  return _key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback?: string | Record<string, unknown>) => {
-      if (typeof fallback === 'string') return fallback
-      if (fallback && typeof fallback === 'object' && 'defaultValue' in fallback) {
-        return fallback.defaultValue as string
-      }
-      return _key
-    },
+    t: mockT,
   }),
 }))
 

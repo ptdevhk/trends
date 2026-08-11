@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AUTO_VERIFY_SOURCE_TYPES,
   INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
   INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS,
+  hasAutoApprovableEvidence,
   hasExplicitCncEvidence,
+  isAutoApprovableSource,
   isExplicitCncEvidenceSource,
+  requiresReviewAttestation,
   reviewAttestationDecision,
+  selectApprovalSafeSources,
   validateIndustryReviewAttestation,
   type IndustryReviewAttestation,
 } from "./industry-review.js";
@@ -94,5 +99,224 @@ describe("industry review policy", () => {
       ok: false,
       code: "INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED",
     });
+  });
+
+  it("allows an attended reviewer to override weak_industry_signal with an explicit class", () => {
+    expect(INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS).not.toContain(
+      "weak_industry_signal",
+    );
+    expect(reviewAttestationDecision(["weak_industry_signal"])).toEqual({
+      requiresAcknowledgement: true,
+      nonOverridableRiskFlags: [],
+      canApproveWithRiskOverride: true,
+    });
+    const attestation: IndustryReviewAttestation = {
+      schemaVersion: INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
+      inputFingerprint: "fingerprint-3",
+      decisionMode: "risk_override",
+      acknowledgedRiskFlags: ["weak_industry_signal"],
+      cncEvidenceAcknowledged: false,
+      acknowledgementReason:
+        "Official site confirms a retail chain; classifying non_industry.",
+    };
+    expect(
+      validateIndustryReviewAttestation({
+        attestation,
+        expectedInputFingerprint: "fingerprint-3",
+        visibleRiskFlags: ["weak_industry_signal"],
+        recommendedIndustryClass: "non_industry",
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("keeps canonical mapping and source conflicts hard-blocked", () => {
+    for (const flag of [
+      "canonical_mapping_missing",
+      "only_discovery_sources",
+      "source_conflict",
+      "stale_or_failed_source",
+    ] as const) {
+      expect(INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS).toContain(flag);
+      expect(reviewAttestationDecision([flag])).toEqual({
+        requiresAcknowledgement: true,
+        nonOverridableRiskFlags: [flag],
+        canApproveWithRiskOverride: false,
+      });
+    }
+  });
+
+  it("Lane A auto-verify accepts only structured registry/taxonomy sources with explicit CNC text", () => {
+    expect(AUTO_VERIFY_SOURCE_TYPES).toEqual(
+      new Set(["registry", "taxonomy"]),
+    );
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining company registry record",
+        evidenceExcerpt: "数控机床制造",
+        fetchStatus: "fetched",
+        sourceState: "active",
+        reviewStatus: "unreviewed",
+      }),
+    ).toBe(true);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "taxonomy",
+        trustTier: "primary",
+        title: "机床加工",
+        evidenceExcerpt: "Precision machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(true);
+  });
+
+  it("Lane A rejects prose, discovery, failed, disputed, and non-CNC sources", () => {
+    expect(
+      isAutoApprovableSource({
+        sourceType: "official_site",
+        trustTier: "primary",
+        title: "CNC machining",
+        evidenceExcerpt: "We do CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "discovery",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "failed",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "CNC machining",
+        evidenceExcerpt: "CNC machining",
+        fetchStatus: "fetched",
+        sourceState: "disputed",
+      }),
+    ).toBe(false);
+    expect(
+      isAutoApprovableSource({
+        sourceType: "registry",
+        trustTier: "corroborating",
+        title: "General trading company",
+        evidenceExcerpt: "Import and export of consumer goods",
+        fetchStatus: "fetched",
+        sourceState: "active",
+      }),
+    ).toBe(false);
+  });
+
+  it("Lane A requires every selected source to be auto-approvable", () => {
+    expect(
+      hasAutoApprovableEvidence([
+        {
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+        {
+          sourceType: "taxonomy",
+          trustTier: "primary",
+          title: "机床",
+          evidenceExcerpt: "机床",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      hasAutoApprovableEvidence([
+        {
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+        {
+          sourceType: "official_site",
+          trustTier: "primary",
+          title: "CNC machining",
+          evidenceExcerpt: "CNC machining",
+          fetchStatus: "fetched",
+          sourceState: "active",
+        },
+      ]),
+    ).toBe(false);
+    expect(hasAutoApprovableEvidence([])).toBe(false);
+  });
+});
+
+describe("selectApprovalSafeSources", () => {
+  const decisions = [
+    { sourceId: "official", approvalSafe: true, recommended: true, reasonCodes: [] },
+    { sourceId: "search", approvalSafe: false, recommended: false, reasonCodes: [] },
+    { sourceId: "registry", approvalSafe: true, recommended: false, reasonCodes: [] },
+  ];
+
+  it("intersects the recommended selection with approval-safe decisions", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official", "search", "registry"],
+      sourceDecisions: decisions,
+    })).toEqual(["official", "registry"]);
+  });
+
+  it("deduplicates repeated recommended source ids", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official", "official"],
+      sourceDecisions: decisions,
+    })).toEqual(["official"]);
+  });
+
+  it("falls back to every approval-safe decision when nothing was recommended", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: [],
+      sourceDecisions: decisions,
+    })).toEqual(["official", "registry"]);
+  });
+
+  it("returns empty when no decision is approval-safe", () => {
+    expect(selectApprovalSafeSources({
+      recommendedSourceIds: ["official"],
+      sourceDecisions: decisions.map((decision) => ({ ...decision, approvalSafe: false })),
+    })).toEqual([]);
+  });
+});
+
+describe("requiresReviewAttestation", () => {
+  it("requires attestation for any visible risk flag", () => {
+    expect(requiresReviewAttestation(["weak_industry_signal"], "industrial")).toBe(true);
+  });
+
+  it("requires attestation for a cnc classification even with no flags", () => {
+    expect(requiresReviewAttestation([], "cnc")).toBe(true);
+  });
+
+  it("does not require attestation for a clean non-cnc decision", () => {
+    expect(requiresReviewAttestation([], "industrial")).toBe(false);
+    expect(requiresReviewAttestation([], "non_industry")).toBe(false);
   });
 });

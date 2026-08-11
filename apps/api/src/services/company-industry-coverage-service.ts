@@ -1,10 +1,11 @@
 /**
  * Industry verification coverage summary (operator health snapshot).
- * Thin wrapper over companies:getIndustryCoverageSummary.
+ * Reads the precomputed counters doc (P1.8/C5) plus live maintenance and
+ * research-queue state, and derives the operator bottleneck flags.
  */
 
 import { config } from "./config.js";
-import { callConvexQuery } from "./convex-utils.js";
+import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 
 export interface IndustryCoverageMaintenanceRun {
   runId: string;
@@ -132,13 +133,13 @@ export function parseIndustryCoverageSummary(
   const researchQueue = isRecord(value.researchQueue) ? value.researchQueue : {};
   const generatedAt = finiteNumber(value.generatedAt);
   const openTotal = finiteNumber(value.openTotal);
-  const openWithSources = finiteNumber(value.openWithSources);
-  const openWithoutSources = finiteNumber(value.openWithoutSources);
+  // openWithSources now arrives from the precomputed counters doc (C5);
+  // tolerate its absence from older payloads.
+  const openWithSources = finiteNumber(value.openWithSources) ?? 0;
+  const openWithoutSources = finiteNumber(value.openWithoutSources) ?? 0;
   if (
     generatedAt === undefined ||
     openTotal === undefined ||
-    openWithSources === undefined ||
-    openWithoutSources === undefined ||
     typeof value.workspaceSlug !== "string"
   ) {
     return null;
@@ -188,16 +189,64 @@ export function parseIndustryCoverageSummary(
   };
 }
 
+const COUNTERS_REFRESH_TTL_MS = 5 * 60 * 1000;
+
+function refreshCounters(workspaceSlug: string): void {
+  const writeSecret = config.auth.convexWriteSecret;
+  void callConvexMutation("companies:refreshIndustryCoverageProposalCounters", {
+    workspaceSlug,
+    writeSecret,
+  }).catch(() => {
+    // Counters are an operator snapshot; a failed refresh is served stale.
+  });
+  void callConvexMutation("companies:refreshIndustryCoverageEvidenceCounters", {
+    workspaceSlug,
+    writeSecret,
+  }).catch(() => {
+    // Counters are an operator snapshot; a failed refresh is served stale.
+  });
+}
+
 export async function getIndustryCoverageSummary(
   workspaceSlug: string,
 ): Promise<IndustryCoverageSummary> {
-  const value = await callConvexQuery("companies:getIndustryCoverageSummary", {
-    workspaceSlug,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  const writeSecret = config.auth.convexWriteSecret;
+  const fetchValue = () =>
+    callConvexQuery("companies:getIndustryCoverageSummary", {
+      workspaceSlug,
+      maintenanceLimit: 50,
+      writeSecret,
+    });
+
+  let value = await fetchValue();
+  const countersGeneratedAt = isRecord(value) && typeof value.countersGeneratedAt === "number"
+    ? value.countersGeneratedAt
+    : undefined;
+  if (countersGeneratedAt === undefined) {
+    // Never refreshed: pay for the refresh inline so the first render is
+    // accurate instead of a wall of zeros. Each refresh mutation stays
+    // under the per-query system-op ceiling (~9.8k and ~4k ops).
+    await callConvexMutation("companies:refreshIndustryCoverageProposalCounters", {
+      workspaceSlug,
+      writeSecret,
+    });
+    await callConvexMutation("companies:refreshIndustryCoverageEvidenceCounters", {
+      workspaceSlug,
+      writeSecret,
+    });
+    value = await fetchValue();
+  } else if (Date.now() - countersGeneratedAt > COUNTERS_REFRESH_TTL_MS) {
+    refreshCounters(workspaceSlug);
+  }
+
   const parsed = parseIndustryCoverageSummary(value);
   if (!parsed) {
     throw new Error("Invalid companies:getIndustryCoverageSummary response");
   }
+  parsed.openWithoutSources = Math.max(0, parsed.openTotal - parsed.openWithSources);
+  parsed.emptyEvidenceBottleneck =
+    parsed.openTotal > 0 &&
+    (parsed.openWithSources === 0 ||
+      parsed.openWithSources / parsed.openTotal < 0.05);
   return parsed;
 }

@@ -212,6 +212,47 @@ async function applyCompany(
       );
     }
 
+    // The governed approve endpoint requires a review attestation for
+    // elevated decisions (visible risk flags) and for cnc-class approvals
+    // (explicit CNC evidence acknowledgment). Fetch the shared review packet
+    // to obtain the input fingerprint + visible risk flags, then build the
+    // attestation exactly as the attended cockpit does.
+    const packetResponse = await requestJson(
+      options,
+      auth,
+      `/api/company-industry-proposals/${encodeURIComponent(company.proposalId)}/review-packet`,
+    );
+    const dataset =
+      packetResponse.dataset && typeof packetResponse.dataset === "object"
+        ? (packetResponse.dataset as { inputFingerprint?: string })
+        : undefined;
+    const recommendation =
+      packetResponse.recommendation && typeof packetResponse.recommendation === "object"
+        ? (packetResponse.recommendation as { riskFlags?: string[] })
+        : undefined;
+    const inputFingerprint = dataset?.inputFingerprint ?? "";
+    if (!inputFingerprint) {
+      throw new Error(
+        `Review packet missing dataset.inputFingerprint for ${company.companyKey}`,
+      );
+    }
+    const visibleRiskFlags = recommendation?.riskFlags ?? [];
+    const requiresAttestation =
+      visibleRiskFlags.length > 0 || company.industryClass === "cnc";
+    const reviewAttestation = requiresAttestation
+      ? {
+          schemaVersion: "industry-review-attestation.v1",
+          inputFingerprint,
+          decisionMode: visibleRiskFlags.length > 0 ? "risk_override" : "standard",
+          acknowledgedRiskFlags: visibleRiskFlags,
+          // cnc-class approvals require the operator to confirm the explicit
+          // CNC evidence was reviewed (same gate as the attended cockpit).
+          // cnc_claim_inferred is a hard risk and fails validation regardless.
+          cncEvidenceAcknowledged: company.industryClass === "cnc",
+          acknowledgementReason: `Attended MY bootstrap reviewed import for ${company.employerName} (${company.companyKey}); approved sources carry explicit ${company.industryClass} evidence.`,
+        }
+      : undefined;
+
     await requestJson(
       options,
       auth,
@@ -221,6 +262,7 @@ async function applyCompany(
         body: JSON.stringify({
           revisionId: company.revisionId,
           expectedCurrentRevisionId: before.currentRevisionId,
+          expectedInputFingerprint: inputFingerprint,
           verificationLevel: company.verificationLevel,
           industryClass: company.industryClass,
           approvedSourceIds: company.sources.map((source) => source.sourceId),
@@ -229,6 +271,7 @@ async function applyCompany(
           taxonomyVersion: company.taxonomyVersion,
           ruleVersion: company.ruleVersion,
           nextReviewAt: company.nextReviewAt,
+          ...(reviewAttestation ? { reviewAttestation } : {}),
         }),
       },
     );

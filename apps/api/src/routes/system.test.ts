@@ -4,6 +4,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 vi.mock("../services/convex-utils.js", () => ({
   callConvexQuery: vi.fn(),
   callConvexMutation: vi.fn(),
+  callConvexAction: vi.fn(),
 }));
 
 import systemRoutes from "./system.js";

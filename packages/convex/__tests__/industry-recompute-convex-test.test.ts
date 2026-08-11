@@ -358,4 +358,191 @@ describe("company industry targeted recompute runs", () => {
       }),
     ).rejects.toThrow(/superseded revision/);
   });
+
+  it("resets a waiting run to queued, clearing batches and progress counters", async () => {
+    const t = createTest();
+    await seedReviewedRevision(t);
+    const resumeId = await t.run(async (ctx) =>
+      ctx.db.insert("resumes", {
+        externalId: "resume-reset",
+        content: {},
+        hash: "hash-reset",
+        tags: [],
+        crawledAt: 1,
+        source: "test",
+        workspaceSlug: "hr",
+      }),
+    );
+    const companies = (api as any).companies;
+
+    await t.mutation(companies.startIndustryRecomputeRun, {
+      runId: "run-1",
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+      proposalId: "proposal-1",
+      requestedBy: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(companies.reserveIndustryRecomputePage, {
+      runId: "run-1",
+      expectedCursor: "",
+      items: [{ resumeId, currentVerdictRevisionId: "revision-1" }],
+      continueCursor: "cursor-2",
+      isDone: true,
+      writeSecret: WRITE_SECRET,
+    });
+    const batch = await t.query(companies.getNextIndustryRecomputeBatch, {
+      runId: "run-1",
+      writeSecret: WRITE_SECRET,
+    });
+    const waiting = await t.mutation(
+      companies.recordIndustryRecomputeBatchDispatch,
+      {
+        runId: "run-1",
+        batchId: batch.batchId,
+        dispatchedAt: 150,
+        expectedSkillsVersion: 7,
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(waiting.status).toBe("waiting");
+
+    const reset = await t.mutation(companies.resetIndustryRecomputeRun, {
+      runId: "run-1",
+      requestedBy: "operator-2",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(reset).toMatchObject({
+      runId: "run-1",
+      status: "queued",
+      attempt: 2,
+      requestedBy: "operator-2",
+      sourceDone: false,
+      pageCount: 0,
+      affectedCount: 0,
+      alreadyCurrentCount: 0,
+      scheduledCount: 0,
+      readyCount: 0,
+      failureCount: 0,
+      batchCount: 0,
+      failures: [],
+    });
+    expect(reset.cursor).toBeUndefined();
+    expect(reset.lastError).toBeUndefined();
+    expect(reset.completedAt).toBeUndefined();
+
+    const remainingBatches = await t.run(async (ctx) =>
+      ctx.db
+        .query("company_industry_recompute_batches")
+        .withIndex("by_run", (q) => q.eq("runId", "run-1"))
+        .collect(),
+    );
+    expect(remainingBatches).toEqual([]);
+  });
+
+  it("resets a completed run to queued (unlike retry, which is a no-op)", async () => {
+    const t = createTest();
+    await seedReviewedRevision(t);
+    const resumeId = await t.run(async (ctx) =>
+      ctx.db.insert("resumes", {
+        externalId: "resume-completed-reset",
+        content: {},
+        hash: "hash-completed-reset",
+        tags: [],
+        crawledAt: 1,
+        source: "test",
+        workspaceSlug: "hr",
+      }),
+    );
+    const companies = (api as any).companies;
+
+    await t.mutation(companies.startIndustryRecomputeRun, {
+      runId: "run-1",
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+      proposalId: "proposal-1",
+      requestedBy: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(companies.reserveIndustryRecomputePage, {
+      runId: "run-1",
+      expectedCursor: "",
+      items: [{ resumeId, currentVerdictRevisionId: "revision-1" }],
+      continueCursor: "",
+      isDone: true,
+      writeSecret: WRITE_SECRET,
+    });
+    const batch = await t.query(companies.getNextIndustryRecomputeBatch, {
+      runId: "run-1",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(companies.recordIndustryRecomputeBatchDispatch, {
+      runId: "run-1",
+      batchId: batch.batchId,
+      dispatchedAt: 150,
+      expectedSkillsVersion: 7,
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(companies.recordIndustryRecomputeBatchReadiness, {
+      runId: "run-1",
+      batchId: batch.batchId,
+      readyResumeIds: [resumeId],
+      failures: [],
+      writeSecret: WRITE_SECRET,
+    });
+    const completed = await t.mutation(companies.finalizeIndustryRecomputeRun, {
+      runId: "run-1",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(completed.status).toBe("completed");
+
+    const reset = await t.mutation(companies.resetIndustryRecomputeRun, {
+      runId: "run-1",
+      requestedBy: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(reset).toMatchObject({
+      runId: "run-1",
+      status: "queued",
+      attempt: 2,
+      readyCount: 0,
+      failureCount: 0,
+      batchCount: 0,
+    });
+    expect(reset.completedAt).toBeUndefined();
+  });
+
+  it("blocks reset of a superseded run", async () => {
+    const t = createTest();
+    await seedReviewedRevision(t);
+    const companies = (api as any).companies;
+
+    await t.mutation(companies.startIndustryRecomputeRun, {
+      runId: "run-1",
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      targetRevisionId: "revision-2",
+      proposalId: "proposal-1",
+      requestedBy: "operator",
+      writeSecret: WRITE_SECRET,
+    });
+    const superseded = await t.mutation(
+      companies.markIndustryRecomputeRunSuperseded,
+      {
+        runId: "run-1",
+        observedRevisionId: "revision-3",
+        writeSecret: WRITE_SECRET,
+      },
+    );
+    expect(superseded.status).toBe("superseded");
+    await expect(
+      t.mutation(companies.resetIndustryRecomputeRun, {
+        runId: "run-1",
+        requestedBy: "operator",
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(/superseded revision/);
+  });
 });

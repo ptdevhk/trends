@@ -4,7 +4,10 @@ import type {
   IndustryEvidenceSource,
   IndustryProposal,
 } from "./company-industry-contracts.js";
-import { industryReviewInternals } from "./company-industry-review-service.js";
+import {
+  excludeAutoApprovableFromQueue,
+  industryReviewInternals,
+} from "./company-industry-review-service.js";
 
 function proposal(overrides: Partial<IndustryProposal> = {}): IndustryProposal {
   return {
@@ -131,6 +134,46 @@ describe("industry review recommendation rules", () => {
     expect(result.recommendation.riskFlags).toContain("stale_or_failed_source");
   });
 
+  it("does not hard-block on failed search-result sources", () => {
+    // A bot-blocked junk search result never contributed evidence and is
+    // excluded from approval either way; it must not hard-block a proposal
+    // whose official sources fetched cleanly (observed on preview 2026-08-09
+    // with 3M/Indeed/CTOS rows blocking otherwise clean approvals).
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [
+        source(),
+        source({
+          _id: "source-row-junk",
+          sourceId: "source-junk",
+          url: "https://www.3m.com/",
+          sourceDomain: "www.3m.com",
+          sourceType: "search_result",
+          trustTier: "discovery",
+          fetchStatus: "failed",
+          suggestedIndustryClass: undefined,
+          workerConfidence: 0.2,
+          title: "3M",
+          evidenceExcerpt: "",
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+
+    expect(result.recommendation.riskFlags).not.toContain("stale_or_failed_source");
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.recommendedSourceIds).toEqual(["source-1"]);
+    const junkDecision = result.recommendation.sourceDecisions.find(
+      (decision) => decision.sourceId === "source-junk",
+    );
+    expect(junkDecision).toMatchObject({
+      approvalSafe: false,
+      recommended: false,
+    });
+    expect(junkDecision?.reasonCodes).toContain("fetch_failed");
+  });
+
   it("routes conflicting source classes to more evidence", () => {
     const result = industryReviewInternals.buildRecommendation({
       proposal: proposal(),
@@ -244,5 +287,141 @@ describe("industry review recommendation rules", () => {
     });
 
     expect(second.dataset.inputFingerprint).not.toBe(first.dataset.inputFingerprint);
+  });
+
+  it("marks a structured registry-only proposal auto-approvable (Lane A)", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [
+        source({
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "ACME CNC registry record",
+          evidenceExcerpt: "数控机床制造与精密加工",
+        }),
+        source({
+          _id: "source-row-2",
+          sourceId: "source-2",
+          url: "https://registry.example.com/company/acme-cnc-2",
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "ACME CNC second registry record",
+          evidenceExcerpt: "CNC machining and metalworking",
+          updatedAt: 21,
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.riskFlags).toEqual([]);
+    expect(result.recommendation.autoApprovable).toBe(true);
+  });
+
+  it("does not auto-approve prose evidence (official_site) even when high-confidence", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [source()],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.confidenceBand).toBe("high");
+    expect(result.recommendation.autoApprovable).toBe(false);
+  });
+
+  it("does not auto-approve when any risk flag is present", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [
+        source({
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "ACME CNC registry record",
+          evidenceExcerpt: "数控机床制造与精密加工",
+        }),
+        source({
+          _id: "source-row-2",
+          sourceId: "source-2",
+          url: "https://acme.example/company",
+          sourceType: "registry",
+          trustTier: "authoritative",
+          suggestedIndustryClass: "automation",
+          title: "ACME automation registry",
+          evidenceExcerpt: "ACME automation equipment registry entry.",
+          updatedAt: 21,
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).toContain("source_conflict");
+    expect(result.recommendation.autoApprovable).toBe(false);
+  });
+
+  it("does not auto-approve a proposal without a canonical companyKey", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal({ companyKey: undefined }),
+      sources: [
+        source({
+          sourceType: "registry",
+          trustTier: "corroborating",
+          title: "ACME CNC registry record",
+          evidenceExcerpt: "数控机床制造与精密加工",
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).toContain("canonical_mapping_missing");
+    expect(result.recommendation.autoApprovable).toBe(false);
+  });
+});
+
+describe("excludeAutoApprovableFromQueue (Lane A queue exclusion)", () => {
+  function queueItem(autoApprovable: boolean, proposalId = "proposal-1") {
+    return {
+      proposal: proposal({ proposalId }),
+      recommendation: {
+        proposalId,
+        proposalStatus: "ready_for_review" as const,
+        recommendedAction: "approve" as const,
+        recommendedVerificationLevel: "verified" as const,
+        recommendedIndustryClass: "cnc" as const,
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [],
+        confidenceBand: "high" as const,
+        riskFlags: [],
+        reasons: [],
+        excludedSourceReasons: {},
+        riskDecision: {
+          requiresAcknowledgement: false,
+          nonOverridableRiskFlags: [],
+          canApproveWithRiskOverride: true,
+        },
+        evidenceSummaryDraft: "Registry evidence.",
+        decisionReasonDraft: "Auto-approve.",
+        requiresHumanReview: true as const,
+        autoApprovable,
+      },
+      inputFingerprint: "fingerprint-1",
+      sourceCount: 1,
+    };
+  }
+
+  it("drops auto-approvable proposals from the human queue", () => {
+    const items = [
+      queueItem(true, "proposal-auto"),
+      queueItem(false, "proposal-human"),
+    ];
+    const filtered = excludeAutoApprovableFromQueue(items);
+    expect(filtered.map((item) => item.proposal.proposalId)).toEqual([
+      "proposal-human",
+    ]);
+  });
+
+  it("keeps all proposals when none are auto-approvable", () => {
+    const items = [queueItem(false, "proposal-1"), queueItem(false, "proposal-2")];
+    expect(excludeAutoApprovableFromQueue(items)).toHaveLength(2);
   });
 });

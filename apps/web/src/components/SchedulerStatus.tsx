@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { useTranslation } from 'react-i18next'
+import { apiClient } from '@/lib/api-client'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 interface WorkerStatus {
@@ -23,10 +24,6 @@ interface WorkerStatus {
         next_run: string | null
         trigger: string | null
     }>
-}
-
-interface SchedulerStatusProps {
-    apiBaseUrl: string
 }
 
 function parseIsoDate(value: string | null): Date | null {
@@ -61,7 +58,7 @@ function formatScheduleConfig(status: WorkerStatus, t: (key: string) => string):
     return t('debugConfig.notConfigured')
 }
 
-export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
+export function SchedulerStatus() {
     const { t } = useTranslation()
     const [status, setStatus] = useState<WorkerStatus | null>(null)
     const [loading, setLoading] = useState(true)
@@ -70,10 +67,9 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
     useEffect(() => {
         async function fetchStatus() {
             try {
-                const response = await fetch(`${apiBaseUrl}/api/worker/status`)
+                const { data, response } = await apiClient.GET('/api/worker/status')
                 if (!response.ok) throw new Error('Failed to fetch status')
-                const data = await response.json()
-                setStatus(data)
+                setStatus(data as WorkerStatus)
                 setError(null)
             } catch (err) {
                 reportUiError('Failed to fetch scheduler status', err)
@@ -86,7 +82,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
         fetchStatus()
         const interval = setInterval(fetchStatus, 30000) // Poll every 30s
         return () => clearInterval(interval)
-    }, [apiBaseUrl])
+    }, [])
 
     if (loading) {
         return (

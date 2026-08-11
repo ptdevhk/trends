@@ -7,6 +7,14 @@ const workspaceState = vi.hoisted(() => ({
   isAdmin: true,
 }))
 
+const authState = vi.hoisted(() => ({
+  memberships: [] as Array<{ userId: string; workspaceSlug: string; role: string }>,
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ memberships: authState.memberships }),
+}))
+
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({
     slug: 'dev',
@@ -27,6 +35,7 @@ vi.mock('@trends/shared', () => ({
     { id: 'keywords', titleKey: 'settings.searchSetup.nav', defaultTitle: 'Search setup', hrefSuffix: '/settings/keywords', matchesSuffixes: ['/settings/keywords'] },
     { id: 'policies', titleKey: 'settings.policies.nav', defaultTitle: 'Policies', hrefSuffix: '/settings/policies', matchesSuffixes: ['/settings/policies', '/settings/blocks'] },
     { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'] },
+    { id: 'industry-verification', titleKey: 'nav.industryVerification', defaultTitle: 'Industry verification', hrefSuffix: '/system/settings/industry-verification', matchesSuffixes: ['/system/settings/industry-verification'], requiresReviewAccess: true },
   ],
 }))
 
@@ -40,6 +49,7 @@ describe('SettingsSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     workspaceState.isAdmin = true
+    authState.memberships = []
   })
 
   it('renders app name badge', () => {
@@ -88,5 +98,41 @@ describe('SettingsSidebar', () => {
     renderWithRouter(<SettingsSidebar onClose={onClose} />)
     await user.click(screen.getByRole('button'))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('shows the industry verification entry to an active-workspace reviewer', () => {
+    workspaceState.isAdmin = false
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'reviewer' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    const link = screen.getByRole('link', { name: 'Industry verification' })
+    expect(link).toHaveAttribute('href', '/dev/system/settings/industry-verification')
+  })
+
+  it('shows the industry verification entry to an active-workspace admin', () => {
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'admin' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.getByRole('link', { name: 'Industry verification' })).toBeInTheDocument()
+  })
+
+  it('hides the industry verification entry from plain members', () => {
+    workspaceState.isAdmin = false
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'user' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.queryByRole('link', { name: 'Industry verification' })).not.toBeInTheDocument()
+  })
+
+  it('hides the industry verification entry from a reviewer of another workspace', () => {
+    workspaceState.isAdmin = false
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.queryByRole('link', { name: 'Industry verification' })).not.toBeInTheDocument()
   })
 })

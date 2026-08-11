@@ -18,9 +18,11 @@ function loginResult(workspaceSlug: string, role: 'user' | 'admin' = 'user') {
   }
 }
 
+const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key,
+    t: mockT,
   }),
 }))
 

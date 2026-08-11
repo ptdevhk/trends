@@ -719,6 +719,7 @@ export default defineSchema({
         createdAt: v.number(),
         updatedAt: v.number(),
         createdBy: v.optional(v.string()),
+        archivedAt: v.optional(v.number()),
     })
         .index("by_company_key", ["companyKey"])
         .index("by_status", ["status"]),
@@ -969,6 +970,13 @@ export default defineSchema({
         readyForReviewAt: v.optional(v.number()),
         reviewedAt: v.optional(v.number()),
         reviewedBy: v.optional(v.string()),
+        // Workspace role of the acting reviewer ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional: system/auto-verify-bot writes and legacy rows carry none.
+        reviewedByRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
         reviewNote: v.optional(v.string()),
         approvedRevisionId: v.optional(v.string()),
         recomputeRunId: v.optional(v.string()),
@@ -1074,6 +1082,13 @@ export default defineSchema({
         proposalId: v.string(),
         workspaceSlug: v.string(),
         actor: v.string(),
+        // Workspace role of the acting member ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional for backward compatibility with pre-role rows.
+        actorRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
         candidateFingerprint: v.string(),
         mappingMode: v.union(v.literal("existing"), v.literal("create_provisional")),
         targetCompanyKey: v.string(),
@@ -1085,6 +1100,30 @@ export default defineSchema({
         .index("by_proposal", ["proposalId"])
         .index("by_workspace_created", ["workspaceSlug", "createdAt"])
         .index("by_audit_id", ["auditId"]),
+
+    // Precomputed operator coverage counters (P1.8/C5, 2026-08-09 plan).
+    // Refreshed by two budget-safe mutations (proposal scan ~9.8k ops and
+    // evidence scan ~4k ops, each under the ~10.5k per-query system-op
+    // ceiling) instead of recomputing the scans on every coverage request.
+    industry_coverage_counters: defineTable({
+        workspaceSlug: v.string(),
+        generatedAt: v.number(),
+        statusNew: v.number(),
+        statusResearching: v.number(),
+        statusReadyForReview: v.number(),
+        statusNeedsMoreEvidence: v.number(),
+        statusApproved: v.number(),
+        statusRejected: v.number(),
+        statusSuperseded: v.number(),
+        openTotal: v.number(),
+        openWithSources: v.number(),
+        resumeTotal: v.number(),
+        withVerifiedEvidence: v.number(),
+        profileVerified: v.number(),
+        profileRejected: v.number(),
+        refreshNote: v.optional(v.string()),
+    })
+        .index("by_workspace", ["workspaceSlug"]),
 
     company_industry_refresh_requests: defineTable({
         requestId: v.string(),
@@ -1127,6 +1166,21 @@ export default defineSchema({
         approvedSourceIds: v.array(v.string()),
         evidenceSummary: v.string(),
         reviewedBy: v.string(),
+        // Workspace role of the acting reviewer ("admin" or "reviewer"),
+        // resolved server-side from the session membership at the API layer.
+        // Optional for backward compatibility with pre-role rows.
+        reviewedByRole: v.optional(v.union(
+            v.literal("admin"),
+            v.literal("reviewer"),
+        )),
+        /**
+         * Who advanced the verdict: "human" (attended cockpit) or
+         * "auto-verify-bot" (governed Lane A). Optional for backward
+         * compatibility with pre-Lane-A rows; readers treat a missing value
+         * as "human" unless reviewedBy is "auto-verify-bot" (legacy
+         * migration-bot approvals).
+         */
+        reviewerType: v.optional(v.union(v.literal("human"), v.literal("auto-verify-bot"))),
         reviewedAt: v.number(),
         decisionReason: v.string(),
         taxonomyVersion: v.string(),
@@ -1148,6 +1202,12 @@ export default defineSchema({
             )),
             cncEvidenceAcknowledged: v.boolean(),
             acknowledgementReason: v.string(),
+            /**
+             * Present on revisions materialized by a batch review: links
+             * every approved revision back to its shared batch attestation.
+             * Optional for single-item approvals and pre-batch rows.
+             */
+            batchId: v.optional(v.string()),
         })),
         supersedesRevisionId: v.optional(v.string()),
         proposalId: v.optional(v.string()),

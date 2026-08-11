@@ -9,6 +9,9 @@ vi.mock("../middleware/maintenance.js", () => ({
 import { createApp } from "../app";
 import { resetResumeScreeningDb } from "../services/database";
 import * as industryReviewService from "../services/company-industry-review-service";
+import * as industryEvidenceResearchService from "../services/industry-evidence-research-service";
+import * as industryProposalService from "../services/company-industry-proposal-service";
+import { companyIndustryRecomputeService } from "../services/company-industry-recompute-service";
 import { parseJsonBody } from "../test-utils";
 import { createAuthHeaders } from "./test-auth-helpers";
 
@@ -201,37 +204,97 @@ describe("companies routes", () => {
     expect(body.policyRevision).toBe(1);
   });
 
+  it("passes includeArchived to the company list query", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:list") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const archivedResponse = await app.request("/api/companies?includeArchived=true", {
+      headers: auth.headers,
+    });
+    expect(archivedResponse.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args.includeArchived).toBe(true);
+
+    const defaultResponse = await app.request("/api/companies", { headers: auth.headers });
+    expect(defaultResponse.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.args.includeArchived).toBe(false);
+  });
+
+  it("archives and restores a company through the BFF", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:setCompanyArchived") {
+        expect(call.args.companyKey).toBe("acme-cnc");
+        expect(call.args.archived).toBe(true);
+        expect(call.args.createdBy).toBe(auth.userId);
+        return convexSuccess({ companyKey: "acme-cnc", archived: true, archivedAt: 123 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/companies/acme-cnc/archive", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ companyKey: string; archived: boolean; archivedAt: number | null }>(response);
+    expect(body.companyKey).toBe("acme-cnc");
+    expect(body.archived).toBe(true);
+    expect(body.archivedAt).toBe(123);
+    expect(calls).toHaveLength(1);
+  });
+
   it("lists governed industry proposals for an authenticated admin", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       expect(call).toMatchObject({
         type: "query",
-        pathName: "companies:listIndustryProposals",
+        pathName: "companies:listIndustryProposalsPage",
       });
       expect(call.args.status).toBe("ready_for_review");
-      return convexSuccess([
-        {
-          _id: "proposal-row",
-          proposalId: "proposal-1",
-          companyKey: "acme-cnc",
-          triggerReasons: ["scheduled_freshness"],
-          priority: 80,
-          status: "ready_for_review",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-        {
-          _id: "legacy-row",
-          proposalId: "probe-nonexistent-xyz",
-          companyKey: "legacy-company",
-          triggerReasons: ["probe"],
-          priority: 1,
-          status: "superseded",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ]);
+      return convexSuccess({
+        items: [
+          {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          {
+            _id: "legacy-row",
+            proposalId: "probe-nonexistent-xyz",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "superseded",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+      });
     });
 
     const app = createApp({ authStorage: auth.storage });
@@ -250,6 +313,51 @@ describe("companies routes", () => {
         status: "ready_for_review",
       }),
     ]);
+  });
+
+  it("pages governed industry proposals with limit and cursor (no 500-row cap)", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call).toMatchObject({
+        type: "query",
+        pathName: "companies:listIndustryProposalsPage",
+      });
+      expect(call.args.status).toBe("ready_for_review");
+      expect(call.args.limit).toBe(25);
+      expect(call.args.cursor).toBe("cursor-1");
+      return convexSuccess({
+        items: [
+          {
+            _id: "proposal-row-2",
+            proposalId: "proposal-2",
+            companyKey: "acme-cnc",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nextCursor: "cursor-2",
+      });
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals?status=ready_for_review&limit=25&cursor=cursor-1",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ proposalId: string }>;
+      nextCursor?: string;
+    }>(response);
+    expect(body.items).toEqual([
+      expect.objectContaining({ proposalId: "proposal-2" }),
+    ]);
+    expect(body.nextCursor).toBe("cursor-2");
   });
 
   it("lists the shared industry review queue for an authenticated admin", async () => {
@@ -290,12 +398,26 @@ describe("companies routes", () => {
             evidenceSummaryDraft: "Official catalog confirms CNC products.",
             decisionReasonDraft: "Reviewed primary evidence.",
             requiresHumanReview: true,
+            autoApprovable: false,
           },
           inputFingerprint: "fingerprint-1",
           sourceCount: 1,
         },
       ],
       maintenance: { latest: null, lastFailed: null },
+    });
+    const impactCalls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      impactCalls.push(call);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        expect(call.args).toMatchObject({
+          companyKeys: ["acme-cnc"],
+          writeSecret: expect.any(String),
+        });
+        return convexSuccess({ "acme-cnc": 5 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
     });
 
     const app = createApp({ authStorage: auth.storage });
@@ -307,10 +429,15 @@ describe("companies routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody<{
       schemaVersion: string;
-      items: Array<{ recommendation: { recommendedAction: string } }>;
+      items: Array<{
+        recommendation: { recommendedAction: string };
+        resumeImpact: number;
+      }>;
     }>(response);
     expect(body.schemaVersion).toBe("industry-review.v1");
     expect(body.items[0]?.recommendation.recommendedAction).toBe("approve");
+    expect(body.items[0]?.resumeImpact).toBe(5);
+    expect(impactCalls).toHaveLength(1);
     expect(industryReviewService.listIndustryReviewQueue).toHaveBeenCalledWith({
       status: "ready_for_review",
       limit: 20,
@@ -364,6 +491,7 @@ describe("companies routes", () => {
         evidenceSummaryDraft: "Need more evidence",
         decisionReasonDraft: "Need more evidence",
         requiresHumanReview: true,
+        autoApprovable: false,
       },
       warnings: [],
     });
@@ -381,8 +509,20 @@ describe("companies routes", () => {
   it("rejects an elevated approval without a complete attestation", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fingerprint-1" },
-      recommendation: { riskFlags: ["low_source_diversity"] },
+      dataset: { inputFingerprint: "fingerprint-1", proposalUpdatedAt: 123, sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }] },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: ["low_source_diversity"],
+        evidenceSummaryDraft: "Reviewed evidence.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+      },
+      reviewContext: { profile: null },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
     const app = createApp({ authStorage: auth.storage });
     const response = await app.request(
@@ -408,12 +548,31 @@ describe("companies routes", () => {
     });
   });
 
-  it("fails closed when an approval packet fingerprint is stale", async () => {
+  it("fails closed when the approval boundary reports a stale packet", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fresh-fingerprint" },
+      dataset: { inputFingerprint: "fingerprint-1", proposalUpdatedAt: 123, sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }] },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: [],
+        evidenceSummaryDraft: "Reviewed official evidence.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+      },
+      reviewContext: { profile: null },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:approveIndustryProposal") {
+        return convexFailure("INDUSTRY_REVIEW_STALE: recommendation fingerprint changed during review");
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
     const app = createApp({ authStorage: auth.storage });
     const response = await app.request(
       "/api/company-industry-proposals/proposal-1/approve",
@@ -432,6 +591,14 @@ describe("companies routes", () => {
           evidenceSummary: "Reviewed official evidence.",
           decisionReason: "Reviewed primary evidence.",
           taxonomyVersion: "industry-v1",
+          reviewAttestation: {
+            schemaVersion: "industry-review-attestation.v1",
+            inputFingerprint: "fingerprint-1",
+            decisionMode: "standard",
+            acknowledgedRiskFlags: [],
+            cncEvidenceAcknowledged: true,
+            acknowledgementReason: "",
+          },
         }),
       },
     );
@@ -439,7 +606,112 @@ describe("companies routes", () => {
     expect(await parseJsonBody(response)).toMatchObject({
       code: "INDUSTRY_REVIEW_STALE",
     });
-    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("maps a wrapped convex stale error to 409 on identity resolution", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    // The service forwards the convex transport error verbatim; the route
+    // must recognize the stale code inside the local-backend wrapper
+    // ("[Request ID: …] Server Error\nUncaught Error: INDUSTRY_REVIEW_STALE: …").
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockRejectedValue(
+      new Error(
+        "[Request ID: df43104bb5d07519] Server Error\n"
+        + "Uncaught Error: INDUSTRY_REVIEW_STALE: proposal changed during review\n"
+        + "    at assertExpectedIndustryProposalUpdatedAt (../convex/companies.ts:1828:0)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_STALE",
+    });
+  });
+
+  it("maps a closed proposal to 409 NOT_OPEN on identity resolution", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockRejectedValue(
+      new Error(
+        "[Request ID: 8f3c1d2e] Server Error\n"
+        + "Uncaught Error: Proposal is not open for identity resolution: approved\n"
+        + "    at handler (../convex/companies.ts:5162:4)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_NOT_OPEN",
+    });
+  });
+
+  it("maps a closed proposal to 409 NOT_OPEN on resolve", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryProposalService, "resolveIndustryProposal").mockRejectedValue(
+      new Error(
+        "[Request ID: 51a2c3d4] Server Error\n"
+        + "Uncaught Error: Proposal is not open: approved\n"
+        + "    at resolveIndustryProposal (../convex/companies.ts:5401:4)",
+      ),
+    );
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/resolve",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          resolution: "rejected",
+          expectedProposalUpdatedAt: 1,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await parseJsonBody(response)).toMatchObject({
+      code: "INDUSTRY_REVIEW_NOT_OPEN",
+    });
   });
 
   it("requires an admin for proposal review mutations", async () => {
@@ -496,22 +768,42 @@ describe("companies routes", () => {
       updatedAt: 11,
     };
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
-      dataset: { inputFingerprint: "fingerprint-1" },
-      recommendation: { riskFlags: [] },
+      dataset: {
+        inputFingerprint: "fingerprint-1",
+        proposalUpdatedAt: 123,
+        sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+      },
+      recommendation: {
+        proposalStatus: "ready_for_review",
+        recommendedIndustryClass: "industrial",
+        recommendedSourceIds: ["source-1"],
+        sourceDecisions: [
+          { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+        ],
+        riskFlags: [],
+        evidenceSummaryDraft: "Official catalog confirms CNC products.",
+        decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+      },
+      reviewContext: { profile: { currentRevisionId: "revision-1" } },
+      proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
     } as never);
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       if (call.pathName === "companies:approveIndustryProposal") {
         expect(call.args).toMatchObject({
           proposalId: "proposal-1",
-          revisionId: "revision-2",
+          revisionId: expect.stringMatching(/^industry-acme-cnc-/),
           reviewer: auth.userId,
           verificationLevel: "verified",
+          industryClass: "cnc",
           approvedSourceIds: ["source-1"],
+          expectedInputFingerprint: "fingerprint-1",
+          expectedProposalUpdatedAt: 123,
+          expectedCurrentRevisionId: "revision-1",
         });
         return convexSuccess({
           proposalId: "proposal-1",
-          revisionId: "revision-2",
+          revisionId: call.args.revisionId,
           companyKey: "acme-cnc",
         });
       }
@@ -519,11 +811,22 @@ describe("companies routes", () => {
         expect(call.args).toMatchObject({
           workspaceSlug: "hr",
           companyKey: "acme-cnc",
-          targetRevisionId: "revision-2",
+          targetRevisionId: expect.stringMatching(/^industry-acme-cnc-/),
           proposalId: "proposal-1",
           requestedBy: auth.userId,
         });
         return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
+      }
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 0,
+          matchedRows: 0,
+          linkedRows: 0,
+          cursor: null,
+          isDone: true,
+        });
       }
       if (call.pathName === "companies:getIndustryRecomputeRun") {
         return convexSuccess({ ...recomputeRun, sourceDone: false, pageCount: 0 });
@@ -585,7 +888,7 @@ describe("companies routes", () => {
       revisionId: string;
       recompute: { runId: string; status: string };
     }>(response);
-    expect(body.revisionId).toBe("revision-2");
+    expect(body.revisionId).toMatch(/^industry-acme-cnc-/);
     expect(body.recompute).toMatchObject({ runId: "run-1", status: "running" });
   });
 
@@ -699,6 +1002,325 @@ describe("companies routes", () => {
 
     expect(response.status).toBe(403);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  describe("industry review audit writes record the acting workspace role", () => {
+    it("approves a proposal as reviewer and passes reviewerRole to the verdict mutation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official catalog confirms CNC products.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-1" } },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
+      } as never);
+      vi.spyOn(companyIndustryRecomputeService, "start").mockResolvedValue({
+        runId: "run-1",
+        workspaceSlug: "hr",
+        companyKey: "acme-cnc",
+        targetRevisionId: "revision-2",
+        proposalId: "proposal-1",
+        requestedBy: auth.userId,
+        status: "running",
+        attempt: 1,
+        sourceDone: true,
+        pageCount: 1,
+        affectedCount: 0,
+        alreadyCurrentCount: 0,
+        scheduledCount: 0,
+        readyCount: 0,
+        failureCount: 0,
+        batchCount: 0,
+        failures: [],
+        createdAt: 10,
+        startedAt: 10,
+        updatedAt: 11,
+      } as never);
+      let approveCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          approveCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/approve",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revisionId: "revision-2",
+            expectedInputFingerprint: "fingerprint-1",
+            verificationLevel: "verified",
+            industryClass: "cnc",
+            approvedSourceIds: ["source-1"],
+            evidenceSummary: "Official catalog confirms CNC products.",
+            decisionReason: "Reviewed primary evidence",
+            taxonomyVersion: "industry-v1",
+            reviewAttestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              inputFingerprint: "fingerprint-1",
+              decisionMode: "standard",
+              acknowledgedRiskFlags: [],
+              cncEvidenceAcknowledged: true,
+              acknowledgementReason: "",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(approveCall).toBeDefined();
+      expect(approveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        reviewer: auth.userId,
+        // Task 4: the acting membership role is resolved server-side from the
+        // session (never from client input) and recorded on the audit write.
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on identity-resolution audit writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let capturedInput: Record<string, unknown> | undefined;
+      vi.spyOn(
+        industryEvidenceResearchService,
+        "resolveIndustryProposalIdentity",
+      ).mockImplementation(async (input: Record<string, unknown>) => {
+        capturedInput = input;
+        return {
+          proposalId: "proposal-1",
+          companyKey: "acme-cnc",
+          auditId: "audit-1",
+        } as never;
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/identity-resolution",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expectedProposalUpdatedAt: 1,
+            candidateFingerprint: "candidate-fingerprint-1",
+            mappingMode: "create_provisional",
+            sourceIds: ["source-1"],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(capturedInput).toMatchObject({
+        actor: auth.userId,
+        actorRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on proposal resolution writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let resolveCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          resolveCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            status: "rejected",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/resolve",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resolution: "rejected",
+            reviewNote: "Noise",
+            expectedProposalUpdatedAt: 1,
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(resolveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        resolution: "rejected",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on undo-approval revision writes", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      let undoCall: ConvexCall | undefined;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        if (call.pathName === "companies:undoIndustryProposalApproval") {
+          undoCall = call;
+          return convexSuccess({
+            proposalId: "proposal-1",
+            companyKey: "acme-industrial",
+            reversalRevisionId: "undo-revision-2",
+            restoredRevisionId: "revision-1",
+            previousRunId: "run-approved",
+            previousRunStatus: "running",
+            replacementRecomputeRequired: false,
+            idempotent: false,
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/proposal-1/undo-approval",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(undoCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        approvedRevisionId: "revision-2",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
+
+    it("records the reviewer role on every batch review mutation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true, recommended: true, reasonCodes: ["approval_safe"] },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official catalog confirms CNC products.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the cnc classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-1" } },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
+      } as never);
+      vi.spyOn(companyIndustryRecomputeService, "start").mockResolvedValue({
+        runId: "run-1",
+        workspaceSlug: "hr",
+        companyKey: "acme-cnc",
+        targetRevisionId: "revision-2",
+        proposalId: "proposal-1",
+        requestedBy: auth.userId,
+        status: "running",
+        attempt: 1,
+        sourceDone: true,
+        pageCount: 1,
+        affectedCount: 0,
+        alreadyCurrentCount: 0,
+        scheduledCount: 0,
+        readyCount: 0,
+        failureCount: 0,
+        batchCount: 0,
+        failures: [],
+        createdAt: 10,
+        startedAt: 10,
+        updatedAt: 11,
+      } as never);
+      const calls: ConvexCall[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            status: "rejected",
+          });
+        }
+        throw new Error(`Unexpected path ${call.pathName}`);
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1" },
+              { kind: "reject", proposalId: "proposal-3", reviewNote: "Noise" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "standard",
+              acknowledgedRiskFlags: [],
+              cncEvidenceAcknowledged: true,
+              acknowledgementReason: "",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const approveCall = calls.find(
+        (call) => call.pathName === "companies:approveIndustryProposal",
+      );
+      const rejectCall = calls.find(
+        (call) => call.pathName === "companies:resolveIndustryProposal",
+      );
+      expect(approveCall?.args).toMatchObject({
+        proposalId: "proposal-1",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+      expect(rejectCall?.args).toMatchObject({
+        proposalId: "proposal-3",
+        resolution: "rejected",
+        reviewer: auth.userId,
+        reviewerRole: "reviewer",
+      });
+    });
   });
 
   it("returns the materialized company evidence bundle to workspace members", async () => {
@@ -934,6 +1556,10 @@ describe("companies routes", () => {
         expect(call.args.workspaceSlug).toBe("dev");
         return convexSuccess({
           generatedAt: 1_700_000_000_000,
+          // C5 (2026-08-09): openWithSources + statuses come from the
+          // precomputed counters doc; countersGeneratedAt non-null means
+          // the API service serves the doc without an inline refresh.
+          countersGeneratedAt: 1_700_000_000_000,
           workspaceSlug: "dev",
           proposalsByStatus: {
             new: 427,
@@ -945,8 +1571,7 @@ describe("companies routes", () => {
             superseded: 0,
           },
           openTotal: 487,
-          openWithSources: 0,
-          openWithoutSources: 487,
+          openWithSources: 7,
           emptyEvidenceBottleneck: true,
           readyBacklogBottleneck: true,
           resumes: { total: 83, withVerifiedEvidence: 1 },
@@ -1014,12 +1639,16 @@ describe("companies routes", () => {
       success: boolean;
       item: {
         openTotal: number;
+        openWithSources: number;
+        openWithoutSources: number;
         emptyEvidenceBottleneck: boolean;
         resumes: { withVerifiedEvidence: number };
       };
     }>(response);
     expect(body.success).toBe(true);
     expect(body.item.openTotal).toBe(487);
+    expect(body.item.openWithSources).toBe(7);
+    expect(body.item.openWithoutSources).toBe(480);
     expect(body.item.emptyEvidenceBottleneck).toBe(true);
     expect(body.item.resumes.withVerifiedEvidence).toBe(1);
   });
@@ -1119,5 +1748,1108 @@ describe("companies routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody<{ items: Array<{ action: string }> }>(response);
     expect(body.items[0].action).toBe("needs_more_evidence");
+  });
+
+  describe("batch review", () => {
+    function reviewPacket(overrides: Record<string, unknown> = {}) {
+      return {
+        dataset: {
+          inputFingerprint: "fingerprint-1",
+          proposalUpdatedAt: 123,
+          sourceVersions: [{ sourceId: "source-1", updatedAt: 7 }],
+        },
+        recommendation: {
+          proposalStatus: "ready_for_review",
+          recommendedIndustryClass: "industrial",
+          recommendedSourceIds: ["source-1"],
+          sourceDecisions: [
+            { sourceId: "source-1", approvalSafe: true },
+            { sourceId: "source-2", approvalSafe: false },
+          ],
+          riskFlags: [],
+          evidenceSummaryDraft: "Official site confirms industrial equipment sales.",
+          decisionReasonDraft: "Reviewed 1 approval-safe source(s); confirm the industrial classification and evidence summary.",
+        },
+        reviewContext: { profile: { currentRevisionId: "revision-current" } },
+        proposal: { proposalId: "proposal-1", companyKey: "acme-cnc" },
+        ...overrides,
+      } as never;
+    }
+
+    function batchFetchMock(calls: ConvexCall[]) {
+      return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: call.args.industryClass === "non_industry" ? "watsons-my" : "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            status: "rejected",
+          });
+        }
+        if (call.pathName === "companies:startIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "running",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+          return convexSuccess({
+            status: "completed",
+            companyKey: "acme-cnc",
+            scannedRows: 0,
+            matchedRows: 0,
+            linkedRows: 0,
+            cursor: null,
+            isDone: true,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "completed",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+          return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-x" });
+        }
+        if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+          return convexSuccess(null);
+        }
+        if (call.pathName === "companies:listAffectedResumesByCompany") {
+          return convexSuccess({ items: [], continueCursor: "", isDone: true });
+        }
+        if (call.pathName === "companies:reserveIndustryRecomputePage") {
+          return convexSuccess({ runId: "run-1" });
+        }
+        return convexSuccess({});
+      });
+    }
+
+    it("approves and rejects a mixed batch with one shared attestation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockImplementation(
+        async (proposalId: string) => {
+          if (proposalId === "proposal-1") return reviewPacket();
+          if (proposalId === "proposal-2") {
+            return reviewPacket({
+              recommendation: {
+                proposalStatus: "ready_for_review",
+                recommendedIndustryClass: "unknown",
+                recommendedSourceIds: ["source-1"],
+                sourceDecisions: [
+                  { sourceId: "source-1", approvalSafe: true },
+                ],
+                riskFlags: ["weak_industry_signal"],
+                evidenceSummaryDraft: "",
+                decisionReasonDraft: "Additional evidence or canonical-company review is required before changing verified truth.",
+              },
+              proposal: { proposalId: "proposal-2", companyKey: "watsons-my" },
+            });
+          }
+          throw new Error(`Unexpected proposal ${proposalId}`);
+        },
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1" },
+              {
+                kind: "approve",
+                proposalId: "proposal-2",
+                industryClass: "non_industry",
+              },
+              { kind: "reject", proposalId: "proposal-3", reviewNote: "Noise" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Official site confirms a retail chain.",
+            },
+            batchNote: "Weekly bulk review",
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        batchId: string;
+        batchFingerprint: string;
+        summary: { total: number; succeeded: number; failed: number };
+        items: Array<{ proposalId: string; ok: boolean; code?: string; error?: string }>;
+      }>(response);
+      expect(body.batchId).toMatch(/^industry-batch-/);
+      expect(body.batchFingerprint).toHaveLength(64);
+      expect(body.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ proposalId: "proposal-1", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-2", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-3", ok: true, status: "rejected" }),
+        ]),
+      );
+
+      const approveCalls = calls.filter(
+        (call) => call.pathName === "companies:approveIndustryProposal",
+      );
+      expect(approveCalls).toHaveLength(2);
+      const [clean, nonIndustry] = approveCalls;
+      expect(clean.args).toMatchObject({
+        proposalId: "proposal-1",
+        verificationLevel: "verified",
+        industryClass: "industrial",
+        approvedSourceIds: ["source-1"],
+        expectedInputFingerprint: "fingerprint-1",
+        expectedProposalUpdatedAt: 123,
+        expectedCurrentRevisionId: "revision-current",
+      });
+      expect(nonIndustry.args).toMatchObject({
+        proposalId: "proposal-2",
+        industryClass: "non_industry",
+      });
+      // One attestation covers the batch: same batchId, per-item fingerprint,
+      // per-item decision mode and flags.
+      expect(clean.args.reviewAttestation).toMatchObject({
+        schemaVersion: "industry-review-attestation.v1",
+        inputFingerprint: "fingerprint-1",
+        decisionMode: "standard",
+        acknowledgedRiskFlags: [],
+        batchId: body.batchId,
+      });
+      expect(nonIndustry.args.reviewAttestation).toMatchObject({
+        inputFingerprint: "fingerprint-1",
+        decisionMode: "risk_override",
+        acknowledgedRiskFlags: ["weak_industry_signal"],
+        batchId: body.batchId,
+      });
+      const rejectCall = calls.find(
+        (call) => call.pathName === "companies:resolveIndustryProposal",
+      );
+      expect(rejectCall?.args).toMatchObject({
+        proposalId: "proposal-3",
+        resolution: "rejected",
+        reviewNote: "Noise",
+      });
+    });
+
+    it("fails per item when the attestation is missing for a flagged proposal", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+          proposal: { companyKey: "acme-cnc" },
+        }),
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "non_industry" },
+            ],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ summary: { failed: number }; items: Array<{ code: string }> }>(response);
+      expect(body.summary.failed).toBe(1);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_ATTESTATION_REQUIRED");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("extracts wrapped convex codes per item instead of a generic failure", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+          proposal: { companyKey: "acme-cnc" },
+        }),
+      );
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexFailure(
+            "[Request ID: 8f3c1d2e] Server Error\n"
+            + "Uncaught Error: INDUSTRY_REVIEW_STALE: proposal changed during review\n"
+            + "    at commitIndustryVerdictApproval (../convex/companies.ts:3155:4)",
+          );
+        }
+        return convexSuccess({});
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "non_industry" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Wrapped-code extraction probe.",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ summary: { failed: number }; items: Array<{ code: string }> }>(response);
+      expect(body.summary.failed).toBe(1);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_STALE");
+    });
+
+    it("still hard-blocks non-overridable flags even with an attestation", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: ["weak_industry_signal", "source_conflict"],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+        }),
+      );
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-1", industryClass: "industrial" },
+            ],
+            attestation: {
+              schemaVersion: "industry-review-attestation.v1",
+              decisionMode: "risk_override",
+              acknowledgedRiskFlags: ["weak_industry_signal", "source_conflict"],
+              cncEvidenceAcknowledged: false,
+              acknowledgementReason: "Reviewed the conflict.",
+            },
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ items: Array<{ code: string; error: string }> }>(response);
+      expect(body.items[0].code).toBe("INDUSTRY_REVIEW_HARD_RISK");
+      expect(body.items[0].error).toContain("source_conflict");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("keeps a stale item from aborting the rest of the batch", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      const calls: ConvexCall[] = [];
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockImplementation(
+        async (proposalId: string) => {
+          if (proposalId === "proposal-good") return reviewPacket();
+          if (proposalId === "proposal-stale") {
+            return reviewPacket({
+              dataset: {
+                inputFingerprint: "fingerprint-2",
+                proposalUpdatedAt: 456,
+                sourceVersions: [{ sourceId: "source-1", updatedAt: 8 }],
+              },
+              proposal: { proposalId: "proposal-stale", companyKey: "acme-cnc" },
+            });
+          }
+          throw new Error(`Unexpected proposal ${proposalId}`);
+        },
+      );
+      // Override the mutation for the stale proposal: the Convex boundary
+      // rejects with a stale error, which must surface per-item only.
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init);
+        calls.push(call);
+        if (
+          call.pathName === "companies:approveIndustryProposal" &&
+          call.args.proposalId === "proposal-stale"
+        ) {
+          return convexFailure("INDUSTRY_REVIEW_STALE: recommendation fingerprint changed during review");
+        }
+        if (call.pathName === "companies:approveIndustryProposal") {
+          return convexSuccess({
+            proposalId: call.args.proposalId,
+            revisionId: call.args.revisionId,
+            companyKey: "acme-cnc",
+          });
+        }
+        if (call.pathName === "companies:resolveIndustryProposal") {
+          return convexSuccess({ proposalId: call.args.proposalId, status: "rejected" });
+        }
+        if (call.pathName === "companies:startIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "running",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+          return convexSuccess({
+            status: "completed",
+            companyKey: "acme-cnc",
+            scannedRows: 0,
+            matchedRows: 0,
+            linkedRows: 0,
+            cursor: null,
+            isDone: true,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRun") {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-x",
+            proposalId: call.args.proposalId,
+            requestedBy: "user-1",
+            status: "completed",
+            attempt: 1,
+            sourceDone: true,
+            pageCount: 1,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            startedAt: 10,
+            updatedAt: 11,
+          });
+        }
+        if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+          return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-x" });
+        }
+        if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+          return convexSuccess(null);
+        }
+        if (call.pathName === "companies:listAffectedResumesByCompany") {
+          return convexSuccess({ items: [], continueCursor: "", isDone: true });
+        }
+        if (call.pathName === "companies:reserveIndustryRecomputePage") {
+          return convexSuccess({ runId: "run-1" });
+        }
+        return convexSuccess({});
+      });
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [
+              { kind: "approve", proposalId: "proposal-good" },
+              { kind: "approve", proposalId: "proposal-stale" },
+            ],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        summary: { succeeded: number; failed: number };
+        items: Array<{ proposalId: string; ok: boolean; code?: string }>;
+      }>(response);
+      expect(body.summary).toEqual({ total: 2, succeeded: 1, failed: 1 });
+      expect(body.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ proposalId: "proposal-good", ok: true }),
+          expect.objectContaining({ proposalId: "proposal-stale", ok: false }),
+        ]),
+      );
+    });
+
+    it("requires an explicit class when the recommendation has none", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+      vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(
+        reviewPacket({
+          recommendation: {
+            proposalStatus: "ready_for_review",
+            recommendedIndustryClass: "unknown",
+            recommendedSourceIds: ["source-1"],
+            sourceDecisions: [{ sourceId: "source-1", approvalSafe: true }],
+            riskFlags: [],
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+          },
+        }),
+      );
+      const calls: ConvexCall[] = [];
+      batchFetchMock(calls);
+
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [{ kind: "approve", proposalId: "proposal-1" }],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{ items: Array<{ code: string }> }>(response);
+      expect(body.items[0].code).toBe("CLASS_REQUIRED");
+      expect(calls.some((call) => call.pathName === "companies:approveIndustryProposal")).toBe(false);
+    });
+
+    it("requires an admin for batch review", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-proposals/batch-review",
+        {
+          method: "POST",
+          headers: { ...auth.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actions: [{ kind: "reject", proposalId: "proposal-1" }],
+          }),
+        },
+      );
+
+      expect(response.status).toBe(403);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("backfills company resume links synchronously for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        expect(call.args).toMatchObject({
+          companyKey: "acme-cnc",
+          writeSecret: expect.any(String),
+        });
+        expect(call.args.cursor).toBeUndefined();
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 120,
+          matchedRows: 40,
+          linkedRows: 25,
+          cursor: null,
+          isDone: true,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-link-backfill", {
+      method: "POST",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ companyKey: "acme-cnc" }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      success: boolean;
+      result: {
+        status: string;
+        scannedRows: number;
+        matchedRows: number;
+        linkedRows: number;
+        iterations: number;
+      };
+    }>(response);
+    expect(body).toEqual({
+      success: true,
+      result: {
+        status: "completed",
+        scannedRows: 120,
+        matchedRows: 40,
+        linkedRows: 25,
+        iterations: 1,
+      },
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps the company link backfill admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-industry-link-backfill", {
+      method: "POST",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ companyKey: "acme-cnc" }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("advances a recompute run all the way to a terminal status", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    let getCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryRecomputeRun") {
+        getCalls += 1;
+        if (getCalls === 1) {
+          return convexSuccess({
+            runId: "run-1",
+            workspaceSlug: "hr",
+            companyKey: "acme-cnc",
+            targetRevisionId: "revision-2",
+            status: "queued",
+            attempt: 1,
+            sourceDone: false,
+            pageCount: 0,
+            affectedCount: 0,
+            alreadyCurrentCount: 0,
+            scheduledCount: 0,
+            readyCount: 0,
+            failureCount: 0,
+            batchCount: 0,
+            failures: [],
+            createdAt: 10,
+            updatedAt: 11,
+          });
+        }
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "completed",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 1,
+          affectedCount: 1,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 1,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          startedAt: 11,
+          completedAt: 12,
+          updatedAt: 12,
+        });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRevisionState") {
+        return convexSuccess({ matchesTargetRevision: true, currentRevisionId: "revision-2" });
+      }
+      if (call.pathName === "companies:getNextIndustryRecomputeBatch") {
+        return convexSuccess(null);
+      }
+      if (call.pathName === "companies:listAffectedResumesByCompany") {
+        return convexSuccess({ items: [], continueCursor: "", isDone: true });
+      }
+      if (call.pathName === "companies:reserveIndustryRecomputePage") {
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "running",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 1,
+          affectedCount: 1,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 1,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          startedAt: 11,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/advance-all",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { status: string; runId: string } }>(response);
+    expect(body.item).toMatchObject({ runId: "run-1", status: "completed" });
+    expect(getCalls).toBe(2);
+  });
+
+  it("starts a recompute run from the approved proposal without capturing start as a runId", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:listIndustryProposals") {
+        expect(call.args.status).toBe("approved");
+        return convexSuccess([
+          {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["manual"],
+            priority: 80,
+            status: "approved",
+            approvedRevisionId: "revision-2",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ]);
+      }
+      if (call.pathName === "companies:startIndustryRecomputeRun") {
+        expect(call.args).toMatchObject({
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          requestedBy: auth.userId,
+        });
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "queued",
+          attempt: 1,
+          sourceDone: false,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          updatedAt: 11,
+        });
+      }
+      if (call.pathName === "companies:backfillCompanyResumeLinksByCompanySync") {
+        return convexSuccess({
+          status: "completed",
+          companyKey: "acme-cnc",
+          scannedRows: 0,
+          matchedRows: 0,
+          linkedRows: 0,
+          cursor: null,
+          isDone: true,
+        });
+      }
+      if (call.pathName === "companies:getIndustryRecomputeRun") {
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "completed",
+          attempt: 1,
+          sourceDone: true,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          completedAt: 12,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/start",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "hr", companyKey: "acme-cnc" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { runId: string; status: string } }>(response);
+    expect(body.item).toMatchObject({ runId: "run-1", status: "completed" });
+    expect(calls.some((call) => call.pathName === "companies:startIndustryRecomputeRun")).toBe(true);
+    // The literal `start` segment must be routed to the start handler, not to
+    // the `:runId` GET route (which would 404 on `getIndustryRecomputeRun`).
+    expect(calls.some((call) => call.pathName === "companies:getIndustryRecomputeRun")).toBe(true);
+  });
+
+  it("returns 404 when starting a recompute run without an approved proposal", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryProposals") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/start",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceSlug: "hr", companyKey: "acme-cnc" }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(await parseJsonBody(response)).toEqual({
+      success: false,
+      error: "No approved proposal for companyKey",
+    });
+  });
+
+  it("resets a recompute run to queued for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:resetIndustryRecomputeRun") {
+        expect(call.args).toMatchObject({
+          runId: "run-1",
+          requestedBy: auth.userId,
+        });
+        return convexSuccess({
+          runId: "run-1",
+          workspaceSlug: "hr",
+          companyKey: "acme-cnc",
+          targetRevisionId: "revision-2",
+          status: "queued",
+          attempt: 2,
+          sourceDone: false,
+          pageCount: 0,
+          affectedCount: 0,
+          alreadyCurrentCount: 0,
+          scheduledCount: 0,
+          readyCount: 0,
+          failureCount: 0,
+          batchCount: 0,
+          failures: [],
+          createdAt: 10,
+          updatedAt: 12,
+        });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/reset",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ item: { runId: string; status: string } }>(response);
+    expect(body).toEqual({
+      success: true,
+      item: expect.objectContaining({ runId: "run-1", status: "queued", attempt: 2 }),
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps the recompute run reset admin-only", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-recompute-runs/run-1/reset",
+      { method: "POST", headers: auth.headers },
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns the cached verified employer count for an admin", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
+    );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+      {
+        companyKey: "polywell",
+        industryClass: "cnc",
+        displayName: "Polywell",
+        aliases: [],
+        updatedAt: 1,
+      },
+    ]);
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await parseJsonBody(response)).toEqual({ success: true, count: 2 });
+  });
+
+  it("serves the verified employer count to any authenticated workspace user", async () => {
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
+    );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+      {
+        companyKey: "polywell",
+        industryClass: "cnc",
+        displayName: "Polywell",
+        aliases: [],
+        updatedAt: 1,
+      },
+    ]);
+
+    // anonymous (no session) → 401
+    const anonymousApp = createApp();
+    const anonymousResponse = await anonymousApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+    expect(anonymousResponse.status).toBe(401);
+
+    // workspace user → 200 with count
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userResponse = await userApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: userAuth.headers },
+    );
+    expect(userResponse.status).toBe(200);
+    expect(await parseJsonBody(userResponse)).toEqual({ success: true, count: 2 });
+
+    // workspace admin → 200 with count
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const adminResponse = await adminApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: adminAuth.headers },
+    );
+    expect(adminResponse.status).toBe(200);
+    expect(await parseJsonBody(adminResponse)).toEqual({ success: true, count: 2 });
+
+    // authenticated but outside the requested workspace → 403
+    const crossAuth = createAuthHeaders({
+      workspaceSlug: "hr",
+      requestWorkspaceSlug: "dev",
+      role: "user",
+    });
+    const crossApp = createApp({ authStorage: crossAuth.storage });
+    const crossResponse = await crossApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: crossAuth.headers },
+    );
+    expect(crossResponse.status).toBe(403);
+  });
+
+  it("gates industry review routes to admin-or-reviewer; ops routes stay admin-only", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryProposalsPage") {
+        return convexSuccess({ items: [], nextCursor: undefined });
+      }
+      if (call.pathName === "companies:listIndustryRecomputeRuns") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockResolvedValue({
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      auditId: "audit-1",
+    });
+
+    // reviewer → 200 on a review read route (proposal list)
+    const reviewerAuth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+    const reviewerApp = createApp({ authStorage: reviewerAuth.storage });
+    const reviewList = await reviewerApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: reviewerAuth.headers },
+    );
+    expect(reviewList.status).toBe(200);
+
+    // reviewer → 200 on a review mutation route (identity resolution)
+    const identityResolution = await reviewerApp.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...reviewerAuth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+    expect(identityResolution.status).toBe(200);
+
+    // reviewer → 403 on an ops route (recompute runs)
+    const recomputeDenied = await reviewerApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: reviewerAuth.headers },
+    );
+    expect(recomputeDenied.status).toBe(403);
+
+    // workspace user → 403 on a review route
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userReview = await userApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: userAuth.headers },
+    );
+    expect(userReview.status).toBe(403);
+
+    // admin → 200 on an ops route (unchanged)
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const recomputeAllowed = await adminApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: adminAuth.headers },
+    );
+    expect(recomputeAllowed.status).toBe(200);
   });
 });

@@ -88,7 +88,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             csrfToken: string;
                             expiresAt: string;
@@ -173,7 +173,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             csrfToken: string;
                             expiresAt: string;
@@ -250,10 +250,10 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                             /** @enum {string|null} */
-                            workspaceRole: "user" | "admin" | null;
+                            workspaceRole: "user" | "reviewer" | "admin" | null;
                         } | {
                             /** @enum {boolean} */
                             success: false;
@@ -675,7 +675,7 @@ export interface paths {
             parameters: {
                 query?: {
                     limit?: string;
-                    type?: "login_success" | "login_failure" | "login_throttled" | "logout" | "sessions_revoked" | "password_reset_completed" | "password_change_throttled" | "login_lockout_cleared" | "csrf_reject" | "workspace_access_denied" | "admin_access_denied" | "oidc_state_invalid" | "provider_membership_preapproved" | "provider_membership_revoked" | "workspace_membership_granted" | "workspace_membership_revoked" | "public_share_created" | "public_share_read" | "public_share_unavailable" | "user_created" | "user_disabled" | "user_enabled" | "membership_granted_by_admin" | "membership_revoked_by_admin";
+                    type?: "login_success" | "login_failure" | "login_throttled" | "logout" | "sessions_revoked" | "password_reset_completed" | "password_change_throttled" | "login_lockout_cleared" | "csrf_reject" | "workspace_access_denied" | "admin_access_denied" | "review_access_denied" | "oidc_state_invalid" | "provider_membership_preapproved" | "provider_membership_revoked" | "workspace_membership_granted" | "workspace_membership_revoked" | "public_share_created" | "public_share_read" | "public_share_unavailable" | "user_created" | "user_disabled" | "user_enabled" | "membership_granted_by_admin" | "membership_revoked_by_admin";
                     userId?: string;
                     workspaceSlug?: string;
                 };
@@ -793,7 +793,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -808,7 +808,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 userId: string;
                                 preapprovalId: string;
                                 active: boolean;
@@ -915,7 +915,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -927,7 +927,7 @@ export interface paths {
                                 userId: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                             }[];
                         };
                     };
@@ -1023,7 +1023,7 @@ export interface paths {
                                 providerTenant: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                role: "user" | "admin";
+                                role: "user" | "reviewer" | "admin";
                                 operatorId: string;
                                 active: boolean;
                                 createdAt: string;
@@ -1291,7 +1291,7 @@ export interface paths {
                                 memberships: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    role: "user" | "admin";
+                                    role: "user" | "reviewer" | "admin";
                                 }[];
                             }[];
                         };
@@ -1381,7 +1381,7 @@ export interface paths {
                                 memberships: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    role: "user" | "admin";
+                                    role: "user" | "reviewer" | "admin";
                                 }[];
                             };
                             temporaryPassword: string;
@@ -8391,10 +8391,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List company registry entries */
+        /** List company registry entries (archived companies hidden unless includeArchived=true) */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    includeArchived?: "true" | "false";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -8421,6 +8423,7 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                                 createdBy?: string;
+                                archivedAt?: number;
                                 aliases: {
                                     aliasDisplay: string;
                                     aliasNormalized: string;
@@ -8563,6 +8566,56 @@ export interface paths {
                             aliasesCreated: number;
                             policiesSeeded: number;
                             policyRevision: number | null;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/:companyKey/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive (soft delete) or restore a company registry entry; archived companies are hidden from the default list and stop matching resume policies */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        archived: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Archive state updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            companyKey: string;
+                            archived: boolean;
+                            archivedAt: number | null;
                         };
                     };
                 };
@@ -8837,11 +8890,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List governed company-industry review proposals */
+        /** List governed company-industry review proposals (paginated) */
         get: {
             parameters: {
                 query?: {
                     status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                    limit?: number;
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -8849,7 +8904,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Proposal queue */
+                /** @description Proposal queue page; pass nextCursor to continue */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -8863,7 +8918,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -8887,6 +8942,7 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                             }[];
+                            nextCursor?: string;
                         };
                     };
                 };
@@ -8907,7 +8963,7 @@ export interface paths {
                         proposalId: string;
                         companyKey?: string;
                         normalizedEmployerSurface?: string;
-                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                        triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                         priority: number;
                         sampleReferences?: {
                             workspaceSlug: string;
@@ -8989,7 +9045,7 @@ export interface paths {
                                     proposalId: string;
                                     companyKey?: string;
                                     normalizedEmployerSurface?: string;
-                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                    triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                     priority: number;
                                     sampleReferences?: {
                                         workspaceSlug: string;
@@ -9049,6 +9105,7 @@ export interface paths {
                                 };
                                 inputFingerprint: string;
                                 sourceCount: number;
+                                resumeImpact: number;
                             }[];
                             maintenance: {
                                 latest: {
@@ -9328,7 +9385,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -9427,6 +9484,8 @@ export interface paths {
                                     approvedSourceIds: string[];
                                     evidenceSummary: string;
                                     reviewedBy: string;
+                                    /** @enum {string} */
+                                    reviewedByRole?: "admin" | "reviewer";
                                     reviewedAt: number;
                                     decisionReason: string;
                                     taxonomyVersion: string;
@@ -9440,6 +9499,7 @@ export interface paths {
                                         acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                         cncEvidenceAcknowledged: boolean;
                                         acknowledgementReason: string;
+                                        batchId?: string;
                                     };
                                     supersedesRevisionId?: string;
                                     proposalId?: string;
@@ -9984,8 +10044,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10030,7 +10089,7 @@ export interface paths {
                                 proposalId: string;
                                 companyKey?: string;
                                 normalizedEmployerSurface?: string;
-                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "manual")[];
+                                triggerReasons: ("unknown_employer" | "weak_employer_evidence" | "high_value_candidate" | "frequent_employer" | "missing_approved_profile" | "evidence_conflict" | "scheduled_freshness" | "material_source_change" | "source_unavailable" | "recruiter_refresh_request" | "curated" | "corpus_evidence" | "manual")[];
                                 priority: number;
                                 sampleReferences?: {
                                     workspaceSlug: string;
@@ -10116,6 +10175,7 @@ export interface paths {
                             acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                             cncEvidenceAcknowledged: boolean;
                             acknowledgementReason: string;
+                            batchId?: string;
                         };
                     };
                 };
@@ -10179,8 +10239,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10269,8 +10328,7 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                            /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
                         };
                     };
                 };
@@ -10337,8 +10395,111 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
+                            code: "INDUSTRY_REVIEW_STALE" | "INDUSTRY_REVIEW_NOT_OPEN";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-proposals/batch-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Governed bulk approve/reject of industry proposals
+         * @description One attestation covers the whole batch; per-item governance (packet fingerprint, risk flags, CNC evidence, stale checks) still applies to every item. Items fail individually — a stale or hard-blocked item never aborts the batch. The server materializes the per-item attestation (item fingerprint + shared batchId) on each immutable revision.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        actions: ({
                             /** @enum {string} */
-                            code: "INDUSTRY_REVIEW_STALE";
+                            kind: "approve";
+                            proposalId: string;
+                            /** @enum {string} */
+                            industryClass?: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                            decisionReason?: string;
+                            evidenceSummary?: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: "reject";
+                            proposalId: string;
+                            reviewNote?: string;
+                        })[];
+                        attestation?: {
+                            /** @enum {string} */
+                            schemaVersion: "industry-review-attestation.v1";
+                            /** @enum {string} */
+                            decisionMode: "standard" | "risk_override";
+                            acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
+                            cncEvidenceAcknowledged: boolean;
+                            acknowledgementReason: string;
+                        };
+                        batchNote?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Per-item batch outcomes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            batchId: string;
+                            batchFingerprint: string;
+                            summary: {
+                                total: number;
+                                succeeded: number;
+                                failed: number;
+                            };
+                            items: {
+                                proposalId: string;
+                                /** @enum {string} */
+                                kind: "approve" | "reject";
+                                ok: boolean;
+                                revisionId?: string;
+                                companyKey?: string;
+                                /** @enum {string} */
+                                status?: "new" | "researching" | "ready_for_review" | "needs_more_evidence" | "approved" | "rejected" | "superseded";
+                                code?: string;
+                                error?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid batch payload */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                            code: string;
                         };
                     };
                 };
@@ -10512,6 +10673,8 @@ export interface paths {
                                 approvedSourceIds: string[];
                                 evidenceSummary: string;
                                 reviewedBy: string;
+                                /** @enum {string} */
+                                reviewedByRole?: "admin" | "reviewer";
                                 reviewedAt: number;
                                 decisionReason: string;
                                 taxonomyVersion: string;
@@ -10525,6 +10688,7 @@ export interface paths {
                                     acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                     cncEvidenceAcknowledged: boolean;
                                     acknowledgementReason: string;
+                                    batchId?: string;
                                 };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
@@ -10605,6 +10769,190 @@ export interface paths {
                                 updatedAt: number;
                                 operatorSummary: string;
                             }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a targeted recompute run from the company's approved proposal; backfills resume links and advances to terminal synchronously */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        workspaceSlug: string;
+                        companyKey: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Started recompute run */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No approved proposal for the companyKey */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-link-backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synchronously backfill company-resume links for a company (loops the bounded sync action until done) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        companyKey: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Backfill summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            result: {
+                                status: string;
+                                scannedRows: number;
+                                matchedRows: number;
+                                linkedRows: number;
+                                iterations: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-verified-employer-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count of currently verified employers in the cached catalog */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Verified employer count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
                         };
                     };
                 };
@@ -11070,6 +11418,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/company-industry-recompute-runs/:runId/advance-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advance a targeted recompute run repeatedly until it reaches a terminal status or stops making progress */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Terminal (or stalled) recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/company-industry-recompute-runs/:runId/retry": {
         parameters: {
             query?: never;
@@ -11092,6 +11514,80 @@ export interface paths {
             requestBody?: never;
             responses: {
                 /** @description Retried recompute state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                runId: string;
+                                workspaceSlug: string;
+                                companyKey: string;
+                                targetRevisionId: string;
+                                proposalId?: string;
+                                requestedBy?: string;
+                                /** @enum {string} */
+                                status: "queued" | "running" | "waiting" | "completed" | "partial_failed" | "failed" | "superseded";
+                                attempt: number;
+                                cursor?: string;
+                                sourceDone: boolean;
+                                pageCount: number;
+                                affectedCount: number;
+                                alreadyCurrentCount: number;
+                                scheduledCount: number;
+                                readyCount: number;
+                                failureCount: number;
+                                batchCount: number;
+                                failures: {
+                                    resumeId?: string;
+                                    stage: string;
+                                    message: string;
+                                    occurredAt: number;
+                                }[];
+                                lastError?: string;
+                                supersededByRevisionId?: string;
+                                createdAt: number;
+                                startedAt?: number;
+                                completedAt?: number;
+                                updatedAt: number;
+                                operatorSummary: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/company-industry-recompute-runs/:runId/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset a targeted recompute run to queued, clearing batches and progress regardless of current status */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reset recompute state */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -11213,6 +11709,8 @@ export interface paths {
                                 approvedSourceIds: string[];
                                 evidenceSummary: string;
                                 reviewedBy: string;
+                                /** @enum {string} */
+                                reviewedByRole?: "admin" | "reviewer";
                                 reviewedAt: number;
                                 decisionReason: string;
                                 taxonomyVersion: string;
@@ -11226,6 +11724,7 @@ export interface paths {
                                     acknowledgedRiskFlags: ("canonical_mapping_missing" | "only_discovery_sources" | "source_conflict" | "weak_industry_signal" | "cnc_claim_inferred" | "stale_or_failed_source" | "low_source_diversity" | "worker_unreachable" | "recompute_pending")[];
                                     cncEvidenceAcknowledged: boolean;
                                     acknowledgementReason: string;
+                                    batchId?: string;
                                 };
                                 supersedesRevisionId?: string;
                                 proposalId?: string;
@@ -19376,7 +19875,7 @@ export interface components {
             status: "healthy" | "degraded" | "unhealthy";
             /** @example 2026-02-11T15:03:47+08:00 */
             timestamp: string;
-            /** @example 0.4.22 */
+            /** @example 0.4.23 */
             version?: string;
         };
         TrendsResponse: {

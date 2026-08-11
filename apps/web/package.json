@@ -1,7 +1,7 @@
 {
   "name": "@trends/web",
   "private": true,
-  "version": "0.4.22",
+  "version": "0.4.23",
   "type": "module",
   "scripts": {
     "dev": "npm run gen:api && vite",
@@ -56,7 +56,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.0",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -70,6 +70,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.4",
     "vite": "^6.4.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.10"
   }
 }

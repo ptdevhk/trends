@@ -4,6 +4,29 @@ import {
   getCurrentResumeAiPromptVersion,
 } from "@trends/shared";
 
+// The verified-employer catalog singleton fires background Convex fetches
+// (`companies:listVerifiedIndustryEmployerAliases`) on service construction
+// and during industry-scoped keyword expansion. These route tests assert
+// exact fetch/call sequences for the search pipeline, so the catalog must
+// degrade to the empty (synonyms-only) state. Bridge behavior itself is
+// covered by unified-search-service.test.ts with injected fakes.
+vi.mock("../services/verified-employer-catalog-service.js", () => ({
+  verifiedEmployerCatalog: {
+    getVerifiedEmployers: () => [],
+    warm: () => Promise.resolve(),
+    refresh: () => Promise.resolve([]),
+  },
+}));
+
+// The maintenance middleware queries Convex on every write method; route
+// tests assert exact fetch sequences, so it is bypassed here (it is
+// unit-tested separately in middleware/maintenance.test.ts).
+vi.mock("../middleware/maintenance.js", () => ({
+  maintenanceGuard: async (_c: unknown, next: () => Promise<void>) => {
+    await next();
+  },
+}));
+
 import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { ResumeService } from "../services/resume-service";
@@ -482,6 +505,10 @@ describe("resume routes", () => {
         location: "东莞",
       })
     );
+    // List-view projection: the raw searchText blob is dropped from the
+    // response (the web list never consumes it; provenance is computed
+    // server-side), shrinking the CN list payload by ~12%.
+    expect(payload.data[0]).not.toHaveProperty("searchText");
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
     }));
@@ -907,7 +934,9 @@ describe("resume routes", () => {
               education: "Bachelor",
               jobIntention: "Sales Engineer",
               profileUrl: "https://example.com/zhang",
-              workHistory: [{ raw: "2018-2026 CNC 销售工程师" }],
+              workHistory: [
+                { raw: "2018-2026 CNC 销售工程师", companyName: "Fanuc", jobTitle: "销售工程师" },
+              ],
               ingestData: {
                 companyHits: ["fanuc"],
                 brandHits: [
@@ -927,6 +956,15 @@ describe("resume routes", () => {
                     years: 8,
                     industryVerifiedYears: 8,
                     verifyIn: "workHistory",
+                    matchedWorkEntries: [
+                      {
+                        companyName: "Fanuc",
+                        jobTitle: "销售工程师",
+                        years: 8,
+                        industryVerified: true,
+                        matchedSignals: ["销售工程师", "销售"],
+                      },
+                    ],
                   },
                 ],
               },

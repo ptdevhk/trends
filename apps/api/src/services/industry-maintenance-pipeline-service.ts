@@ -224,6 +224,19 @@ export async function enqueueIndustryMaintenance(
   }
 }
 
+/**
+ * True when a worker POST failed because the client-side dispatch timeout
+ * fired (AbortSignal.timeout). Bun/Node reject with a DOMException named
+ * "TimeoutError"; older runtimes and manual aborts use "AbortError". Either
+ * way the request may already have reached the worker, so the caller must
+ * not treat the run as dead.
+ */
+function isWorkerDispatchTimeout(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const name = (error as { name?: unknown }).name;
+  return name === "TimeoutError" || name === "AbortError";
+}
+
 async function advanceRun(
   runId: string,
   input: EnqueueMaintenanceInput,
@@ -259,6 +272,20 @@ async function advanceRun(
     }
     // On success the worker itself finishes the run with counts + summary.
   } catch (error) {
+    if (isWorkerDispatchTimeout(error)) {
+      // The POST timed out client-side (AbortSignal.timeout) after the
+      // connection was established, so the worker very likely received the
+      // request and is still researching. The worker finishes the run itself
+      // with counts + summary; marking it failed here would mislabel a run
+      // the worker later completes, and releasing its leases could let a
+      // second run double-process the same proposals. Leave the run alone;
+      // it resolves when the worker finishes (or is recovered manually).
+      logger.warn(
+        "Industry maintenance worker dispatch timed out; leaving run for worker-side completion",
+        { route: "industry-maintenance-pipeline", runId },
+      );
+      return;
+    }
     logger.error(
       "Industry maintenance worker advance failed",
       error,

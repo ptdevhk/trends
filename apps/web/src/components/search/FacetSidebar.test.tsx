@@ -5,23 +5,25 @@ import { FacetSidebar } from '@/components/search/FacetSidebar'
 import type { FacetCounts } from '@/components/search/search-types'
 import type { CandidateStatus } from '@/types/resume'
 
+const mockT = (key: string, options?: string | Record<string, string | number | undefined>) => {
+  if (typeof options === 'string') {
+    return options
+  }
+
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, string | number | undefined>) => {
-      if (typeof options === 'string') {
-        return options
-      }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
-        const value = options && typeof options === 'object' ? options[token] : undefined
-        return value === undefined || value === null ? '' : String(value)
-      })
-    },
+    t: mockT,
   }),
 }))
 

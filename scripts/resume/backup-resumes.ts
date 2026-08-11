@@ -15,6 +15,11 @@ type BackupResponse = {
   candidateStatus?: unknown[];
 };
 
+type BackupAuth = {
+  cookie: string;
+  csrfToken: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -33,6 +38,48 @@ function resolveOutputPath(disposition: string | null, explicitPath: string | un
   return `output/resume-backups/resume-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
 }
 
+function extractSessionCookie(response: Response): string | undefined {
+  const setCookie = response.headers.get("set-cookie");
+  if (!setCookie) {
+    return undefined;
+  }
+  const match = /(?:^|,\s*)(trends_session=[^;]+)/i.exec(setCookie);
+  return match?.[1]?.trim() || undefined;
+}
+
+async function loginToApi(apiUrl: string): Promise<BackupAuth> {
+  const username = process.env.TRENDS_AUTH_USERNAME?.trim();
+  const password = process.env.TRENDS_AUTH_PASSWORD?.trim();
+  if (!username || !password) {
+    throw new Error("TRENDS_AUTH_USERNAME and TRENDS_AUTH_PASSWORD are required for authenticated backup");
+  }
+
+  const loginUrl = `${apiUrl.replace(/\/$/, "")}/api/auth/login`;
+  const response = await fetch(loginUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`auth login failed (${response.status}): ${text.trim() || "no response body"}`);
+  }
+
+  const body = (await response.json()) as Record<string, unknown>;
+  const csrfToken = typeof body.csrfToken === "string" ? body.csrfToken : undefined;
+  if (!csrfToken) {
+    throw new Error("auth login response missing csrfToken");
+  }
+
+  const cookie = extractSessionCookie(response);
+  if (!cookie) {
+    throw new Error("auth login response missing session cookie");
+  }
+
+  return { cookie, csrfToken };
+}
+
 async function main(): Promise<void> {
   const apiUrl = resolveApiUrl();
   const workspace = resolveWorkspace();
@@ -41,12 +88,27 @@ async function main(): Promise<void> {
   const sourceHosts = splitCsv(process.env.SOURCE_HOSTS);
   const limit = parsePositiveInteger(process.env.LIMIT);
 
+  // Authenticate when TRENDS_AUTH_USERNAME/TRENDS_AUTH_PASSWORD are set.
+  // The backup endpoint requires admin access; without auth the request
+  // returns 401 against any auth-enabled deployment (prod, preview).
+  let auth: BackupAuth | undefined;
+  if (process.env.TRENDS_AUTH_USERNAME?.trim()) {
+    auth = await loginToApi(apiUrl);
+    console.log(`  authenticated as ${process.env.TRENDS_AUTH_USERNAME.trim()}`);
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Workspace-Slug": workspace,
+  };
+  if (auth) {
+    headers.Cookie = auth.cookie;
+    headers["X-CSRF-Token"] = auth.csrfToken;
+  }
+
   const response = await fetch(`${apiUrl.replace(/\/$/, "")}/api/resumes/backup`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Workspace-Slug": workspace,
-    },
+    headers,
     body: JSON.stringify({
       ...(resumeIds.length > 0 ? { resumeIds } : {}),
       ...(sourceHosts.length > 0 ? { sourceHosts } : {}),

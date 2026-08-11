@@ -250,3 +250,131 @@ export function selectPrimaryIndustryEvidence(
     additionalVerifiedEmployerCount: sorted.length - 1,
   }
 }
+
+/**
+ * Derive the official company homepage URL from the evidence source previews.
+ *
+ * Sources are sorted by trust tier (primary first) then source type rank
+ * (official_site = 0), so an official_site source is guaranteed to be in the
+ * bounded previews slice when one exists. Returns the first match, or
+ * undefined when no official_site source is available.
+ */
+export function getOfficialSiteUrl(
+  summary: Pick<VerifiedIndustryEvidenceSummary, 'sourcePreviews'>,
+): string | undefined {
+  const officialSource = summary.sourcePreviews.find(
+    (source) => source.sourceType === 'official_site',
+  )
+  return officialSource?.url
+}
+
+export function normalizeCompanyNameForMatching(name: string | undefined): string {
+  if (!name || !name.trim()) {
+    return ''
+  }
+  return name
+    .toLowerCase()
+    .replace(/[.()（）,/\-\\_]/g, ' ')
+    .replace(/\bsdn\s*bhd\b/gi, '')
+    .replace(/\bpte\s*ltd\b/gi, '')
+    .replace(/\bco\s*ltd\b/gi, '')
+    .replace(/\bltd\b/gi, '')
+    .replace(/\binc\b/gi, '')
+    .replace(/\bcorp\b/gi, '')
+    .replace(/\bcorporation\b/gi, '')
+    .replace(/\bcompany\b/gi, '')
+    .replace(/\b有限责任公司\b/gu, '')
+    .replace(/\b股份有限公司\b/gu, '')
+    .replace(/\b科技发展有限公司\b/gu, '')
+    .replace(/\b科技有限公司\b/gu, '')
+    .replace(/\b设备有限公司\b/gu, '')
+    .replace(/\b实业有限公司\b/gu, '')
+    .replace(/\b有限公司\b/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function findVerifiedIndustrySummaryForCompany(
+  companyName: string | undefined,
+  summaries: readonly VerifiedIndustryEvidenceSummary[],
+  options?: {
+    matchedCompanyKey?: string
+    roleSignals?: readonly Pick<ResumeRoleSignalLike, 'matchedWorkEntries'>[]
+    jobTitle?: string
+    rawText?: string
+  },
+): VerifiedIndustryEvidenceSummary | undefined {
+  if (summaries.length === 0) {
+    return undefined
+  }
+
+  // Tier 1: Match by explicit matchedCompanyKey
+  if (options?.matchedCompanyKey) {
+    const keyTarget = options.matchedCompanyKey.trim().toLowerCase()
+    const match = summaries.find((s) => s.companyKey.trim().toLowerCase() === keyTarget)
+    if (match) return match
+  }
+
+  // Tier 2: Match by roleSignals matchedWorkEntries
+  const targetCompName = companyName?.trim() || options?.rawText?.trim()
+  if (options?.roleSignals && targetCompName) {
+    const targetCompNorm = normalizeCompanyNameForMatching(targetCompName)
+    for (const signal of options.roleSignals) {
+      for (const entry of signal.matchedWorkEntries ?? []) {
+        if (!entry.companyKey) continue
+        const entryCompNorm = normalizeCompanyNameForMatching(entry.companyName)
+        const compMatches = (targetCompNorm.length > 0 && entryCompNorm.length > 0)
+          ? (targetCompNorm === entryCompNorm || targetCompNorm.includes(entryCompNorm) || entryCompNorm.includes(targetCompNorm))
+          : false
+        if (compMatches) {
+          const match = summaries.find((s) =>
+            s.companyKey.trim().toLowerCase() === entry.companyKey!.trim().toLowerCase() ||
+            (entry.verdictRevisionId && s.verdictRevisionId === entry.verdictRevisionId)
+          )
+          if (match) return match
+        }
+      }
+    }
+  }
+
+  if (!targetCompName) {
+    return undefined
+  }
+
+  // Tier 3: Direct substring or equality match
+  const normTarget = targetCompName.toLowerCase()
+  const exactMatch = summaries.find((s) => {
+    const normSummary = s.companyName.trim().toLowerCase()
+    return normSummary === normTarget || normTarget.includes(normSummary) || normSummary.includes(normTarget)
+  })
+  if (exactMatch) return exactMatch
+
+  // Tier 4: Normalized company name matching (stripping dots, brackets (M), Sdn Bhd / Pte Ltd / Ltd)
+  const normCleanTarget = normalizeCompanyNameForMatching(targetCompName)
+  if (normCleanTarget.length >= 2) {
+    const normalizedMatch = summaries.find((s) => {
+      const normCleanSummary = normalizeCompanyNameForMatching(s.companyName)
+      if (normCleanSummary.length < 2) return false
+      return (
+        normCleanSummary === normCleanTarget ||
+        normCleanTarget.includes(normCleanSummary) ||
+        normCleanSummary.includes(normCleanTarget)
+      )
+    })
+    if (normalizedMatch) return normalizedMatch
+
+    // Also match clean target against normalized s.companyKey (e.g. "lionapex-equipment" -> "lionapex equipment")
+    const keyMatch = summaries.find((s) => {
+      const keyNorm = s.companyKey.replace(/-/g, ' ').trim().toLowerCase()
+      return (
+        keyNorm === normCleanTarget ||
+        normCleanTarget.includes(keyNorm) ||
+        keyNorm.includes(normCleanTarget)
+      )
+    })
+    if (keyMatch) return keyMatch
+  }
+
+  return undefined
+}
+

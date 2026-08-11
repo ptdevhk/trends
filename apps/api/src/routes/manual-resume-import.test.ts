@@ -6,6 +6,19 @@ import { workspaceMiddleware } from "../middleware/workspace";
 import { parseJsonBody } from "../test-utils";
 import { createAuthContext } from "./test-auth-helpers";
 
+// The verified-employer catalog singleton fires a background Convex fetch
+// (`companies:listVerifiedIndustryEmployerAliases`) on service construction.
+// These route tests assert `fetch` is never called outside the tested flow,
+// so the catalog must degrade to the empty (synonyms-only) state. Bridge
+// behavior itself is covered by unified-search-service.test.ts with fakes.
+vi.mock("../services/verified-employer-catalog-service.js", () => ({
+  verifiedEmployerCatalog: {
+    getVerifiedEmployers: () => [],
+    warm: () => Promise.resolve(),
+    refresh: () => Promise.resolve([]),
+  },
+}));
+
 type ConvexCall = {
   pathName: string;
   args: Record<string, unknown>;

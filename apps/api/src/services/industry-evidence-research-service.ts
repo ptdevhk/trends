@@ -16,6 +16,11 @@ import {
 import { config } from "./config.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import {
+  IndustryReviewNotOpenError,
+  industryReviewNotOpenReason,
+  isIndustryReviewNotOpenError,
+} from "./company-industry-review-errors.js";
+import {
   enqueueIndustryMaintenance,
   type EnqueueMaintenanceResult,
 } from "./industry-maintenance-pipeline-service.js";
@@ -318,6 +323,9 @@ export async function listIndustryIdentityCandidates(proposalId: string): Promis
 export async function resolveIndustryProposalIdentity(input: {
   workspaceSlug: string;
   actor: string;
+  // Workspace role of the acting member, resolved server-side from the
+  // session membership at the API layer (never client input).
+  actorRole: "admin" | "reviewer";
   proposalId: string;
   expectedProposalUpdatedAt: number;
   candidateFingerprint: string;
@@ -329,10 +337,18 @@ export async function resolveIndustryProposalIdentity(input: {
   reviewNote?: string;
 }): Promise<{ proposalId: string; companyKey: string; auditId: string }> {
   ensureEnabled();
-  const value = await callConvexMutation("companies:resolveIndustryProposalIdentity", {
-    ...input,
-    writeSecret: config.auth.convexWriteSecret,
-  });
+  let value: unknown;
+  try {
+    value = await callConvexMutation("companies:resolveIndustryProposalIdentity", {
+      ...input,
+      writeSecret: config.auth.convexWriteSecret,
+    });
+  } catch (error) {
+    if (isIndustryReviewNotOpenError(error)) {
+      throw new IndustryReviewNotOpenError(industryReviewNotOpenReason(error));
+    }
+    throw error;
+  }
   if (!isRecord(value) || !stringValue(value.proposalId) || !stringValue(value.companyKey) || !stringValue(value.auditId)) {
     throw new Error("Invalid identity resolution response");
   }

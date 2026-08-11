@@ -53,6 +53,7 @@ export interface SurfaceNavDefinition {
   hrefSuffix: string;
   matchesSuffixes: string[];
   requiresAdmin?: boolean;
+  requiresReviewAccess?: boolean;
 }
 
 export interface SystemCapabilityDescriptor {
@@ -320,6 +321,14 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     defaultTitle: "Policies",
     hrefSuffix: "/settings/policies",
     matchesSuffixes: ["/settings/policies", "/settings/blocks"],
+  },
+  {
+    id: "industry-verification",
+    titleKey: "debugConfig.settingsNavIndustryVerification",
+    defaultTitle: "Industry verification",
+    hrefSuffix: "/system/settings/industry-verification",
+    matchesSuffixes: ["/system/settings/industry-verification"],
+    requiresReviewAccess: true,
   },
   {
     id: "profiles",

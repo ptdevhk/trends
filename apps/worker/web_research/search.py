@@ -2,8 +2,9 @@ from __future__ import annotations
 import html
 import logging
 import re
+import threading
 from dataclasses import dataclass
-from typing import Any, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol
 from urllib.parse import parse_qs, quote_plus, urlparse
 
 logger = logging.getLogger(__name__)
@@ -160,10 +161,59 @@ class GoogleNewsRssSearchProvider:
         return results
 
 
+class NewsNowHotlistSnapshot:
+    """Lazily-fetched, once-per-sweep snapshot of NewsNow platform hotlists.
+
+    Thread-safe: concurrent first uses fetch exactly once under a lock; every
+    later use serves the cached items without touching the transport. One
+    snapshot lives per DiscoveryJob (one per maintenance sweep), so the
+    hotlist endpoint is hit once per sweep instead of once per proposal.
+    """
+
+    def __init__(
+        self,
+        *,
+        fetcher: Any,
+        platforms: List[str],
+        api_url: str,
+        headers: Dict[str, str],
+    ):
+        self._fetcher = fetcher  # object with get_json(url, headers=...) -> dict
+        self._platforms = list(platforms)
+        self._api_url = api_url
+        self._headers = dict(headers)
+        self._items: List[Dict[str, Any]] = []
+        self._fetched = False
+        self._lock = threading.Lock()
+
+    def items(self) -> List[Dict[str, Any]]:
+        """All hotlist items across platforms (fetched once per sweep)."""
+        with self._lock:
+            if not self._fetched:
+                for platform in self._platforms:
+                    try:
+                        data = self._fetcher.get_json(
+                            f"{self._api_url}?id={platform}&latest",
+                            headers=self._headers,
+                        )
+                    except Exception:
+                        continue
+                    for item in (data.get("items") or []):
+                        title = str(item.get("title") or "").strip()
+                        url = str(item.get("url") or "").strip()
+                        if title and url:
+                            self._items.append(
+                                {"title": title, "url": url, "platform": platform}
+                            )
+                self._fetched = True
+            return list(self._items)
+
+
 class NewsNowSearchProvider:
     """NewsNow-compatible upstream (ourongxing/newsnow), the CN-core zero-key
     provider. Hotlists are not keyword-searchable upstream: fetch each
-    configured platform's hotlist and filter client-side by employer tokens."""
+    configured platform's hotlist ONCE per sweep (see NewsNowHotlistSnapshot)
+    and filter client-side by employer tokens."""
 
     def __init__(self, *, fetcher: Any, platforms: List[str] | None = None,
                  api_url: str | None = None, tokens: Optional[set] = None):
@@ -173,41 +223,42 @@ class NewsNowSearchProvider:
         ]
         self.api_url = (api_url or "https://newsnow.busiyi.world/api/s").rstrip("/")
         self.tokens = tokens or set()  # employer tokens for filtering
+        self.snapshot = NewsNowHotlistSnapshot(
+            fetcher=self.fetcher,
+            platforms=self.platforms,
+            api_url=self.api_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) "
+                              "Chrome/126.0 Safari/537.36",
+                "Accept": "application/json",
+                "Referer": self.api_url.rsplit("/api", 1)[0] + "/",
+            },
+        )
+
+    def hotlist_items(self) -> List[Dict[str, Any]]:
+        """Once-per-sweep hotlist items (lazily fetched, then cached)."""
+        return self.snapshot.items()
 
     def search(self, query: str, max_results: int) -> List[SearchResult]:
         results: List[SearchResult] = []
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/126.0 Safari/537.36",
-            "Accept": "application/json",
-            "Referer": self.api_url.rsplit("/api", 1)[0] + "/",
-        }
         query_tokens = self.tokens or {
             t for t in re.findall(r"[a-z0-9一-鿿]+", query.casefold())
             if len(t) >= 2
         }
-        for platform in self.platforms:
+        for item in self.hotlist_items():
             if len(results) >= max_results:
                 break
-            try:
-                data = self.fetcher.get_json(
-                    f"{self.api_url}?id={platform}&latest", headers=headers)
-            except Exception:
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+            if not title or not url:
                 continue
-            for item in (data.get("items") or []):
-                title = str(item.get("title") or "").strip()
-                url = str(item.get("url") or "").strip()
-                if not title or not url:
-                    continue
-                haystack = title.casefold()
-                if query_tokens and not any(
-                        tok in haystack for tok in query_tokens):
-                    continue
-                results.append(SearchResult(
-                    url=url, title=title, snippet=f"NewsNow {platform}"))
-                if len(results) >= max_results:
-                    break
+            if query_tokens and not any(
+                    tok in title.casefold() for tok in query_tokens):
+                continue
+            results.append(SearchResult(
+                url=url, title=title,
+                snippet=f"NewsNow {item.get('platform') or ''}"))
         return results
 
 

@@ -11,6 +11,7 @@ export const AUTH_EVENT_TYPES = [
   "csrf_reject",
   "workspace_access_denied",
   "admin_access_denied",
+  "review_access_denied",
   "oidc_state_invalid",
   "provider_membership_preapproved",
   "provider_membership_revoked",

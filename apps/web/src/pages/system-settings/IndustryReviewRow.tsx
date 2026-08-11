@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
+import { CheckCircle2, IdCard, Loader2, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -22,10 +22,17 @@ type IndustryReviewRowProps = {
   pendingAction?: ReviewRowAction
   error?: ReviewRowError
   undoDisabled?: boolean
+  /** Batch selection affordance (bulk approve/reject). */
+  batchSelected?: boolean
+  batchDisabled?: boolean
+  onToggleBatchSelect?: () => void
   onSelect: () => void
   onApprove: () => void
   onUndo: () => void
   onRetry: () => void
+  /** Identity-resolution lane: shown for rows blocked by canonical_mapping_missing. */
+  onResolveIdentity?: () => void
+  resolveIdentityPending?: boolean
 }
 
 function companyLabel(value: string | undefined): string {
@@ -75,10 +82,15 @@ export function IndustryReviewRow({
   pendingAction,
   error,
   undoDisabled = false,
+  batchSelected = false,
+  batchDisabled = false,
+  onToggleBatchSelect,
   onSelect,
   onApprove,
   onUndo,
   onRetry,
+  onResolveIdentity,
+  resolveIdentityPending = false,
 }: IndustryReviewRowProps) {
   const { t } = useTranslation()
   const { item, eligibility, sessionApproval } = row
@@ -111,6 +123,21 @@ export function IndustryReviewRow({
       }}
     >
       <div className="flex items-start gap-2.5">
+        {onToggleBatchSelect ? (
+          <input
+            type="checkbox"
+            aria-label={t('industryEvidence.batchSelectRow', {
+              defaultValue: 'Select for bulk action',
+            })}
+            checked={batchSelected}
+            disabled={batchDisabled}
+            onChange={onToggleBatchSelect}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            className="mt-1.5 shrink-0"
+            data-testid={`industry-batch-check-${proposal.proposalId}`}
+          />
+        ) : null}
         <div
           className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
             isApproved
@@ -246,16 +273,39 @@ export function IndustryReviewRow({
               )}
             </Button>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isActionPending}
-              onClick={onSelect}
-              aria-label={`${detailLabel}: ${name}`}
-            >
-              {detailLabel}
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {onResolveIdentity ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isActionPending}
+                  onClick={onResolveIdentity}
+                  aria-label={t('industryEvidence.resolveIdentityRowLabel', {
+                    defaultValue: 'Resolve identity for {{company}}',
+                    company: name,
+                  })}
+                  data-testid={`industry-review-resolve-identity-${proposal.proposalId}`}
+                >
+                  {resolveIdentityPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <IdCard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  {t('industryEvidence.resolveIdentity', { defaultValue: 'Resolve identity' })}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isActionPending}
+                onClick={onSelect}
+                aria-label={`${detailLabel}: ${name}`}
+              >
+                {detailLabel}
+              </Button>
+            </div>
           )}
         </div>
       </div>

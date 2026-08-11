@@ -40,20 +40,22 @@ function renderMockLink(
   )
 }
 
+const mockT = (key: string) => {
+  const values: Record<string, string> = {
+    'app.title': 'Trends',
+    'app.subtitle': 'Trends',
+    'nav.resumes': 'Resumes',
+    'nav.research': 'Research',
+    'nav.reviewPackets': 'Review packets',
+    'nav.settings': 'Settings',
+    'nav.system': 'System from i18n',
+  }
+  return values[key] ?? key
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
-      const values: Record<string, string> = {
-        'app.title': 'Trends',
-        'app.subtitle': 'Trends',
-        'nav.resumes': 'Resumes',
-        'nav.research': 'Research',
-        'nav.reviewPackets': 'Review packets',
-        'nav.settings': 'Settings',
-        'nav.system': 'System from i18n',
-      }
-      return values[key] ?? key
-    },
+    t: mockT,
   }),
 }))
 

@@ -66,4 +66,25 @@ if [ "$unregistered" -gt 0 ]; then
     exit 1
 fi
 
+# Reverse drift guard: every registered file:name must still exist as an
+# export. Catches stale registry entries (e.g. deleteIndustryVerdictRevision
+# lingered after its mutation was removed).
+stale=0
+while IFS= read -r key; do
+    [ -z "$key" ] && continue
+    file="${key%%:*}"
+    name="${key#*:}"
+    if ! grep -qE "^export const ${name} = (?:async )?mutation\(" "$CONVEX_DIR/$file" 2>/dev/null; then
+        echo "STALE REGISTRY ENTRY: $key" >&2
+        echo "  Export no longer exists in $CONVEX_DIR/$file — remove the entry" >&2
+        stale=$((stale + 1))
+    fi
+done < <(printf '%s\n' "$registered")
+
+if [ "$stale" -gt 0 ]; then
+    echo "" >&2
+    echo "FAIL: $stale stale registry entr(y/ies) in $REGISTRY" >&2
+    exit 1
+fi
+
 echo "OK: All public mutations registered in _mutations_registry.ts"

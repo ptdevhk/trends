@@ -9,10 +9,11 @@ import {
   hasLegacyIndustryEvidenceInSignals,
 } from '@/components/industry-evidence/industry-evidence'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
-import { SearchCheck } from 'lucide-react'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
+import { ExternalLink, SearchCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -33,6 +34,12 @@ function CardErrorFallback() {
       Failed to load resume card.
     </div>
   )
+}
+
+export type VerifiedOnlyNotice = {
+  minRoleYears?: number
+  roleFilterType?: string | null
+  verifiedEmployerCount?: number
 }
 
 type SearchResultsListProps = {
@@ -65,6 +72,18 @@ type SearchResultsListProps = {
   /** Admin-only exact resume target orchestration for the loaded result page. */
   onQueueIndustryResearch?: (resumeIds: string[]) => Promise<void>
   industryResearchQueueEnabled?: boolean
+  /**
+   * Gate-legibility notice: when a role gate (minRoleYears / roleFilterType)
+   * is active and the verified-employer catalog count is known, the results
+   * list explains that results are limited to industry-verified employers.
+   */
+  verifiedOnlyNotice?: VerifiedOnlyNotice
+  /**
+   * Workspace-scoped review inbox href. Only set when the active workspace
+   * user may attend the industry evidence queue (workspace admin or
+   * reviewer); when set, the verified-only notice gains a review link.
+   */
+  verifiedOnlyReviewHref?: string
 }
 
 function SearchResultsSkeleton() {
@@ -109,6 +128,8 @@ export function SearchResultsList({
   searchQuery,
   onQueueIndustryResearch,
   industryResearchQueueEnabled = false,
+  verifiedOnlyNotice,
+  verifiedOnlyReviewHref,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -118,8 +139,16 @@ export function SearchResultsList({
   const [localDetailItem, setLocalDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const [queueingIndustryResearch, setQueueingIndustryResearch] = useState(false)
+  const [highlightedResumeId, setHighlightedResumeId] = useState<string | null>(null)
+  const [hashVersion, setHashVersion] = useState(0)
+  const handledHashRef = useRef<string | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
-  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const isSystemAdmin = hasSystemAdminAccess(memberships)
+  const showIndustryEvidenceReviewGuidance = isSystemAdmin || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
+  const legacyReviewBasePath = isSystemAdmin
+    ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`
+    : `/${workspaceSlug}/system/settings/industry-verification`
   const hasLegacyIndustryEvidence = useMemo(() =>
     showIndustryEvidenceReviewGuidance && items.some((item) => {
       const summaries = getVerifiedIndustryEvidenceSummaries(item.resume)
@@ -322,6 +351,52 @@ export function SearchResultsList({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [items, focusedIndex, onToggleExpanded, onAction])
 
+  // Deep-link support: `#resume-<id>` scrolls to the matching card and flashes
+  // a highlight ring. Re-arms on hashchange (back/forward, manual hash edit).
+  useEffect(() => {
+    const handleHashChange = () => {
+      handledHashRef.current = null
+      setHashVersion((version) => version + 1)
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  useEffect(() => {
+    const rawHash = window.location.hash.replace(/^#/, '')
+    if (!rawHash.startsWith('resume-') || rawHash === handledHashRef.current) {
+      return
+    }
+
+    const targetIndex = items.findIndex(
+      (item) => item.resume.resumeId != null && `resume-${item.resume.resumeId}` === rawHash,
+    )
+    if (targetIndex === -1) {
+      // Target resume is not part of the loaded result set; keep the hash so it
+      // resolves once the card is present.
+      return
+    }
+
+    handledHashRef.current = rawHash
+    if (shouldVirtualize) {
+      rowVirtualizer.scrollToIndex(targetIndex, { align: 'start' })
+    }
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(rawHash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+    setHighlightedResumeId(rawHash)
+    return () => window.clearTimeout(scrollTimer)
+  }, [items, shouldVirtualize, rowVirtualizer, hashVersion])
+
+  useEffect(() => {
+    if (!highlightedResumeId) {
+      return
+    }
+    const clearTimer = window.setTimeout(() => setHighlightedResumeId(null), 3500)
+    return () => window.clearTimeout(clearTimer)
+  }, [highlightedResumeId])
+
   function scrollCardIntoView(index: number) {
     const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
     if (card) {
@@ -369,6 +444,8 @@ export function SearchResultsList({
     onCandidateStatusChange,
     onToggleBlock,
   })
+  const isHighlighted = (item: ResumeSearchResultItem) =>
+    item.resume.resumeId != null && highlightedResumeId === `resume-${item.resume.resumeId}`
 
   return (
     <div ref={listRef} className="space-y-4">
@@ -396,7 +473,33 @@ export function SearchResultsList({
         </div>
       ) : null}
       {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
-        <LegacyIndustryEvidenceNotice showReviewAction />
+        <LegacyIndustryEvidenceNotice showReviewAction reviewBasePath={legacyReviewBasePath} />
+      ) : null}
+      {verifiedOnlyNotice
+      && typeof verifiedOnlyNotice.verifiedEmployerCount === 'number'
+      && verifiedOnlyNotice.verifiedEmployerCount > 0
+      && ((verifiedOnlyNotice.minRoleYears ?? 0) > 0 || Boolean(verifiedOnlyNotice.roleFilterType)) ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm"
+          data-testid="resume-verified-only-notice"
+          role="status"
+        >
+          {t('industryEvidence.searchVerifiedOnlyNotice', {
+            defaultValue: 'Results limited to industry-verified employers · {{count}} verified employers in catalog',
+            count: verifiedOnlyNotice.verifiedEmployerCount,
+          })}
+          {verifiedOnlyReviewHref ? (
+            <a
+              className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              href={verifiedOnlyReviewHref}
+            >
+              {t('industryEvidence.verifiedOnlyReviewAction', {
+                defaultValue: 'Review industry evidence',
+              })}
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          ) : null}
+        </div>
       ) : null}
       {shouldVirtualize ? (
         <div
@@ -420,6 +523,7 @@ export function SearchResultsList({
                     itemKey={item.key}
                     expanded={false}
                     showAiScore={showAiScore}
+                    highlighted={isHighlighted(item)}
                     onToggleExpanded={onToggleExpanded}
                     onViewDetails={handleViewDetails}
                     searchQuery={searchQuery}
@@ -452,6 +556,7 @@ export function SearchResultsList({
                   itemKey={item.key}
                   expanded={expandedIds.has(item.key)}
                   showAiScore={showAiScore}
+                  highlighted={isHighlighted(presentationItem)}
                   onToggleExpanded={onToggleExpanded}
                   onViewDetails={handleViewDetails}
                   searchQuery={searchQuery}

@@ -17,21 +17,27 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     GET: (...args: unknown[]) => apiGetMock(...args),
   },
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string | { defaultValue?: string; [name: string]: unknown }) => {
+const mockT = (key: string, fallback?: string | { defaultValue?: string; [name: string]: unknown }) => {
       if (typeof fallback === 'string') {
         return fallback
       }
       const template = fallback?.defaultValue ?? key
       return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(fallback?.[name] ?? `{{${name}}}`))
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 
@@ -152,10 +158,14 @@ describe('ResumeDetail work history', () => {
       />
     )
 
-    expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
-    expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
-    expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
-    expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
+    expect(screen.getByText('Current Co')).toBeInTheDocument()
+    expect(screen.getByText('Current Role')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co')).toBeInTheDocument()
+    expect(screen.getByText('Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co')).toBeInTheDocument()
+    expect(screen.getByText('Middle Role')).toBeInTheDocument()
+    expect(screen.queryByText('Oldest Co')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Role')).not.toBeInTheDocument()
     expect(screen.getByText('Needs refresh')).toBeInTheDocument()
   })
 
@@ -188,7 +198,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('Oldest Co · Old Role')).toBeInTheDocument()
+    expect(screen.getByText('Oldest Co')).toBeInTheDocument()
+    expect(screen.getByText('Old Role')).toBeInTheDocument()
   })
 
   it('filters placeholder-only and education-like rows from work history', () => {
@@ -225,7 +236,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('东莞宝力机械 · 销售经理')).toBeInTheDocument()
+    expect(screen.getByText('东莞宝力机械')).toBeInTheDocument()
+    expect(screen.getByText('销售经理')).toBeInTheDocument()
     expect(screen.queryByText('(2年11月)')).not.toBeInTheDocument()
     expect(screen.queryByText('(11月)')).not.toBeInTheDocument()
     expect(screen.queryByText('2020~2023广东南方职业学院商务英语本科')).not.toBeInTheDocument()
@@ -260,7 +272,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('TERRAN LLC. · Sales Manager')).toBeInTheDocument()
+    expect(screen.getByText('TERRAN LLC.')).toBeInTheDocument()
+    expect(screen.getByText('Sales Manager')).toBeInTheDocument()
     expect(screen.getByText('Jul 2012 - Present (14 years 4 months)')).toBeInTheDocument()
     expect(screen.getByText('Led orthopedics implant sales.')).toBeInTheDocument()
   })
@@ -441,9 +454,11 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    const terranCard = screen.getByText('TERRAN LLC. · Sales Manager').closest('li')
-    const symmetryCard = screen.getByText('Symmetry Medical Malaysia Sdn. Bhd. · Sales Manager').closest('li')
-    const cncCard = screen.getByText('CNC Mechatronics Sdn. Bhd. · Sales Manager').closest('li')
+    // Locate each work-history card by its unique matched-signal badge; the
+    // company text alone would also match the verified-evidence section.
+    const terranCard = screen.getByText('TERRAN-SALES').closest('li')
+    const symmetryCard = screen.getByText('SYMMETRY-SALES').closest('li')
+    const cncCard = screen.getByText('CNC-SALES').closest('li')
 
     expect(terranCard).not.toBeNull()
     expect(symmetryCard).not.toBeNull()
@@ -627,5 +642,124 @@ describe('ResumeDetail work history', () => {
       'href',
       '/admin/system/settings/industry-verification/proposals/industry-maintenance-vision',
     )
+  })
+
+  it('guides an active-workspace reviewer to the workspace review inbox for legacy signals', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          resumeId: 'resume-1',
+          ingestData: {
+            evidenceText: '',
+            industryTags: ['cnc'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: [],
+            industryDbV2Raw: 0,
+            experienceLevel: 'mid',
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC Sales'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedYears: 3,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                years: 3,
+                industryVerified: true,
+                matchedSignals: ['CNC Sales'],
+              }],
+            }],
+            verifiedIndustryEvidenceSummaries: [],
+          },
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/hr/system/settings/industry-verification?status=ready_for_review')
+  })
+
+  it('hides legacy review guidance from plain members', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'user' }],
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          resumeId: 'resume-1',
+          ingestData: {
+            evidenceText: '',
+            industryTags: ['cnc'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: [],
+            industryDbV2Raw: 0,
+            experienceLevel: 'mid',
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC Sales'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedYears: 3,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                years: 3,
+                industryVerified: true,
+                matchedSignals: ['CNC Sales'],
+              }],
+            }],
+            verifiedIndustryEvidenceSummaries: [],
+          },
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.queryByText('Industry evidence needs human review')).not.toBeInTheDocument()
   })
 })

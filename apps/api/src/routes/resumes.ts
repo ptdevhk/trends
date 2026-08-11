@@ -817,10 +817,20 @@ export type TriggerReingestResult = {
   cursor: string | null;
   mode: string;
   dryRun: boolean;
+  scannedRows: number;
   skillsStaleCount: number;
   computeStaleCount: number;
   matchedCount: number;
 };
+
+/**
+ * Explicit fallback hint for operators when the re-ingest action itself fails
+ * (e.g. local backend overload): the full-corpus scan is not the only path.
+ * Targeted cohorts can go through the exact-re-ingest scheduler
+ * (ingest_agent:scheduleExactReingest), and the scan can be retried later.
+ */
+export const REINGEST_ACTION_FALLBACK_HINT =
+  "Re-ingest action unavailable; fallback: use exact re-ingest (ingest_agent:scheduleExactReingest) for targeted cohorts or retry the full-corpus scan when the backend recovers";
 
 export async function triggerReingestStaleSkillsVersion(
   limitOrOptions: number | TriggerReingestOptions = 200,
@@ -832,39 +842,26 @@ export async function triggerReingestStaleSkillsVersion(
   const cursor = options.cursor;
   const dryRun = options.dryRun === true;
 
-  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/action`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      path: "migrations:reIngestStaleSkillsVersion",
-      args: { limit, cursor, mode, dryRun },
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Convex action failed (${response.status}): ${text}`);
+  let value: unknown;
+  try {
+    // callConvexAction retries transient 5xx / connection resets (fetchWithRetry),
+    // which the freshness gate's lag scan depends on under reingest load.
+    value = await callConvexAction("migrations:reIngestStaleSkillsVersion", {
+      limit,
+      cursor,
+      mode,
+      dryRun,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message} — ${REINGEST_ACTION_FALLBACK_HINT}`);
   }
 
-  const payload = await response.json() as {
-    status?: string;
-    value?: unknown;
-    errorMessage?: string;
-  };
-
-  if (payload.status !== "success") {
-    throw new Error(payload.errorMessage || "Convex action failed");
+  if (!isRecord(value)) {
+    throw new Error(`Invalid re-ingest response from Convex — ${REINGEST_ACTION_FALLBACK_HINT}`);
   }
 
-  if (!isRecord(payload.value)) {
-    throw new Error("Invalid re-ingest response from Convex");
-  }
-
-  const result = payload.value;
+  const result = value;
 
   return {
     scheduled: typeof result.scheduled === "number" ? result.scheduled : 0,
@@ -881,6 +878,7 @@ export async function triggerReingestStaleSkillsVersion(
     cursor: typeof result.cursor === "string" && result.cursor.length > 0 ? result.cursor : null,
     mode: typeof result.mode === "string" ? result.mode : mode,
     dryRun: result.dryRun === true || dryRun,
+    scannedRows: typeof result.scannedRows === "number" ? result.scannedRows : 0,
     skillsStaleCount: typeof result.skillsStaleCount === "number" ? result.skillsStaleCount : 0,
     computeStaleCount: typeof result.computeStaleCount === "number" ? result.computeStaleCount : 0,
     matchedCount: typeof result.matchedCount === "number" ? result.matchedCount : 0,

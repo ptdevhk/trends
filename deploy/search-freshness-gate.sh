@@ -22,7 +22,9 @@
 #   TRENDS_WORKSPACE (default: dev)
 #   PREVIEW_API_URL / PROD_API_URL / PREVIEW_PUBLIC_HOST (see deploy/lib-bff-defaults.sh)
 #   SCHEDULE_REINGEST=1   schedule bounded compute reingest when lag (default 1 on fail path when admin)
-#   REINGEST_LIMIT=200
+#   REINGEST_LIMIT=200    total rows to schedule across all paced batches
+#   REINGEST_BATCH=25     rows per paced trigger-reingest call (capacity-safe for 8 GiB Convex)
+#   REINGEST_SLEEP_SECS=8 seconds between paced calls (prevents Convex OOM on large cloned datasets)
 #   SKIP_GOLDEN=0
 #   GATE_STRICT=1         fail the calling upgrade when exit != 0 (default 1)
 set -euo pipefail
@@ -37,15 +39,21 @@ source "$SCRIPT_DIR/lib-bff-defaults.sh"
 ROLE=""
 API_URL=""
 WORKSPACE="${TRENDS_WORKSPACE:-dev}"
+# SCAN_LIMIT is the doctor's lag-scan WINDOW, not a corpus count: the dry-run
+# reingest stops after scanning this many resume rows and reports
+# hasMore/scanComplete. Counts from an incomplete window understate the true
+# stale population — the gate warns when scanComplete=false.
 SCAN_LIMIT="${SCAN_LIMIT:-200}"
 REINGEST_LIMIT="${REINGEST_LIMIT:-200}"
+REINGEST_BATCH="${REINGEST_BATCH:-25}"
+REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
 SCHEDULE_REINGEST="${SCHEDULE_REINGEST:-1}"
 SKIP_GOLDEN="${SKIP_GOLDEN:-0}"
 GATE_STRICT="${GATE_STRICT:-1}"
 JSON_OUT="${JSON_OUT:-}"
 
 usage() {
-  sed -n '2,32p' "$0"
+  sed -n '2,29p' "$0"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -55,6 +63,8 @@ while [[ $# -gt 0 ]]; do
     --workspace) WORKSPACE="${2:-}"; shift 2 ;;
     --scan-limit) SCAN_LIMIT="${2:-}"; shift 2 ;;
     --reingest-limit) REINGEST_LIMIT="${2:-}"; shift 2 ;;
+    --reingest-batch) REINGEST_BATCH="${2:-}"; shift 2 ;;
+    --reingest-sleep) REINGEST_SLEEP_SECS="${2:-}"; shift 2 ;;
     --no-schedule) SCHEDULE_REINGEST=0; shift ;;
     --skip-golden) SKIP_GOLDEN=1; shift ;;
     --json) JSON_OUT=1; shift ;;
@@ -213,6 +223,15 @@ else
   echo
 fi
 
+# Window semantics: the doctor's lag scan is a dry-run reingest capped at
+# SCAN_LIMIT rows. When the corpus is larger, the scan stops mid-corpus and
+# reports hasMore=true / scanComplete=false — the stale counts in that case
+# UNDERSTATE the true population. The gate must say so explicitly instead of
+# reporting a window as if it were a full-corpus count.
+if echo "$DOCTOR_OUT" | grep -q '"scanComplete": false'; then
+  warn "Doctor lag scan window incomplete (scanComplete=false) — computeStale/missingEpoch counts understate the true stale population; re-run with a higher --scan-limit or continue the cursor scan"
+fi
+
 # Schedule reingest on lag (exit 2) or when JSON says computeStale / lagScanFailed
 should_schedule=0
 if [[ "$SCHEDULE_REINGEST" == "1" ]]; then
@@ -229,8 +248,8 @@ fi
 
 # Cursor-continuation batches + inter-batch sleep avoid Convex overload while
 # ensuring each paced call advances past the rows scheduled by the prior call.
-REINGEST_BATCH="${REINGEST_BATCH:-25}"
-REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
+# Defaults are set at the top of the script (REINGEST_BATCH=25, REINGEST_SLEEP_SECS=8)
+# and can be overridden via env or --reingest-batch / --reingest-sleep CLI flags.
 
 if [[ "$should_schedule" -eq 1 ]]; then
   log "Scheduling cursor-paced compute reingest limit=$REINGEST_LIMIT batch=$REINGEST_BATCH (mode=compute)"
@@ -279,7 +298,11 @@ while remaining > 0:
         method="POST",
     )
     try:
-        with opener.open(req, timeout=180) as r:
+        # The reingest action scans the full resume corpus in 100-row batches
+        # before scheduling; on large cloned datasets (8k+ resumes) it can take
+        # 3-5 minutes. A 180s client timeout aborts the pacing loop after the
+        # first batch, so the gate must allow the action's worst case.
+        with opener.open(req, timeout=420) as r:
             out = json.loads(r.read().decode())
         sched = int(out.get("scheduled") or 0)
         scheduled_total += sched

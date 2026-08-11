@@ -5,7 +5,7 @@ export type QueryParams = Record<string, string | number | boolean | undefined>
 export type ApiResult<T> = {
   data?: T
   error?: unknown
-  response?: { status?: number }
+  response?: { status?: number; ok?: boolean }
 }
 
 export type ApiClientLike = {

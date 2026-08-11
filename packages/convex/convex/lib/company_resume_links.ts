@@ -35,6 +35,8 @@ function deriveWorkEntryFingerprint(entry: {
   return parts.length > 0 ? parts.join("|").toLowerCase() : undefined;
 }
 
+export { deriveWorkEntryFingerprint };
+
 function deriveCompanyResumeLinks(ingestData: IngestData): CompanyResumeLinkAccumulator[] {
   const linksByCompany = new Map<string, CompanyResumeLinkAccumulator>();
 
@@ -119,4 +121,57 @@ export async function replaceCompanyResumeLinksForResume(
       updatedAt,
     });
   }
+}
+
+/**
+ * Idempotent upsert of a single company→resume link for the backfill flow
+ * (delete existing link for this resume+company, then insert the fresh row).
+ *
+ * `currentVerdictRevisionId` is deliberately passed by the caller: backfilled
+ * links for resumes that were never computed under the company's verdict must
+ * omit it, so the affected list classifies them as stale and a targeted
+ * recompute picks them up.
+ */
+export async function upsertCompanyResumeLinkForCompany(
+  ctx: Pick<MutationCtx, "db">,
+  resume: Pick<Doc<"resumes">, "_id" | "workspaceSlug" | "identityKey" | "externalId">,
+  input: {
+    companyKey: string;
+    matchedEmployerSurfaces: string[];
+    workEntryFingerprints: string[];
+    currentVerdictRevisionId?: string;
+  },
+): Promise<void> {
+  const existing = await ctx.db
+    .query("company_resume_links")
+    .withIndex("by_resume", (query) => query.eq("resumeId", resume._id))
+    .filter((query) => query.eq(query.field("companyKey"), input.companyKey))
+    .collect();
+
+  for (const row of existing) {
+    await ctx.db.delete(row._id);
+  }
+
+  const workspaceSlug =
+    normalizeToken(resume.workspaceSlug) ?? DEFAULT_WORKSPACE_SLUG;
+  const resumeIdentity =
+    normalizeToken(resume.identityKey) ??
+    normalizeToken(resume.externalId) ??
+    String(resume._id);
+  const revisionId = normalizeToken(input.currentVerdictRevisionId);
+
+  await ctx.db.insert("company_resume_links", {
+    workspaceSlug,
+    companyKey: input.companyKey,
+    resumeId: resume._id,
+    resumeIdentity,
+    matchedEmployerSurfaces: Array.from(new Set(input.matchedEmployerSurfaces))
+      .filter((surface): surface is string => Boolean(surface?.trim()))
+      .sort((left, right) => left.localeCompare(right)),
+    workEntryFingerprints: Array.from(new Set(input.workEntryFingerprints))
+      .filter((fingerprint): fingerprint is string => Boolean(fingerprint?.trim()))
+      .sort((left, right) => left.localeCompare(right)),
+    ...(revisionId ? { currentVerdictRevisionId: revisionId } : {}),
+    updatedAt: Date.now(),
+  });
 }

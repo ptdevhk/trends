@@ -8,7 +8,7 @@ export type AuthUser = {
   status: 'active' | 'disabled'
 }
 
-export type WorkspaceRole = 'user' | 'admin'
+export type WorkspaceRole = 'user' | 'reviewer' | 'admin'
 export type AuthProvider = 'local' | 'casdoor'
 
 export type WorkspaceMembership = {

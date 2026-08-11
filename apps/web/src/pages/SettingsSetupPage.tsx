@@ -6,8 +6,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { reportUiError } from '@/lib/ui-error-reporting'
-
-const EXTENSION_META_URL = '/extension/extension-meta.json'
+import { fetchExtensionMetaJson } from '@/lib/external-fetch'
 
 type ExtensionMeta = { version: string }
 
@@ -44,9 +43,7 @@ function useExtensionVersion() {
 
     const load = async () => {
       try {
-        const response = await fetch(EXTENSION_META_URL)
-        if (!response.ok) return
-        const payload: unknown = await response.json()
+        const payload: unknown = await fetchExtensionMetaJson()
         if (!cancelled && isExtensionMeta(payload)) {
           setVersion(payload.version)
         }

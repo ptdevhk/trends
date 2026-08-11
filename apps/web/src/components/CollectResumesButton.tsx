@@ -20,7 +20,7 @@ import {
   type CollectionSource,
 } from '@/lib/search-profile-sources'
 import { reportUiError } from '@/lib/ui-error-reporting'
-const EXTENSION_META_URL = '/extension/extension-meta.json'
+import { fetchExtensionMetaJson } from '@/lib/external-fetch'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
 
 type ExtensionMeta = {
@@ -188,12 +188,7 @@ export function CollectResumesButton({
 
     const loadExtensionMeta = async () => {
       try {
-        const response = await fetch(EXTENSION_META_URL)
-        if (!response.ok) {
-          return
-        }
-
-        const payload: unknown = await response.json()
+        const payload: unknown = await fetchExtensionMetaJson()
         if (!cancelled && isExtensionMeta(payload)) {
           setExtensionVersion(payload.version)
         }

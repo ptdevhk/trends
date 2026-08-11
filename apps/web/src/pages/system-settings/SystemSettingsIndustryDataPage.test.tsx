@@ -13,9 +13,11 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }))
 
+const mockT = (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key;
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key,
+    t: mockT,
   }),
 }))
 

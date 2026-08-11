@@ -15,33 +15,35 @@ vi.mock('sonner', () => ({
   },
 }))
 
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (typeof options === 'string') return options
+  const translations: Record<string, string> = {
+    'shareLink.button': 'Share',
+    'shareLink.copiedSearch': 'Share link copied',
+    'shareLink.copiedSession': 'Session link copied',
+    'shareLink.copiedPublic': 'Public share copied',
+    'shareLink.publicButton': 'Public share',
+    'shareLink.publicDialog.title': 'Create public share?',
+    'shareLink.publicDialog.description': 'Create an immutable public snapshot link.',
+    'shareLink.publicDialog.cancel': 'Cancel',
+    'shareLink.publicDialog.confirm': 'Create public share',
+    'shareLink.copyPreparedFailed': 'Automatic copy failed. Copy the link below manually.',
+    'shareLink.copyUrlFailed': 'Failed to copy link. Copy the URL from the address bar manually.',
+    'shareLink.createPublicFailed': 'Failed to create public share.',
+    'shareLink.retryCopyFailed': 'Copy still failed. Copy the link below manually.',
+    'shareLink.dialog.title': 'Copy share link manually',
+    'shareLink.dialog.description': 'Automatic copy did not complete. The link is ready to copy manually.',
+    'shareLink.dialog.titleLabel': 'Share title',
+    'shareLink.dialog.urlLabel': 'Share link',
+    'shareLink.dialog.retryCopy': 'Try copying again',
+    'common.close': 'Close',
+  }
+  return translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
-      if (typeof options === 'string') return options
-      const translations: Record<string, string> = {
-        'shareLink.button': 'Share',
-        'shareLink.copiedSearch': 'Share link copied',
-        'shareLink.copiedSession': 'Session link copied',
-        'shareLink.copiedPublic': 'Public share copied',
-        'shareLink.publicButton': 'Public share',
-        'shareLink.publicDialog.title': 'Create public share?',
-        'shareLink.publicDialog.description': 'Create an immutable public snapshot link.',
-        'shareLink.publicDialog.cancel': 'Cancel',
-        'shareLink.publicDialog.confirm': 'Create public share',
-        'shareLink.copyPreparedFailed': 'Automatic copy failed. Copy the link below manually.',
-        'shareLink.copyUrlFailed': 'Failed to copy link. Copy the URL from the address bar manually.',
-        'shareLink.createPublicFailed': 'Failed to create public share.',
-        'shareLink.retryCopyFailed': 'Copy still failed. Copy the link below manually.',
-        'shareLink.dialog.title': 'Copy share link manually',
-        'shareLink.dialog.description': 'Automatic copy did not complete. The link is ready to copy manually.',
-        'shareLink.dialog.titleLabel': 'Share title',
-        'shareLink.dialog.urlLabel': 'Share link',
-        'shareLink.dialog.retryCopy': 'Try copying again',
-        'common.close': 'Close',
-      }
-      return translations[key] ?? (typeof options?.defaultValue === 'string' ? options.defaultValue : key)
-    },
+    t: mockT,
   }),
 }))
 

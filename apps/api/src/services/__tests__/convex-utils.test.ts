@@ -62,8 +62,9 @@ describe("convex-utils", () => {
       expect(url).toBe("https://happy-otter-123.convex.cloud/api/query");
     });
 
-    it("throws on non-ok HTTP response", async () => {
-      mockFetch.mockResolvedValueOnce({
+    it("throws on non-ok HTTP response after exhausting retries", async () => {
+      // fetchWithRetry retries 5xx responses 3 times; mock must persist for all attempts.
+      mockFetch.mockResolvedValue({
         ok: false,
         status: 500,
         text: async () => "Internal Server Error",
@@ -71,7 +72,8 @@ describe("convex-utils", () => {
 
       await expect(
         callConvexQuery("listResumes", {}),
-      ).rejects.toThrow("Convex query failed (500): Internal Server Error");
+      ).rejects.toThrow("Convex query returned 500");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it("throws on non-success status in payload", async () => {
@@ -85,12 +87,14 @@ describe("convex-utils", () => {
       ).rejects.toThrow("path not found");
     });
 
-    it("handles network errors", async () => {
-      mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
+    it("handles network errors after exhausting retries", async () => {
+      // fetchWithRetry catches fetch rejections and retries 3 times; mock must persist.
+      mockFetch.mockRejectedValue(new TypeError("fetch failed"));
 
       await expect(
         callConvexQuery("listResumes", {}),
       ).rejects.toThrow("fetch failed");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -109,7 +113,7 @@ describe("convex-utils", () => {
       expect(result).toEqual({ id: "abc123" });
     });
 
-    it("throws on non-ok HTTP response", async () => {
+    it("throws on non-ok HTTP response (4xx not retried)", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -119,6 +123,8 @@ describe("convex-utils", () => {
       await expect(
         callConvexMutation("createResume", {}),
       ).rejects.toThrow("Convex mutation failed (403): Forbidden");
+      // 4xx responses are definitive - fetchWithRetry must not retry.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("throws on non-success status with fallback error message", async () => {
@@ -148,7 +154,7 @@ describe("convex-utils", () => {
       expect(result).toEqual({ done: true });
     });
 
-    it("throws on non-ok HTTP response", async () => {
+    it("throws on non-ok HTTP response (4xx not retried)", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 429,
@@ -158,6 +164,8 @@ describe("convex-utils", () => {
       await expect(
         callConvexAction("computeScore", {}),
       ).rejects.toThrow("Convex action failed (429): Too Many Requests");
+      // 4xx responses are definitive - fetchWithRetry must not retry.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("throws on non-success status in payload", async () => {

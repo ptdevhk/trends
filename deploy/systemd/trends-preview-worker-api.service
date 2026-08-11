@@ -1,0 +1,18 @@
+[Unit]
+Description=Trends Preview Worker FastAPI REST API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/trends-preview
+EnvironmentFile=-/home/ubuntu/trends-preview/.env.preview
+Environment=PORT=8003
+Environment=WORKSPACE_SLUG=hr
+ExecStart=/usr/local/bin/uv run uvicorn apps.worker.api:app --host 127.0.0.1 --port 8003
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

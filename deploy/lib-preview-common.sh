@@ -278,6 +278,49 @@ sha256_file() {
     fi
 }
 
+# Re-assert the canonical no-hire policies (宝力机械 / Pro-Technic Machinery and
+# 宝惠 / Polywell) on a preview workspace after any Convex data replace.
+#
+# Why: the preview restore paths replace preview Convex via `convex import
+# --replace-all`; schema tables missing from the imported snapshot are
+# materialized EMPTY (see restore-preview-from-prod.sh step 1b), which silently
+# drops company_policy_revisions rows (the workspace blacklist settings)
+# whenever the snapshot predates the seed or lacks the table. Re-running the
+# existing idempotent seed mutation restores them.
+#
+# Preview-only by construction: refuses to run against a non-trends-preview-*
+# container. The write secret is fetched from the deployment's own env
+# (`npx convex env get`) so the step works even if .env.preview drifted, and it
+# is never echoed.
+#
+# Usage: seed_preview_canonical_no_hire [workspace-slug]
+# Default workspace is "hr" — the scope the settings page queries
+# (/hr/settings/policies → X-Workspace-Slug: hr) and the scope production's
+# seeded rows live under.
+seed_preview_canonical_no_hire() {
+    local container="${PREVIEW_CONVEX_CONTAINER:-trends-preview-convex}"
+    local workspace_slug="${1:-hr}"
+    case "$container" in
+        trends-preview-*) ;;
+        *)
+            log_error "Refusing to re-seed policies on non-preview container: $container"
+            return 1
+            ;;
+    esac
+    if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
+        log_warn "Preview Convex container $container not running — skipping policy re-seed"
+        return 0
+    fi
+    log_step "Re-assert canonical no-hire policies (workspace=$workspace_slug)"
+    docker exec "$container" bash -c \
+        "cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET 2>/dev/null | tail -1) && npx convex run companies:seedCanonicalCompanies \"{\\\"workspaceSlug\\\":\\\"$workspace_slug\\\",\\\"seedNoHireForWorkspace\\\":true,\\\"writeSecret\\\":\\\"\$WS\\\"}\" --env-file .env.local" \
+        || {
+            log_warn "Canonical no-hire re-seed failed (container=$container workspace=$workspace_slug)"
+            return 1
+        }
+    return 0
+}
+
 write_manifest_line() {
     local manifest="$1"
     local key="$2"

@@ -7,8 +7,10 @@ const workspaceState = vi.hoisted(() => ({ slug: 'dev' }))
 
 let fetchSpy: ReturnType<typeof vi.spyOn>
 
+const mockT = (key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? key
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key }),
+  useTranslation: () => ({ t: mockT }),
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({

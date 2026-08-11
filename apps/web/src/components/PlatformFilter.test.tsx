@@ -3,15 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { PlatformFilter } from '@/components/PlatformFilter'
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
+const mockT = (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
       if (typeof options === 'string') return options
       if (options?.defaultValue) {
         return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match: string, k: string) => String(options[k] ?? `{{${k}}}`))
       }
       return key
-    },
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
   }),
 }))
 

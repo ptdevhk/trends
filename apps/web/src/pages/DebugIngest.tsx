@@ -25,6 +25,7 @@ import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SourceFacetSelect } from '@/components/SourceFacetSelect'
 import { CURRENT_RESUME_SKILLS_VERSION, resolveResumeRefreshState } from '@/lib/resume-freshness'
+import { apiClient } from '@/lib/api-client'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 type IngestDiagnosticsResume = {
@@ -204,20 +205,14 @@ export default function DebugIngest() {
   const [clearAnalysesDialogOpen, setClearAnalysesDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
-  const apiBaseUrl = useMemo(() => {
-    const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
-    return rawBaseUrl.replace(/\/api\/?$/, '')
-  }, [])
-
   const loadSkillsVersion = useCallback(async () => {
     setVersionLoading(true)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/resumes/skills-version`)
+      const { data, response } = await apiClient.GET('/api/resumes/skills-version')
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
-      const payload = await response.json()
-      const version = parseSkillsVersionPayload(payload)
+      const version = parseSkillsVersionPayload(data)
       if (version === null) {
         throw new Error('Invalid skills version response')
       }
@@ -228,12 +223,11 @@ export default function DebugIngest() {
     } finally {
       setVersionLoading(false)
     }
-  }, [apiBaseUrl, t])
+  }, [t])
 
   useEffect(() => {
     void loadSkillsVersion()
   }, [loadSkillsVersion])
-
   const resumes = useMemo(
     () => paginatedResumes.map((resume) => sanitizeResumeRecordForSurface(resume, 'debug', fieldUsagePolicy)),
     [fieldUsagePolicy, paginatedResumes],

@@ -91,13 +91,71 @@ export function hasExplicitCncEvidence(
   return candidates.some(isExplicitCncEvidenceSource);
 }
 
+/**
+ * Lane A (governed auto-verify) source types: structured, machine-verifiable
+ * data only. Prose sources (official_site, reporting, oem_partner, trade_body,
+ * directory, other) and discovery-only search results are never auto-approvable.
+ */
+export const AUTO_VERIFY_SOURCE_TYPES = new Set<IndustryEvidenceSourceType>([
+  "registry",
+  "taxonomy",
+]);
+
+/**
+ * Lane A (governed auto-verify) eligibility for a single evidence source.
+ *
+ * A source is auto-approvable only when it is a structured registry/taxonomy
+ * record (never prose), carries explicit CNC/industrial signal text, is
+ * fetched + active + unreviewed, and is not disputed/rejected.
+ */
+export function isAutoApprovableSource(
+  candidate: IndustryCncEvidenceCandidate & {
+    reviewStatus?: string;
+  },
+): boolean {
+  return (
+    AUTO_VERIFY_SOURCE_TYPES.has(candidate.sourceType) &&
+    candidate.trustTier !== "discovery" &&
+    (candidate.fetchStatus === undefined || candidate.fetchStatus === "fetched") &&
+    (candidate.sourceState === undefined || candidate.sourceState === "active") &&
+    candidate.reviewStatus !== "disputed" &&
+    candidate.reviewStatus !== "rejected" &&
+    hasCncText(candidate)
+  );
+}
+
+/**
+ * Lane A (governed auto-verify) eligibility for a proposal's full evidence set.
+ *
+ * Every selected source must be auto-approvable (structured registry/taxonomy
+ * with explicit CNC text). This is deliberately narrower than the human
+ * approval gate: prose evidence always routes to the human cockpit.
+ */
+export function hasAutoApprovableEvidence(
+  candidates: readonly (IndustryCncEvidenceCandidate & { reviewStatus?: string })[],
+): boolean {
+  return candidates.length > 0 && candidates.every(isAutoApprovableSource);
+}
+
 export const INDUSTRY_REVIEW_NON_OVERRIDABLE_RISK_FLAGS = [
   "canonical_mapping_missing",
   "only_discovery_sources",
   "source_conflict",
-  "weak_industry_signal",
   "cnc_claim_inferred",
   "stale_or_failed_source",
+] as const satisfies readonly IndustryReviewRiskFlag[];
+
+/**
+ * Flags a human reviewer may override through the attended risk-override
+ * path (decisionMode "risk_override" + acknowledgement reason + explicit
+ * industry class). `weak_industry_signal` means "no class was suggested" —
+ * an attended reviewer who explicitly classifies the employer (e.g.
+ * `non_industry`) resolves the ambiguity, so the flag becomes overridable.
+ * CNC claims stay hard-blocked: `cnc_claim_inferred` additionally trips
+ * `INDUSTRY_REVIEW_CNC_EVIDENCE_REQUIRED` in validation.
+ */
+export const INDUSTRY_REVIEW_OVERRIDABLE_RISK_FLAGS = [
+  "weak_industry_signal",
 ] as const satisfies readonly IndustryReviewRiskFlag[];
 
 export const INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION =
@@ -118,6 +176,13 @@ export interface IndustryReviewAttestation {
   acknowledgedRiskFlags: IndustryReviewRiskFlag[];
   cncEvidenceAcknowledged: boolean;
   acknowledgementReason: string;
+  /**
+   * Batch linkage: set when the attestation was submitted as part of a
+   * bulk review (`/api/company-industry-proposals/batch-review`). One
+   * attestation covers the whole batch; the shared id lets auditors find
+   * every revision approved in that batch.
+   */
+  batchId?: string;
 }
 
 export type IndustryReviewAttestationErrorCode =
@@ -214,6 +279,47 @@ export function validateIndustryReviewAttestation(input: {
   return { ok: true };
 }
 
+/**
+ * Select the evidence sources that may be sent through the standard approval
+ * path: the recommended selection, intersected with the approval-safe
+ * source decisions. When no source was recommended, every approval-safe
+ * decision is the fallback.
+ *
+ * Single source of truth for the tier-agnostic selection rule — the web
+ * affordance model, the batch-review endpoint, and the review producer all
+ * cross this function instead of re-implementing the predicate.
+ */
+export function selectApprovalSafeSources(
+  recommendation: Pick<
+    IndustryReviewRecommendation,
+    "recommendedSourceIds" | "sourceDecisions"
+  >,
+): string[] {
+  const approvalSafeSourceIds = new Set(
+    recommendation.sourceDecisions
+      .filter((decision) => decision.approvalSafe)
+      .map((decision) => decision.sourceId),
+  );
+  const candidateSourceIds =
+    recommendation.recommendedSourceIds.length > 0
+      ? recommendation.recommendedSourceIds
+      : recommendation.sourceDecisions.map((decision) => decision.sourceId);
+  return [...new Set(candidateSourceIds)].filter((sourceId) =>
+    approvalSafeSourceIds.has(sourceId),
+  );
+}
+
+/**
+ * True when an attended review attestation is required before an elevated
+ * decision: any visible risk flag, or a CNC classification.
+ */
+export function requiresReviewAttestation(
+  riskFlags: readonly IndustryReviewRiskFlag[],
+  industryClass: IndustryClass,
+): boolean {
+  return riskFlags.length > 0 || industryClass === "cnc";
+}
+
 export const INDUSTRY_REVIEW_SOURCE_REASON_CODES = [
   "approval_safe",
   "search_result_not_approval_safe",
@@ -262,6 +368,15 @@ export interface IndustryReviewRecommendation {
   evidenceSummaryDraft: string;
   decisionReasonDraft: string;
   requiresHumanReview: true;
+  /**
+   * Lane A (governed auto-verify) eligibility: true only when the proposal
+   * has a canonical companyKey, the recommendation is a high-confidence
+   * approve with zero risk flags, and every eligible source is a structured
+   * registry/taxonomy record with explicit CNC signal text. Auto-approvable
+   * proposals are excluded from the human review queue — the governed
+   * auto-verify-bot lane handles them with zero manual actions.
+   */
+  autoApprovable: boolean;
 }
 
 export interface IndustryReviewOperation {

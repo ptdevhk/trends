@@ -27,6 +27,7 @@ const reIngestStaleResumesHandler = (reIngestStaleResumes as unknown as ConvexHa
     cursor: string | null
     mode: string
     dryRun: boolean
+    scannedRows: number
     skillsStaleCount: number
     computeStaleCount: number
     matchedCount: number
@@ -523,10 +524,9 @@ describe("reIngestStaleResumes", () => {
     expect(result.scheduled).toBe(75)
     expect(result.currentVersion).toBe(3)
     expect(result.hasMore).toBe(true)
-    // 75 stale = batch of 50 + batch of 25
-    expect(scheduledPayloads).toHaveLength(2)
-    expect(scheduledPayloads[0].resumeIds).toHaveLength(50)
-    expect(scheduledPayloads[1].resumeIds).toHaveLength(25)
+    // 75 stale = a single 100-row batch (scan page size raised to 100)
+    expect(scheduledPayloads).toHaveLength(1)
+    expect(scheduledPayloads[0].resumeIds).toHaveLength(75)
     fetchSpy.mockRestore()
   })
 
@@ -667,6 +667,110 @@ describe("reIngestStaleResumes", () => {
       { resumeIds: ["stale-1", "stale-2"] },
       { resumeIds: ["stale-3", "stale-4"] },
     ])
+    fetchSpy.mockRestore()
+  })
+
+  it("dry-run reports the rows actually scanned, not the requested limit", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 2 }),
+    )
+
+    let queryCount = 0
+    const ctx = {
+      async runQuery() {
+        queryCount += 1
+        if (queryCount === 1) {
+          return {
+            continueCursor: "cursor:p2",
+            isDone: false,
+            page: Array.from({ length: 100 }, (_, i) => ({
+              _id: `stale-${i}`,
+              content: {},
+              ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+              primaryRuleScore: 0,
+              searchText: "",
+            })),
+          }
+        }
+        return {
+          continueCursor: "",
+          isDone: true,
+          page: Array.from({ length: 60 }, (_, i) => ({
+            _id: `stale-${100 + i}`,
+            content: {},
+            ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+            primaryRuleScore: 0,
+            searchText: "",
+          })),
+        }
+      },
+      scheduler: {
+        async runAfter() {
+          throw new Error("dry-run must not schedule")
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 200,
+      mode: "compute",
+      dryRun: true,
+    })
+
+    // 160 rows actually fetched across two pages (100 + 60), even though the
+    // requested limit was 200 — the honest window is 160, not 200.
+    expect(result).toMatchObject({
+      scheduled: 0,
+      batches: 0,
+      scannedRows: 160,
+      computeStaleCount: 160,
+      matchedCount: 160,
+      hasMore: false,
+      cursor: null,
+      dryRun: true,
+    })
+    fetchSpy.mockRestore()
+  })
+
+  it("dry-run exposes an incomplete window via scannedRows + hasMore", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 2 }),
+    )
+
+    const ctx = {
+      async runQuery() {
+        return {
+          continueCursor: "cursor:more",
+          isDone: false,
+          page: Array.from({ length: 100 }, (_, i) => ({
+            _id: `stale-${i}`,
+            content: {},
+            ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+            primaryRuleScore: 0,
+            searchText: "",
+          })),
+        }
+      },
+      scheduler: {
+        async runAfter() {
+          throw new Error("dry-run must not schedule")
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 100,
+      mode: "compute",
+      dryRun: true,
+    })
+
+    expect(result).toMatchObject({
+      scheduled: 0,
+      scannedRows: 100,
+      computeStaleCount: 100,
+      hasMore: true,
+      cursor: "cursor:more",
+    })
     fetchSpy.mockRestore()
   })
 })

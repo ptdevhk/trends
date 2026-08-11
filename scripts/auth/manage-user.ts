@@ -25,7 +25,7 @@ type Args = {
   email?: string;
   displayName?: string;
   workspace: string;
-  role: "user" | "admin";
+  role: "user" | "reviewer" | "admin";
   passwordEnv?: string;
   passwordStdin: boolean;
   noPassword: boolean;
@@ -64,7 +64,7 @@ function parseArgs(argv: string[]): Args {
         args.workspace = argv[++i] ?? "";
         break;
       case "--role":
-        args.role = (argv[++i] ?? "user") as "user" | "admin";
+        args.role = (argv[++i] ?? "user") as "user" | "reviewer" | "admin";
         break;
       case "--password-env":
         args.passwordEnv = argv[++i];
@@ -252,8 +252,8 @@ async function main() {
     console.error("Error: --workspace is required");
     process.exit(1);
   }
-  if (!["user", "admin"].includes(args.role)) {
-    console.error("Error: --role must be 'user' or 'admin'");
+  if (!["user", "reviewer", "admin"].includes(args.role)) {
+    console.error("Error: --role must be 'user', 'reviewer', or 'admin'");
     process.exit(1);
   }
 

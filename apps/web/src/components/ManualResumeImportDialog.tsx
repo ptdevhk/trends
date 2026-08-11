@@ -4,8 +4,7 @@ import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { components } from '@/lib/api-types'
-import { apiBaseUrl } from '@/lib/api-client'
-import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { rawApiClient } from '@/lib/api-helpers'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,8 +16,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { reportUiError } from '@/lib/ui-error-reporting'
-
-const MANUAL_IMPORT_URL = new URL(`${apiBaseUrl}/api/resumes/manual-import`, window.location.origin).toString()
 
 const ACCEPTED_FILE_TYPES = '.rar,.zip,.pdf,.doc,.docx'
 
@@ -189,14 +186,14 @@ export function ManualResumeImportDialog({
         formData.append('location', normalizedLocation)
       }
 
-      const response = await fetch(MANUAL_IMPORT_URL, {
-        method: 'POST',
-        headers: withWorkspaceHeaders(),
+      const { data, error: apiError, response } = await rawApiClient.POST<
+        ManualResumeImportResponse | ManualResumeImportError
+      >('/api/resumes/manual-import', {
         body: formData,
       })
-      const payload: unknown = await response.json()
+      const payload: unknown = response?.ok ? data : apiError
 
-      if (!response.ok) {
+      if (!response?.ok) {
         const nextError = isErrorResponse(payload)
           ? payload
           : { success: false as const, error: t('manualResumeImport.importFailed', 'Failed to import resumes') }
