@@ -2458,4 +2458,78 @@ describe("companies routes", () => {
     );
     expect(crossResponse.status).toBe(403);
   });
+
+  it("gates industry review routes to admin-or-reviewer; ops routes stay admin-only", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryProposalsPage") {
+        return convexSuccess({ items: [], nextCursor: undefined });
+      }
+      if (call.pathName === "companies:listIndustryRecomputeRuns") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockResolvedValue({
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      auditId: "audit-1",
+    });
+
+    // reviewer → 200 on a review read route (proposal list)
+    const reviewerAuth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+    const reviewerApp = createApp({ authStorage: reviewerAuth.storage });
+    const reviewList = await reviewerApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: reviewerAuth.headers },
+    );
+    expect(reviewList.status).toBe(200);
+
+    // reviewer → 200 on a review mutation route (identity resolution)
+    const identityResolution = await reviewerApp.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...reviewerAuth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+    expect(identityResolution.status).toBe(200);
+
+    // reviewer → 403 on an ops route (recompute runs)
+    const recomputeDenied = await reviewerApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: reviewerAuth.headers },
+    );
+    expect(recomputeDenied.status).toBe(403);
+
+    // workspace user → 403 on a review route
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userReview = await userApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: userAuth.headers },
+    );
+    expect(userReview.status).toBe(403);
+
+    // admin → 200 on an ops route (unchanged)
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const recomputeAllowed = await adminApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: adminAuth.headers },
+    );
+    expect(recomputeAllowed.status).toBe(200);
+  });
 });
