@@ -123,6 +123,16 @@ describe('SETTINGS_NAV_ITEMS', () => {
     expect(exportFields?.hrefSuffix).toBe('/settings/export-fields')
     expect(exportFields?.requiresAdmin).toBeUndefined()
   })
+
+  it('includes an industry verification entry gated on review access', () => {
+    const item = SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'industry-verification')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/industry-verification',
+      matchesSuffixes: ['/system/settings/industry-verification'],
+      requiresReviewAccess: true,
+    })
+    expect(item?.requiresAdmin).toBeUndefined()
+  })
 })
 
 describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
