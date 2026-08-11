@@ -58,7 +58,15 @@ export function SystemSettingsIndustryVerificationPage() {
   const { requestJson } = useSettingsRequestJson()
   const location = useLocation()
   const navigate = useNavigate()
-  const { proposalId: proposalIdFromRoute } = useParams()
+  const { teamSlug, proposalId: proposalIdFromRoute } = useParams()
+  // The review page renders at two bases: the canonical dev system surface
+  // (/admin/system, no route param) and the workspace-scoped surface
+  // (/:teamSlug/system). In-page navigation must stay on the active base —
+  // hardcoding /admin/system sends workspace admins/reviewers into
+  // SystemAccessGate, which bounces them to their workspace home.
+  const reviewBasePath = teamSlug
+    ? `/${teamSlug}/system/settings/industry-verification`
+    : `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`
   const [searchParams, setSearchParams] = useSearchParams()
   const proposalIdFromPath = useMemo(() => {
     if (proposalIdFromRoute?.trim()) return proposalIdFromRoute.trim()
@@ -361,8 +369,8 @@ export function SystemSettingsIndustryVerificationPage() {
     nextParams.delete('status')
     navigate({
       pathname: proposalId
-        ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification/proposals/${encodeURIComponent(proposalId)}`
-        : `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`,
+        ? `${reviewBasePath}/proposals/${encodeURIComponent(proposalId)}`
+        : reviewBasePath,
       search: nextParams.toString() ? `?${nextParams.toString()}` : '',
     }, { replace: true })
   }

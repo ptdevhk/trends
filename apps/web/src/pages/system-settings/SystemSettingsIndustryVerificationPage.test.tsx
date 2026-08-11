@@ -1,13 +1,18 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SystemSettingsIndustryVerificationPage } from './SystemSettingsIndustryVerificationPage'
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="test-location-search">{location.search}</output>
+  return (
+    <>
+      <output data-testid="test-location-search">{location.search}</output>
+      <output data-testid="test-location-path">{location.pathname}</output>
+    </>
+  )
 }
 
 function renderPage(initialEntry = '/dev/settings/industry-verification') {
@@ -15,6 +20,39 @@ function renderPage(initialEntry = '/dev/settings/industry-verification') {
     <MemoryRouter initialEntries={[initialEntry]}>
       <LocationProbe />
       <SystemSettingsIndustryVerificationPage />
+    </MemoryRouter>,
+  )
+}
+
+/**
+ * Renders the page inside real routes so useParams resolves and any
+ * navigation that leaves the review surface lands on the wrong-route
+ * fallback (which fails the assertions).
+ */
+function renderPageAtRoute(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route
+          path="/:teamSlug/system/settings/industry-verification/*"
+          element={(
+            <>
+              <LocationProbe />
+              <SystemSettingsIndustryVerificationPage />
+            </>
+          )}
+        />
+        <Route
+          path="/admin/system/settings/industry-verification/*"
+          element={(
+            <>
+              <LocationProbe />
+              <SystemSettingsIndustryVerificationPage />
+            </>
+          )}
+        />
+        <Route path="*" element={<div data-testid="wrong-route">wrong route</div>} />
+      </Routes>
     </MemoryRouter>,
   )
 }
@@ -481,6 +519,45 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(await screen.findByText('CNC products')).toBeInTheDocument()
     expect(screen.getByText('Current approved truth.')).toBeInTheDocument()
     expect(screen.getAllByText('revision-1')).toHaveLength(2)
+  })
+
+  it('keeps proposal navigation on the workspace-scoped base for workspace reviewers', async () => {
+    const user = userEvent.setup()
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+    useWorkspaceMock.mockReturnValue({
+      slug: 'hr',
+      name: 'hr',
+      isAdmin: false,
+      surface: 'workspace',
+      isSystemSurface: false,
+      isPublicSurface: false,
+    })
+
+    renderPageAtRoute('/hr/system/settings/industry-verification')
+
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
+
+    expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+      '/hr/system/settings/industry-verification/proposals/proposal-1',
+    )
+    expect(requestJsonMock).toHaveBeenCalledWith('/api/company-industry-proposals/proposal-1/review-packet')
+    expect(screen.queryByTestId('wrong-route')).not.toBeInTheDocument()
+  })
+
+  it('keeps proposal navigation on the canonical admin base for system admins', async () => {
+    const user = userEvent.setup()
+
+    renderPageAtRoute('/admin/system/settings/industry-verification')
+
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
+
+    expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+      '/admin/system/settings/industry-verification/proposals/proposal-1',
+    )
+    expect(requestJsonMock).toHaveBeenCalledWith('/api/company-industry-proposals/proposal-1/review-packet')
+    expect(screen.queryByTestId('wrong-route')).not.toBeInTheDocument()
   })
 
   it('lets the operator inspect new and evidence-needed queues when ready is empty', async () => {
