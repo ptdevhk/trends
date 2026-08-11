@@ -404,10 +404,31 @@ export const list = query({
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        return await ctx.db
-            .query("candidate_status")
-            .withIndex("by_workspace_status", (q) => q.eq("workspaceSlug", workspaceSlug))
-            .take(500);
+        // Paginate through all rows to avoid the silent 500-row cap that
+        // caused statuses beyond the first page to be invisible to the
+        // frontend reactive subscription (useCandidateStatus). The
+        // BFF already paginates via listPage; this query is the direct
+        // Convex subscription path used by the web client.
+        const results: Doc<"candidate_status">[] = [];
+        let cursor: string | null = null;
+        const MAX_PAGES = 200; // hard safety bound (200 * 1000 = 200k rows)
+        for (let page = 0; page < MAX_PAGES; page += 1) {
+            const batch = await ctx.db
+                .query("candidate_status")
+                .withIndex("by_workspace_status", (q) =>
+                    q.eq("workspaceSlug", workspaceSlug)
+                )
+                .paginate({
+                    cursor,
+                    numItems: 1000,
+                });
+            results.push(...batch.page);
+            if (batch.isDone) {
+                break;
+            }
+            cursor = batch.continueCursor;
+        }
+        return results;
     },
 });
 
