@@ -564,6 +564,8 @@
         "copyJson": "複製",
         "jsonCopied": "JSON 已複製",
         "copyFailed": "複製失敗",
+        "copyLink": "複製鏈接",
+        "linkCopied": "鏈接已複製",
         "relatedExp": "相關經驗",
         "skills": "技能",
         "industryDb": "行業庫",

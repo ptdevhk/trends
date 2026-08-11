@@ -565,6 +565,8 @@
         "copyJson": "Copy",
         "jsonCopied": "JSON copied",
         "copyFailed": "Copy failed",
+        "copyLink": "Copy link",
+        "linkCopied": "Link copied",
         "relatedExp": "Related Exp",
         "skills": "Skills",
         "industryDb": "Industry DB",
