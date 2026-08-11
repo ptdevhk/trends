@@ -77,6 +77,11 @@ type IndustryReviewInboxProps = {
   targetItem?: ReviewInboxItem
   targetError?: string
   targetPending?: boolean
+  /**
+   * User-initiated selections — the row is already on screen; only deep links
+   * need the targeted-row scroll.
+   */
+  suppressTargetScroll?: boolean
   onQueueStatusChange: (status: ReviewQueueStatus) => void
   onSelectProposal: (proposal: ReviewInboxProposal | undefined) => void
   onLoadedProposalsChange?: (proposals: ReviewInboxProposal[]) => void
@@ -265,6 +270,7 @@ export function IndustryReviewInbox({
   targetItem,
   targetError,
   targetPending = false,
+  suppressTargetScroll = false,
   onQueueStatusChange,
   onSelectProposal,
   onLoadedProposalsChange,
@@ -927,7 +933,7 @@ export function IndustryReviewInbox({
   useEffect(() => {
     const proposalId = targetItem?.proposal.proposalId
     const targetListLoading = targetIsTerminal ? historyLoading : loading
-    if (!proposalId || targetListLoading || focusedTargetRef.current === proposalId) return
+    if (!proposalId || targetListLoading || suppressTargetScroll || focusedTargetRef.current === proposalId) return
     const rowTestId = targetIsTerminal
       ? `industry-history-row-${proposalId}`
       : `industry-review-row-${proposalId}`
@@ -939,7 +945,7 @@ export function IndustryReviewInbox({
       focusedTargetRef.current = proposalId
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [activeFilter, historyLoading, loading, targetIsTerminal, targetItem, visibleRows.length])
+  }, [activeFilter, historyLoading, loading, suppressTargetScroll, targetIsTerminal, targetItem, visibleRows.length])
 
   return (
     <section className="space-y-4" aria-labelledby="industry-review-inbox-title">

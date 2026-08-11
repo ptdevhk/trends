@@ -100,6 +100,7 @@ export function SystemSettingsIndustryVerificationPage() {
   const [acknowledgementReason, setAcknowledgementReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
+  const [userInitiatedSelection, setUserInitiatedSelection] = useState(false)
   const detailSectionRef = useRef<HTMLDivElement | null>(null)
   const userInitiatedSelectionRef = useRef(false)
 
@@ -378,6 +379,7 @@ export function SystemSettingsIndustryVerificationPage() {
 
   function selectProposal(proposalId: string | undefined) {
     userInitiatedSelectionRef.current = true
+    setUserInitiatedSelection(true)
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('proposalId')
     nextParams.delete('status')
@@ -445,6 +447,7 @@ export function SystemSettingsIndustryVerificationPage() {
         targetItem={directTargetItem}
         targetError={directReviewError}
         targetPending={Boolean(requestedProposalId && !directReviewPacket && !directReviewError)}
+        suppressTargetScroll={userInitiatedSelection}
         onQueueStatusChange={changeQueueStatus}
         onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
         onLoadedProposalsChange={setProposals}

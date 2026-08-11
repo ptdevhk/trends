@@ -592,6 +592,14 @@ describe('SystemSettingsIndustryVerificationPage', () => {
         expect(detailCalls.length).toBeGreaterThan(0)
       })
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+      // The targeted-row scroll must not race the detail scroll after a
+      // user-initiated selection: the row is already on screen, so the inbox
+      // must not auto-scroll it (which would win over the smooth detail
+      // scroll and leave the detail off-screen).
+      const rowCalls = scrollIntoView.mock.instances.filter(
+        (el) => (el as HTMLElement).dataset?.testid === 'industry-review-row-proposal-1',
+      )
+      expect(rowCalls).toHaveLength(0)
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
     }
