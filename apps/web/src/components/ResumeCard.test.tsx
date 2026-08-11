@@ -194,9 +194,19 @@ describe('ResumeCard brand-hit badges', () => {
       />
     )
 
-    expect(screen.getByText('2024-02 ~ 至今 Current Co Current Role')).toBeInTheDocument()
-    expect(screen.getByText('2023-01 ~ 2024-01 Recent Co Recent Role')).toBeInTheDocument()
-    expect(screen.getByText('2021-01 ~ 2022-01 Middle Co Middle Role')).toBeInTheDocument()
+    // Work history rows now render company, role, and date range as distinct parts
+    // so users can tell the company apart from the position at a glance.
+    expect(screen.getByText('Current Co')).toBeInTheDocument()
+    expect(screen.getByText('Current Role')).toBeInTheDocument()
+    expect(screen.getByText('2024-02 ~ 至今')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co')).toBeInTheDocument()
+    expect(screen.getByText('Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('2023-01 ~ 2024-01')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co')).toBeInTheDocument()
+    expect(screen.getByText('Middle Role')).toBeInTheDocument()
+    expect(screen.getByText('2021-01 ~ 2022-01')).toBeInTheDocument()
+    expect(screen.queryByText('Oldest Co')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Role')).not.toBeInTheDocument()
     expect(screen.queryByText('2018-01 ~ 2019-01 Oldest Co Old Role')).not.toBeInTheDocument()
   })
 

@@ -489,7 +489,17 @@ export function ResumeDetail({
                     <li key={`${displayResume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
                       {heading ? (
                         <div className="font-medium flex items-center gap-2 flex-wrap">
-                          <span>{heading}</span>
+                          <span className="min-w-0">
+                            {item.companyName ? (
+                              <span className="font-medium text-slate-900">{item.companyName}</span>
+                            ) : null}
+                            {item.companyName && item.jobTitle ? (
+                              <span className="mx-1 font-normal text-slate-400">·</span>
+                            ) : null}
+                            {item.jobTitle ? (
+                              <span className="font-normal text-slate-600">{item.jobTitle}</span>
+                            ) : null}
+                          </span>
                           {verifiedSummary ? <VerifiedCompanyBadge summary={verifiedSummary} /> : null}
                         </div>
                       ) : null}

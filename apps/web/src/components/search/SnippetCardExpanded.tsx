@@ -285,7 +285,17 @@ export function SnippetCardExpanded({
                   >
                     {heading ? (
                       <div className="font-medium text-slate-900 flex items-center gap-2 flex-wrap">
-                        <span>{heading}</span>
+                        <span className="min-w-0">
+                          {entry.companyName ? (
+                            <span className="font-medium text-slate-900">{entry.companyName}</span>
+                          ) : null}
+                          {entry.companyName && entry.jobTitle ? (
+                            <span className="mx-1 font-normal text-slate-400">·</span>
+                          ) : null}
+                          {entry.jobTitle ? (
+                            <span className="font-normal text-slate-600">{entry.jobTitle}</span>
+                          ) : null}
+                        </span>
                         {verifiedSummary ? <VerifiedCompanyBadge summary={verifiedSummary} /> : null}
                       </div>
                     ) : (

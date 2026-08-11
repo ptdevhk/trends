@@ -214,7 +214,10 @@ describe('SnippetCard', () => {
     )
 
     expect(screen.getByText('Candidate 1')).toBeInTheDocument()
-    expect(screen.getByText('Regional Sales Manager')).toBeInTheDocument()
+    // Latest job title appears both in the headline and in the work-history role line
+    // (the work-history row renders company and role as visually distinct parts).
+    expect(screen.getAllByText('Regional Sales Manager')).toHaveLength(2)
+    expect(screen.getByText('Company 1')).toBeInTheDocument()
     expect(screen.getByTitle('Led machine tools growth across Malaysia.')).toBeInTheDocument()
     expect(screen.getByText(/Kuala Lumpur/)).toBeInTheDocument()
     expect(screen.getByText(/6 years/)).toBeInTheDocument()

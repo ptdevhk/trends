@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
 import {
   ChevronDown,
   ChevronUp,
@@ -450,11 +450,33 @@ export const SnippetCard = memo(function SnippetCard({
                 verifiedIndustryEvidenceSummaries,
                 { roleSignals: item.resume.ingestData?.roleSignals, jobTitle: entry.jobTitle, rawText: text },
               )
+              const dateLine = buildWorkHistoryDisplayDateLine(entry)
+              const hasStructuredParts = Boolean(entry.companyName || entry.jobTitle || dateLine)
               return (
                 <div key={`${item.key}-wh-${index}`} className="flex items-center gap-1.5 min-w-0">
                   <span className="text-muted-foreground shrink-0">●</span>
                   <span className="truncate" title={entry.raw || text}>
-                    {text}
+                    {hasStructuredParts ? (
+                      <>
+                        {entry.companyName ? (
+                          <span className="font-medium text-slate-900">{entry.companyName}</span>
+                        ) : null}
+                        {entry.companyName && (entry.jobTitle || dateLine) ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {entry.jobTitle ? (
+                          <span className="text-slate-600">{entry.jobTitle}</span>
+                        ) : null}
+                        {entry.jobTitle && dateLine ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {dateLine ? (
+                          <span className="text-muted-foreground">{dateLine}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      text
+                    )}
                   </span>
                   {verifiedSummary ? (
                     <VerifiedCompanyBadge

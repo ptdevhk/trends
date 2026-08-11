@@ -154,10 +154,14 @@ describe('ResumeDetail work history', () => {
       />
     )
 
-    expect(screen.getByText('Current Co · Current Role')).toBeInTheDocument()
-    expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
-    expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
-    expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
+    expect(screen.getByText('Current Co')).toBeInTheDocument()
+    expect(screen.getByText('Current Role')).toBeInTheDocument()
+    expect(screen.getByText('Recent Co')).toBeInTheDocument()
+    expect(screen.getByText('Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('Middle Co')).toBeInTheDocument()
+    expect(screen.getByText('Middle Role')).toBeInTheDocument()
+    expect(screen.queryByText('Oldest Co')).not.toBeInTheDocument()
+    expect(screen.queryByText('Old Role')).not.toBeInTheDocument()
     expect(screen.getByText('Needs refresh')).toBeInTheDocument()
   })
 
@@ -190,7 +194,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('Oldest Co · Old Role')).toBeInTheDocument()
+    expect(screen.getByText('Oldest Co')).toBeInTheDocument()
+    expect(screen.getByText('Old Role')).toBeInTheDocument()
   })
 
   it('filters placeholder-only and education-like rows from work history', () => {
@@ -227,7 +232,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('东莞宝力机械 · 销售经理')).toBeInTheDocument()
+    expect(screen.getByText('东莞宝力机械')).toBeInTheDocument()
+    expect(screen.getByText('销售经理')).toBeInTheDocument()
     expect(screen.queryByText('(2年11月)')).not.toBeInTheDocument()
     expect(screen.queryByText('(11月)')).not.toBeInTheDocument()
     expect(screen.queryByText('2020~2023广东南方职业学院商务英语本科')).not.toBeInTheDocument()
@@ -262,7 +268,8 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    expect(screen.getByText('TERRAN LLC. · Sales Manager')).toBeInTheDocument()
+    expect(screen.getByText('TERRAN LLC.')).toBeInTheDocument()
+    expect(screen.getByText('Sales Manager')).toBeInTheDocument()
     expect(screen.getByText('Jul 2012 - Present (14 years 4 months)')).toBeInTheDocument()
     expect(screen.getByText('Led orthopedics implant sales.')).toBeInTheDocument()
   })
@@ -443,9 +450,11 @@ describe('ResumeDetail work history', () => {
       />,
     )
 
-    const terranCard = screen.getByText('TERRAN LLC. · Sales Manager').closest('li')
-    const symmetryCard = screen.getByText('Symmetry Medical Malaysia Sdn. Bhd. · Sales Manager').closest('li')
-    const cncCard = screen.getByText('CNC Mechatronics Sdn. Bhd. · Sales Manager').closest('li')
+    // Locate each work-history card by its unique matched-signal badge; the
+    // company text alone would also match the verified-evidence section.
+    const terranCard = screen.getByText('TERRAN-SALES').closest('li')
+    const symmetryCard = screen.getByText('SYMMETRY-SALES').closest('li')
+    const cncCard = screen.getByText('CNC-SALES').closest('li')
 
     expect(terranCard).not.toBeNull()
     expect(symmetryCard).not.toBeNull()

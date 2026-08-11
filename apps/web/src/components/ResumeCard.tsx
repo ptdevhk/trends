@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -838,11 +838,33 @@ export const ResumeCard = memo(function ResumeCard({
                 verifiedIndustryEvidenceSummaries,
                 { roleSignals: roleSignals ?? resume.ingestData?.roleSignals, jobTitle: item.jobTitle, rawText: text },
               )
+              const dateLine = buildWorkHistoryDisplayDateLine(item)
+              const hasStructuredParts = Boolean(item.companyName || item.jobTitle || dateLine)
               return (
                 <div key={`${resume.name}-${index}`} className="flex items-center gap-1.5 min-w-0">
                   <span className="text-muted-foreground shrink-0">●</span>
                   <span className="truncate" title={item.raw || text}>
-                    {text}
+                    {hasStructuredParts ? (
+                      <>
+                        {item.companyName ? (
+                          <span className="font-medium text-slate-900">{item.companyName}</span>
+                        ) : null}
+                        {item.companyName && (item.jobTitle || dateLine) ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {item.jobTitle ? (
+                          <span className="text-slate-600">{item.jobTitle}</span>
+                        ) : null}
+                        {item.jobTitle && dateLine ? (
+                          <span className="mx-1 text-slate-400">·</span>
+                        ) : null}
+                        {dateLine ? (
+                          <span className="text-muted-foreground">{dateLine}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      text
+                    )}
                   </span>
                   {verifiedSummary ? (
                     <VerifiedCompanyBadge
