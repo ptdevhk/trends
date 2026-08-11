@@ -560,6 +560,80 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(screen.queryByTestId('wrong-route')).not.toBeInTheDocument()
   })
 
+  it('scrolls the detail section into view after a user-initiated selection', async () => {
+    const user = userEvent.setup()
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      useAuthMock.mockReturnValue({
+        memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+      })
+      useWorkspaceMock.mockReturnValue({
+        slug: 'hr',
+        name: 'hr',
+        isAdmin: false,
+        surface: 'workspace',
+        isSystemSurface: false,
+        isPublicSurface: false,
+      })
+      renderPageAtRoute('/hr/system/settings/industry-verification')
+
+      await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
+      // The row and the detail header both show the company name, so wait for
+      // the detail to render via the *AllBy* variant (same pattern as the
+      // "loads the proposal queue..." test).
+      await screen.findAllByText('ACME CNC')
+
+      await waitFor(() => {
+        const detailCalls = scrollIntoView.mock.instances.filter(
+          (el) => (el as HTMLElement).dataset?.testid === 'industry-review-detail-section',
+        )
+        expect(detailCalls.length).toBeGreaterThan(0)
+      })
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+      // The targeted-row scroll must not race the detail scroll after a
+      // user-initiated selection: the row is already on screen, so the inbox
+      // must not auto-scroll it (which would win over the smooth detail
+      // scroll and leave the detail off-screen).
+      const rowCalls = scrollIntoView.mock.instances.filter(
+        (el) => (el as HTMLElement).dataset?.testid === 'industry-review-row-proposal-1',
+      )
+      expect(rowCalls).toHaveLength(0)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+    }
+  })
+
+  it('does not scroll the detail section on an initial deep link', async () => {
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      useAuthMock.mockReturnValue({
+        memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+      })
+      useWorkspaceMock.mockReturnValue({
+        slug: 'hr',
+        name: 'hr',
+        isAdmin: false,
+        surface: 'workspace',
+        isSystemSurface: false,
+        isPublicSurface: false,
+      })
+      renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-1')
+
+      await screen.findAllByText('ACME CNC')
+
+      const detailCalls = scrollIntoView.mock.instances.filter(
+        (el) => (el as HTMLElement).dataset?.testid === 'industry-review-detail-section',
+      )
+      expect(detailCalls).toHaveLength(0)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+    }
+  })
+
   it('lets the operator inspect new and evidence-needed queues when ready is empty', async () => {
     const user = userEvent.setup()
     renderPage()

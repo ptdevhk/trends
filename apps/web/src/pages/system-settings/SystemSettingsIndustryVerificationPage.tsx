@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -100,6 +100,9 @@ export function SystemSettingsIndustryVerificationPage() {
   const [acknowledgementReason, setAcknowledgementReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
+  const [userInitiatedSelection, setUserInitiatedSelection] = useState(false)
+  const detailSectionRef = useRef<HTMLDivElement | null>(null)
+  const userInitiatedSelectionRef = useRef(false)
 
   const selectedProposal = useMemo(() => {
     const packet = directReviewPacket
@@ -176,6 +179,17 @@ export function SystemSettingsIndustryVerificationPage() {
       cancelled = true
     }
   }, [fetchDirectReviewPacket, requestedProposalId, t])
+
+  // Scroll the detail section into view only after a user-initiated selection
+  // (row click / 查看 / Previous-Next). Initial deep links keep the inbox's own
+  // targeted-row scroll behavior and must not trigger an extra page scroll.
+  useEffect(() => {
+    if (!userInitiatedSelectionRef.current || !selectedProposal) return
+    userInitiatedSelectionRef.current = false
+    // `?.` guards jsdom (no scrollIntoView) the same way the inbox does; it is
+    // always defined in real browsers.
+    detailSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [selectedProposal])
 
   useEffect(() => {
     if (!selectedProposal || !directReviewPacket) {
@@ -364,6 +378,8 @@ export function SystemSettingsIndustryVerificationPage() {
   }
 
   function selectProposal(proposalId: string | undefined) {
+    userInitiatedSelectionRef.current = true
+    setUserInitiatedSelection(true)
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('proposalId')
     nextParams.delete('status')
@@ -431,13 +447,14 @@ export function SystemSettingsIndustryVerificationPage() {
         targetItem={directTargetItem}
         targetError={directReviewError}
         targetPending={Boolean(requestedProposalId && !directReviewPacket && !directReviewError)}
+        suppressTargetScroll={userInitiatedSelection}
         onQueueStatusChange={changeQueueStatus}
         onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
         onLoadedProposalsChange={setProposals}
       />
 
       <div className="space-y-6">
-        <div className="space-y-6">
+        <div className="space-y-6" ref={detailSectionRef} data-testid="industry-review-detail-section">
           {!selectedProposal ? (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">

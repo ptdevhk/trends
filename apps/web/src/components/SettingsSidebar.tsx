@@ -5,13 +5,15 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Key, Puzzle, Scale, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Factory, Home, Key, Puzzle, Scale, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { cn } from '@/lib/utils'
+import { hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 
 type NavItem = SurfaceNavDefinition & {
   title: string
@@ -27,6 +29,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   policies: Scale,
   profiles: Search,
   'export-fields': SlidersHorizontal,
+  'industry-verification': Factory,
   account: Key,
 }
 
@@ -37,13 +40,18 @@ interface SettingsSidebarProps {
 export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
   const location = useLocation()
   const { slug, isAdmin } = useWorkspace()
+  const { memberships } = useAuth()
+  const canReviewIndustryEvidence = hasWorkspaceIndustryReviewAccess(memberships, slug)
   const { t } = useTranslation()
   const metadata = useSystemMetadata()
   const appVersion = metadata?.identity?.appVersion ?? 'unknown'
 
   const navItems = useMemo<NavItem[]>(() => {
     return SETTINGS_NAV_ITEMS
-      .filter((item) => !item.requiresAdmin || isAdmin)
+      .filter((item) => (
+        (!item.requiresAdmin || isAdmin)
+        && (!item.requiresReviewAccess || canReviewIndustryEvidence)
+      ))
       .map((item) => ({
         ...item,
         title: t(item.titleKey, { defaultValue: item.defaultTitle }),
@@ -51,7 +59,7 @@ export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
         matches: item.matchesSuffixes.map((suffix) => `/${slug}${suffix}`),
         icon: NAV_ICONS[item.id] ?? Home,
       }))
-  }, [isAdmin, slug, t])
+  }, [canReviewIndustryEvidence, isAdmin, slug, t])
 
   return (
     <div className="flex flex-col h-full bg-muted/30">

@@ -23,6 +23,7 @@ import { getScoreClassName } from '@/lib/score-classes'
 import { cn } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
@@ -39,7 +40,7 @@ import {
   mergeIndustryEvidenceProvenance,
   type IndustryEvidenceProvenance,
 } from '@/components/industry-evidence/industry-evidence'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { paths } from '@/lib/api-types'
 
@@ -162,7 +163,12 @@ export function ResumeDetail({
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
-  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const isSystemAdmin = hasSystemAdminAccess(memberships)
+  const showIndustryEvidenceReviewGuidance = isSystemAdmin || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
+  const legacyReviewBasePath = isSystemAdmin
+    ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`
+    : `/${workspaceSlug}/system/settings/industry-verification`
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
@@ -546,6 +552,7 @@ export function ResumeDetail({
             <LegacyIndustryEvidenceNotice
               showReviewAction
               reviewTarget={industryReviewTarget}
+              reviewBasePath={legacyReviewBasePath}
             />
           ) : null}
 

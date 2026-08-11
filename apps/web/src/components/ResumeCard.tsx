@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/tooltip'
 import { Suspense, lazy, memo, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
@@ -54,7 +55,7 @@ import {
   getVerifiedIndustryEvidenceSummaries,
   type IndustryEvidenceProvenance,
 } from '@/components/industry-evidence/industry-evidence'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 
 const OutreachModal = lazy(() => import('./OutreachModal').then((m) => ({ default: m.OutreachModal })))
 import { Select } from '@/components/ui/select'
@@ -462,7 +463,9 @@ export const ResumeCard = memo(function ResumeCard({
   const roleEvidenceLabel = primaryRoleSignal
     ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${hasCurrentApprovedRoleEvidence ? industryVerifiedSuffix : ''}`
     : null
-  const showLegacyRoleSignal = primaryRoleEvidenceProvenance === 'legacy' && hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const showLegacyRoleSignal = primaryRoleEvidenceProvenance === 'legacy'
+    && (hasSystemAdminAccess(memberships) || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug))
   const normalizedExperienceLevel = normalizeExperienceLevel(experienceLevel)
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
     normalizedExperienceLevel ?? undefined
