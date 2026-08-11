@@ -54,11 +54,12 @@ function createGateApp(
 describe("auth middleware role helpers", () => {
   it("requires membership in the selected workspace", () => {
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "hr", ["user", "admin"])).toBe(true);
+    expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "reviewer" }], "hr", ["user", "reviewer", "admin"])).toBe(true);
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "dev", ["user", "admin"])).toBe(false);
     expect(hasWorkspaceRole([{ userId: "u1", workspaceSlug: "hr", role: "user" }], "hr", ["admin"])).toBe(false);
   });
 
-  it("getWorkspaceUserAccessError allows user role and blocks non-members", () => {
+  it("getWorkspaceUserAccessError allows user, reviewer, and admin roles and blocks non-members", () => {
     const userCtx = {
       var: {
         auth: createAuthContext("user", "alice"),
@@ -66,6 +67,14 @@ describe("auth middleware role helpers", () => {
       },
     };
     expect(getWorkspaceUserAccessError(userCtx)).toBeNull();
+
+    const reviewerCtx = {
+      var: {
+        auth: createAuthContext("reviewer", "alice"),
+        workspaceSlug: "alice",
+      },
+    };
+    expect(getWorkspaceUserAccessError(reviewerCtx)).toBeNull();
 
     const adminCtx = {
       var: {
@@ -152,6 +161,21 @@ describe("auth middleware gates", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ actorId: "user-1" });
   });
+
+  it.each(["user", "reviewer", "admin"] as const)(
+    "allows a %s role member through the workspace member gate",
+    async (role) => {
+      const middleware = createAuthMiddleware();
+      const app = createGateApp(createAuthContext(role, "hr"), middleware.requireWorkspaceUser);
+
+      const res = await app.request("/protected", {
+        headers: { "X-Workspace-Slug": "hr" },
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toMatchObject({ actorId: "user-1" });
+    },
+  );
 
   it.each(listWorkspaceSlugs())("allows a matching member for registered workspace %s", async (slug) => {
     const middleware = createAuthMiddleware();

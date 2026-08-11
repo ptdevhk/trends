@@ -89,6 +89,19 @@ const coverageSummary = {
   },
 }
 
+const { useAuthMock, useWorkspaceMock } = vi.hoisted(() => ({
+  useAuthMock: vi.fn(),
+  useWorkspaceMock: vi.fn(),
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => useWorkspaceMock(),
+}))
+
 const { requestJsonMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
   toastSuccessMock: vi.fn(),
@@ -350,6 +363,18 @@ function installCleanInboxMock() {
 describe('SystemSettingsIndustryVerificationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: a dev-workspace admin, so the ops panels render in existing tests.
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'admin' }],
+    })
+    useWorkspaceMock.mockReturnValue({
+      slug: 'dev',
+      name: 'dev',
+      isAdmin: false,
+      surface: 'workspace',
+      isSystemSurface: false,
+      isPublicSurface: false,
+    })
     requestJsonMock.mockImplementation((path: string) => {
       if (path === '/api/company-industry-coverage') {
         return Promise.resolve({ success: true, item: coverageSummary })
@@ -801,6 +826,37 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(screen.getByTestId('industry-coverage-bottleneck-failed')).toHaveTextContent(
       'worker unreachable',
     )
+  })
+
+  it('hides ops panels for reviewer members while keeping review surfaces', async () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'reviewer' }],
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    // Review surfaces remain visible: queue, evidence, verdict revision history.
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
+    expect(await screen.findByText('CNC products')).toBeInTheDocument()
+    expect(screen.getByText('Current approved truth.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve revision' })).toBeInTheDocument()
+
+    // Ops panels are absent for reviewers: coverage health, maintenance
+    // history, and the targeted recompute card.
+    expect(screen.queryByTestId('industry-coverage-health')).not.toBeInTheDocument()
+    expect(screen.queryByText('Maintenance run history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Targeted recompute')).not.toBeInTheDocument()
+    expect(
+      requestJsonMock.mock.calls.some(([path]) =>
+        String(path).includes('/api/company-industry-coverage'),
+      ),
+    ).toBe(false)
+    expect(
+      requestJsonMock.mock.calls.some(([path]) =>
+        String(path).includes('/api/company-industry-maintenance-runs'),
+      ),
+    ).toBe(false)
   })
 
   it('does not surface a historical failure after a newer run completes', async () => {

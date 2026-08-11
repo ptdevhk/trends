@@ -117,6 +117,33 @@ describe('blocks route', () => {
     expect(calls[0]?.args.workspaceSlug).toBe('hr')
   })
 
+  it.each(['user', 'reviewer', 'admin'] as const)(
+    'allows a %s role member on the member surface /api/blocks',
+    async (role) => {
+      const auth = createAuthHeaders({ workspaceSlug: 'hr', role })
+      const calls: ConvexCall[] = []
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+        const call = parseConvexCall(input, init)
+        calls.push(call)
+        if (call.pathName === 'candidate_blocks:list') {
+          return convexSuccess({
+            page: [],
+            isDone: true,
+            continueCursor: '',
+          })
+        }
+        throw new Error(`Unexpected convex path: ${call.pathName}`)
+      })
+
+      const app = createApp({ authStorage: auth.storage })
+      const response = await app.request('/api/blocks', { headers: auth.headers })
+
+      expect(response.status).toBe(200)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.args.workspaceSlug).toBe('hr')
+    },
+  )
+
   it('aggregates paginated block rows and deduplicates identities', async () => {
     const auth = createAuthHeaders({ workspaceSlug: 'hr', role: 'user' })
     const firstPage = Array.from({ length: 500 }, (_, index) => ({

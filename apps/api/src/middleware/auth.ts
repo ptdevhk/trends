@@ -33,7 +33,9 @@ type AccessError = {
 type AdminAccessError = AccessError;
 
 /**
- * Member-desk gate: any workspace membership (user or admin) on the active slug.
+ * Member-desk gate: any workspace membership (user, reviewer, or admin) on
+ * the active slug. Reviewers inherit member permissions (resume/candidate
+ * desk), so they pass the same member gate as users and admins.
  * Used for full member desk features on personal seats and HR users (locked B).
  */
 export function getWorkspaceUserAccessError(c: {
@@ -46,7 +48,7 @@ export function getWorkspaceUserAccessError(c: {
       status: 401,
     };
   }
-  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "reviewer", "admin"])) {
     return {
       body: { success: false, error: "Workspace access required" },
       status: 403,
@@ -136,7 +138,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
       });
       return c.json({ success: false as const, error: "Authentication required" }, 401);
     }
-    if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "admin"])) {
+    if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["user", "reviewer", "admin"])) {
       getEventStorage(c)?.append({
         type: "workspace_access_denied",
         userId: auth.user.id,

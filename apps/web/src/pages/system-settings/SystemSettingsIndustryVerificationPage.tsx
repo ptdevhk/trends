@@ -12,9 +12,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { reportUiError } from '@/lib/ui-error-reporting'
-import { SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
+import { hasWorkspaceAdminAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { IndustryAdvancedTools } from './IndustryAdvancedTools'
 import { IndustryReviewInbox } from './IndustryReviewInbox'
 import { EvidenceRecoveryPanel } from './EvidenceRecoveryPanel'
@@ -47,6 +49,12 @@ import {
 
 export function SystemSettingsIndustryVerificationPage() {
   const { t } = useTranslation()
+  const { memberships } = useAuth()
+  const { slug } = useWorkspace()
+  // Ops surfaces (recompute runs, coverage health, maintenance history) are
+  // admin-only; reviewers keep the review surfaces (proposals, evidence,
+  // verdicts, identity resolution) below.
+  const isWorkspaceAdmin = hasWorkspaceAdminAccess(memberships, slug)
   const { requestJson } = useSettingsRequestJson()
   const location = useLocation()
   const navigate = useNavigate()
@@ -473,12 +481,14 @@ export function SystemSettingsIndustryVerificationPage() {
                 />
               )}
 
-              <IndustryRecomputeCard
-                runs={recomputeRuns}
-                saving={saving}
-                onAdvance={(run) => void updateRecompute(run, 'advance')}
-                onRetry={(run) => void updateRecompute(run, 'retry')}
-              />
+              {isWorkspaceAdmin && (
+                <IndustryRecomputeCard
+                  runs={recomputeRuns}
+                  saving={saving}
+                  onAdvance={(run) => void updateRecompute(run, 'advance')}
+                  onRetry={(run) => void updateRecompute(run, 'retry')}
+                />
+              )}
 
               <IndustryEvidenceReviewCard
                 sources={sources}
@@ -639,9 +649,9 @@ export function SystemSettingsIndustryVerificationPage() {
       </div>
 
       <IndustryAdvancedTools>
-        <IndustryCoverageHealthPanel requestJson={requestJson} />
+        {isWorkspaceAdmin && <IndustryCoverageHealthPanel requestJson={requestJson} />}
         <IndustryApprovedProfileLookup requestJson={requestJson} />
-        <IndustryMaintenanceHistory requestJson={requestJson} />
+        {isWorkspaceAdmin && <IndustryMaintenanceHistory requestJson={requestJson} />}
       </IndustryAdvancedTools>
 
     </div>
