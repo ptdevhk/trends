@@ -17,15 +17,15 @@
 - Node 22 (`.nvmrc`). Tests: `cd apps/web && npx vitest run <file>`; full suite `npm test -- --run`; typecheck `npm run typecheck`.
 - Commits are local-only on `preview-v0.4.23` — do NOT push.
 - Do not edit `dev-docs/AGENTS.md`.
-- Working-tree note: a draft of Task 1 (route-rendered tests + base-path fix) already exists uncommitted from a pre-brainstorming pass; reconcile it with the code below rather than re-deriving.
+- Working-tree note: Task 1 (route-rendered tests + base-path fix) was drafted pre-brainstorming and is already committed as `6d2dbc79 update` (author karlcc) — the code matches this plan exactly. Task 1 is reduced to VERIFICATION (Step 2/4); skip Steps 1/3/5 unless the tests reveal a mismatch.
 
 ---
 
 ### Task 1: Workspace-scoped review navigation base
 
 **Files:**
-- Modify: `apps/web/src/pages/system-settings/SystemSettingsIndustryVerificationPage.tsx` (imports ~line 3; body ~lines 59-68; `selectProposal` ~line 366)
-- Test: `apps/web/src/pages/system-settings/SystemSettingsIndustryVerificationPage.test.tsx`
+- Modify: `apps/web/src/pages/system-settings/SystemSettingsIndustryVerificationPage.tsx` (imports ~line 3; body ~lines 59-68; `selectProposal` ~line 366) — **already committed in `6d2dbc79`; verify only**
+- Test: `apps/web/src/pages/system-settings/SystemSettingsIndustryVerificationPage.test.tsx` — **already committed in `6d2dbc79`; verify only**
 
 **Interfaces:**
 - Consumes: `useParams()` route param `teamSlug` (present on `/:teamSlug/system/*` routes, absent on `/admin/system`).
@@ -947,10 +947,10 @@ Add one bullet to the reference index near the other 2026-08 entries:
 - Completed review-workflow navigation fix (2026-08-11): `docs/superpowers/specs/2026-08-11-industry-review-workflow-navigation-design.md` · workspace-scoped review base (fixes SystemAccessGate bounce on 查看/row/prev-next) · scroll-to-detail · legacy notice for workspace reviewers/admins · 行业验证 settings sidebar entry for reviewers
 ```
 
-- [ ] **Step 2: Remove the superseded plan draft**
+- [ ] **Step 2: Remove the superseded plan draft (now tracked via `6d2dbc79`)**
 
 ```bash
-rm docs/superpowers/plans/2026-08-11-review-inbox-navigation-fix.md
+git rm docs/superpowers/plans/2026-08-11-review-inbox-navigation-fix.md
 ```
 
 - [ ] **Step 3: Full unit verification**
