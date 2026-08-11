@@ -61,6 +61,7 @@ logs/
 
 # Node.js
 node_modules/
+node_modules
 skills-lock.json
 *.tsbuildinfo
 bin/

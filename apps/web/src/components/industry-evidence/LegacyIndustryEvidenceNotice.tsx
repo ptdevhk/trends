@@ -18,7 +18,8 @@ type LegacyIndustryEvidenceNoticeProps = {
 
 /**
  * Neutral guidance for a legacy rules signal. Callers must decide whether the
- * current user is a system admin before mounting this component.
+ * current user may review industry evidence (dev system admin or
+ * active-workspace admin/reviewer) before mounting this component.
  */
 export function LegacyIndustryEvidenceNotice({
   compact = false,
