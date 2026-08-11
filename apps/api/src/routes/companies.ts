@@ -21,6 +21,7 @@ import {
 import {
   getAuthenticatedActorId,
   requireAdmin,
+  requireIndustryReviewer,
   requireWorkspaceUser,
 } from "../middleware/auth.js";
 import {
@@ -113,15 +114,15 @@ app.use("/api/company-industry-profiles/*", async (c, next) => {
   }
   await next();
 });
-app.use("/api/company-industry-proposals", requireAdmin);
-app.use("/api/company-industry-proposals/*", requireAdmin);
-app.use("/api/company-industry-evidence-sources", requireAdmin);
-app.use("/api/company-industry-evidence-sources/*", requireAdmin);
-app.use("/api/company-industry-revisions/*", requireAdmin);
+app.use("/api/company-industry-proposals", requireIndustryReviewer);
+app.use("/api/company-industry-proposals/*", requireIndustryReviewer);
+app.use("/api/company-industry-evidence-sources", requireIndustryReviewer);
+app.use("/api/company-industry-evidence-sources/*", requireIndustryReviewer);
+app.use("/api/company-industry-revisions/*", requireIndustryReviewer);
 app.use("/api/company-industry-recompute-runs", requireAdmin);
 app.use("/api/company-industry-recompute-runs/*", requireAdmin);
 app.use("/api/company-industry-link-backfill", requireAdmin);
-app.use("/api/company-industry-verified-employer-count", requireAdmin);
+app.use("/api/company-industry-verified-employer-count", requireWorkspaceUser);
 app.use("/api/company-industry-maintenance-runs", requireAdmin);
 app.use("/api/company-industry-maintenance-runs/*", requireAdmin);
 app.use("/api/company-industry-coverage", requireAdmin);

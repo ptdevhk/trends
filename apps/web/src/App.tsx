@@ -33,6 +33,7 @@ import {
   getDefaultAuthenticatedPath,
   hasSystemAdminAccess,
   hasWorkspaceAdminAccess,
+  hasWorkspaceIndustryReviewAccess,
   hasWorkspaceMembership,
   PUBLIC_RESUME_WORKSPACE,
   SYSTEM_AUTH_WORKSPACE,
@@ -326,9 +327,10 @@ function SystemAccessGate({ children }: { children: ReactNode }) {
  * - Anonymous: redirect through canonical /login.
  * - Dev-workspace system admins: canonical /admin/system (unchanged).
  * - Everyone else: nested routes decide — the industry review surfaces
- *   (industry-verification / industry-data) are workspace-scoped and accept
- *   the active workspace's admin; every other system route keeps the
- *   dev-admin-only denial.
+ *   (industry-verification / industry-audit) are workspace-scoped and
+ *   accept the active workspace's admin or reviewer; the industry ops
+ *   surface (industry-data) stays admin-only; every other system route
+ *   keeps the dev-admin-only denial.
  */
 function WorkspaceSystemRoute() {
   const auth = useAuth()
@@ -365,14 +367,16 @@ function WorkspaceSystemDeniedPage() {
 
 /**
  * Industry review surfaces are workspace-scoped: the active workspace's
- * admin may attend its own industry evidence queue (the API already honors
- * X-Workspace-Slug per workspace). Users without admin membership in the
- * active workspace keep the denial page.
+ * admin or reviewer may attend its own industry evidence queue (the API
+ * already honors X-Workspace-Slug per workspace and grants reviewers the
+ * industry:review permission). Users without admin/reviewer membership in
+ * the active workspace keep the denial page.
  */
 function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const { teamSlug } = useParams()
   const location = useLocation()
+  const workspaceSlug = teamSlug ?? SYSTEM_AUTH_WORKSPACE
 
   if (auth.isLoading) {
     return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
@@ -382,14 +386,51 @@ function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
     const search = new URLSearchParams({ redirectTo }).toString()
     return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
   }
-  if (!hasWorkspaceAdminAccess(auth.memberships, teamSlug ?? SYSTEM_AUTH_WORKSPACE)) {
+  if (!hasWorkspaceIndustryReviewAccess(auth.memberships, workspaceSlug)) {
     return (
       <MainShell>
         <section className="mx-auto max-w-xl py-12">
           <div className="rounded-md border border-destructive/30 p-6">
             <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Industry review requires a {teamSlug ?? SYSTEM_AUTH_WORKSPACE} workspace admin account.
+              Industry review requires a {workspaceSlug} workspace admin or reviewer account.
+            </p>
+          </div>
+        </section>
+      </MainShell>
+    )
+  }
+  return <>{children}</>
+}
+
+/**
+ * Industry ops surfaces (maintenance runs, coverage, recompute, and the
+ * industry-data administration page) stay admin-only: reviewers pass the
+ * review gate above but must not reach ops tabs — the API keeps those
+ * routes behind requireAdmin.
+ */
+function WorkspaceIndustryOpsGate({ children }: { children: ReactNode }) {
+  const auth = useAuth()
+  const { teamSlug } = useParams()
+  const location = useLocation()
+  const workspaceSlug = teamSlug ?? SYSTEM_AUTH_WORKSPACE
+
+  if (auth.isLoading) {
+    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+  }
+  if (!auth.isAuthenticated) {
+    const redirectTo = `${location.pathname}${location.search}`
+    const search = new URLSearchParams({ redirectTo }).toString()
+    return <Navigate to={{ pathname: '/login', search: `?${search}` }} replace />
+  }
+  if (!hasWorkspaceAdminAccess(auth.memberships, workspaceSlug)) {
+    return (
+      <MainShell>
+        <section className="mx-auto max-w-xl py-12">
+          <div className="rounded-md border border-destructive/30 p-6">
+            <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Industry operations require a {workspaceSlug} workspace admin account.
             </p>
           </div>
         </section>
@@ -669,13 +710,13 @@ function App() {
               <Route
                 path="settings/industry-data"
                 element={(
-                  <WorkspaceIndustryAccessGate>
+                  <WorkspaceIndustryOpsGate>
                     <MainShell>
                       <RouteSuspense>
                         <LazySystemSettingsIndustryDataPage />
                       </RouteSuspense>
                     </MainShell>
-                  </WorkspaceIndustryAccessGate>
+                  </WorkspaceIndustryOpsGate>
                 )}
               />
               <Route

@@ -77,7 +77,7 @@ const AdminUserRecordSchema = z.object({
   })),
   memberships: z.array(z.object({
     workspaceSlug: z.string(),
-    role: z.enum(["user", "admin"]),
+    role: z.enum(["user", "reviewer", "admin"]),
   })),
 });
 

@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/quiesce.sh"
 # shellcheck source=lib-preview-common.sh
 source "$SCRIPT_DIR/lib-preview-common.sh"
+# shellcheck source=lib-convex-export-fix.sh
+source "$SCRIPT_DIR/lib-convex-export-fix.sh"
 
 TARGET_CONVEX_DIR=/home/ubuntu/trends-preview/packages/convex
 SOURCE_CONVEX_DIR=/opt/trends/packages/convex
@@ -205,64 +207,13 @@ ls -lh "$EXPORT_PATH"
 
 echo ""
 echo "=== Step 1b: Strip schema-incompatible fields from export ==="
-# v0.3.0 dropped screening_sessions.config.filters.showBlocked
-# Production data still has it → import aborts. Strip before import.
-FIX_DIR=$(mktemp -d)
-cd "$FIX_DIR"
-unzip -q "$EXPORT_PATH"
-python3 - "$PREVIEW_DIR/packages/convex/convex/schema.ts" <<'PYEOF'
-import json, os
-import pathlib
-import re
-import sys
-
-path = 'screening_sessions/documents.jsonl'
-if os.path.exists(path):
-    docs = [json.loads(line) for line in open(path) if line.strip()]
-    changed = 0
-    for d in docs:
-        if isinstance(d.get('config'), dict) and isinstance(d['config'].get('filters'), dict):
-            if d['config']['filters'].pop('showBlocked', None) is not None:
-                changed += 1
-    with open(path, 'w') as f:
-        f.write('\n'.join(json.dumps(d, ensure_ascii=False) for d in docs) + '\n')
-    print(f"Stripped showBlocked from {changed}/{len(docs)} screening_sessions documents")
-
-# Exclude system_settings table — it carries the source's maintenance flag
-# and should not propagate to the target environment
-import shutil
-if os.path.exists('system_settings'):
-    shutil.rmtree('system_settings')
-    print("Excluded system_settings/ from import (maintenance flag is environment-local)")
-
-schema_path = pathlib.Path(sys.argv[1])
-if not schema_path.exists():
-    raise SystemExit(f"Missing preview Convex schema: {schema_path}")
-
-schema_tables = re.findall(
-    r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*defineTable\(",
-    schema_path.read_text(),
-    flags=re.MULTILINE,
-)
-created_empty_tables = []
-for table in schema_tables:
-    table_dir = pathlib.Path(table)
-    if table_dir.exists():
-        continue
-    table_dir.mkdir()
-    (table_dir / "generated_schema.jsonl").write_text('"uniform"\n')
-    (table_dir / "documents.jsonl").write_text("")
-    created_empty_tables.append(table)
-
-if created_empty_tables:
-    print("Materialized missing schema tables as empty: " + ", ".join(created_empty_tables))
-PYEOF
+fix_convex_export "$EXPORT_PATH" "$PREVIEW_DIR/packages/convex/convex/schema.ts" /tmp/prod-convex-export-fixed.zip || {
+    echo "fix_convex_export failed" >&2
+    exit 1
+}
+# Step 2 copies $EXPORT_PATH — keep it pointing at the fixed zip
 EXPORT_PATH=/tmp/prod-convex-export-fixed.zip
-rm -f "$EXPORT_PATH"
-zip -rq "$EXPORT_PATH" *
-cd /
-rm -rf "$FIX_DIR"
-ls -lh "$EXPORT_PATH"
+ls -lh /tmp/prod-convex-export-fixed.zip
 
 echo ""
 echo "=== Step 2: Copy export into preview workspace (Docker bind mount) ==="

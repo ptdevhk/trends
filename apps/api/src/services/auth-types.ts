@@ -1,5 +1,5 @@
 export type AuthProvider = "local" | "casdoor";
-export type WorkspaceRole = "user" | "admin";
+export type WorkspaceRole = "user" | "reviewer" | "admin";
 
 export type AuthUser = {
   id: string;

@@ -2396,16 +2396,140 @@ describe("companies routes", () => {
     expect(await parseJsonBody(response)).toEqual({ success: true, count: 2 });
   });
 
-  it("keeps the verified employer count admin-only", async () => {
-    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = createApp({ authStorage: auth.storage });
-    const response = await app.request(
-      "/api/company-industry-verified-employer-count",
-      { headers: auth.headers },
+  it("serves the verified employer count to any authenticated workspace user", async () => {
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
     );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+      {
+        companyKey: "polywell",
+        industryClass: "cnc",
+        displayName: "Polywell",
+        aliases: [],
+        updatedAt: 1,
+      },
+    ]);
 
-    expect(response.status).toBe(403);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // anonymous (no session) → 401
+    const anonymousApp = createApp();
+    const anonymousResponse = await anonymousApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+    expect(anonymousResponse.status).toBe(401);
+
+    // workspace user → 200 with count
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userResponse = await userApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: userAuth.headers },
+    );
+    expect(userResponse.status).toBe(200);
+    expect(await parseJsonBody(userResponse)).toEqual({ success: true, count: 2 });
+
+    // workspace admin → 200 with count
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const adminResponse = await adminApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: adminAuth.headers },
+    );
+    expect(adminResponse.status).toBe(200);
+    expect(await parseJsonBody(adminResponse)).toEqual({ success: true, count: 2 });
+
+    // authenticated but outside the requested workspace → 403
+    const crossAuth = createAuthHeaders({
+      workspaceSlug: "hr",
+      requestWorkspaceSlug: "dev",
+      role: "user",
+    });
+    const crossApp = createApp({ authStorage: crossAuth.storage });
+    const crossResponse = await crossApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: crossAuth.headers },
+    );
+    expect(crossResponse.status).toBe(403);
+  });
+
+  it("gates industry review routes to admin-or-reviewer; ops routes stay admin-only", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:listIndustryProposalsPage") {
+        return convexSuccess({ items: [], nextCursor: undefined });
+      }
+      if (call.pathName === "companies:listIndustryRecomputeRuns") {
+        return convexSuccess([]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+    vi.spyOn(
+      industryEvidenceResearchService,
+      "resolveIndustryProposalIdentity",
+    ).mockResolvedValue({
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      auditId: "audit-1",
+    });
+
+    // reviewer → 200 on a review read route (proposal list)
+    const reviewerAuth = createAuthHeaders({ workspaceSlug: "hr", role: "reviewer" });
+    const reviewerApp = createApp({ authStorage: reviewerAuth.storage });
+    const reviewList = await reviewerApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: reviewerAuth.headers },
+    );
+    expect(reviewList.status).toBe(200);
+
+    // reviewer → 200 on a review mutation route (identity resolution)
+    const identityResolution = await reviewerApp.request(
+      "/api/company-industry-proposals/proposal-1/identity-resolution",
+      {
+        method: "POST",
+        headers: {
+          ...reviewerAuth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedProposalUpdatedAt: 1,
+          candidateFingerprint: "candidate-fingerprint-1",
+          mappingMode: "create_provisional",
+          sourceIds: ["source-1"],
+        }),
+      },
+    );
+    expect(identityResolution.status).toBe(200);
+
+    // reviewer → 403 on an ops route (recompute runs)
+    const recomputeDenied = await reviewerApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: reviewerAuth.headers },
+    );
+    expect(recomputeDenied.status).toBe(403);
+
+    // workspace user → 403 on a review route
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userReview = await userApp.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: userAuth.headers },
+    );
+    expect(userReview.status).toBe(403);
+
+    // admin → 200 on an ops route (unchanged)
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const recomputeAllowed = await adminApp.request(
+      "/api/company-industry-recompute-runs?companyKey=acme-cnc",
+      { headers: adminAuth.headers },
+    );
+    expect(recomputeAllowed.status).toBe(200);
   });
 });

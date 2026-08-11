@@ -72,6 +72,29 @@ export function getAdminAccessError(c: { var: { auth?: AuthContext; workspaceSlu
   return null;
 }
 
+/**
+ * Industry review gate: admin or reviewer on the active workspace.
+ * Mirrors getAdminAccessError's 401/403 shape; reviewers get the review
+ * workflow (proposals, evidence sources, revisions, identity resolution)
+ * while ops surfaces stay admin-only (requireAdmin).
+ */
+export function getIndustryReviewAccessError(c: { var: { auth?: AuthContext; workspaceSlug: string } }): AccessError | null {
+  const auth = c.var.auth;
+  if (!auth) {
+    return {
+      body: { success: false, error: "Authentication required" },
+      status: 401,
+    };
+  }
+  if (!hasWorkspaceRole(auth.memberships, c.var.workspaceSlug, ["admin", "reviewer"])) {
+    return {
+      body: { success: false, error: "Review access required" },
+      status: 403,
+    };
+  }
+  return null;
+}
+
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
   let storage = options.storage;
   let sessions: AuthSessionService | undefined;
@@ -143,6 +166,24 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     await next();
   };
 
+  const requireIndustryReviewer: MiddlewareHandler = async (c, next) => {
+    const reviewError = getIndustryReviewAccessError(c);
+    if (reviewError) {
+      const auth = c.var.auth;
+      if (auth) {
+        const eventType = reviewError.status === 401 ? "workspace_access_denied" as const : "admin_access_denied" as const;
+        getEventStorage(c)?.append({
+          type: eventType,
+          userId: auth.user.id,
+          workspaceSlug: c.var.workspaceSlug,
+          sessionId: auth.sessionId,
+        });
+      }
+      return c.json(reviewError.body, reviewError.status);
+    }
+    await next();
+  };
+
   const requireCsrf: MiddlewareHandler = async (c, next) => {
     if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") {
       await next();
@@ -184,6 +225,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}) {
     optionalAuth,
     requireWorkspaceUser,
     requireAdmin,
+    requireIndustryReviewer,
     requireCsrf,
   };
 }
@@ -193,6 +235,7 @@ const defaultAuthMiddleware = createAuthMiddleware();
 export const optionalAuth = defaultAuthMiddleware.optionalAuth;
 export const requireWorkspaceUser = defaultAuthMiddleware.requireWorkspaceUser;
 export const requireAdmin = defaultAuthMiddleware.requireAdmin;
+export const requireIndustryReviewer = defaultAuthMiddleware.requireIndustryReviewer;
 export const requireCsrf = defaultAuthMiddleware.requireCsrf;
 
 export const CONVEX_WRITE_SECRET_HEADER = "X-Convex-Write-Secret";
