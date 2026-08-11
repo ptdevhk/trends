@@ -150,6 +150,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "candidate_status.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "importNotesBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "restoreBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
+    { file: "candidate_status.ts", name: "clearWorkspace", quiesceAware: true, reason: "Test/seed helper — write-secret gated; user-facing path blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "stampWorkspaceByExternalIds", quiesceAware: true, reason: "Admin/workspace stamp via write-secret; user-facing path blocked by BFF middleware" },
 
     { file: "job_descriptions.ts", name: "create", quiesceAware: true, reason: "Blocked by BFF middleware" },

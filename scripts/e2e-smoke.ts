@@ -52,6 +52,18 @@ const seedWorkspaceDemoFunction = makeFunctionReference<
     WorkspaceSeedResult
 >('seed:seedWorkspaceDemoData');
 
+type ClearWorkspaceResult = {
+    workspaceSlug: string;
+    clearedStatuses: number;
+    clearedOverlayRows: number;
+};
+
+const clearCandidateStatusesFunction = makeFunctionReference<
+    'mutation',
+    { workspaceSlug: string; writeSecret: string },
+    ClearWorkspaceResult
+>('candidate_status:clearWorkspace');
+
 function resolveConvexUrl(): string {
     if (typeof process.env.CONVEX_URL === 'string' && process.env.CONVEX_URL.trim().length > 0) {
         return process.env.CONVEX_URL.trim();
@@ -66,6 +78,22 @@ async function ensureDeterministicSmokeFixtures() {
     const convexUrl = resolveConvexUrl();
     const client = new ConvexHttpClient(convexUrl);
     console.log(`Seeding deterministic smoke fixtures at ${convexUrl}...`);
+
+    // Reset dev-workspace candidate statuses first so every run starts from an
+    // all-"new" state. The bulk-actions smoke shortlists the top results; without
+    // this reset, the default new-only status filter hides them on the next run
+    // and the deterministic search degrades to an empty list (e2e self-poisoning).
+    const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim();
+    if (writeSecret) {
+        const clearResult = await client.mutation(clearCandidateStatusesFunction, {
+            workspaceSlug: 'dev',
+            writeSecret,
+        });
+        console.log(`✅ Dev candidate statuses reset (${clearResult.clearedStatuses} statuses, ${clearResult.clearedOverlayRows} overlay rows).`);
+    } else {
+        console.warn('⚠️ CONVEX_WRITE_SECRET not set — skipping candidate status reset.');
+    }
+
     const seedResult = await client.mutation(seedWorkspaceDemoFunction, {});
     console.log('✅ Deterministic smoke fixtures ensured.', seedResult.resumes);
 }
