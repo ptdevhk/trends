@@ -9,8 +9,8 @@ const routeTestState = vi.hoisted(() => ({
 
 const authState = vi.hoisted(() => ({
   user: null as null | { id: string; status: 'active'; displayName?: string },
-  memberships: [] as Array<{ userId: string; workspaceSlug: string; role: 'user' | 'admin' }>,
-  workspaceRole: null as null | 'user' | 'admin',
+  memberships: [] as Array<{ userId: string; workspaceSlug: string; role: 'user' | 'reviewer' | 'admin' }>,
+  workspaceRole: null as null | 'user' | 'reviewer' | 'admin',
   isAuthenticated: false,
   isLoading: false,
 }))
@@ -393,8 +393,48 @@ describe('App routes', () => {
     render(<App />)
 
     expect(await screen.findByText('Admin access required')).toBeInTheDocument()
-    expect(screen.getByText(/hr workspace admin account/)).toBeInTheDocument()
+    expect(screen.getByText(/hr workspace admin or reviewer account/)).toBeInTheDocument()
     expect(screen.queryByText('Industry verification route rendered')).not.toBeInTheDocument()
+  })
+
+  it('renders the workspace industry verification route for the active workspace reviewer', async () => {
+    authState.user = { id: 'hr-reviewer', status: 'active', displayName: 'HR Reviewer' }
+    authState.memberships = [{ userId: 'hr-reviewer', workspaceSlug: 'hr', role: 'reviewer' }]
+    authState.workspaceRole = 'reviewer'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-verification')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry verification route rendered')).toBeInTheDocument()
+    expect(workspaceRef.get()).toBe('hr')
+  })
+
+  it('renders the workspace industry audit route for the active workspace reviewer', async () => {
+    authState.user = { id: 'hr-reviewer', status: 'active', displayName: 'HR Reviewer' }
+    authState.memberships = [{ userId: 'hr-reviewer', workspaceSlug: 'hr', role: 'reviewer' }]
+    authState.workspaceRole = 'reviewer'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-audit')
+
+    render(<App />)
+
+    expect(await screen.findByText('Industry audit route rendered')).toBeInTheDocument()
+    expect(workspaceRef.get()).toBe('hr')
+  })
+
+  it('keeps the industry ops surface (industry-data) admin-only for reviewers', async () => {
+    authState.user = { id: 'hr-reviewer', status: 'active', displayName: 'HR Reviewer' }
+    authState.memberships = [{ userId: 'hr-reviewer', workspaceSlug: 'hr', role: 'reviewer' }]
+    authState.workspaceRole = 'reviewer'
+    authState.isAuthenticated = true
+    window.history.pushState({}, '', '/hr/system/settings/industry-data')
+
+    render(<App />)
+
+    expect(await screen.findByText('Admin access required')).toBeInTheDocument()
+    expect(screen.getByText(/hr workspace admin account/)).toBeInTheDocument()
+    expect(screen.queryByText('Industry data route rendered')).not.toBeInTheDocument()
   })
 
   it('keeps non-member dev admins out of workspace industry routes via the membership gate', async () => {

@@ -3,13 +3,15 @@ import type { CurrentAuth } from '@/lib/auth'
 import {
   canUseExplicitRedirect,
   getDefaultAuthenticatedPath,
+  hasWorkspaceIndustryReviewAccess,
+  hasWorkspaceMembership,
   SYSTEM_ROUTE_PREFIX,
 } from '@/lib/workspace-access'
 
 function authFor(
-  memberships: Array<{ workspaceSlug: string; role: 'user' | 'admin' }>,
+  memberships: Array<{ workspaceSlug: string; role: 'user' | 'reviewer' | 'admin' }>,
   userId = 'u1',
-): CurrentAuth {
+): Extract<CurrentAuth, { success: true }> {
   return {
     success: true,
     user: { id: userId, status: 'active' },
@@ -57,5 +59,35 @@ describe('canUseExplicitRedirect', () => {
     const hr = authFor([{ workspaceSlug: 'hr', role: 'user' }])
     expect(canUseExplicitRedirect(hr, '/hr/resumes?location=Malaysia')).toBe(true)
     expect(canUseExplicitRedirect(hr, '/dev/resumes?location=Malaysia')).toBe(false)
+  })
+})
+
+describe('hasWorkspaceMembership', () => {
+  it('admits reviewer memberships with default roles (reviewer inherits member access)', () => {
+    const reviewer = authFor([{ workspaceSlug: 'hr', role: 'reviewer' }])
+    expect(hasWorkspaceMembership(reviewer.memberships, 'hr')).toBe(true)
+  })
+})
+
+describe('hasWorkspaceIndustryReviewAccess', () => {
+  it('admits a reviewer membership of the workspace', () => {
+    const reviewer = authFor([{ workspaceSlug: 'hr', role: 'reviewer' }])
+    expect(hasWorkspaceIndustryReviewAccess(reviewer.memberships, 'hr')).toBe(true)
+  })
+
+  it('admits an admin membership of the workspace', () => {
+    const admin = authFor([{ workspaceSlug: 'hr', role: 'admin' }])
+    expect(hasWorkspaceIndustryReviewAccess(admin.memberships, 'hr')).toBe(true)
+  })
+
+  it('rejects a plain user membership', () => {
+    const user = authFor([{ workspaceSlug: 'hr', role: 'user' }])
+    expect(hasWorkspaceIndustryReviewAccess(user.memberships, 'hr')).toBe(false)
+  })
+
+  it('rejects empty memberships and memberships of other workspaces', () => {
+    expect(hasWorkspaceIndustryReviewAccess([], 'hr')).toBe(false)
+    const devAdmin = authFor([{ workspaceSlug: 'dev', role: 'admin' }])
+    expect(hasWorkspaceIndustryReviewAccess(devAdmin.memberships, 'hr')).toBe(false)
   })
 })
