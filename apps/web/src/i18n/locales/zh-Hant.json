@@ -1651,6 +1651,7 @@
     "undoPolicyRejected": "目前證據策略拒絕了撤銷操作。請檢查此列。",
     "undoRowLabel": "撤銷 {{company}} 的核准",
     "undoSuccess": "已撤銷核准；提案重新進入待審狀態。",
+    "verifiedOnlyReviewAction": "前往審核",
     "verifiedQuickPick": "已驗證公司檔案",
     "viewRow": "檢視",
     "visibleRiskFlags": "可見風險標記"

@@ -6,12 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeSearchPage } from './ResumeSearchPage'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import type { AuthUser, WorkspaceRole } from '@/lib/auth'
+import type { AuthUser, WorkspaceMembership, WorkspaceRole } from '@/lib/auth'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
 type AuthMockValue = {
   user: AuthUser | null
   workspaceRole: WorkspaceRole | null
+  memberships?: WorkspaceMembership[]
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<boolean>
@@ -88,6 +89,7 @@ const authMock = vi.hoisted((): { value: AuthMockValue } => ({
   value: {
     user: { id: 'user-1', displayName: 'Tester', status: 'active' },
     workspaceRole: 'user',
+    memberships: [],
     isAuthenticated: true,
     isLoading: false,
     login: vi.fn(async () => true),
@@ -375,6 +377,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     loadingMore,
     showAiScore,
     verifiedOnlyNotice,
+    verifiedOnlyReviewHref,
     onAction,
     onCandidateStatusChange,
     onCloseDetail,
@@ -397,6 +400,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
       roleFilterType?: string | null
       verifiedEmployerCount?: number
     }
+    verifiedOnlyReviewHref?: string
     onAction?: () => void
     onCandidateStatusChange?: () => void
     onCloseDetail?: () => void
@@ -414,6 +418,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
         {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
       </div>
       <div>VerifiedOnlyNotice: {JSON.stringify(verifiedOnlyNotice ?? null)}</div>
+      <div>VerifiedOnlyReviewHref: {verifiedOnlyReviewHref ?? 'none'}</div>
       <div>Detail route: {detailResumeId ?? 'none'}</div>
       <div>Detail routing: {String(Boolean(onOpenDetail && onCloseDetail))}</div>
       <div>
@@ -688,6 +693,7 @@ describe('ResumeSearchPage', () => {
     authMock.value = {
       user: { id: 'user-1', displayName: 'Tester', status: 'active' },
       workspaceRole: 'user',
+      memberships: [],
       isAuthenticated: true,
       isLoading: false,
       login: vi.fn(async () => true),
@@ -1352,5 +1358,108 @@ describe('ResumeSearchPage', () => {
       expect(screen.getByText(/VerifiedOnlyNotice/)).toHaveTextContent('null')
     })
     expect(apiGetMock).not.toHaveBeenCalledWith('/api/company-industry-verified-employer-count')
+  })
+
+  it('passes the review inbox href for a workspace reviewer', async () => {
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'reviewer',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'reviewer' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent(
+        '/dev/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+  })
+
+  it('passes the review inbox href for a workspace admin', async () => {
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'admin',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'admin' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent(
+        '/dev/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+  })
+
+  it('omits the review inbox href for a plain workspace member', async () => {
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent('none')
+    })
+  })
+
+  it('omits the review inbox href on the public share surface even for a reviewer', async () => {
+    routeMock.isPublicSurface = true
+    authMock.value = {
+      user: { id: 'user-1', displayName: 'Tester', status: 'active' },
+      workspaceRole: 'reviewer',
+      memberships: [{ userId: 'user-1', workspaceSlug: 'dev', role: 'reviewer' }],
+      isAuthenticated: true,
+      isLoading: false,
+      login: vi.fn(async () => true),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+    const state = createResumeSearchState({
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      parsedState: createParsedState({
+        filters: { minRoleYears: 3 },
+      }),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/VerifiedOnlyReviewHref/)).toHaveTextContent('none')
+    })
   })
 })

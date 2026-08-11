@@ -32,7 +32,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { rawApiClient } from '@/lib/api-helpers'
 import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled } from '@/lib/feature-flags'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 type PublicShareCreateResponse = {
@@ -55,6 +55,12 @@ export function ResumeSearchPage() {
   // Public share surfaces have no admin session; the hook skips the fetch
   // there and the notice prop stays undefined.
   const verifiedEmployerCount = useVerifiedEmployerCount(!isPublicSurface)
+  // Only workspace admins and reviewers may attend the evidence queue; the
+  // verified-only notice gains a review link only for them.
+  const verifiedOnlyReviewHref = !isPublicSurface
+    && hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
+    ? `/${workspaceSlug}/system/settings/industry-verification?status=ready_for_review`
+    : undefined
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
@@ -705,6 +711,7 @@ export function ResumeSearchPage() {
                         }
                       : undefined
                   }
+                  verifiedOnlyReviewHref={verifiedOnlyReviewHref}
                 />
               </ErrorBoundary>
             </div>

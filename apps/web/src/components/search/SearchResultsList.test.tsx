@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -478,6 +478,43 @@ describe('SearchResultsList', () => {
 
       const notice = screen.getByTestId('resume-verified-only-notice')
       expect(notice).toHaveTextContent('42')
+    })
+
+    it('renders a review inbox link when the workspace user may attend the evidence queue', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+          verifiedOnlyReviewHref="/hr/system/settings/industry-verification?status=ready_for_review"
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      const link = within(notice).getByRole('link', { name: 'Review industry evidence' })
+      expect(link).toHaveAttribute(
+        'href',
+        '/hr/system/settings/industry-verification?status=ready_for_review',
+      )
+    })
+
+    it('renders no review link when no review href is passed', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 128 }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(within(notice).queryByRole('link')).not.toBeInTheDocument()
     })
 
     it('does not render the notice when no verifiedOnlyNotice prop is passed', () => {

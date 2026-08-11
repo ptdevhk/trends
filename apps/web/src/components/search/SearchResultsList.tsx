@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { hasSystemAdminAccess } from '@/lib/workspace-access'
-import { SearchCheck } from 'lucide-react'
+import { ExternalLink, SearchCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -77,6 +77,12 @@ type SearchResultsListProps = {
    * list explains that results are limited to industry-verified employers.
    */
   verifiedOnlyNotice?: VerifiedOnlyNotice
+  /**
+   * Workspace-scoped review inbox href. Only set when the active workspace
+   * user may attend the industry evidence queue (workspace admin or
+   * reviewer); when set, the verified-only notice gains a review link.
+   */
+  verifiedOnlyReviewHref?: string
 }
 
 function SearchResultsSkeleton() {
@@ -122,6 +128,7 @@ export function SearchResultsList({
   onQueueIndustryResearch,
   industryResearchQueueEnabled = false,
   verifiedOnlyNotice,
+  verifiedOnlyReviewHref,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -424,6 +431,17 @@ export function SearchResultsList({
             defaultValue: 'Results limited to industry-verified employers · {{count}} verified employers in catalog',
             count: verifiedOnlyNotice.verifiedEmployerCount,
           })}
+          {verifiedOnlyReviewHref ? (
+            <a
+              className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              href={verifiedOnlyReviewHref}
+            >
+              {t('industryEvidence.verifiedOnlyReviewAction', {
+                defaultValue: 'Review industry evidence',
+              })}
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          ) : null}
         </div>
       ) : null}
       {shouldVirtualize ? (

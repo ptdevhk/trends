@@ -1651,6 +1651,7 @@
     "undoPolicyRejected": "Undo was rejected by the current evidence policy. Review the row.",
     "undoRowLabel": "Undo approval for {{company}}",
     "undoSuccess": "Approval undone; proposal is ready for review again.",
+    "verifiedOnlyReviewAction": "Review industry evidence",
     "verifiedQuickPick": "Verified profiles",
     "viewRow": "View",
     "visibleRiskFlags": "Visible risk flags"

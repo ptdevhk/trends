@@ -1209,6 +1209,7 @@
     "undoPolicyRejected": "当前证据策略拒绝了撤销操作。请检查此行。",
     "undoRowLabel": "撤销 {{company}} 的批准",
     "undoSuccess": "已撤销批准；提案重新进入待审核状态。",
+    "verifiedOnlyReviewAction": "前往审核",
     "verifiedQuickPick": "已验证公司资料",
     "viewRow": "查看",
     "visibleRiskFlags": "可见风险标记"
