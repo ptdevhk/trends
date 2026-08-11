@@ -47,7 +47,7 @@ jobs:
 
       # Node.js setup (for TypeScript checks/build)
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
