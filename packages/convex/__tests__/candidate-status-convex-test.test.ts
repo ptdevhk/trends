@@ -306,6 +306,38 @@ describe("candidate_status: list + listForBackup", () => {
     expect(keys).toEqual(["c-1", "c-2"]);
   });
 
+  it("list returns all rows when workspace has more than 500 statuses", async () => {
+    // Regression: candidate_status.list used to .take(500), silently
+    // dropping statuses beyond the first page. This caused the web client's
+    // reactive subscription to miss status updates for resumes whose
+    // candidate_status row fell beyond row 500.
+    const t = createTest();
+    const COUNT = 520;
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < COUNT; i += 1) {
+        await ctx.db.insert("candidate_status", {
+          workspaceSlug: "ws-overflow",
+          identityKey: `overflow-${i}`,
+          status: "rejected",
+          updatedAt: 1_700_000_000_000 + i,
+          history: [],
+        });
+      }
+    });
+
+    const list = await t.query(api.candidate_status.list, {
+      workspaceSlug: "ws-overflow",
+    });
+
+    expect(list).toHaveLength(COUNT);
+    // Verify the last-inserted row (which would have been beyond the old 500 cap)
+    // is present.
+    const lastKey = list.find((r) => r.identityKey === `overflow-${COUNT - 1}`);
+    expect(lastKey).toBeDefined();
+    expect(lastKey!.status).toBe("rejected");
+  });
+
   it("listForBackup returns projected fields", async () => {
     const t = createTest();
 
