@@ -663,9 +663,11 @@ restore-resumes-restart:
 	@$(MAKE) dev-convex-refresh
 
 # Push latest resume snapshot to the sample repo (ptdevhk/trends-resume-samples)
+# SNAPSHOT_EXCLUDE: comma-separated filename globs to skip (default excludes seek recommended)
 push-sample-snapshots:
 	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
-	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}"; \
+	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}" \
+	SNAPSHOT_EXCLUDE="$${SNAPSHOT_EXCLUDE:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
 		GH_TOKEN="$${GH_TOKEN:-$$(gh auth token)}" bun run scripts/resume/push-sample-snapshots.ts; \
 	else \

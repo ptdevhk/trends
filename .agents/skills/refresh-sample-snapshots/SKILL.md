@@ -53,10 +53,11 @@ Collect fresh resume samples from browser sources via CDP.
 bun run scripts/resume/snapshot-source-backups.ts --source 51job --count 50
 ```
 
-Seek keeps a separate 20-resume ceiling by default, so the same script can still collect the smaller browser-backed samples:
+Seek uses the same top-50 default; if a seek profile yields fewer candidates, the snapshot
+keeps the requested-count filename but records the shortfall with a warning:
 
 ```bash
-bun run scripts/resume/snapshot-source-backups.ts --source seek --seek-count 20
+bun run scripts/resume/snapshot-source-backups.ts --source seek
 ```
 
 ### Multiple sources in one run
@@ -73,7 +74,7 @@ Override the default search URL for a source:
 ```bash
 # Seek talent search (MY market) — uses keyword-based collection
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source seek --seek-count 20 \
+  --source seek \
   --seek-url "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
 
 # Custom 51job keyword/location
@@ -88,7 +89,7 @@ bun run scripts/resume/snapshot-source-backups.ts \
 |---|---|---|
 | `--source <alias>` | (required) | Source alias: `51job`, `job5156`, `seek` (repeatable) |
 | `--count <n>` | `50` | Resumes to collect per source |
-| `--seek-count <n>` | `20` | Seek resumes to collect per source |
+| `--seek-count <n>` | `50` | Seek resumes to collect per source (seek = `min(count, seekCount)`) |
 | `--max-pages <n>` | `10` | Max pages to paginate through |
 | `--cdp-endpoint <url>` | `http://127.0.0.1:9222` | Chrome DevTools endpoint |
 | `--<source>-url <url>` | Per-source default | Override the search URL for a source |
@@ -101,7 +102,7 @@ Creates a timestamped directory:
 output/resume-backups/20260602-190034/
 ├── resume-backup-51job-top50-20260602-190034.json
 ├── resume-backup-job5156-top50-20260602-190034.json
-└── resume-backup-seek-top20-20260602-190034.json
+└── resume-backup-seek-top50-20260602-190034.json
 ```
 
 ### Known issues
@@ -135,11 +136,32 @@ gh auth status
 
 ### Note
 
-The script pushes **all** `.json` files in the latest snapshot directory. To push only a specific source, create a directory containing only that source's file, or use `SNAPSHOT_DIR` to point at a specific directory:
+The script pushes **all** `.json` files in the latest snapshot directory, except files matching
+`SNAPSHOT_EXCLUDE`. To push only a specific source, create a directory containing only that
+source's file, or use `SNAPSHOT_DIR` to point at a specific directory:
 
 ```bash
 SNAPSHOT_DIR=output/resume-backups/20260602-190034 make push-sample-snapshots
 ```
+
+**Seek recommended is excluded by default.** The seek recommended snapshot
+(`resume-backup-seek-top*.json`) is tied to a single job posting (a time-limited, per-position
+profile), so it is skipped by the built-in default exclusion. The seek **talentsearch** snapshot
+(`resume-backup-seek-talentsearch-*.json`) is not matched and is pushed normally.
+
+`SNAPSHOT_EXCLUDE` accepts comma-separated filename globs (`*` and `?`); when set, it **replaces**
+the built-in default:
+
+```bash
+# Keep the default exclusion (seek recommended) and add another file
+SNAPSHOT_EXCLUDE="resume-backup-51job-top50-20260602-190034.json" make push-sample-snapshots
+
+# Push everything, including seek recommended (overrides the default)
+SNAPSHOT_EXCLUDE="__none__" make push-sample-snapshots
+```
+
+To push seek recommended again, override the default with an empty pattern list — e.g.
+`SNAPSHOT_EXCLUDE="__none__"` (any non-matching sentinel works).
 
 ---
 
@@ -194,32 +216,38 @@ This creates `output/resume-backups/<timestamp-1>/` with 51job, job5156, and see
 
 ```bash
 bun run scripts/resume/snapshot-source-backups.ts \
-  --source seek --seek-count 20 \
+  --source seek \
   --seek-url "https://hk.employer.seek.com/talentsearch?searchQuery=CNC+Sales&market=MY&pageNumber=1&roleTitles=Sales&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
 ```
 
-This creates `output/resume-backups/<timestamp-2>/` with the seek-talentsearch snapshot. The file stays on the 20-resume ceiling (`resume-backup-seek-top20-<timestamp>.json`), so it can be merged without renaming conflicts.
+This creates `output/resume-backups/<timestamp-2>/` with the seek-talentsearch snapshot
+(`resume-backup-seek-top50-<timestamp>.json`). The talentsearch file is the seek variant that is
+pushed to the samples repo; the seek **recommended** file is excluded from pushes by default.
 
 ### Step 3: Merge and push
 
 ```bash
 # Merge talentsearch file into the first directory with a distinct name
-cp output/resume-backups/<timestamp-2>/resume-backup-seek-top20-*.json \
-   output/resume-backups/<timestamp-1>/resume-backup-seek-talentsearch-top20.json
+cp output/resume-backups/<timestamp-2>/resume-backup-seek-top50-*.json \
+   output/resume-backups/<timestamp-1>/resume-backup-seek-talentsearch-top50.json
 
-# Push the merged directory
+# Push the merged directory (seek recommended is excluded by default)
 SNAPSHOT_DIR=output/resume-backups/<timestamp-1> make push-sample-snapshots
 ```
 
 ### Verification
 
-Check that all 4 files are present before pushing:
+Check that the included files are present before pushing:
 
 ```bash
 ls output/resume-backups/<timestamp-1>/
 # Expected:
 #   resume-backup-51job-top50-<ts>.json
 #   resume-backup-job5156-top50-<ts>.json
-#   resume-backup-seek-top20-<ts>.json          (recommended)
-#   resume-backup-seek-talentsearch-top20.json  (talent search)
+#   resume-backup-seek-top50-<ts>.json          (recommended — collected, not pushed)
+#   resume-backup-seek-talentsearch-top50.json  (talent search — pushed)
+
+# The push console output shows which files were excluded:
+#   Exclude patterns: resume-backup-seek-top*.json
+#   Excluding resume-backup-seek-top50-<ts>.json
 ```

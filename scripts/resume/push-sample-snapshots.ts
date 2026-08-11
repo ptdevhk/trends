@@ -11,6 +11,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SAMPLE_REPO = "ptdevhk/trends-resume-samples";
 const DEFAULT_BACKUPS_DIR = "output/resume-backups";
 
+/**
+ * Filename globs excluded from pushes by default.
+ * `resume-backup-seek-top*.json` matches the seek recommended snapshot
+ * (jobId-tied, time-limited per-position profile) but NOT the seek talentsearch
+ * snapshot (`resume-backup-seek-talentsearch-*.json` breaks the `seek-top` prefix).
+ */
+export const DEFAULT_EXCLUDE_PATTERNS = ["resume-backup-seek-top*.json"];
+
 function resolveRepoRoot(): string {
   return path.resolve(__dirname, "../..");
 }
@@ -25,6 +33,49 @@ function resolveSnapshotDir(): string {
     return path.isAbsolute(override) ? override : path.resolve(resolveRepoRoot(), override);
   }
   return "";
+}
+
+/**
+ * Resolve SNAPSHOT_EXCLUDE glob patterns. When unset (or blank) the built-in
+ * default exclusion list applies; when set, the comma-separated patterns fully
+ * replace the defaults.
+ */
+export function resolveExcludePatterns(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env.SNAPSHOT_EXCLUDE?.trim();
+  if (!raw) {
+    return [...DEFAULT_EXCLUDE_PATTERNS];
+  }
+  return raw
+    .split(",")
+    .map((pattern) => pattern.trim())
+    .filter((pattern) => pattern.length > 0);
+}
+
+/** Compile a `*`/`?` filename glob into an anchored regex. */
+export function compileGlobPattern(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped.replace(/\*/g, ".*").replace(/\?/g, ".")}$`);
+}
+
+/** True when the file name matches any of the glob patterns. */
+export function isExcludedFileName(fileName: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => compileGlobPattern(pattern).test(fileName));
+}
+
+export function filterSnapshotJsonFiles(
+  fileNames: string[],
+  patterns: string[],
+): { included: string[]; excluded: string[] } {
+  const included: string[] = [];
+  const excluded: string[] = [];
+  for (const fileName of fileNames) {
+    if (isExcludedFileName(fileName, patterns)) {
+      excluded.push(fileName);
+    } else {
+      included.push(fileName);
+    }
+  }
+  return { included, excluded };
 }
 
 async function findLatestSnapshotDir(backupsDir: string): Promise<string> {
@@ -149,7 +200,7 @@ async function generateReadme(snapshotFiles: SnapshotFile[], timestamp: string):
   return lines.join("\n");
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const repoRoot = resolveRepoRoot();
   const sampleRepo = resolveSampleRepo();
   const backupsDir = path.resolve(repoRoot, DEFAULT_BACKUPS_DIR);
@@ -167,6 +218,23 @@ async function main(): Promise<void> {
     throw new Error(`no .json files found in ${snapshotDir}`);
   }
 
+  const excludePatterns = resolveExcludePatterns();
+  const { included: includedFiles, excluded: excludedFiles } = filterSnapshotJsonFiles(
+    jsonFiles,
+    excludePatterns,
+  );
+  if (includedFiles.length === 0) {
+    throw new Error(
+      `all snapshot files are excluded by SNAPSHOT_EXCLUDE patterns (${excludePatterns.join(", ")})`,
+    );
+  }
+  if (excludePatterns.length > 0) {
+    console.log(`Exclude patterns: ${excludePatterns.join(", ")}`);
+  }
+  for (const fileName of excludedFiles) {
+    console.log(`Excluding ${fileName}`);
+  }
+
   const tempDir = await mkdtemp("trends-push-samples-");
   try {
     console.log(`Cloning ${sampleRepo}...`);
@@ -181,7 +249,7 @@ async function main(): Promise<void> {
     }
 
     const fileSummaries: SnapshotFile[] = [];
-    for (const fileName of jsonFiles) {
+    for (const fileName of includedFiles) {
       const srcPath = path.join(snapshotDir, fileName);
       const destPath = path.join(snapshotsDir, fileName);
       const content = await readFile(srcPath, "utf8");
@@ -214,7 +282,7 @@ async function main(): Promise<void> {
     await execGit(["commit", "-m", `Update sample snapshots from ${timestamp}`], tempDir);
     await execGit(["push", pushUrl, "main"], tempDir);
 
-    console.log(`Pushed ${jsonFiles.length} snapshot file(s) to ${sampleRepo}`);
+    console.log(`Pushed ${includedFiles.length} snapshot file(s) to ${sampleRepo}`);
     for (const f of fileSummaries) {
       console.log(`  ${f.name} (${f.source}, ${f.resumeCount} resumes)`);
     }
