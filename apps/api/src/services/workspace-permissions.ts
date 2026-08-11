@@ -14,6 +14,7 @@ export type WorkspacePermission =
   | "candidate:action:read"
   | "candidate:mutate"
   | "resume:export"
+  | "industry:review"
   | "workspace:admin";
 
 export type PublicSharePrincipal = {
@@ -41,8 +42,11 @@ const MEMBER_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([
   "resume:export",
 ]);
 
+const REVIEWER_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([...MEMBER_PERMISSIONS, "industry:review"]);
+
 const ADMIN_PERMISSIONS: ReadonlySet<WorkspacePermission> = new Set([
   ...MEMBER_PERMISSIONS,
+  "industry:review",
   "resume:share:public:create",
 ]);
 
@@ -77,6 +81,10 @@ export function hasWorkspacePermission(input: WorkspacePermissionInput): boolean
 
   if (input.permission === "workspace:admin") {
     return hasWorkspaceRole(auth.memberships, workspaceSlug, ["admin"]);
+  }
+
+  if (hasWorkspaceRole(auth.memberships, workspaceSlug, ["reviewer"])) {
+    return REVIEWER_PERMISSIONS.has(input.permission);
   }
 
   if (hasWorkspaceRole(auth.memberships, workspaceSlug, ["admin"])) {

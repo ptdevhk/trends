@@ -110,3 +110,36 @@ describe("hasWorkspacePermission", () => {
     })).toBe(false);
   });
 });
+
+describe("reviewer role", () => {
+  it("grants industry:review to reviewer", () => {
+    expect(hasWorkspacePermission({
+      auth: createAuthContext({ workspaceSlug: "hr", role: "reviewer" }),
+      workspaceSlug: "hr", permission: "industry:review",
+    })).toBe(true);
+  });
+  it("grants industry:review to admin", () => {
+    expect(hasWorkspacePermission({
+      auth: createAuthContext({ workspaceSlug: "hr", role: "admin" }),
+      workspaceSlug: "hr", permission: "industry:review",
+    })).toBe(true);
+  });
+  it("denies industry:review to user", () => {
+    expect(hasWorkspacePermission({
+      auth: createAuthContext({ workspaceSlug: "hr", role: "user" }),
+      workspaceSlug: "hr", permission: "industry:review",
+    })).toBe(false);
+  });
+  it("reviewer inherits member permissions", () => {
+    expect(hasWorkspacePermission({
+      auth: createAuthContext({ workspaceSlug: "hr", role: "reviewer" }),
+      workspaceSlug: "hr", permission: "candidate:mutate",
+    })).toBe(true);
+  });
+  it("reviewer is not workspace:admin", () => {
+    expect(hasWorkspacePermission({
+      auth: createAuthContext({ workspaceSlug: "hr", role: "reviewer" }),
+      workspaceSlug: "hr", permission: "workspace:admin",
+    })).toBe(false);
+  });
+});

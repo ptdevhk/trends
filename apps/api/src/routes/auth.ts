@@ -117,11 +117,11 @@ const AuthUserSchema = z.object({
 const MembershipSchema = z.object({
   userId: z.string(),
   workspaceSlug: z.string(),
-  role: z.enum(["user", "admin"]),
+  role: z.enum(["user", "reviewer", "admin"]),
 });
 
 const AuthProviderSchema = z.enum(["local", "casdoor"]);
-const WorkspaceRoleSchema = z.enum(["user", "admin"]);
+const WorkspaceRoleSchema = z.enum(["user", "reviewer", "admin"]);
 
 const ProviderIdentitySchema = z.object({
   provider: AuthProviderSchema,
@@ -196,7 +196,7 @@ const MeResponseSchema = z.discriminatedUnion("success", [
     success: z.literal(true),
     user: AuthUserSchema,
     memberships: z.array(MembershipSchema),
-    workspaceRole: z.enum(["user", "admin"]).nullable(),
+    workspaceRole: z.enum(["user", "reviewer", "admin"]).nullable(),
   }),
   z.object({
     success: z.literal(false),
