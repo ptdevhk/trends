@@ -6,6 +6,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 
 const useAuthMock = vi.hoisted(() => vi.fn())
+const useWorkspaceMock = vi.hoisted(() => vi.fn())
 
 const mockT = (key: string, options?: string | Record<string, unknown>) => {
   if (typeof options === 'string') {
@@ -74,6 +75,10 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => useWorkspaceMock(),
+}))
+
 vi.mock('@/components/ResumeDetail', () => ({
   ResumeDetail: ({
     open,
@@ -98,6 +103,7 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
     useAuthMock.mockReturnValue({ memberships: [] })
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
 
     observeMock.mockImplementation(() => { })
     disconnectMock.mockImplementation(() => { })
@@ -600,5 +606,103 @@ describe('SearchResultsList', () => {
       expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
     })
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
+  })
+
+  it('guides an active-workspace reviewer to the workspace review inbox for legacy signals', () => {
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+    const item = createItem(0)
+    item.resume.ingestData = {
+      evidenceText: '',
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      industryDbV2Raw: 0,
+      experienceLevel: 'mid',
+      computedAt: 1,
+      skillsVersion: 1,
+      ruleScores: {},
+      roleSignals: [{
+        type: 'sales',
+        matchedSignals: ['CNC Sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        verifyIn: 'workHistory',
+        matchedWorkEntries: [{
+          companyName: 'Vision Machine Tools',
+          jobTitle: 'Sales Engineer',
+          years: 3,
+          industryVerified: true,
+          matchedSignals: ['CNC Sales'],
+        }],
+      }],
+    }
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Industry evidence needs human review')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/hr/system/settings/industry-verification?status=ready_for_review')
+  })
+
+  it('hides legacy review guidance from plain members', () => {
+    useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'user' }],
+    })
+    const item = createItem(0)
+    item.resume.ingestData = {
+      evidenceText: '',
+      industryTags: ['cnc'],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      industryDbV2Raw: 0,
+      experienceLevel: 'mid',
+      computedAt: 1,
+      skillsVersion: 1,
+      ruleScores: {},
+      roleSignals: [{
+        type: 'sales',
+        matchedSignals: ['CNC Sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        verifyIn: 'workHistory',
+        matchedWorkEntries: [{
+          companyName: 'Vision Machine Tools',
+          jobTitle: 'Sales Engineer',
+          years: 3,
+          industryVerified: true,
+          matchedSignals: ['CNC Sales'],
+        }],
+      }],
+    }
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText('Industry evidence needs human review')).not.toBeInTheDocument()
   })
 })

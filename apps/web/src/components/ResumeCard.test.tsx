@@ -495,4 +495,53 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.queryByText('销售4年 (Industry verified)')).not.toBeInTheDocument()
     expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
   })
+
+  it('shows the legacy rules badge for an active-workspace reviewer', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[{
+          type: 'sales',
+          matchedSignals: ['CNC Sales'],
+          signalCount: 1,
+          occurrences: 1,
+          years: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          industryVerifiedYears: 4,
+          matchedWorkEntries: [{
+            companyName: 'Vision Machine Tools',
+            jobTitle: 'Sales Engineer',
+            years: 4,
+            industryVerified: true,
+            matchedSignals: ['CNC Sales'],
+          }],
+          verifyIn: 'workHistory',
+        }]}
+      />,
+    )
+
+    expect(screen.getByText('Legacy rules signal')).toBeInTheDocument()
+  })
+
+  it('hides the legacy rules badge from plain members', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'user' }],
+    })
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        roleSignals={[{ type: 'sales', matchedSignals: ['CNC Sales'], signalCount: 1, occurrences: 1, years: 4, verifyIn: 'workHistory' }]}
+      />,
+    )
+
+    expect(screen.queryByText('Legacy rules signal')).not.toBeInTheDocument()
+  })
 })

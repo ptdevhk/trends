@@ -9,9 +9,10 @@ import {
   hasLegacyIndustryEvidenceInSignals,
 } from '@/components/industry-evidence/industry-evidence'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
-import { hasSystemAdminAccess } from '@/lib/workspace-access'
+import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { ExternalLink, SearchCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
@@ -139,7 +140,12 @@ export function SearchResultsList({
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const [queueingIndustryResearch, setQueueingIndustryResearch] = useState(false)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
-  const showIndustryEvidenceReviewGuidance = hasSystemAdminAccess(memberships)
+  const { slug: workspaceSlug } = useWorkspace()
+  const isSystemAdmin = hasSystemAdminAccess(memberships)
+  const showIndustryEvidenceReviewGuidance = isSystemAdmin || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
+  const legacyReviewBasePath = isSystemAdmin
+    ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`
+    : `/${workspaceSlug}/system/settings/industry-verification`
   const hasLegacyIndustryEvidence = useMemo(() =>
     showIndustryEvidenceReviewGuidance && items.some((item) => {
       const summaries = getVerifiedIndustryEvidenceSummaries(item.resume)
@@ -416,7 +422,7 @@ export function SearchResultsList({
         </div>
       ) : null}
       {hasLegacyIndustryEvidence && showIndustryEvidenceReviewGuidance ? (
-        <LegacyIndustryEvidenceNotice showReviewAction />
+        <LegacyIndustryEvidenceNotice showReviewAction reviewBasePath={legacyReviewBasePath} />
       ) : null}
       {verifiedOnlyNotice
       && typeof verifiedOnlyNotice.verifiedEmployerCount === 'number'

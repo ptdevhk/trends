@@ -17,6 +17,10 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     GET: (...args: unknown[]) => apiGetMock(...args),
@@ -638,5 +642,124 @@ describe('ResumeDetail work history', () => {
       'href',
       '/admin/system/settings/industry-verification/proposals/industry-maintenance-vision',
     )
+  })
+
+  it('guides an active-workspace reviewer to the workspace review inbox for legacy signals', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          resumeId: 'resume-1',
+          ingestData: {
+            evidenceText: '',
+            industryTags: ['cnc'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: [],
+            industryDbV2Raw: 0,
+            experienceLevel: 'mid',
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC Sales'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedYears: 3,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                years: 3,
+                industryVerified: true,
+                matchedSignals: ['CNC Sales'],
+              }],
+            }],
+            verifiedIndustryEvidenceSummaries: [],
+          },
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: 'Review industry evidence' }))
+      .toHaveAttribute('href', '/hr/system/settings/industry-verification?status=ready_for_review')
+  })
+
+  it('hides legacy review guidance from plain members', () => {
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'u1', workspaceSlug: 'hr', role: 'user' }],
+    })
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Malaysia',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          resumeId: 'resume-1',
+          ingestData: {
+            evidenceText: '',
+            industryTags: ['cnc'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: [],
+            industryDbV2Raw: 0,
+            experienceLevel: 'mid',
+            computedAt: 1,
+            skillsVersion: 1,
+            ruleScores: {},
+            roleSignals: [{
+              type: 'sales',
+              matchedSignals: ['CNC Sales'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedYears: 3,
+              verifyIn: 'workHistory',
+              matchedWorkEntries: [{
+                companyName: 'Vision Machine Tools',
+                jobTitle: 'Sales Engineer',
+                years: 3,
+                industryVerified: true,
+                matchedSignals: ['CNC Sales'],
+              }],
+            }],
+            verifiedIndustryEvidenceSummaries: [],
+          },
+        } as unknown as ResumeItem}
+      />,
+    )
+
+    expect(screen.queryByText('Industry evidence needs human review')).not.toBeInTheDocument()
   })
 })
