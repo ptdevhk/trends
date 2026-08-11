@@ -131,6 +131,7 @@ const {
   useUrlSearchStateMock: vi.fn(),
   workspaceMock: {
     slug: 'dev',
+    isPublicSurface: false,
   },
 }))
 
@@ -299,6 +300,7 @@ describe('useResumeSearchState', () => {
     localStorage.clear()
 
     workspaceMock.slug = 'dev'
+    workspaceMock.isPublicSurface = false
     authMock.isAuthenticated = true
     parsedStateMock.shareSessionId = undefined
     parsedStateMock.query = undefined
@@ -415,6 +417,19 @@ describe('useResumeSearchState', () => {
     expect(useMutationMock).not.toHaveBeenCalledWith('analysis-tasks-dispatch-mutation')
     expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
     expect(useQueryMock).toHaveBeenCalledWith('resumes:countResumesByStatus', 'skip')
+    expect(result.current.searchHistoryLoading).toBe(false)
+  })
+
+  it('does not load operational overlays for authenticated non-members on the public surface', () => {
+    workspaceMock.isPublicSurface = true
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    // Public surface viewers (anonymous or without a workspace membership)
+    // must not hit workspace-gated API endpoints (401/403 console errors).
+    expect(useCandidateStatusHookMock).toHaveBeenCalledWith(false)
+    expect(useCandidateBlocksHookMock).toHaveBeenCalledWith(false)
+    expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
     expect(result.current.searchHistoryLoading).toBe(false)
   })
 

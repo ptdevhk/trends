@@ -28,6 +28,10 @@ vi.mock('@/contexts/ResumeFieldUsagePolicyContext', () => ({
   useResumeFieldUsagePolicy: () => useResumeFieldUsagePolicyMock(),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 function createResume(index: number, overrides: Partial<ConvexResumeItem> = {}): ConvexResumeItem {
   return {
     resumeId: `resume-${index}` as ConvexResumeItem['resumeId'],

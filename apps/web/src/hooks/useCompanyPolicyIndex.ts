@@ -7,6 +7,7 @@ import {
   type CompanyPolicyMatchHit,
 } from '@trends/shared'
 import { useCompanyPolicies } from '@/hooks/useCompanyPolicies'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 /** Last-built alias index for bulk handlers outside React render. */
 let lastAliasIndex: Map<string, CompanyPolicyIndexEntry> = new Map()
@@ -21,9 +22,15 @@ export function matchResumeCompanyPolicyCached(input: {
 /**
  * Workspace company-policy alias index for resume list/detail warning badges.
  * Policy is operational signal only — never rewrites AI score.
+ *
+ * The public resume surface is skipped entirely: the companies / policies
+ * endpoints are workspace-gated (401 for anonymous viewers, 403 for
+ * authenticated non-members), and policy badges are a workspace feature.
  */
 export function useCompanyPolicyIndex(enabled: boolean = true) {
-  const { companies, policies, loading, error, load } = useCompanyPolicies(enabled)
+  const { isPublicSurface } = useWorkspace()
+  const effectiveEnabled = enabled && !isPublicSurface
+  const { companies, policies, loading, error, load } = useCompanyPolicies(effectiveEnabled)
 
   const aliasIndex = useMemo(() => {
     const policiesByCompanyKey = new Map<string, CompanyPolicyEffects>()

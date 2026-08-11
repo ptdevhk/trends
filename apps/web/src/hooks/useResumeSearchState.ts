@@ -730,9 +730,12 @@ function ensureStoredSessionKey(storageKey: string): string {
 export function useResumeSearchState() {
   const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
-  const { slug } = useWorkspace()
+  const { slug, isPublicSurface } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
-  const canLoadOperationalState = isAuthenticated
+  // The public resume surface is read-only: workspace-gated operational
+  // endpoints (blocks, status, sessions) 401/403 for anonymous / non-member
+  // viewers, so they are skipped there entirely.
+  const canLoadOperationalState = isAuthenticated && !isPublicSurface
   const storageKey = `${SESSION_KEY_PREFIX}.${slug}`
   const [sessionKey, setSessionKey] = useState(() =>
     ensureStoredSessionKey(storageKey),
