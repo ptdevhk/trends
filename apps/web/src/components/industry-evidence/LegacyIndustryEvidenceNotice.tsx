@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 
-const REVIEW_INBOX_HREF = `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification?status=ready_for_review`
-
 export type IndustryEvidenceReviewTarget = {
   employerLabel: string
   proposalId: string
@@ -14,6 +12,8 @@ type LegacyIndustryEvidenceNoticeProps = {
   compact?: boolean
   showReviewAction?: boolean
   reviewTarget?: IndustryEvidenceReviewTarget
+  /** Base of the review surface for the current viewer; defaults to the canonical dev system base. */
+  reviewBasePath?: string
 }
 
 /**
@@ -24,11 +24,12 @@ export function LegacyIndustryEvidenceNotice({
   compact = false,
   showReviewAction = false,
   reviewTarget,
+  reviewBasePath = `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification`,
 }: LegacyIndustryEvidenceNoticeProps) {
   const { t } = useTranslation()
   const reviewHref = reviewTarget
-    ? `${SYSTEM_ROUTE_PREFIX}/settings/industry-verification/proposals/${encodeURIComponent(reviewTarget.proposalId)}`
-    : REVIEW_INBOX_HREF
+    ? `${reviewBasePath}/proposals/${encodeURIComponent(reviewTarget.proposalId)}`
+    : `${reviewBasePath}?status=ready_for_review`
 
   if (compact) {
     return (
