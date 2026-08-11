@@ -2396,16 +2396,66 @@ describe("companies routes", () => {
     expect(await parseJsonBody(response)).toEqual({ success: true, count: 2 });
   });
 
-  it("keeps the verified employer count admin-only", async () => {
-    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = createApp({ authStorage: auth.storage });
-    const response = await app.request(
-      "/api/company-industry-verified-employer-count",
-      { headers: auth.headers },
+  it("serves the verified employer count to any authenticated workspace user", async () => {
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
     );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+      {
+        companyKey: "polywell",
+        industryClass: "cnc",
+        displayName: "Polywell",
+        aliases: [],
+        updatedAt: 1,
+      },
+    ]);
 
-    expect(response.status).toBe(403);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // anonymous (no session) → 401
+    const anonymousApp = createApp();
+    const anonymousResponse = await anonymousApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+    expect(anonymousResponse.status).toBe(401);
+
+    // workspace user → 200 with count
+    const userAuth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const userApp = createApp({ authStorage: userAuth.storage });
+    const userResponse = await userApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: userAuth.headers },
+    );
+    expect(userResponse.status).toBe(200);
+    expect(await parseJsonBody(userResponse)).toEqual({ success: true, count: 2 });
+
+    // workspace admin → 200 with count
+    const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const adminApp = createApp({ authStorage: adminAuth.storage });
+    const adminResponse = await adminApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: adminAuth.headers },
+    );
+    expect(adminResponse.status).toBe(200);
+    expect(await parseJsonBody(adminResponse)).toEqual({ success: true, count: 2 });
+
+    // authenticated but outside the requested workspace → 403
+    const crossAuth = createAuthHeaders({
+      workspaceSlug: "hr",
+      requestWorkspaceSlug: "dev",
+      role: "user",
+    });
+    const crossApp = createApp({ authStorage: crossAuth.storage });
+    const crossResponse = await crossApp.request(
+      "/api/company-industry-verified-employer-count",
+      { headers: crossAuth.headers },
+    );
+    expect(crossResponse.status).toBe(403);
   });
 });

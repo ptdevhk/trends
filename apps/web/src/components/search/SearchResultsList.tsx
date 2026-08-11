@@ -412,7 +412,8 @@ export function SearchResultsList({
         <LegacyIndustryEvidenceNotice showReviewAction />
       ) : null}
       {verifiedOnlyNotice
-      && verifiedOnlyNotice.verifiedEmployerCount !== undefined
+      && typeof verifiedOnlyNotice.verifiedEmployerCount === 'number'
+      && verifiedOnlyNotice.verifiedEmployerCount > 0
       && ((verifiedOnlyNotice.minRoleYears ?? 0) > 0 || Boolean(verifiedOnlyNotice.roleFilterType)) ? (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm"

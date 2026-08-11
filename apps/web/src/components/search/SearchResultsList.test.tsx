@@ -509,6 +509,21 @@ describe('SearchResultsList', () => {
       expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
     })
 
+    it('does not render the notice when the employer count is zero', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{ minRoleYears: 3, roleFilterType: null, verifiedEmployerCount: 0 }}
+        />,
+      )
+
+      expect(screen.queryByTestId('resume-verified-only-notice')).not.toBeInTheDocument()
+    })
+
     it('does not render the notice when no role gate is active', () => {
       render(
         <SearchResultsList
