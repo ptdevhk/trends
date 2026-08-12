@@ -1075,6 +1075,8 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
+  const convexSearchFailed = resumeQuery.searchFailed === true
+  const convexRetrySearch = resumeQuery.retrySearch
   const isFiltering = isFilterPending || (loading && results.length > 0)
 
   // Log search analytics (fire-and-forget, debounced by query change)
@@ -2080,6 +2082,8 @@ export function useResumeSearchState() {
     isLanding,
     loading,
     loadingMore,
+    convexSearchFailed,
+    convexRetrySearch,
     isFiltering,
     parsedState,
     queryInput,

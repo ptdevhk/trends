@@ -93,6 +93,8 @@ export function ResumeSearchPage() {
     isLanding,
     loading,
     loadingMore,
+    convexSearchFailed,
+    convexRetrySearch,
     loadMore,
     parsedState,
     queryInput,
@@ -684,6 +686,8 @@ export function ResumeSearchPage() {
                   items={policyVisibleResults}
                   loading={loading}
                   loadingMore={loadingMore}
+                  searchFailed={convexSearchFailed}
+                  onRetrySearch={convexRetrySearch}
                   showAiScore={aiModeEnabled}
                   onLoadMore={loadMore}
                   onOpenDetail={supportsRoutedDetail ? handleOpenDetail : undefined}

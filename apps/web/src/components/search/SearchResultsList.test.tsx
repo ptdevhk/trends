@@ -179,6 +179,43 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
   })
 
+  it('renders an explicit search-failure panel with retry instead of the empty state', () => {
+    const onRetrySearch = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        searchFailed
+        onRetrySearch={onRetrySearch}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('没有符合该搜索条件的简历')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resume-search-failed-panel')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /重试|Retry|retry/i }))
+    expect(onRetrySearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the empty state when searchFailed but results exist', () => {
+    const { container } = render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        searchFailed
+        onRetrySearch={vi.fn()}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('resume-search-failed-panel')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-result-index="0"]')).not.toBeNull()
+  })
+
   it('guides a system admin to attended evidence review when results contain legacy rules signals', () => {
     useAuthMock.mockReturnValue({
       memberships: [{ workspaceSlug: 'dev', role: 'admin' }],

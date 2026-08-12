@@ -49,6 +49,8 @@ type SearchResultsListProps = {
   items: ResumeSearchResultItem[]
   loading?: boolean
   loadingMore?: boolean
+  searchFailed?: boolean
+  onRetrySearch?: () => void
   showAiScore?: boolean
   onLoadMore: () => void
   onOpenDetail?: (item: ResumeSearchResultItem) => void
@@ -110,6 +112,8 @@ export function SearchResultsList({
   items,
   loading = false,
   loadingMore = false,
+  searchFailed = false,
+  onRetrySearch,
   showAiScore = false,
   onLoadMore,
   onOpenDetail,
@@ -410,6 +414,37 @@ export function SearchResultsList({
     return (
       <>
         <SearchResultsSkeleton />
+        {detailDialog}
+      </>
+    )
+  }
+
+  if (items.length === 0 && searchFailed) {
+    return (
+      <>
+        <div
+          data-testid="resume-search-failed-panel"
+          className="flex flex-col items-center gap-3 rounded-[1.5rem] border border-destructive/40 bg-destructive/5 px-6 py-10 text-center"
+        >
+          <SearchCheck className="h-8 w-8 text-destructive/70" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              {t('resumes.searchPage.results.failedTitle', {
+                defaultValue: '搜索失败，请重试',
+              })}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t('resumes.searchPage.results.failedDescription', {
+                defaultValue: '搜索请求没有完成。结果可能仍然存在，请重试或刷新页面。',
+              })}
+            </p>
+          </div>
+          {onRetrySearch ? (
+            <Button size="sm" variant="outline" onClick={onRetrySearch}>
+              {t('common.retry', { defaultValue: '重试' })}
+            </Button>
+          ) : null}
+        </div>
         {detailDialog}
       </>
     )

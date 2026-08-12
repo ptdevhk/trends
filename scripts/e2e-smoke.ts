@@ -34,7 +34,7 @@ const SMOKE_VIEWPORT = { width: 1600, height: 1200 };
 const SEARCH_WITH_QUERY_URL = (baseUrl: string) =>
     `${baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`;
 const SEARCH_EMPTY_STATE_PATTERN = /没有匹配到简历|沒有符合的簡歷|No resumes matched this search|No resumes match this search/i;
-const SEARCH_RESULT_COUNT_PATTERN = /\d+\s*(条结果|條結果|results?)/i;
+const SEARCH_RESULT_COUNT_PATTERN = /\d+\+?\s*(条结果|條結果|results?)/i;
 const JOB5156_LOGIN_URL_PREFIX = 'https://hr.job5156.com/login'
 const JOB5156_SEARCH_URL_PREFIX = 'https://hr.job5156.com/search'
 const RUN_JOB5156_SMOKE_FLAG = '--run-job5156'
@@ -120,6 +120,12 @@ async function loadDeterministicSearchResults(page: Page) {
     const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
     const emptyState = page.getByRole('heading', { name: SEARCH_EMPTY_STATE_PATTERN }).first();
     const searchSubmitBtn = page.getByTestId('resume-search-submit');
+    // The search surfaces an explicit failure panel (with retry) instead of a
+    // false empty state when the BFF search drops (F11: the dev Vite proxy
+    // intermittently kills large search responses). The settle poll retries
+    // through it instead of timing out.
+    const searchFailedPanel = page.getByTestId('resume-search-failed-panel');
+    const searchRetryBtn = page.getByRole('button', { name: /Retry|重试|common\.retry/i });
 
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
@@ -129,13 +135,19 @@ async function loadDeterministicSearchResults(page: Page) {
 
     // The local backend can take 5–10s per search and the hook retries failed
     // fetches (ERR_FAILED under collection/analysis churn), so the results
-    // settle window can stretch well past 30s — poll generously.
+    // settle window can stretch well past 30s — poll generously, and click
+    // the search-failure retry when the explicit failure panel appears.
     await expect.poll(async () => {
         const hasResetBtn = await resetBtn.isVisible().catch(() => false);
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
+        if (!(hasResetBtn || hasCheckbox || hasEmptyState)) {
+            if (await searchFailedPanel.isVisible().catch(() => false)) {
+                await searchRetryBtn.click().catch(() => {});
+            }
+        }
         return hasResetBtn || hasCheckbox || hasEmptyState;
-    }, { timeout: 60000 }).toBe(true);
+    }, { timeout: 120000 }).toBe(true);
 
     const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
     if (hasResetBtn) {
@@ -145,8 +157,13 @@ async function loadDeterministicSearchResults(page: Page) {
     await expect.poll(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
+        if (!(hasCheckbox || hasEmptyState)) {
+            if (await searchFailedPanel.isVisible().catch(() => false)) {
+                await searchRetryBtn.click().catch(() => {});
+            }
+        }
         return hasCheckbox || hasEmptyState;
-    }, { timeout: 60000 }).toBe(true);
+    }, { timeout: 120000 }).toBe(true);
 
     return {
         keywordInput,
