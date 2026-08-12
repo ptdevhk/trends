@@ -233,7 +233,11 @@ Gotchas (all observed; F-numbers reference the nightly report):
 - `sales` empty state after e2e bulk actions = new-only filter, not a bug (F19).
 - e2e first-run flakes after cmux/chrome restarts = extension re-scrape churn (F17);
   settle polls reload on stuck loading + wait for analysis quiescence (F17 follow-ups).
-- Convex local backend heap grows ~1 GB/pass; trim floor 4 GB available (F18).
+- Convex local backend heap grows with activity (searches/ingest churn; ~100–150 MB/pass
+  steady-state, larger on first bursts; idle ≈ flat — no leak); trim floor 4 GB available (F18).
+  Root cause (2026-08-12): glibc-malloc heap ratchet in the precompiled backend
+  (Tantivy in-memory index + doc/version churn); no backend knob — restart is the
+  correct mitigation. See `~/wiki/raw/transcripts/2026-08-12-nightly-uat-root-cause-fixes.md`.
 
 ## Current Engineering Direction
 - Resume screening is the primary product path.
