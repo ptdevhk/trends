@@ -125,7 +125,6 @@ async function loadDeterministicSearchResults(page: Page) {
     // intermittently kills large search responses). The settle poll retries
     // through it instead of timing out.
     const searchFailedPanel = page.getByTestId('resume-search-failed-panel');
-    const searchRetryBtn = page.getByRole('button', { name: /Retry|重试|common\.retry/i });
 
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
@@ -133,37 +132,43 @@ async function loadDeterministicSearchResults(page: Page) {
         await keywordInput.press('Enter');
     }
 
-    // The local backend can take 5–10s per search and the hook retries failed
+    // The local backend can take 5–15s per search and the hook retries failed
     // fetches (ERR_FAILED under collection/analysis churn), so the results
-    // settle window can stretch well past 30s — poll generously, and click
-    // the search-failure retry when the explicit failure panel appears.
-    await expect.poll(async () => {
+    // settle window can stretch well past 30s — poll generously, and when the
+    // explicit search-failure panel appears, recover with a fresh page load:
+    // the F11 drops are connection-level, so retrying on the same connection
+    // keeps failing while a reload (new connection) recovers.
+    const settle = async (hasSettled: () => Promise<boolean>, timeoutMs: number) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            if (await hasSettled()) return true;
+            if (await searchFailedPanel.isVisible().catch(() => false)) {
+                await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+            }
+            await page.waitForTimeout(1500);
+        }
+        return hasSettled();
+    };
+
+    const settled = await settle(async () => {
         const hasResetBtn = await resetBtn.isVisible().catch(() => false);
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        if (!(hasResetBtn || hasCheckbox || hasEmptyState)) {
-            if (await searchFailedPanel.isVisible().catch(() => false)) {
-                await searchRetryBtn.click().catch(() => {});
-            }
-        }
         return hasResetBtn || hasCheckbox || hasEmptyState;
-    }, { timeout: 120000 }).toBe(true);
+    }, 120000);
+    expect(settled).toBe(true);
 
     const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
     if (hasResetBtn) {
         await resetBtn.click();
     }
 
-    await expect.poll(async () => {
+    const settledAfterReset = await settle(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        if (!(hasCheckbox || hasEmptyState)) {
-            if (await searchFailedPanel.isVisible().catch(() => false)) {
-                await searchRetryBtn.click().catch(() => {});
-            }
-        }
         return hasCheckbox || hasEmptyState;
-    }, { timeout: 120000 }).toBe(true);
+    }, 120000);
+    expect(settledAfterReset).toBe(true);
 
     return {
         keywordInput,
