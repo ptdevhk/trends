@@ -459,8 +459,13 @@ export function IndustryReviewInbox({
   }, [items, targetIsTerminal, targetItem])
 
   useEffect(() => {
-    onLoadedProposalsChange?.(itemsWithTarget.map((item) => item.proposal))
-  }, [itemsWithTarget, onLoadedProposalsChange])
+    // Report the QUEUE order (not the target-prepended display order) so the
+    // detail header's Previous/Next can move to the adjacent queue rows.
+    // The prepended `itemsWithTarget` view would put the selected target at
+    // index 0, making Previous wrap to the queue tail and Next jump to the
+    // queue head instead of the real neighbors.
+    onLoadedProposalsChange?.(items.map((item) => item.proposal))
+  }, [items, onLoadedProposalsChange])
 
   const partition = useMemo(() => {
     const base = partitionReviewQueue(itemsWithTarget, sessionApprovals)

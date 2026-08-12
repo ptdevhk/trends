@@ -605,6 +605,116 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     }
   })
 
+  it('navigates Previous/Next to adjacent queue rows when a detail is open (not the queue tail/head)', async () => {
+    const user = userEvent.setup()
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+    useWorkspaceMock.mockReturnValue({
+      slug: 'hr',
+      name: 'hr',
+      isAdmin: false,
+      surface: 'workspace',
+      isSystemSurface: false,
+      isPublicSurface: false,
+    })
+
+    const alpha = {
+      ...proposal,
+      _id: 'row-alpha',
+      proposalId: 'proposal-alpha',
+      companyKey: 'alpha-cnc',
+      materialChangeSummary: 'Alpha catalog changed.',
+    }
+    const beta = {
+      ...proposal,
+      _id: 'row-beta',
+      proposalId: 'proposal-beta',
+      companyKey: 'beta-cnc',
+      materialChangeSummary: 'Beta catalog changed.',
+    }
+    const gamma = {
+      ...proposal,
+      _id: 'row-gamma',
+      proposalId: 'proposal-gamma',
+      companyKey: 'gamma-cnc',
+      materialChangeSummary: 'Gamma catalog changed.',
+    }
+    const byId: Record<string, typeof proposal> = {
+      'proposal-alpha': alpha,
+      'proposal-beta': beta,
+      'proposal-gamma': gamma,
+    }
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [
+            { proposal: alpha, recommendation: { ...recommendation, proposalId: 'proposal-alpha' }, sourceCount: 1 },
+            { proposal: beta, recommendation: { ...recommendation, proposalId: 'proposal-beta' }, sourceCount: 1 },
+            { proposal: gamma, recommendation: { ...recommendation, proposalId: 'proposal-gamma' }, sourceCount: 1 },
+          ],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.endsWith('/review-packet')) {
+        const proposalId = decodeURIComponent(path.match(/\/api\/company-industry-proposals\/([^/]+)\/review-packet$/)![1])
+        const target = byId[proposalId]
+        return target
+          ? Promise.resolve({ ...reviewPacket, proposal: target })
+          : Promise.reject(new Error(`Unexpected review packet request: ${path}`))
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/hr/system/settings/industry-verification')
+
+    // Open the MIDDLE row's detail: the queue is [alpha, beta, gamma].
+    await user.click(await screen.findByTestId('industry-review-row-proposal-beta'))
+    await screen.findAllByText('BETA CNC')
+
+    // Previous must go to the queue row BEFORE beta (alpha), not the queue tail.
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-alpha',
+      )
+    })
+
+    // Next walks forward in queue order: alpha -> beta -> gamma.
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-beta',
+      )
+    })
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-gamma',
+      )
+    })
+
+    // Wrap-around: Next from the queue tail returns to the queue head.
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-alpha',
+      )
+    })
+
+    // And Previous from the queue head wraps to the queue tail.
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-gamma',
+      )
+    })
+  })
+
   it('does not scroll the detail section on an initial deep link', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
