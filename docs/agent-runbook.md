@@ -180,6 +180,61 @@ make check-project-skills
 - Browser extension-specific guidance:
   - `{REPO_ROOT}/apps/browser-extension/CLAUDE.md`
 
+## Nightly UAT & Fix Loop (preview branch)
+
+Unattended overnight UAT + fix cycle: a full pass runs every ~30–40 min (a 10-min
+scheduler fires `/tmp/nightly-uat.lock`-guarded passes; fires skip while a pass runs),
+on the **preview branch** against the **local dev stack** (`make dev`, localhost only),
+stopping at 09:00 with a finalized report. Proven across 35 passes (2026-08-11/12:
+14 commits — 4 product fixes, 10 harness hardenings).
+
+Operational flow per pass:
+1. **Branch guard:** `preview-v0.4.23`, clean worktree. Never commit/push off preview,
+   never open PRs, never tag/deploy, never touch remote hosts (ptcloud /
+   preview.pt-mes.com / prod).
+2. **Self-enable (idempotent):** boot `make dev` if :5173 down; seed `hr-demo`
+   (`npm run auth:bootstrap-hr-demo`) and `uat-reviewer`
+   (`npx tsx scripts/auth/manage-user.ts --username uat-reviewer --workspace hr
+   --role reviewer --password-env AUTH_BOOTSTRAP_PASSWORD`); ensure the chrome-debug
+   profile + `Page.bringToFront` on the ACTIVE tab (backgrounded tabs throttle rAF →
+   smooth scroll-to-detail silently no-ops, F16); restart cmux-devtools if the CDP
+   websocket wedges (F14).
+3. **Memory trim (pre-gate):** if `free -m` available < 4000 MB or swap > 90% →
+   restart the convex local backend via `scripts/dev.sh --convex-only --no-seed`
+   (F18: pkill+respawn does NOT work on the precompiled supervisor; kill by
+   port-derived PID; healthy ~30s; worker heartbeat lags ~1–2 gate runs after restart,
+   self-recovers). Then `sync && echo 3 > /proc/sys/vm/drop_caches` + `swappiness=10`.
+4. **Gates (all exit 0):** `bun run verify:critical-path`, `npm run e2e` (e2e-smoke),
+   `bun run setup:industry-review-uat` (if fixtures missing) +
+   `bun run verify:industry-review-uat -- --base-url http://localhost:3000`,
+   `make check` when code changed.
+5. **Browser UAT (playwright-cli, localhost:5173 only):** hr-demo smoke routes +
+   6-step checklist (`dev-docs/qa/critical-path-ui-smoke.md`); uat-reviewer
+   industry-review workflow (sidebar 行业验证 entry, proposals list, 查看 no
+   SystemAccessGate bounce, queue-ordered prev/next, scroll-to-detail, verdict
+   revision, evidence sources, legacy notice). 0 app console errors.
+6. **Fix loop:** confirmed issue → systematic-debugging → TDD tests first → minimal fix →
+   re-run affected gate + unit tests → browser re-verify → commit
+   `fix(...): ... [nightly-uat]` → push to origin/preview-v0.4.23 only when all gates
+   + tests pass.
+7. **Report:** `/tmp/uat-report-<date>.md` (one row per pass), evidence under
+   `/tmp/uat-evidence/`, P1/P2 vault captures at
+   `raw/transcripts/YYYY-MM-DD-nightly-uat-*.md`; the 09:00 pass writes the FINAL
+   SUMMARY (pass count, fixed/open findings, per-critical-path verdicts) + one-line retro.
+
+Gotchas (all observed; F-numbers reference the nightly report):
+- `bun run <pkg-script>` does not propagate .env to tsx children — export
+  `CONVEX_WRITE_SECRET`/auth vars before gates (F32).
+- chrome-debug profile is shared across UAT roles — sessions flip between passes;
+  e2e self-heals via `ensureDevAdminSession` (F12); re-login per role walk.
+- 智通直聘 extension auto-scrape can hijack the driven tab to job5156 (F18b) — settle
+  recovery tracks API responses + query-param re-navigation, not DOM state.
+- Search failure panel (重试) vs true empty state: assert the correct one (F11/F14).
+- `sales` empty state after e2e bulk actions = new-only filter, not a bug (F19).
+- e2e first-run flakes after cmux/chrome restarts = extension re-scrape churn (F17);
+  settle polls reload on stuck loading + wait for analysis quiescence (F17 follow-ups).
+- Convex local backend heap grows ~1 GB/pass; trim floor 4 GB available (F18).
+
 ## Current Engineering Direction
 - Resume screening is the primary product path.
 - Convex-first ingest/query flow powers pre-computed matching.

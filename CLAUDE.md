@@ -71,6 +71,29 @@ enforced by tests/CI:
   `CI=true make check-build` + `make test-coverage`) — it reproduces the CI
   gates locally. `NODE_VERSION_STRICT=1` upgrades the node-major mismatch to a
   hard failure.
+- **Nightly UAT & fix loop conventions (2026-08-12, 35 unattended passes on
+  preview-v0.4.23 — do not reintroduce):**
+  - **`bun run <pkg-script>` does NOT propagate `.env` vars to `tsx` children**
+    (F32). Export `CONVEX_WRITE_SECRET`, `AUTH_BOOTSTRAP_PASSWORD`,
+    `AUTH_HR_DEMO_PASSWORD` (`set -a; source .env; set +a`) before gate/seed runs.
+  - **The chrome-debug profile is shared across UAT roles** (hr-demo / demo-admin /
+    uat-reviewer): sessions flip between passes and silently bounce `/admin/*`
+    routes. e2e self-heals via `ensureDevAdminSession` (F12); loop re-logs per role walk.
+  - **The 智通直聘 extension auto-scrape can navigate the driven tab to job5156
+    mid-test** (F18b): e2e settle recovery must track completed API responses +
+    query-param re-navigation, not DOM state alone.
+  - **Search failure panel ≠ empty state**: a dropped BFF search shows the failure
+    panel with 重试 (F11 fix); an explicit empty state means genuinely zero matches.
+    Assert the right one.
+  - **`sales` empty state after e2e bulk actions is expected** (F19): the default
+    new-only status filter hides shortlisted fixtures; `?status=shortlisted` shows them.
+  - **Convex local backend heap grows ~1 GB per UAT pass**; at <4 GB available,
+    restart via `scripts/dev.sh --convex-only --no-seed` (F18) — the precompiled
+    supervisor does NOT respawn a killed backend. Kill by port-derived PID, never
+    `pkill -f "convex dev --local"` (self-matches the invoking shell).
+  - **e2e settle polls must tolerate** analysis churn (Vite proxy drops large
+    responses, browser-only), extension churn, and slow-backend loading skeletons.
+    Reload/query-param recovery beats retry-clicks (connection-level drops).
 
 <!-- AGENT_POLICY:BEGIN -->
 <!--
