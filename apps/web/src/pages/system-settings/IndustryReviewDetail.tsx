@@ -62,6 +62,7 @@ export function IndustryProposalHeaderCard({
   onPrevious: () => void
   onNext: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <Card>
       <CardHeader>
@@ -73,11 +74,23 @@ export function IndustryProposalHeaderCard({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onPrevious} disabled={!canMove || saving}>
-              Previous
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPrevious}
+              disabled={!canMove || saving}
+              aria-label={t('industryEvidence.previousProposal', { defaultValue: 'Previous proposal' })}
+            >
+              {t('industryEvidence.previous', { defaultValue: 'Previous' })}
             </Button>
-            <Button size="sm" variant="outline" onClick={onNext} disabled={!canMove || saving}>
-              Next
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onNext}
+              disabled={!canMove || saving}
+              aria-label={t('industryEvidence.nextProposal', { defaultValue: 'Next proposal' })}
+            >
+              {t('industryEvidence.next', { defaultValue: 'Next' })}
             </Button>
             <Badge>{proposal.status}</Badge>
           </div>

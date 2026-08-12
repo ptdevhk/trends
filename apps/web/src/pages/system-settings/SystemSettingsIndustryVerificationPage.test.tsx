@@ -677,7 +677,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     await screen.findAllByText('BETA CNC')
 
     // Previous must go to the queue row BEFORE beta (alpha), not the queue tail.
-    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    await user.click(screen.getByRole('button', { name: 'Previous proposal' }))
     await waitFor(() => {
       expect(screen.getByTestId('test-location-path')).toHaveTextContent(
         '/industry-verification/proposals/proposal-alpha',
@@ -685,13 +685,13 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
 
     // Next walks forward in queue order: alpha -> beta -> gamma.
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
     await waitFor(() => {
       expect(screen.getByTestId('test-location-path')).toHaveTextContent(
         '/industry-verification/proposals/proposal-beta',
       )
     })
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
     await waitFor(() => {
       expect(screen.getByTestId('test-location-path')).toHaveTextContent(
         '/industry-verification/proposals/proposal-gamma',
@@ -699,7 +699,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
 
     // Wrap-around: Next from the queue tail returns to the queue head.
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
     await waitFor(() => {
       expect(screen.getByTestId('test-location-path')).toHaveTextContent(
         '/industry-verification/proposals/proposal-alpha',
@@ -707,12 +707,19 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
 
     // And Previous from the queue head wraps to the queue tail.
-    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    await user.click(screen.getByRole('button', { name: 'Previous proposal' }))
     await waitFor(() => {
       expect(screen.getByTestId('test-location-path')).toHaveTextContent(
         '/industry-verification/proposals/proposal-gamma',
       )
     })
+
+    // The nav buttons must use the translated labels (zh-Hans: 上一个/下一个) with
+    // accessible names from the industryEvidence namespace, not hardcoded English.
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.previous', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.previousProposal', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.next', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.nextProposal', expect.anything())
   })
 
   it('does not scroll the detail section on an initial deep link', async () => {
