@@ -125,6 +125,11 @@ async function loadDeterministicSearchResults(page: Page) {
     // intermittently kills large search responses). The settle poll retries
     // through it instead of timing out.
     const searchFailedPanel = page.getByTestId('resume-search-failed-panel');
+    // The hook keeps the loading state across its internal retries (3
+    // attempts), so with slow/dropped requests the page can sit loading for
+    // 90–180s — the failure panel only appears AFTER the retries exhaust.
+    // A stuck-loading reload gives a fresh connection before that.
+    const loadingIndicator = page.getByText(/搜索中|加载中|正在加载|Loading/i).first();
 
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
@@ -140,8 +145,20 @@ async function loadDeterministicSearchResults(page: Page) {
     // keeps failing while a reload (new connection) recovers.
     const settle = async (hasSettled: () => Promise<boolean>, timeoutMs: number) => {
         const deadline = Date.now() + timeoutMs;
+        const STUCK_LOADING_MS = 40000;
+        let loadingSince = 0;
         while (Date.now() < deadline) {
             if (await hasSettled()) return true;
+            const isLoading = await loadingIndicator.isVisible().catch(() => false);
+            if (isLoading) {
+                if (loadingSince === 0) loadingSince = Date.now();
+                else if (Date.now() - loadingSince > STUCK_LOADING_MS) {
+                    loadingSince = 0;
+                    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+                }
+            } else {
+                loadingSince = 0;
+            }
             if (await searchFailedPanel.isVisible().catch(() => false)) {
                 await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
             }
@@ -549,10 +566,39 @@ async function runAnalysisTest(page: Page) {
     console.log('✅ AI Analysis test passed.');
 }
 
+/**
+ * The collection test dispatches a task whose auto-analyze runs concurrently
+ * with the search test and can make the search response 10x slower (the
+ * e2e self-poisoning pattern). Wait for analysis tasks to drain before the
+ * search tests so the backend is quiescent.
+ */
+async function waitForAnalysisQuiescence(page: Page, timeoutMs = 180000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const active = await page.evaluate(async () => {
+            try {
+                const response = await fetch('/api/resumes/analysis-tasks', {
+                    credentials: 'include',
+                    headers: { 'X-Workspace-Slug': 'dev' },
+                });
+                const payload = await response.json();
+                const tasks = payload.tasks ?? payload.items ?? [];
+                return tasks.filter((task: { status?: string }) => (
+                    task.status === 'pending' || task.status === 'processing'
+                )).length;
+            } catch {
+                return -1;
+            }
+        }).catch(() => -1);
+        if (active === 0) return;
+        await page.waitForTimeout(5000);
+    }
+    console.log('⚠️ Analysis tasks still active after the quiescence wait; continuing.');
+}
+
 async function runBulkActionsTest(page: Page) {
     console.log('Testing Critical Path 4: Bulk Actions...');
     const { firstCheckbox, emptyState } = await loadDeterministicSearchResults(page);
-
     const isEmpty = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
     if (isEmpty) {
         console.log('⚠️ Bulk Actions skipped: 0 search results for deterministic query.');
@@ -716,6 +762,7 @@ async function main() {
             return;
         }
         await runCollectionTest(page);
+        await waitForAnalysisQuiescence(page);
         await runSearchTest(page);
         await runAnalysisTest(page);
         await runBulkActionsTest(page);
