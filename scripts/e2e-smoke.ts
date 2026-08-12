@@ -151,10 +151,12 @@ async function loadDeterministicSearchResults(page: Page) {
     };
 
     const settled = await settle(async () => {
-        const hasResetBtn = await resetBtn.isVisible().catch(() => false);
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        return hasResetBtn || hasCheckbox || hasEmptyState;
+        // Deliberately NOT the reset button: it renders in the pre-search
+        // state too, which would let the first settle pass before the search
+        // actually produced results or an empty verdict.
+        return hasCheckbox || hasEmptyState;
     }, 120000);
     expect(settled).toBe(true);
 
