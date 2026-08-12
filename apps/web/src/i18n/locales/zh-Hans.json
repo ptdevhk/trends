@@ -500,6 +500,8 @@
       "results": {
         "emptyTitle": "没有匹配到简历",
         "emptyDescription": "可以尝试更宽泛的关键词，或者移除部分筛选条件。",
+        "failedTitle": "搜索失败，请重试",
+        "failedDescription": "搜索请求没有完成。结果可能仍然存在，请重试或刷新页面。",
         "loadingMore": "正在加载更多简历...",
         "scrollForMore": "向下滚动查看更多",
         "endOfResults": "已到底部"

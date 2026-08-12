@@ -501,6 +501,8 @@
       "results": {
         "emptyTitle": "No resumes matched this search",
         "emptyDescription": "Try broader keywords or remove a few facet filters to widen the result set.",
+        "failedTitle": "Search failed, please retry",
+        "failedDescription": "The search request did not complete. Results may still exist — please retry or refresh the page.",
         "loadingMore": "Loading more resumes...",
         "scrollForMore": "Scroll for more",
         "endOfResults": "End of results"
