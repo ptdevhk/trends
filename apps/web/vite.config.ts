@@ -85,6 +85,16 @@ export default defineConfig({
     host: true,
     port: 5173,
     allowedHosts: true,
+    configureServer(server) {
+      // Nightly-UAT F11: Node's 5 s default keepAliveTimeout closes idle
+      // keep-alive sockets that the browser still holds in its pool; reusing
+      // a closed socket resets the request (net::ERR_FAILED) — browser-only,
+      // bursts of 3, self-heals on reload. The API server got the same
+      // keepAliveTimeout raise; keep this leg alive too. headersTimeout must
+      // stay above keepAliveTimeout (Node docs).
+      server.httpServer.keepAliveTimeout = 65_000
+      server.httpServer.headersTimeout = 70_000
+    },
     proxy: {
       '/api': {
         target: `http://localhost:${apiPort}`,
