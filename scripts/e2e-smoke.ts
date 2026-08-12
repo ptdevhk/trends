@@ -6,7 +6,7 @@ import {
     measureWebVitals,
     collectConsoleErrors,
 } from './e2e-utils';
-import { Locator, Page, expect } from '@playwright/test';
+import { Locator, Page, Response, expect } from '@playwright/test';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import { readFileSync } from 'node:fs';
@@ -125,11 +125,10 @@ async function loadDeterministicSearchResults(page: Page) {
     // intermittently kills large search responses). The settle poll retries
     // through it instead of timing out.
     const searchFailedPanel = page.getByTestId('resume-search-failed-panel');
-    // The hook keeps the loading state across its internal retries (3
-    // attempts), so with slow/dropped requests the page can sit loading for
-    // 90–180s — the failure panel only appears AFTER the retries exhaust.
-    // A stuck-loading reload gives a fresh connection before that.
-    const loadingIndicator = page.getByText(/搜索中|加载中|正在加载|Loading/i).first();
+    // Stuck-mode detection lives inside settle(): it tracks completed API
+    // responses (network progress) rather than the loading indicator, whose
+    // flicker across the hook's internal retries defeated a loading-based
+    // counter (see settle below).
 
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
@@ -145,26 +144,59 @@ async function loadDeterministicSearchResults(page: Page) {
     // keeps failing while a reload (new connection) recovers.
     const settle = async (hasSettled: () => Promise<boolean>, timeoutMs: number) => {
         const deadline = Date.now() + timeoutMs;
-        const STUCK_LOADING_MS = 40000;
-        let loadingSince = 0;
-        while (Date.now() < deadline) {
-            if (await hasSettled()) return true;
-            const isLoading = await loadingIndicator.isVisible().catch(() => false);
-            if (isLoading) {
-                if (loadingSince === 0) loadingSince = Date.now();
-                else if (Date.now() - loadingSince > STUCK_LOADING_MS) {
-                    loadingSince = 0;
-                    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        const NO_PROGRESS_MS = Number(process.env.E2E_RECOVERY_MS ?? 40000);
+        const dbg = process.env.E2E_DEBUG === '1';
+        const startedAt = Date.now();
+        // Progress = any completed API response. Failed/dropped requests emit
+        // no response event, so this distinguishes "slow but progressing"
+        // searches (wait for them) from stuck ones (drops, missed submits,
+        // silent hangs — recover). The loading-flag flicker that defeated the
+        // old stuck-loading counter is irrelevant to this signal.
+        let lastApiResponseAt = Date.now();
+        const onApiResponse = (resp: Response) => {
+            if (/\/api\//.test(resp.url())) lastApiResponseAt = Date.now();
+        };
+        page.on('response', onApiResponse);
+        // Recovery = fresh navigation to the query-param URL. The SPA
+        // auto-runs the search from URL params (verified live), so a
+        // navigation both re-issues the search and gets a fresh connection.
+        // Navigation (not page.reload) guarantees the query param is present
+        // even when the original submit never registered on the page.
+        const recover = async (reason: string) => {
+            if (dbg) console.log(`[e2e-debug] RECOVERY(${reason})`);
+            await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl), { waitUntil: 'domcontentloaded' }).catch(() => {});
+            await page.setViewportSize(SMOKE_VIEWPORT);
+            lastApiResponseAt = Date.now();
+        };
+        try {
+            // Test hook: exercise the recovery path on demand (E2E_FORCE_RECOVERY=1).
+            if (process.env.E2E_FORCE_RECOVERY === '1') {
+                await recover('forced');
+            }
+            while (Date.now() < deadline) {
+                if (await hasSettled()) return true;
+                if (dbg) {
+                    const inputVal = await keywordInput.inputValue().catch(() => '<n/a>');
+                    console.log(`[e2e-debug] t=${((Date.now() - startedAt) / 1000).toFixed(0)}s input="${inputVal}" url=${page.url()}`);
                 }
-            } else {
-                loadingSince = 0;
+                if (await searchFailedPanel.isVisible().catch(() => false)) {
+                    await recover('failure-panel');
+                    continue;
+                }
+                // No-progress net: ANY stuck mode (silent hang, missed submit,
+                // connection-level drops) recovers with a fresh query-param
+                // navigation instead of polling to the deadline. Overridable
+                // via E2E_RECOVERY_MS for stress runs.
+                if (Date.now() - lastApiResponseAt > NO_PROGRESS_MS) {
+                    await recover('no-progress');
+                    continue;
+                }
+                await page.waitForTimeout(1500);
             }
-            if (await searchFailedPanel.isVisible().catch(() => false)) {
-                await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
-            }
-            await page.waitForTimeout(1500);
+            return hasSettled();
+        } finally {
+            page.off('response', onApiResponse);
         }
-        return hasSettled();
     };
 
     const settled = await settle(async () => {
