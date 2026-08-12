@@ -158,9 +158,17 @@ async function loadDeterministicSearchResults(page: Page) {
     }, 120000);
     expect(settled).toBe(true);
 
-    const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
-    if (hasResetBtn) {
-        await resetBtn.click();
+    // Only click the filters reset when the first settle ended WITHOUT
+    // results. The reset re-runs the search, and that re-search is the most
+    // drop-prone request of the whole run (observed failing the second
+    // settle on consecutive passes right after the chrome/cmux restart).
+    // With results already on screen the reset is a no-op, so skip it.
+    const hasCheckboxAfterFirstSettle = await firstCheckbox.isVisible({ timeout: 2000 }).catch(() => false);
+    if (!hasCheckboxAfterFirstSettle) {
+        const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
+        if (hasResetBtn) {
+            await resetBtn.click();
+        }
     }
 
     const settledAfterReset = await settle(async () => {
