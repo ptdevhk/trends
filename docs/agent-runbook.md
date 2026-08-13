@@ -147,6 +147,8 @@ make check-project-skills
 - After changing shared generated search-profile templates or YAML profiles, rebuild `@trends/shared`.
 - `make clear-resumes` may hit `OptimisticConcurrencyControlFailure`; rerun until `partial:false`.
 - Large local Convex restores may hit `TooManyWrites 429`; wait 30–60s and retry.
+- **Backup restore: `maintenanceMode` flag.** Convex exports from `backup-prod-complete.sh` capture `maintenanceMode=true` (writer-quiesce during backup). Restoring without clearing blocks all writes — logins return 503 "Maintenance mode active". `dev_import_convex` now auto-clears unless `RESTORE_KEEP_MAINTENANCE=1`. For manual restores: `npx convex run system_settings:set '{"key":"maintenanceMode","value":false,"updatedBy":"manual"}'`.
+- **Parity comparison: version check.** Browser parity smoke scripts now compare `/health` version before reporting IDENTICAL. When versions differ, verdict is `VERSION-DIFFERS` — cross-version search-total comparison is informational, not a parity gate. Use `PARITY_STRICT_SEARCH=1` for same-code comparisons only. Public prod/preview domains serve HTML at `/health` (Caddy static); version resolves to `'unknown'`, which correctly forces `VERSION-DIFFERS`.
 - After Node version changes, run `npm rebuild better-sqlite3`.
 - Removing a skill from `config/skills/install.yaml` also requires removing installed copies from `.agents/skills/`, `.claude/skills/`, and `~/.codex/skills/`.
 - Pre-push hook runs `make i18n-check` when locale files change.
