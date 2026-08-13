@@ -120,7 +120,7 @@ async function probeResumeSearch(browser, baseUrl) {
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const localVer = await fetchVersion(LOCAL_API);
 const prodVer = await fetchVersion(PROD);
-const versionMatch = localVer === prodVer;
+const versionMatch = localVer === prodVer && localVer !== 'unknown';
 const localResearch = await probeResearchPage(browser, LOCAL);
 const prodResearch = await probeResearchPage(browser, PROD);
 const localResume = await probeResumeSearch(browser, LOCAL);

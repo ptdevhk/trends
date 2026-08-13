@@ -70,7 +70,7 @@ async function probeSite(browser, baseUrl) {
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const previewVer = await fetchVersion(PREVIEW);
 const prodVer = await fetchVersion(PROD);
-const versionMatch = previewVer === prodVer;
+const versionMatch = previewVer === prodVer && previewVer !== 'unknown';
 const prod = await probeSite(browser, PROD);
 const preview = await probeSite(browser, PREVIEW);
 await browser.close();
