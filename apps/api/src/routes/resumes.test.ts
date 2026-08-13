@@ -1976,6 +1976,88 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "resumes:getByIdsForExport")).toBe(true);
   });
 
+  it("keys score-sort and recommendation match lookups by resumeId when id derivation differs (key-space F5 follow-up)", async () => {
+    // Regression guard for the pre-existing key-space mismatch: the fallback
+    // working-set recommendation filter and score sort must look up matchMap by
+    // the Convex _id (candidate.resumeId), not by resolveResumeId(item) — those
+    // can differ when the content's platform resumeId (a short source id) is
+    // not the Convex document id. This exercises the non-pre-paged fallback
+    // path (no keyword, match filters present → prepareConvexCandidates path).
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("convex-id-1", { id: 1, score: 96, recommendation: "match" }),
+          buildStoredMatch("convex-id-2", { id: 2, score: 81, recommendation: "match" }),
+          buildStoredMatch("convex-id-3", { id: 3, score: 74, recommendation: "potential" }),
+        ],
+        total: 3,
+      });
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("convex-id-1", { name: "Alice" }),
+          buildConvexExportResumeRecord("convex-id-2", { name: "Bob" }),
+          buildConvexExportResumeRecord("convex-id-3", { name: "Carla" }),
+        ]);
+      }
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: [
+            // Content platform resumeId ("13467969") differs from the Convex _id
+            // ("convex-id-1") — exactly the divergence that broke the old
+            // item.id-based match lookups.
+            { resume: buildConvexResumeRecord("convex-id-1", { name: "Alice" }), provenance: [] },
+            { resume: buildConvexResumeRecord("convex-id-2", { name: "Bob" }), provenance: [] },
+            { resume: buildConvexResumeRecord("convex-id-3", { name: "Carla" }), provenance: [] },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    // recommendation=match should drop "potential" (score 74) Carla; score-sort
+    // should order Alice (96) before Bob (81). If lookups used the fallback id
+    // (which resolves to profileUrl here), matchMap lookups would miss and all
+    // rows would be dropped / sorted as -1.
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=5&jobDescriptionId=jd-1&recommendation=match&sortBy=score"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob"]);
+    // The pre-paged match-storage path is used (recommendation + score-sort),
+    // so getMatchesPageForJob runs; getMatchesByResumeIds is NOT called on the
+    // pre-paged path.
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      recommendation: ["match"],
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+  });
+
   it("applies minScore filter on the convex keyword path (F5)", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
