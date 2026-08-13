@@ -8,7 +8,7 @@
  * Environment variables:
  * - AI_ANALYSIS_ENABLED: Enable AI features (default: false)
  * - AI_ANALYSIS_RESUMES_ENABLED: Enable resume AI features (default: true)
- * - AI_MODEL: Model identifier in format provider/model (default: openai/gpt-4o-mini)
+ * - AI_MODEL: Model identifier in format provider/model (default: openai/deepseek-v4-flash)
  * - AI_API_KEY: API key for the AI provider
  * - AI_API_BASE: Custom API base URL (e.g., https://api.poe.com/v1)
  * - AI_TEMPERATURE: Sampling temperature (default: 0)
@@ -40,7 +40,7 @@ export function loadAIConfig(): AIConfig {
     const resumesEnabled = process.env.AI_ANALYSIS_RESUMES_ENABLED !== undefined
         ? process.env.AI_ANALYSIS_RESUMES_ENABLED === "true"
         : true;
-    const model = process.env.AI_MODEL || "openai/gpt-4o-mini";
+    const model = process.env.AI_MODEL || "openai/deepseek-v4-flash";
     const apiKey = process.env.AI_API_KEY || "";
     const apiBase = process.env.AI_API_BASE || undefined;
     const temperature = parseFloat(process.env.AI_TEMPERATURE || "0");
@@ -75,7 +75,7 @@ export function validateAIConfig(): { valid: boolean; error?: string } {
     }
 
     if (!aiConfig.model.includes("/")) {
-        return { valid: false, error: `Invalid model format: ${aiConfig.model}. Should be 'provider/model' (e.g., 'openai/gpt-4o-mini')` };
+        return { valid: false, error: `Invalid model format: ${aiConfig.model}. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')` };
     }
 
     return { valid: true };
@@ -94,7 +94,7 @@ export function validateResumeAIConfig(): { valid: boolean; error?: string } {
     }
 
     if (!aiConfig.model.includes("/")) {
-        return { valid: false, error: `Invalid model format: ${aiConfig.model}. Should be 'provider/model' (e.g., 'openai/gpt-4o-mini')` };
+        return { valid: false, error: `Invalid model format: ${aiConfig.model}. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')` };
     }
 
     return { valid: true };

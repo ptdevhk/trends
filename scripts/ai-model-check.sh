@@ -96,7 +96,7 @@ if [ -n "$MODEL" ] && [ -n "$API_KEY" ]; then
 fi
 
 # Check 5: Known-model warning
-KNOWN_MODELS="gpt-4o-mini gpt-4o gpt-4-turbo gpt-4 gpt-3.5-turbo openai/gpt-4o-mini openai/gpt-4o openai/gpt-4-turbo-preview deepseek/deepseek-chat deepseek/deepseek-reasoner"
+KNOWN_MODELS="gpt-4o-mini gpt-4o gpt-4-turbo gpt-4 gpt-3.5-turbo openai/gpt-4o-mini openai/gpt-4o openai/gpt-4-turbo-preview deepseek/deepseek-chat deepseek/deepseek-reasoner deepseek-v4-flash openai/deepseek-v4-flash"
 if [ -n "$MODEL" ]; then
   STRIPPED="${MODEL#*/}"
   if echo "$KNOWN_MODELS" | grep -qw "$MODEL" || echo "$KNOWN_MODELS" | grep -qw "$STRIPPED"; then

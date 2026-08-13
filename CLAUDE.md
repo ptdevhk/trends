@@ -95,6 +95,11 @@ enforced by tests/CI:
     responses, browser-only), extension churn, and slow-backend loading skeletons.
     Reload/query-param recovery beats retry-clicks (connection-level drops).
 
+## AI Model Policy (locked 2026-08-13)
+- Default/basic model for all daily agent tasks on the Trends platform: `openai/deepseek-v4-flash` (Poe gateway `AI_API_BASE=https://api.poe.com/v1`). ADR: `{WIKI_VAULT}/projects/trends/architecture/decisions/2026-08-13-deepseek-v4-flash-default-model.md`
+- Canonical env form is `provider/model` (app validation requires it; `scripts/ai-model-check.sh` known-good list has both forms). Code fallback default: `apps/api/src/services/ai-config.ts`.
+- Reasoning-model caveat: Poe returns empty `content` with populated `reasoning_content` for this model on short prompts — expected.
+
 <!-- AGENT_POLICY:BEGIN -->
 <!--
 ## Agent Governance Policy (Canonical)
