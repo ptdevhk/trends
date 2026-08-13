@@ -1917,6 +1917,161 @@ describe("resume routes", () => {
     }));
   });
 
+  it("applies minScore filter on the default convex search path (F5)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-1", { id: 1, score: 88 }),
+          buildStoredMatch("resume-live-2", { id: 2, score: 75 }),
+          buildStoredMatch("resume-live-3", { id: 3, score: 91 }),
+        ],
+        total: 3,
+      });
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexExportResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80&jobDescriptionId=jd-1");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    // The match-storage page is mocked WITHOUT SQL-side minScore filtering, so
+    // the route itself must drop the sub-80 match (F5).
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Carla"]);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      returned: 2,
+      source: "convex",
+    }));
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      minScore: 80,
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+    expect(calls.some((call) => call.pathName === "resumes:getByIdsForExport")).toBe(true);
+  });
+
+  it("applies minScore filter on the convex keyword path (F5)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockImplementation((resumeIds) =>
+        resumeIds.flatMap((resumeId) => {
+          const score = resumeId === "resume-live-1" ? 88 : resumeId === "resume-live-2" ? 75 : resumeId === "resume-live-3" ? 91 : undefined;
+          return score !== undefined ? [buildStoredMatch(resumeId, { score })] : [];
+        })
+      );
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80&q=CNC&jobDescriptionId=jd-1");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Carla"]);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
+  });
+
+  it("treats minScore as a no-op without a JD on the convex path (F5 documented limitation)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:listWithIngestData") {
+        return convexSuccess([
+          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    // Without a JD there are no match scores, so minScore cannot filter —
+    // documented as expected behavior (F5).
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob", "Carla"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+  });
+
   it("pages recommendation-filtered convex results through match storage", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi

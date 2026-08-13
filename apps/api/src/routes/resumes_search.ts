@@ -1006,6 +1006,34 @@ app.openapi(getResumesRoute, (c) => {
         }
         } // end if (prepared.length === 0 && !hybridSearchMode)
 
+        // Load match context before local filtering so minScore can be
+        // enforced uniformly on every path below (F5).
+        const needsMatchContext = Boolean(
+          resolvedJobId
+          && (minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0 || sortBy === "score")
+        );
+
+        if (!matchMap && needsMatchContext && resolvedJobId) {
+          matchMap = loadResumeMatchContextMap(
+            matchStorage,
+            resolvedJobId,
+            prepared.map((item) => item.resumeId),
+          );
+        }
+
+        // F5: minScore must apply on all paths. The pre-paged match path
+        // (usesPrePagedMatchResults) skips the working-set filter below, so
+        // minScore is enforced here keyed by candidate resumeId, which matches
+        // the matchMap key space on every path. Idempotent when prep already
+        // filtered server-side. Without a resolved JD there are no scores, so
+        // minScore is a no-op by design (scores only exist against a JD).
+        if (minMatchScore !== undefined && matchMap) {
+          prepared = prepared.filter((candidate) => {
+            const match = matchMap?.get(candidate.resumeId);
+            return match && match.score >= minMatchScore;
+          });
+        }
+
         // When the cursor scan path already applied filters server-side via
         // Convex's matchesResumeListFilters, skip redundant local filtering
         // for those filter fields that Convex already handled. Local filtering
@@ -1023,27 +1051,8 @@ app.openapi(getResumesRoute, (c) => {
           id: resolveResumeId(item, index),
         }));
 
-        const needsMatchContext = Boolean(
-          resolvedJobId
-          && (minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0 || sortBy === "score")
-        );
-
-        if (!matchMap && needsMatchContext && resolvedJobId) {
-          matchMap = loadResumeMatchContextMap(
-            matchStorage,
-            resolvedJobId,
-            prepared.map((item) => item.resumeId),
-          );
-        }
-
         let working = enriched;
         if (!usesPrePagedMatchResults && matchMap) {
-          if (minMatchScore !== undefined) {
-            working = working.filter((item) => {
-              const match = matchMap?.get(item.id);
-              return match && match.score >= minMatchScore;
-            });
-          }
           if (normalizedRecommendations?.length) {
             const allowed = new Set(normalizedRecommendations);
             working = working.filter((item) => {
