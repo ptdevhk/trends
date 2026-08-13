@@ -499,6 +499,8 @@
       },
       "results": {
         "emptyTitle": "沒有符合的簡歷",
+        "failedTitle": "搜索失敗，請重試",
+        "failedDescription": "搜索請求未完成。結果可能仍然存在，請重試或刷新頁面。",
         "emptyDescription": "可以嘗試更寬泛的關鍵詞，或移除部分篩選條件。",
         "loadingMore": "正在載入更多簡歷...",
         "scrollForMore": "向下捲動查看更多",
