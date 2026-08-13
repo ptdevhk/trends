@@ -481,6 +481,38 @@ describe("resume identity selector normalization", () => {
         )).toBe("ehire.51job.com/revision/talent/resume/detail?contenttype=&resumeid=123456");
     });
 
+    // F3 regression guard: 51job profile URLs must keep their full query
+    // string in the identity key. Seek-only guards (name-search / recommended
+    // list) are host-gated and must never catch ehire.51job.com URLs.
+    it("preserves the full query string in 51job profile URLs", () => {
+        const url = "https://ehire.51job.com/revision/talent/resume/detail?con=abc123&token=xyz";
+        const result = normalizeResumeProfileUrl(url, "ehire.51job.com");
+        expect(result).toBe("ehire.51job.com/revision/talent/resume/detail?con=abc123&token=xyz");
+        expect(result).toContain("con=abc123");
+        expect(result).not.toBe("ehire.51job.com/revision/talent/resume/detail?con");
+    });
+
+    it("does not truncate 51job URLs with multiple query params", () => {
+        const url = "https://ehire.51job.com/revision/talent/resume/detail?con=abc123&channel=hr&source=51job";
+        const result = normalizeResumeProfileUrl(url, "ehire.51job.com");
+        expect(result).toBe(
+            "ehire.51job.com/revision/talent/resume/detail?channel=hr&con=abc123&source=51job",
+        );
+        expect(result).toContain("con=abc123");
+    });
+
+    it("derives full 51job identity keys (prefix included) and does not fall to a truncated key", () => {
+        const key = deriveResumeIdentityKey({
+            externalId: "51job:resume:abc123",
+            source: "ehire.51job.com",
+            content: {
+                profileUrl: "https://ehire.51job.com/revision/talent/resume/detail?con=abc123",
+            },
+        });
+        expect(key).toBe("profileUrl:ehire.51job.com/revision/talent/resume/detail?con=abc123");
+        expect(key).not.toBe("profileUrl:ehire.51job.com/revision/talent/resume/detail?con");
+    });
+
     it("normalizes supported identity-key prefixes and rejects unknown keys", () => {
         expect(normalizeResumeIdentityKey(" ResumeId:ABC-123 ")).toBe("resumeId:abc-123");
         expect(normalizeResumeIdentityKey("profileUrl:https://example.com/candidate/1/"))
