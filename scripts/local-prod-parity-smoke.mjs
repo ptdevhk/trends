@@ -5,7 +5,18 @@ import { chromium } from 'playwright';
 
 const LOCAL = 'http://localhost:5173';
 const PROD = 'https://trends.pt-mes.com';
+// /health lives on the API (:3000), not the Vite dev server (:5173)
+const LOCAL_API = 'http://localhost:3000';
 const QUERY = 'location=China&q=CNC+%E9%94%80%E5%94%AE&minRoleYears=1&roleType=sales&minAge=25&maxAge=40';
+
+async function fetchVersion(baseUrl) {
+    try {
+        const r = await fetch(`${baseUrl}/health`);
+        if (!r.ok) return 'unknown';
+        const j = await r.json();
+        return j.version || 'unknown';
+    } catch { return 'unknown'; }
+}
 const HR_USER = process.env.BOOTSTRAP_HR_DEMO_USER || 'hr-demo';
 const HR_PASS = process.env.AUTH_HR_DEMO_PASSWORD || '';
 
@@ -107,6 +118,9 @@ async function probeResumeSearch(browser, baseUrl) {
 }
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+const localVer = await fetchVersion(LOCAL_API);
+const prodVer = await fetchVersion(PROD);
+const versionMatch = localVer === prodVer;
 const localResearch = await probeResearchPage(browser, LOCAL);
 const prodResearch = await probeResearchPage(browser, PROD);
 const localResume = await probeResumeSearch(browser, LOCAL);
@@ -118,12 +132,16 @@ const researchMatch = JSON.stringify(localResearch.apis.map(a => ({ status: a.st
 const resumeMatch = localResume.api.total === prodResume.api.total
     && JSON.stringify(localResume.api.names) === JSON.stringify(prodResume.api.names);
 
+const verdict = (researchMatch && resumeMatch && versionMatch) ? 'IDENTICAL' :
+    (!versionMatch ? 'VERSION-DIFFERS' : 'DIFFERS');
+
 console.log(JSON.stringify({
+    versions: { local: localVer, prod: prodVer, match: versionMatch },
     research: { local: localResearch, prod: prodResearch, identical: researchMatch },
     resumeSearch: {
         local: { total: localResume.api.total, names: localResume.api.names, ui: localResume.ui },
         prod: { total: prodResume.api.total, names: prodResume.api.names, ui: prodResume.ui },
         identical: resumeMatch,
     },
-    verdict: researchMatch && resumeMatch ? 'IDENTICAL' : 'DIFFERS',
+    verdict,
 }, null, 2));

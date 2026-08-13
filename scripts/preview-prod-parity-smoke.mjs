@@ -7,6 +7,15 @@ import { chromium } from 'playwright';
 const PROD = 'https://trends.pt-mes.com';
 const PREVIEW = 'https://preview.pt-mes.com';
 const QUERY = 'location=China&q=CNC+%E9%94%80%E5%94%AE&minRoleYears=1&roleType=sales&minAge=25&maxAge=40';
+
+async function fetchVersion(baseUrl) {
+    try {
+        const r = await fetch(`${baseUrl}/health`);
+        if (!r.ok) return 'unknown';
+        const j = await r.json();
+        return j.version || 'unknown';
+    } catch { return 'unknown'; }
+}
 const HR_USER = process.env.BOOTSTRAP_HR_DEMO_USER || 'hr-demo';
 const HR_PASS = process.env.AUTH_HR_DEMO_PASSWORD || '';
 
@@ -59,6 +68,9 @@ async function probeSite(browser, baseUrl) {
 }
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+const previewVer = await fetchVersion(PREVIEW);
+const prodVer = await fetchVersion(PROD);
+const versionMatch = previewVer === prodVer;
 const prod = await probeSite(browser, PROD);
 const preview = await probeSite(browser, PREVIEW);
 await browser.close();
@@ -66,7 +78,18 @@ await browser.close();
 const match = (a, b) => {
     const total = a.api.total === b.api.total;
     const names = JSON.stringify(a.api.names) === JSON.stringify(b.api.names);
-    return { total, names, verdict: total && names ? 'IDENTICAL' : 'DIFFERS' };
+    return {
+        total,
+        names,
+        versionMatch,
+        verdict: (total && names && versionMatch) ? 'IDENTICAL' :
+            (!versionMatch ? 'VERSION-DIFFERS' : 'DIFFERS'),
+    };
 };
 
-console.log(JSON.stringify({ prod, preview, comparison: match(prod, preview) }, null, 2));
+console.log(JSON.stringify({
+    versions: { preview: previewVer, prod: prodVer, match: versionMatch },
+    prod,
+    preview,
+    comparison: match(prod, preview),
+}, null, 2));
