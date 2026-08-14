@@ -14,6 +14,7 @@ vi.mock("./convex-utils.js", () => ({
 
 vi.mock("./config.js", () => ({
   config: { auth: { convexWriteSecret: "test-secret" } },
+  getConvexWriteSecret: () => "test-secret",
 }));
 
 vi.mock("./company-industry-recompute-service.js", () => ({

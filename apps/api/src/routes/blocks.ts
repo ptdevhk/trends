@@ -5,7 +5,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 
 import { callConvexQuery, callConvexMutation } from "../services/convex-utils.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 import { listCandidateBlocks } from "../services/candidate-block-service.js";
 
@@ -130,7 +130,7 @@ app.openapi(upsertRoute, async (c) => {
       identityKey: identityKeys[0],
       reason: body.reason,
       blockedBy: actorId,
-      writeSecret: config.auth.convexWriteSecret,
+      writeSecret: getConvexWriteSecret(),
     });
 
     return c.json({
@@ -152,7 +152,7 @@ app.openapi(upsertRoute, async (c) => {
       identityKeys: batch,
       reason: body.reason,
       blockedBy: actorId,
-      writeSecret: config.auth.convexWriteSecret,
+      writeSecret: getConvexWriteSecret(),
     });
 
     const normalized = isRecord(result) ? result : {};
@@ -200,7 +200,7 @@ app.openapi(patchRoute, async (c) => {
     workspaceSlug: c.var.workspaceSlug,
     identityKey,
     reason: body.reason,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
 
   return c.json({ success: true as const, updated: updated === true }, 200);
@@ -227,7 +227,7 @@ app.openapi(deleteRoute, async (c) => {
   const removed = await callConvexMutation( "candidate_blocks:remove", {
     workspaceSlug: c.var.workspaceSlug,
     identityKey: query.identityKey,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
 
   return c.json({ success: true as const, removed: removed === true }, 200);

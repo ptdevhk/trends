@@ -70,7 +70,7 @@ import {
   retryIndustryEvidenceResearch,
 } from "../services/industry-evidence-research-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { verifiedEmployerCatalog } from "../services/verified-employer-catalog-service.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
@@ -1013,13 +1013,20 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
           .filter((key): key is string => Boolean(key?.trim())),
       ),
     ).slice(0, 200);
+    // CJK company keys (CN registry lanes) are legal Convex values but can
+    // never be object keys in a Convex JSON response, so the impact query
+    // runs on the ASCII-safe projection only. Missing keys resolve to 0 in
+    // the row mapping below.
+    const asciiCompanyKeys = companyKeys.filter((key) =>
+      /^[\x00-\x7F]+$/.test(key),
+    );
     const impact =
-      companyKeys.length > 0
+      asciiCompanyKeys.length > 0
         ? await callConvexQuery(
             "companies:getIndustryResumeImpactByCompanyKey",
             {
-              companyKeys,
-              writeSecret: config.auth.convexWriteSecret,
+              companyKeys: asciiCompanyKeys,
+              writeSecret: getConvexWriteSecret(),
             },
           )
         : {};
@@ -2313,7 +2320,7 @@ app.openapi(listIndustryMaintenanceRunsRoute, async (c) => {
     workspaceSlug: c.var.workspaceSlug,
     ...(status ? { status } : {}),
     ...(limit ? { limit } : {}),
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });
@@ -2343,7 +2350,7 @@ app.openapi(getIndustryMaintenanceRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await callConvexQuery("companies:getIndustryMaintenanceRun", {
     runId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, item: item ?? null }, 200);
 });
@@ -2373,7 +2380,7 @@ app.openapi(listIndustryMaintenanceLedgerByRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
     runId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });
@@ -2403,7 +2410,7 @@ app.openapi(listIndustryMaintenanceLedgerByProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
     proposalId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });

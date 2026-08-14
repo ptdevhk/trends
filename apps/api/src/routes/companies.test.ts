@@ -445,6 +445,83 @@ describe("companies routes", () => {
     });
   });
 
+  it("serves the review queue when the queue contains CJK company keys (no ASCII field-name crash)", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "listIndustryReviewQueue").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      items: [
+        {
+          proposal: {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "上海易初电线电缆有限公司",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          recommendation: {
+            proposalId: "proposal-1",
+            proposalStatus: "ready_for_review",
+            recommendedAction: "inspect",
+            recommendedVerificationLevel: "verified",
+            recommendedIndustryClass: "industrial",
+            recommendedSourceIds: [],
+            sourceDecisions: [],
+            confidenceBand: "low",
+            riskFlags: ["canonical_mapping_missing"],
+            riskDecision: {
+              requiresAcknowledgement: true,
+              nonOverridableRiskFlags: ["canonical_mapping_missing"],
+              canApproveWithRiskOverride: false,
+            },
+            reasons: ["Proposal is not mapped to a canonical company."],
+            excludedSourceReasons: {},
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+            requiresHumanReview: true,
+            autoApprovable: false,
+          },
+          inputFingerprint: "fingerprint-1",
+          sourceCount: 1,
+        },
+      ],
+      maintenance: { latest: null, lastFailed: null },
+    });
+    const impactCalls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      impactCalls.push(call);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        // The API must NOT forward CJK keys to Convex (they cannot be JSON
+        // object keys there); the impact query runs on the ASCII-safe
+        // projection only and the row mapping resolves CJK keys to 0.
+        expect(call.args).toMatchObject({
+          companyKeys: [],
+          writeSecret: expect.any(String),
+        });
+        return convexSuccess({});
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/review-queue?status=ready_for_review&limit=20",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ items: Array<{ resumeImpact: number }> }>(response);
+    expect(body.items[0].resumeImpact).toBe(0);
+    // The CJK key was filtered out before the Convex call (empty keys
+    // array), so the impact query was skipped entirely.
+    expect(impactCalls).toHaveLength(0);
+  });
+
   it("keeps the review packet admin-only", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const fetchSpy = vi.spyOn(globalThis, "fetch");

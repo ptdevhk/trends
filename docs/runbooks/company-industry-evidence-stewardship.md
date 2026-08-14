@@ -244,9 +244,12 @@ bun run verify:industry-review-uat -- --base-url http://localhost:3000
 
 # Namespaced local setup only. This refuses non-loopback Convex URLs and requires
 # CONVEX_WRITE_SECRET; it writes an ignored before-snapshot under tmp/.
+# --workspace overrides the default 'dev' fixture workspace (e.g. --workspace hr).
 bun --env-file=.env.local run setup:industry-review-uat -- --allow-local-write
 
 # Browser path reaches confirmation but intercepts approval, so it cannot mutate truth.
+# --workspace defaults to 'hr' (the reviewer workspace route); pass --workspace dev to
+# run against the dev workspace. Row selection uses data-testid (locale-independent).
 bun run verify:industry-review-browser-uat -- --storage-state tmp/industry-review/browser-state.json
 
 # After one attended approval in the authenticated local UI, verify coverage,
@@ -259,6 +262,34 @@ fixture. There is no setup reset or cleanup command: preserve the namespaced evi
 the before-snapshot, and the post-UAT report for review. The CLI remains read-only;
 `trends industry recommend` consumes the recommendation-only endpoint and cannot
 approve, reject, or bulk-mutate industry truth.
+
+#### Fixture company mapping (CN, 2026-08-14)
+
+The `companyKeyByCase` block in `scripts/industry-review/fixtures/cnc-review-cases.json`
+is a local-environment binding: it must point at companies that already exist in the
+local Convex registry with no open proposal. The mapping was rebound from the original
+MY bootstrap companies (adastream-sdn-bhd, airtac-industrial-malaysia-sdn-bhd,
+alps-electric, amerix-metal-machining-technology, anoz-aluminiumsuzhoucoltd,
+autoveyor-malaysia-sdn-bhd) to the CN registry lane:
+
+| Case | Local company | Why |
+|---|---|---|
+| explicit-cnc (manual approval) | `polywell` | Zero resume links + zero prior verdict revisions → recompute reaches terminal and verified-profile delta is exactly +1 |
+| keyword-only | `pro-technic-machinery` | Canonical CNC machine-tool distributor |
+| discovery-only | `candidate-a863a82c…` (济南创开电气) | Provisional electrical-equipment company |
+| stale-source | `上海易初电线电缆有限公司` | Already-verified industrial; "previous catalog unavailable" narrative |
+| conflict | `candidate-493dce82…` (宁波中大力德) | Reducer/transmission maker sits between CNC and automation |
+| worker-failure | `米思米中国精密机械贸易有限公司` | Maintenance-only case; carries corpus links (unused by this case) |
+
+Rebinding rules of thumb (enforced by the harness): the mapped company must (1) exist
+in `companies:list`, (2) have no open proposal with a different proposalId
+(`setup-local-uat.ts` fails otherwise), (3) have **no verified industry profile** for
+the manual-approval case (approval patches the profile in place, so a pre-existing
+profile makes the post-UAT verified-profile delta 0), and (4) be findable by the
+browser UAT (row selection now uses the row's `data-testid`; a company with zero
+corpus links keeps the recompute run clean). Avoid companies whose resumes carry
+real corpus links for the manual case — the recompute re-ingest can stall on
+`industry_evidence_company_link_missing` targets.
 
 ### Reading the ledger to debug "why didn't employer X surface?"
 

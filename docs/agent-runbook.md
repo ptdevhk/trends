@@ -211,6 +211,11 @@ Operational flow per pass:
    `bun run setup:industry-review-uat` (if fixtures missing) +
    `bun run verify:industry-review-uat -- --base-url http://localhost:3000`,
    `make check` when code changed.
+   The industry-review fixture's `companyKeyByCase` maps to CN companies present in
+   local Convex (explicit-cnc → `polywell`; see the stewardship runbook for the table
+   and rebinding rules). The browser UAT stage takes `--workspace` (default `hr`;
+   `dev` for the dev workspace) and selects the manual-approval row by `data-testid`,
+   so it never depends on localized button text.
 5. **Browser UAT (playwright-cli, localhost:5173 only):** hr-demo smoke routes +
    6-step checklist (`dev-docs/qa/critical-path-ui-smoke.md`); uat-reviewer
    industry-review workflow (sidebar 行业验证 entry, proposals list, 查看 no

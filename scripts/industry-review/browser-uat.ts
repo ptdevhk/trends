@@ -13,6 +13,7 @@ type CliOptions = {
   baseUrl: string
   stateFile: string
   storageState?: string
+  workspace: string
 }
 
 function fail(message: string): never {
@@ -23,6 +24,7 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     baseUrl: 'http://localhost:5173',
     stateFile: resolve('tmp/industry-review/cnc-cockpit-uat-before.json'),
+    workspace: 'hr',
   }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
@@ -35,13 +37,10 @@ function parseArgs(argv: string[]): CliOptions {
     if (arg === '--base-url') options.baseUrl = next().replace(/\/$/, '')
     else if (arg === '--state-file') options.stateFile = resolve(next())
     else if (arg === '--storage-state') options.storageState = resolve(next())
+    else if (arg === '--workspace') options.workspace = next()
     else fail(`unknown option ${arg}`)
   }
   return options
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function main(): Promise<void> {
@@ -70,15 +69,16 @@ async function main(): Promise<void> {
   })
 
   try {
-    const response = await page.goto(`${options.baseUrl}/admin/system/settings/industry-verification?proposalId=${encodeURIComponent(`${state.namespace}/${state.manualApprovalCase.slice(state.namespace.length + 1)}`)}`, { waitUntil: 'networkidle' })
+    const response = await page.goto(`${options.baseUrl}/${options.workspace}/system/settings/industry-verification?proposalId=${encodeURIComponent(`${state.namespace}/${state.manualApprovalCase.slice(state.namespace.length + 1)}`)}`, { waitUntil: 'networkidle' })
     if (!response || response.status() >= 400) fail(`reviewer cockpit route returned ${response?.status() ?? 'no response'}`)
-    const companiesResponse = await page.request.get(`${options.baseUrl}/api/companies`)
+    const companiesResponse = await page.request.get(`${options.baseUrl}/api/companies`, { headers: { 'X-Workspace-Slug': options.workspace } })
     if (!companiesResponse.ok()) fail(`company registry request returned ${companiesResponse.status()}`)
     const companies = await companiesResponse.json() as { items?: Array<{ companyKey: string; displayName: string }> }
     const company = companies.items?.find((item) => item.companyKey === companyKey)
     if (!company) fail(`local company ${companyKey} is not visible to the authenticated browser`)
 
-    const queueButton = page.getByRole('button', { name: new RegExp(escapeRegExp(company.displayName), 'i') }).first()
+    const proposalId = `${state.namespace}/${state.manualApprovalCase.slice(state.namespace.length + 1)}`
+    const queueButton = page.locator(`[data-testid="industry-review-row-${proposalId}"] button`).first()
     await queueButton.waitFor({ state: 'visible', timeout: 15_000 })
     await queueButton.click()
     const attestation = page.getByTestId('industry-review-risk-attestation')

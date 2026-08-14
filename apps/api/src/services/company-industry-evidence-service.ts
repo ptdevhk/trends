@@ -9,7 +9,7 @@ import {
   parseIndustryEvidenceSource,
   type IndustryEvidenceSource,
 } from "./company-industry-contracts.js";
-import { config } from "./config.js";
+import { getConvexWriteSecret, config } from "./config.js";
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 
@@ -18,7 +18,7 @@ export async function listIndustryEvidenceSources(filter: {
   proposalId?: string;
 } = {}): Promise<IndustryEvidenceSource[]> {
   const value = await callConvexQuery("companies:listIndustryEvidenceSources", {
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
     ...(filter.companyKey ? { companyKey: filter.companyKey } : {}),
     ...(filter.proposalId ? { proposalId: filter.proposalId } : {}),
   });
@@ -59,7 +59,7 @@ export async function upsertIndustryEvidenceSource(input: {
   const value = await callConvexMutation("companies:upsertIndustryEvidenceSource", {
     ...input,
     url: normalizedUrl.url,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   if (
     value === null ||

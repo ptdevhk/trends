@@ -19,7 +19,7 @@ import { seedIndustryDataFromFiles } from "../services/industry-data-seed.js";
 import { EntryTypeSchema } from "../services/industry-data-validators.js";
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
 import { callConvexMutation } from "../services/convex-utils.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
@@ -484,7 +484,7 @@ app.openapi(seedRoute, async (c) => {
         data: entry.data,
         sortOrder: entry.sortOrder,
         actor,
-        writeSecret: config.auth.convexWriteSecret,
+        writeSecret: getConvexWriteSecret(),
       });
       return { entryId: entry.entryId };
     },
