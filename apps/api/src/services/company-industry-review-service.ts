@@ -10,7 +10,6 @@ import {
   normalizeIndustryEvidenceUrl,
   reviewAttestationDecision,
   type IndustryReviewRiskDecision,
-  type IndustryClass,
   type IndustryReviewAction,
   type IndustryReviewConfidenceBand,
   type IndustryReviewDataset,
@@ -243,12 +242,46 @@ function buildRecommendation(input: {
   const sortedSources = [...sources].sort(sourceSort);
   const targetIndustryClass =
     proposal.suggestedIndustryClass ?? profile?.industryClass ?? "unknown";
-  const sourceClasses = new Set(
-    sortedSources
-      .map((source) => source.suggestedIndustryClass)
-      .filter((value): value is IndustryClass => Boolean(value && value !== "unknown")),
+  // Source-class conflict signal: only approval-eligible evidence counts.
+  // Discovery/search-result rows (unvetted web hits, 360 map oneboxes) carry
+  // keyword-derived classes from unproven boilerplate; letting them vote
+  // creates false source_conflict blocks on otherwise-clean registry-backed
+  // proposals (observed on the CN registry lane).
+  const classCarryingSources = sortedSources.filter(
+    (source) =>
+      source.sourceType !== "search_result" &&
+      source.trustTier !== "discovery" &&
+      source.fetchStatus === "fetched" &&
+      source.sourceState !== "unavailable" &&
+      Boolean(source.suggestedIndustryClass) &&
+      source.suggestedIndustryClass !== "unknown",
   );
-  if (targetIndustryClass !== "unknown") sourceClasses.add(targetIndustryClass);
+  // Conflict votes are weighted by evidence durability: only primary/
+  // authoritative classes (official sites, registry records) can veto each
+  // other or the proposed class. A corroborating prose class (wiki page,
+  // news article) must never block an authoritative registry class —
+  // observed on the CN lane where a baike metrology row vetoed a shuidi
+  // industrial record (2026-08-14).
+  const durableClasses = new Set(
+    classCarryingSources
+      .filter(
+        (source) =>
+          source.trustTier === "primary" || source.trustTier === "authoritative",
+      )
+      .map((source) => source.suggestedIndustryClass),
+  );
+  const classVotes = new Set(durableClasses);
+  if (targetIndustryClass !== "unknown") classVotes.add(targetIndustryClass);
+  for (const source of classCarryingSources) {
+    if (source.trustTier !== "primary" && source.trustTier !== "authoritative") {
+      classVotes.add(source.suggestedIndustryClass);
+    }
+  }
+  const sourceClassConflict = durableClasses.size > 0
+    ? durableClasses.size > 1 ||
+      (targetIndustryClass !== "unknown" &&
+        !durableClasses.has(targetIndustryClass))
+    : classVotes.size > 1;
 
   const riskFlags = new Set<IndustryReviewRiskFlag>();
   const reasons: string[] = [];
@@ -261,7 +294,7 @@ function buildRecommendation(input: {
     reasons.push("The proposal is not mapped to a canonical company.");
   }
 
-  if (sourceClasses.size > 1) {
+  if (sourceClassConflict) {
     riskFlags.add("source_conflict");
     reasons.push("Sources suggest conflicting industry classes.");
   }
@@ -321,7 +354,11 @@ function buildRecommendation(input: {
       reasonCodes.push("source_rejected");
       usable = false;
     }
-    if (sourceClasses.size > 1 && source.suggestedIndustryClass) {
+    if (
+      sourceClassConflict &&
+      source.suggestedIndustryClass &&
+      source.suggestedIndustryClass !== "unknown"
+    ) {
       reasonCodes.push("class_conflict");
       usable = false;
     }
@@ -350,7 +387,15 @@ function buildRecommendation(input: {
     riskFlags.add("low_source_diversity");
   } else if (
     eligibleSources.length === 1 &&
-    eligibleSources[0]?.trustTier !== "primary"
+    eligibleSources[0]?.trustTier !== "primary" &&
+    // A single authoritative registry record is durable, machine-verifiable
+    // evidence (the SSM lane approves on one registry row); do not flag it
+    // with low_source_diversity. Prose primary sources (official sites) and
+    // corroborating rows keep the flag — weaker evidence on its own.
+    !(
+      eligibleSources[0]?.sourceType === "registry" &&
+      eligibleSources[0]?.trustTier !== "discovery"
+    )
   ) {
     riskFlags.add("low_source_diversity");
   }
@@ -401,7 +446,25 @@ function buildRecommendation(input: {
     "stale_or_failed_source",
     "low_source_diversity",
   ]);
-  const hasBlockingRisk = [...riskFlags].some((flag) => blockingFlags.has(flag));
+  // Registry lanes (SSM + CN shuidi/qcc) approve on a single authoritative
+  // registry record; for those the diversity flag is informational, not
+  // blocking. Prose-primary and discovery-only cases keep it blocking.
+  const nonBlockingFlags = new Set<IndustryReviewRiskFlag>(
+    // Registry lanes (SSM + CN shuidi/qcc) approve on a single
+    // authoritative registry record; for those the diversity flag is
+    // informational, not blocking. Everything else keeps it blocking.
+    (eligibleSources.length === 1 &&
+    eligibleSources[0]?.sourceType === "registry" &&
+    eligibleSources[0]?.trustTier !== "discovery"
+      ? ["low_source_diversity"]
+      : []) as IndustryReviewRiskFlag[],
+  );
+  const blockingFlagsRemaining = [...riskFlags].filter(
+    (flag) => !nonBlockingFlags.has(flag),
+  );
+  const hasBlockingRisk = blockingFlagsRemaining.some((flag) =>
+    blockingFlags.has(flag),
+  );
   let recommendedAction: IndustryReviewAction;
   if (!proposal.companyKey || targetIndustryClass === "unknown") {
     recommendedAction = "inspect";

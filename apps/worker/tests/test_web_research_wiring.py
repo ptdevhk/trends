@@ -11,6 +11,7 @@ from apps.worker.web_research.search import (
     DuckDuckGoSearchProvider,
     GoogleNewsRssSearchProvider,
     NewsNowSearchProvider,
+    So360SearchProvider,
 )
 
 _WEB_RESEARCH_ENV_KEYS = [
@@ -19,6 +20,7 @@ _WEB_RESEARCH_ENV_KEYS = [
     "TAVILY_API_KEY",
     "BRAVE_API_KEY",
     "FIRECRAWL_API_KEY",
+    "WEB_RESEARCH_360_ENABLED",
 ]
 
 
@@ -49,6 +51,19 @@ def test_build_discovery_job_from_env_builds_zero_key_chain(monkeypatch):
     assert isinstance(job.search_chain[2], GoogleNewsRssSearchProvider)
     assert isinstance(job.fetcher, GuardedWebResearchFetcher)
     assert job.config.enabled is True
+
+
+def test_build_discovery_job_from_env_so360_opt_in_prepends_cn_keyword_lane(monkeypatch):
+    for key in _WEB_RESEARCH_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("WEB_RESEARCH_ENABLED", "1")
+    monkeypatch.setenv("WEB_RESEARCH_360_ENABLED", "1")
+    job = ier.build_discovery_job_from_env()
+    assert isinstance(job, DiscoveryJob)
+    assert len(job.search_chain) == 4
+    assert isinstance(job.search_chain[0], So360SearchProvider)
+    assert isinstance(job.search_chain[1], NewsNowSearchProvider)
+    assert job.config.so360_enabled is True
 
 
 def test_run_industry_evidence_maintenance_skip_path_unchanged(monkeypatch):

@@ -727,3 +727,55 @@ describe("company-link backfill (F1)", () => {
     expect(batch?.resumeIds).toEqual([String(staleResume)]);
   });
 });
+
+  it("backfills shared-corpus resumes into their owning workspace via digest statuses", async () => {
+    // Shared-corpus resumes carry no workspaceSlug; ownership lives in
+    // resume_digest_statuses. The backfill must write the link under the
+    // owning workspace so a per-workspace recompute finds its resumes
+    // (observed 2026-08-14: hr approvals no-oped because links landed in dev).
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-hr");
+    await seedRegistrySource(t, "source-hr", "proposal-hr");
+
+    const shared = await seedResume(t, {
+      content: { workHistory: [{ companyName: "ACME CNC Sdn Bhd" }] },
+      externalId: "shared-1",
+      identityKey: "id:shared-1",
+      // no workspaceSlug on purpose
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: shared,
+        identityKey: "id:shared-1",
+        workspaceSlug: "hr",
+        status: "new",
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.action(
+      api.companies.backfillCompanyResumeLinksByCompanySync,
+      { companyKey: "acme-cnc", writeSecret: WRITE_SECRET },
+    );
+    expect(result.matchedRows).toBeGreaterThanOrEqual(1);
+    expect(result.linkedRows).toBeGreaterThanOrEqual(1);
+
+    // hr recompute sees the resume; dev does not.
+    const hrAffected = await t.query(api.companies.listAffectedResumesByCompany, {
+      workspaceSlug: "hr",
+      companyKey: "acme-cnc",
+      limit: 50,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(hrAffected.items.map((item) => String(item.resumeId))).toEqual([
+      String(shared),
+    ]);
+
+    const devAffected = await t.query(api.companies.listAffectedResumesByCompany, {
+      workspaceSlug: "dev",
+      companyKey: "acme-cnc",
+      limit: 50,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(devAffected.items).toHaveLength(0);
+  });

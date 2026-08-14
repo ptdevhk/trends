@@ -3,9 +3,11 @@ from apps.worker.web_research.search import (
     GoogleNewsRssSearchProvider,
     NewsNowSearchProvider,
     SearchResult,
+    So360SearchProvider,
     build_search_chain,
 )
 from apps.worker.web_research.config import load_web_research_config
+from urllib.parse import quote_plus
 
 DDG_HTML = """
 <html><body>
@@ -147,6 +149,121 @@ def test_google_news_rss_bad_xml_returns_empty():
         fetcher=FakeFetcher({GN_URL: "<html>captcha</html>"})
     )
     assert provider.search("New Line Machine Tool", max_results=5) == []
+
+
+# --- 360 (so.com) CN keyword provider -------------------------------------
+
+SO360_PAGE = """<html><body>
+<ol class="res-list">
+<li class="res-list">
+  <h3 class="res-title"><a href="https://www.so.com/link?m=e8ppAAAA">深圳市新汉科技有限公司官网</a></h3>
+  <p class="res-desc">深圳市新汉科技有限公司 创立于2010年，是一家集电子元器件代理、分销与方案设计开发为一体的国家高新技术企业。</p>
+</li>
+<li class="res-list">
+  <h3 class="res-title"><a href="https://www.so.com/link?m=bjtgBBBB">新汉科技 数控机床</a></h3>
+  <p class="res-desc">新汉科技数控机床加工中心服务商。</p>
+</li>
+<li class="res-list">
+  <h3 class="res-title"><a href="https://www.so.com/link?m=zzzzCCCC">无关结果</a></h3>
+  <p class="res-desc">完全无关内容。</p>
+</li>
+</ol>
+</body></html>
+"""
+
+SO360_SEARCH_URL = (
+    "https://www.so.com/s?q="
+    + quote_plus("深圳市新汉科技有限公司 机床")
+)
+
+SO360_REDIRECT_1 = """<html><head>
+<meta http-equiv="refresh" content="0;URL='https://www.xinhan-tech.cn/'">
+</head><body></body></html>
+"""
+
+SO360_REDIRECT_2 = """<html><head>
+<meta http-equiv="refresh" content="0;URL='https://www.so.com/link?m=inner'">
+</head><body></body></html>
+"""
+
+
+class So360FakeFetcher:
+    def __init__(self, pages):
+        self.pages = pages
+        self.calls = []
+
+    def fetch_text(self, url):
+        self.calls.append(url)
+        if url not in self.pages:
+            raise RuntimeError(f"no page for {url}")
+        return self.pages[url]
+
+
+def test_so360_parses_res_list_and_resolves_link_redirects():
+    fetcher = So360FakeFetcher({
+        SO360_SEARCH_URL: SO360_PAGE,
+        "https://www.so.com/link?m=e8ppAAAA": SO360_REDIRECT_1,
+        "https://www.so.com/link?m=bjtgBBBB": SO360_REDIRECT_2,
+    })
+    provider = So360SearchProvider(fetcher=fetcher)
+    results = provider.search("深圳市新汉科技有限公司 机床", max_results=5)
+    # the unresolved third row falls back to its opaque link URL
+    assert [r.url for r in results] == [
+        "https://www.xinhan-tech.cn/",
+        "https://www.so.com/link?m=inner",
+        "https://www.so.com/link?m=zzzzCCCC",
+    ]
+    assert results[0].title == "深圳市新汉科技有限公司官网"
+    assert "电子元器件" in results[0].snippet
+    assert "加工中心" in results[1].snippet
+
+
+def test_so360_respects_max_results():
+    fetcher = So360FakeFetcher({SO360_SEARCH_URL: SO360_PAGE})
+    provider = So360SearchProvider(fetcher=fetcher)
+    results = provider.search("深圳市新汉科技有限公司 机床", max_results=1)
+    assert len(results) == 1
+    # redirect resolution failure soft-falls back to the link URL
+    assert results[0].url == "https://www.so.com/link?m=e8ppAAAA"
+
+
+def test_so360_redirect_resolution_failure_falls_back_to_link():
+    fetcher = So360FakeFetcher({
+        SO360_SEARCH_URL: SO360_PAGE,
+        "https://www.so.com/link?m=e8ppAAAA": "<html>no refresh here</html>",
+    })
+    provider = So360SearchProvider(fetcher=fetcher)
+    results = provider.search("深圳市新汉科技有限公司 机床", max_results=1)
+    assert results[0].url == "https://www.so.com/link?m=e8ppAAAA"
+
+
+def test_build_chain_so360_appended_when_enabled(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+        "WEB_RESEARCH_360_ENABLED": "1",
+    })
+    chain = build_search_chain(cfg, fetcher=So360FakeFetcher({}))
+    assert [type(p).__name__ for p in chain] == [
+        "So360SearchProvider", "NewsNowSearchProvider",
+        "DuckDuckGoSearchProvider", "GoogleNewsRssSearchProvider",
+    ]
+
+
+def test_build_chain_omits_so360_when_disabled(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+    })
+    chain = build_search_chain(cfg, fetcher=So360FakeFetcher({}))
+    assert [type(p).__name__ for p in chain] == [
+        "NewsNowSearchProvider", "DuckDuckGoSearchProvider",
+        "GoogleNewsRssSearchProvider",
+    ]
 
 
 def test_duckduckgo_parses_results_and_unwraps_redirects():

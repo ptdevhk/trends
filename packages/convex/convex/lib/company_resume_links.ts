@@ -37,6 +37,40 @@ function deriveWorkEntryFingerprint(entry: {
 
 export { deriveWorkEntryFingerprint };
 
+/**
+ * Resolve the workspace(s) a resume link must be written under.
+ *
+ * A resume with a stored workspaceSlug belongs to that workspace only.
+ * Shared-corpus resumes carry no workspaceSlug; their owning workspace(s)
+ * come from resume_digest_statuses (the workspace-scoped candidate status
+ * overlay). Resumes with no ownership anywhere fall back to the default
+ * workspace. Without this, links for shared-corpus resumes always land in
+ * the default workspace and per-workspace recomputes no-op for every other
+ * workspace (observed 2026-08-14: hr-workspace approvals never found their
+ * affected resumes).
+ */
+async function resolveResumeWorkspaces(
+  ctx: Pick<MutationCtx, "db">,
+  resume: Pick<Doc<"resumes">, "_id" | "workspaceSlug">,
+): Promise<string[]> {
+  const direct = normalizeToken(resume.workspaceSlug);
+  if (direct) {
+    return [direct];
+  }
+  const statusRows = await ctx.db
+    .query("resume_digest_statuses")
+    .withIndex("by_resume", (query) => query.eq("resumeId", resume._id))
+    .collect();
+  const workspaces = [
+    ...new Set(
+      statusRows
+        .map((row) => normalizeToken(row.workspaceSlug))
+        .filter((value): value is string => value !== undefined),
+    ),
+  ];
+  return workspaces.length > 0 ? workspaces : [DEFAULT_WORKSPACE_SLUG];
+}
+
 function deriveCompanyResumeLinks(ingestData: IngestData): CompanyResumeLinkAccumulator[] {
   const linksByCompany = new Map<string, CompanyResumeLinkAccumulator>();
 
@@ -94,8 +128,7 @@ export async function replaceCompanyResumeLinksForResume(
     await ctx.db.delete(row._id);
   }
 
-  const workspaceSlug =
-    normalizeToken(resume.workspaceSlug) ?? DEFAULT_WORKSPACE_SLUG;
+  const workspaces = await resolveResumeWorkspaces(ctx, resume);
   const resumeIdentity =
     normalizeToken(resume.identityKey) ??
     normalizeToken(resume.externalId) ??
@@ -104,22 +137,24 @@ export async function replaceCompanyResumeLinksForResume(
 
   for (const link of deriveCompanyResumeLinks(ingestData)) {
     const revisionIds = [...link.verdictRevisionIds].sort();
-    await ctx.db.insert("company_resume_links", {
-      workspaceSlug,
-      companyKey: link.companyKey,
-      resumeId: resume._id,
-      resumeIdentity,
-      matchedEmployerSurfaces: [...link.matchedEmployerSurfaces].sort((left, right) =>
-        left.localeCompare(right),
-      ),
-      workEntryFingerprints: [...link.workEntryFingerprints].sort((left, right) =>
-        left.localeCompare(right),
-      ),
-      ...(revisionIds.length === 1
-        ? { currentVerdictRevisionId: revisionIds[0] }
-        : {}),
-      updatedAt,
-    });
+    for (const workspaceSlug of workspaces) {
+      await ctx.db.insert("company_resume_links", {
+        workspaceSlug,
+        companyKey: link.companyKey,
+        resumeId: resume._id,
+        resumeIdentity,
+        matchedEmployerSurfaces: [...link.matchedEmployerSurfaces].sort((left, right) =>
+          left.localeCompare(right),
+        ),
+        workEntryFingerprints: [...link.workEntryFingerprints].sort((left, right) =>
+          left.localeCompare(right),
+        ),
+        ...(revisionIds.length === 1
+          ? { currentVerdictRevisionId: revisionIds[0] }
+          : {}),
+        updatedAt,
+      });
+    }
   }
 }
 
@@ -152,26 +187,27 @@ export async function upsertCompanyResumeLinkForCompany(
     await ctx.db.delete(row._id);
   }
 
-  const workspaceSlug =
-    normalizeToken(resume.workspaceSlug) ?? DEFAULT_WORKSPACE_SLUG;
+  const workspaces = await resolveResumeWorkspaces(ctx, resume);
   const resumeIdentity =
     normalizeToken(resume.identityKey) ??
     normalizeToken(resume.externalId) ??
     String(resume._id);
   const revisionId = normalizeToken(input.currentVerdictRevisionId);
 
-  await ctx.db.insert("company_resume_links", {
-    workspaceSlug,
-    companyKey: input.companyKey,
-    resumeId: resume._id,
-    resumeIdentity,
-    matchedEmployerSurfaces: Array.from(new Set(input.matchedEmployerSurfaces))
-      .filter((surface): surface is string => Boolean(surface?.trim()))
-      .sort((left, right) => left.localeCompare(right)),
-    workEntryFingerprints: Array.from(new Set(input.workEntryFingerprints))
-      .filter((fingerprint): fingerprint is string => Boolean(fingerprint?.trim()))
-      .sort((left, right) => left.localeCompare(right)),
-    ...(revisionId ? { currentVerdictRevisionId: revisionId } : {}),
-    updatedAt: Date.now(),
-  });
+  for (const workspaceSlug of workspaces) {
+    await ctx.db.insert("company_resume_links", {
+      workspaceSlug,
+      companyKey: input.companyKey,
+      resumeId: resume._id,
+      resumeIdentity,
+      matchedEmployerSurfaces: Array.from(new Set(input.matchedEmployerSurfaces))
+        .filter((surface): surface is string => Boolean(surface?.trim()))
+        .sort((left, right) => left.localeCompare(right)),
+      workEntryFingerprints: Array.from(new Set(input.workEntryFingerprints))
+        .filter((fingerprint): fingerprint is string => Boolean(fingerprint?.trim()))
+        .sort((left, right) => left.localeCompare(right)),
+      ...(revisionId ? { currentVerdictRevisionId: revisionId } : {}),
+      updatedAt: Date.now(),
+    });
+  }
 }

@@ -105,6 +105,9 @@ resume-backup-*.json
 # Playwright CLI runtime output
 .playwright-cli/
 
+# UAT screenshot evidence (non-git-tracked)
+uat-screenshots/
+
 # local env backups
 .env*.bak.*
 *.env.bak.*

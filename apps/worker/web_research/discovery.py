@@ -13,7 +13,11 @@ from apps.worker.web_research.classify import (
     looks_like_homepage_title,
 )
 from apps.worker.web_research.config import WebResearchConfig
-from apps.worker.web_research.search import NewsNowSearchProvider, SearchProvider
+from apps.worker.web_research.search import (
+    NewsNowSearchProvider,
+    So360SearchProvider,
+    SearchProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +150,49 @@ class DiscoveryJob:
         market = getattr(self.config, "market", "my")
         seen: set[str] = set()
         raw_candidates: List[Dict[str, Any]] = []
+        # CN-core keyword lane: when 360 is enabled and the market is cn,
+        # the 360 keyword provider becomes the primary candidate source.
+        if getattr(self.config, "so360_enabled", False) and market == "cn":
+            provider = self._so360_provider()
+            if provider is not None and self._quota_ok("So360SearchProvider"):
+                query = next(
+                    (q for q in discovery_queries(employer, market)),
+                    f"{employer} 公司",
+                )
+                try:
+                    hits = provider.search(query, max_results=6)
+                except Exception as error:  # soft-fail onward to the chain
+                    logger.warning(
+                        "[WebResearch] provider So360SearchProvider failed: %s",
+                        error,
+                    )
+                    hits = []
+                self.client.record_web_research_quota_use("So360SearchProvider", 1)
+                for hit in hits:
+                    if hit.url in seen:
+                        continue
+                    if not _hit_mentions_employer(hit, tokens):
+                        continue
+                    seen.add(hit.url)
+                    tier = classify_source(hit.url, employer)
+                    candidate = {
+                        "url": hit.url,
+                        "sourceType": tier["sourceType"],
+                        "trustTier": tier["trustTier"],
+                    }
+                    if getattr(hit, "title", ""):
+                        candidate["title"] = hit.title
+                    if getattr(hit, "snippet", ""):
+                        # Snippet-provided candidate: enrich uses the search
+                        # result summary instead of fetching the (often
+                        # JS-gated) target URL.
+                        candidate["expectedExcerpt"] = hit.snippet
+                    raw_candidates.append(candidate)
+                if raw_candidates:
+                    return self._finalize_candidates(
+                        proposal, employer, raw_candidates
+                    )
+
         for query in discovery_queries(employer, market)[: self.config.queries_per_proposal]:
             for hit in self._search_all(query, max_results=5, tokens=tokens):
                 if hit.url in seen:
@@ -222,6 +269,12 @@ class DiscoveryJob:
                 return provider
         return None
 
+    def _so360_provider(self) -> Optional[So360SearchProvider]:
+        for provider in self.search_chain:
+            if isinstance(provider, So360SearchProvider):
+                return provider
+        return None
+
     def _hotlist_candidates_for_employer(
         self, employer: str
     ) -> List[Dict[str, Any]]:
@@ -258,3 +311,23 @@ class DiscoveryJob:
                 "trustTier": tier["trustTier"],
             })
         return candidates
+
+    def _candidates_for_employer(
+        self, employer: str, raw_candidates: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Tighten non-discovery candidates before governed enrichment.
+
+        Demoted rows are kept for steward visibility but stay
+        non-approval-safe (see _finalize_candidates).
+        """
+        for candidate in raw_candidates:
+            if candidate["trustTier"] == "discovery":
+                continue
+            title = str(candidate.get("title") or "")
+            excerpt = str(candidate.get("expectedExcerpt") or "")
+            if excerpt_proves_employer(employer, title=title, excerpt=excerpt):
+                continue
+            if excerpt or looks_like_homepage_title(title):
+                candidate["trustTier"] = "discovery"
+                candidate["relevanceDemoted"] = True
+        return raw_candidates

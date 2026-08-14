@@ -56,3 +56,31 @@ def test_my_market_explicit_omits_newsnow():
         "TAVILY_API_KEY": "tvly-x",
     })
     assert cfg.search_providers == ["tavily", "duckduckgo", "google_news"]
+
+def test_so360_opt_in_appends_cn_keyword_provider():
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_ENABLED": "1",
+        "WEB_RESEARCH_MARKET": "cn",
+        "WEB_RESEARCH_360_ENABLED": "1",
+    })
+    assert cfg.so360_enabled is True
+    assert cfg.search_providers == [
+        "so360", "newsnow", "duckduckgo", "google_news",
+    ]
+
+def test_so360_off_by_default():
+    cfg = load_web_research_config({"WEB_RESEARCH_ENABLED": "1"})
+    assert cfg.so360_enabled is False
+    assert cfg.search_providers == ["newsnow", "duckduckgo", "google_news"]
+
+def test_so360_my_market_still_appends_but_chain_skips_cn_lane():
+    # 360 only makes sense for CN keyword searches; the chain builder still
+    # includes it (config-level opt-in is market-agnostic).
+    cfg = load_web_research_config({
+        "WEB_RESEARCH_MARKET": "my",
+        "WEB_RESEARCH_360_ENABLED": "1",
+        "TAVILY_API_KEY": "tvly-x",
+    })
+    assert cfg.search_providers == [
+        "tavily", "so360", "duckduckgo", "google_news",
+    ]

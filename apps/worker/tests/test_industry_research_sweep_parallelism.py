@@ -681,3 +681,56 @@ def test_hotlist_non_match_falls_through_to_per_proposal_search():
     assert recording.calls, "non-matching proposal must search"
     assert out["status"] == "ready_for_review"
     assert out["sources"][0]["url"] == hit_url
+
+# ---------------------------------------------------------------------------
+# ready_for_review sweep coverage + CN registry classification refresh
+# ---------------------------------------------------------------------------
+
+def test_sweep_researches_unmapped_ready_proposals_but_skips_mapped(monkeypatch):
+    """Unmapped ready_for_review proposals re-run research (identity
+    candidates are only extracted during research); mapped ready proposals
+    are reviewable as-is and must not be re-fetched every sweep round."""
+    client = FakeSweepClient()
+    transport = _ConcurrentTransport(sleep=0.0)
+    client.proposals.append(
+        _proposal("p-unmapped", status="ready_for_review", company_key=None)
+    )
+    _with_candidate(client, "p-unmapped", "https://site-a.example.com/products")
+    client.proposals.append(
+        _proposal("p-mapped", status="ready_for_review", company_key="acme-cnc")
+    )
+    _with_candidate(client, "p-mapped", "https://site-b.example.com/products")
+    job = _sweep_job(client, transport, monkeypatch, concurrency=1)
+
+    assert job.run() is True
+
+    assert "p-unmapped" in client.research_order
+    assert "p-mapped" not in client.research_order
+
+
+def test_sweep_demotes_stored_qcc_homepage_registry_rows(monkeypatch):
+    """A stored qcc.com homepage (360-search landing) classified as
+    registry/authoritative before the record-path guard is re-classified to
+    search_result/discovery on re-research, so its fetch failure can no
+    longer hard-block review with stale_or_failed_source."""
+    client = FakeSweepClient()
+    transport = _ConcurrentTransport(sleep=0.0, error=URLError("connection refused"))
+    client.proposals.append(_proposal("p-cn", status="ready_for_review"))
+    client.sources_by_proposal["p-cn"] = [
+        {
+            "sourceId": "c-cn",
+            "url": "https://www.qcc.com/?utm_source=360zrkp&utm_query=%E6%B5%8E%E5%8D%97",
+            "sourceType": "registry",
+            "trustTier": "authoritative",
+            "title": "企查查",
+            "evidenceExcerpt": "企查查",
+        }
+    ]
+    job = _sweep_job(client, transport, monkeypatch, concurrency=1)
+
+    assert job.run() is True
+
+    upserted = [op[1] for op in client.operations if op[0] == "upsert_source"]
+    assert upserted, "the stored source must be re-upserted"
+    assert upserted[0]["sourceType"] == "search_result"
+    assert upserted[0]["trustTier"] == "discovery"

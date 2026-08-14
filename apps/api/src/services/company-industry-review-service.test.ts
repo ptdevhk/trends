@@ -51,6 +51,22 @@ function source(overrides: Partial<IndustryEvidenceSource> = {}): IndustryEviden
   };
 }
 
+function registrySource(overrides: Partial<IndustryEvidenceSource> = {}): IndustryEvidenceSource {
+  return {
+    ...source({
+      sourceType: "registry",
+      trustTier: "authoritative",
+      url: "https://registry.example.com/company/acme",
+      sourceDomain: "registry.example.com",
+      title: "ACME 工业有限公司 - 企业信用",
+      evidenceExcerpt: "ACME 工业有限公司 企业工商信息 数控机床制造与精密加工",
+      suggestedIndustryClass: "industrial",
+      workerConfidence: 0.9,
+    }),
+    ...overrides,
+  };
+}
+
 const noMaintenance = { latest: null, lastFailed: null };
 
 describe("industry review recommendation rules", () => {
@@ -375,6 +391,138 @@ describe("industry review recommendation rules", () => {
     });
     expect(result.recommendation.riskFlags).toContain("canonical_mapping_missing");
     expect(result.recommendation.autoApprovable).toBe(false);
+  });
+
+  it("does not flag a single authoritative registry source as low source diversity", () => {
+    // CN registry lane (shuidi/qcc) supplies one authoritative record per
+    // company; like the SSM lane, a single registry row is durable evidence
+    // and must not be hard-blocked by low_source_diversity.
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal({ suggestedIndustryClass: "industrial" }),
+      sources: [registrySource()],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.riskFlags).not.toContain("low_source_diversity");
+    expect(result.recommendation.autoApprovable).toBe(true);
+  });
+
+  it("still flags a single corroborating non-registry source as low source diversity", () => {
+    // Official-site primary and corroborating non-registry rows keep the
+    // flag — weaker evidence on its own.
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal(),
+      sources: [source({ trustTier: "corroborating" })],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).toContain("low_source_diversity");
+  });
+
+  it("does not let a corroborating class veto an authoritative registry class", () => {
+    // CN lane: a baike.so.com (reporting/corroborating) metrology row must
+    // not create source_conflict against a shuidi (registry/authoritative)
+    // industrial record — observed hard block 2026-08-14.
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal({ suggestedIndustryClass: "industrial" }),
+      sources: [
+        registrySource(),
+        source({
+          sourceId: "source-wiki",
+          url: "https://baike.example.com/doc/1.html",
+          sourceDomain: "baike.example.com",
+          sourceType: "reporting",
+          trustTier: "corroborating",
+          title: "ACME 工业有限公司_百科",
+          evidenceExcerpt: "ACME 工业有限公司 计量检测设备",
+          suggestedIndustryClass: "metrology",
+          workerConfidence: 0.67,
+          updatedAt: 21,
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).not.toContain("source_conflict");
+    expect(result.recommendation.recommendedAction).toBe("approve");
+    expect(result.recommendation.recommendedSourceIds).toEqual([
+      "source-1",
+      "source-wiki",
+    ]);
+    const wikiDecision = result.recommendation.sourceDecisions.find(
+      (decision) => decision.sourceId === "source-wiki",
+    );
+    expect(wikiDecision?.approvalSafe).toBe(true);
+  });
+
+  it("still flags weak-only conflicting classes when no durable class exists", () => {
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal({ suggestedIndustryClass: "metrology" }),
+      sources: [
+        source({
+          sourceId: "source-wiki-a",
+          sourceType: "reporting",
+          trustTier: "corroborating",
+          suggestedIndustryClass: "metrology",
+          updatedAt: 21,
+        }),
+        source({
+          sourceId: "source-wiki-b",
+          sourceType: "reporting",
+          trustTier: "corroborating",
+          suggestedIndustryClass: "industrial",
+          updatedAt: 22,
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).toContain("source_conflict");
+    expect(result.recommendation.recommendedAction).toBe("needs_more_evidence");
+  });
+
+  it("keeps unknown-class sources eligible when a conflict demotes class rows", () => {
+    // The demotion predicate must treat "unknown" as no class at all —
+    // otherwise every class-carrying conflict empties eligibleSources.
+    const result = industryReviewInternals.buildRecommendation({
+      proposal: proposal({ suggestedIndustryClass: "cnc" }),
+      sources: [
+        source(), // official_site/primary/cnc
+        source({
+          _id: "source-row-2",
+          sourceId: "source-2",
+          url: "https://acme.example/company",
+          sourceType: "registry",
+          trustTier: "authoritative",
+          suggestedIndustryClass: "automation",
+          title: "ACME automation registry",
+          evidenceExcerpt: "ACME automation equipment registry entry.",
+          updatedAt: 21,
+        }),
+        source({
+          _id: "source-row-3",
+          sourceId: "source-3",
+          url: "https://registry.example.com/company/acme",
+          sourceType: "registry",
+          trustTier: "authoritative",
+          suggestedIndustryClass: "unknown",
+          workerConfidence: 0.2,
+          title: "ACME 企业信用",
+          evidenceExcerpt: "ACME 有限公司 企业工商信息",
+          updatedAt: 22,
+        }),
+      ],
+      profile: null,
+      maintenance: noMaintenance,
+    });
+    expect(result.recommendation.riskFlags).toContain("source_conflict");
+    expect(result.recommendation.riskFlags).not.toContain("only_discovery_sources");
+    const unknownDecision = result.recommendation.sourceDecisions.find(
+      (decision) => decision.sourceId === "source-3",
+    );
+    expect(unknownDecision?.approvalSafe).toBe(true);
+    expect(unknownDecision?.reasonCodes).not.toContain("class_conflict");
   });
 });
 
