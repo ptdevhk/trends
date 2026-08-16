@@ -139,21 +139,6 @@ npm install -g package-name
 
 --------------------------------
 
-### Advanced configuration example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
-
-An example of a JavaScript configuration object within an accordion.
-
-```javascript
-const config = {
-  performance: { cache: true, timeout: 30000 },
-  security: { encryption: 'AES-256' }
-};
-```
-
---------------------------------
-
 ### Install OpenCode on Windows using Scoop
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -174,6 +159,21 @@ Install OpenCode on Windows using NPM.
 
 ```bash
 npm install -g opencode-ai
+```
+
+--------------------------------
+
+### Advanced configuration example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+An example of a JavaScript configuration object within an accordion.
+
+```javascript
+const config = {
+  performance: { cache: true, timeout: 30000 },
+  security: { encryption: 'AES-256' }
+};
 ```
 
 --------------------------------
@@ -206,6 +206,18 @@ API_KEY=your_api_key_here
 
 --------------------------------
 
+### Install OpenCode on Windows using Chocolatey
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Chocolatey.
+
+```bash
+choco install opencode
+```
+
+--------------------------------
+
 ### Install dependencies (macOS)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -219,14 +231,14 @@ npm install -g package-name
 
 --------------------------------
 
-### Install OpenCode on Windows using Chocolatey
+### Install Mintlify CLI
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
 
-Install OpenCode on Windows using Chocolatey.
+Command to install the Mintlify CLI globally using npm.
 
 ```bash
-choco install opencode
+npm i -g mint
 ```
 
 --------------------------------
@@ -605,14 +617,20 @@ const pathInfo = await client.path.get()
 
 --------------------------------
 
-### Install Mintlify CLI
+### Instalando o aplicativo desktop OpenCode (BETA)
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
+Source: https://github.com/anomalyco/opencode/blob/dev/README.br.md
 
-Command to install the Mintlify CLI globally using npm.
+Instale a versão desktop do OpenCode usando gerenciadores de pacotes específicos para macOS e Windows.
 
 ```bash
-npm i -g mint
+# macOS (Homebrew)
+brew install --cask opencode-desktop
+```
+
+```bash
+# Windows (Scoop)
+scoop bucket add extras; scoop install extras/opencode-desktop
 ```
 
 --------------------------------
@@ -628,24 +646,6 @@ Example of the YAML frontmatter required at the beginning of every documentation
 title: "Clear, specific, keyword-rich title"
 description: "Concise description explaining page purpose and value"
 ---
-```
-
---------------------------------
-
-### Instalando o aplicativo desktop OpenCode (BETA)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/README.br.md
-
-Instale a versão desktop do OpenCode usando gerenciadores de pacotes específicos para macOS e Windows.
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-```
-
-```bash
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
 ```
 
 --------------------------------
@@ -680,6 +680,18 @@ const currentProject = await client.project.current()
 
 --------------------------------
 
+### Example: Run OpenCode with a Specific Prompt
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+This example demonstrates how to pass a specific question directly to the `opencode run` command.
+
+```bash
+opencode run Explain the use of context in Go
+```
+
+--------------------------------
+
 ### Code group with multiple languages
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -701,18 +713,6 @@ response = requests.get('/api/endpoint',
 ```curl
 curl -X GET '/api/endpoint' \
   -H 'Authorization: Bearer YOUR_API_KEY'
-```
-
---------------------------------
-
-### Example: Run OpenCode with a Specific Prompt
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-This example demonstrates how to pass a specific question directly to the `opencode run` command.
-
-```bash
-opencode run Explain the use of context in Go
 ```
 
 --------------------------------
@@ -956,4 +956,20 @@ variables:
   - ANTHROPIC_API_KEY
   - GITLAB_TOKEN_OPENCODE
   - GITLAB_HOST
+```
+
+--------------------------------
+
+### OpenCode CLI: Attach TUI to Remote Backend Example
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+Demonstrates how to start an OpenCode backend server and then attach a TUI from another terminal to that running server using its URL.
+
+```bash
+opencode web --port 4096 --hostname 0.0.0.0
+```
+
+```bash
+opencode attach http://10.20.30.40:4096
 ```
