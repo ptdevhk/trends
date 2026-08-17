@@ -9,6 +9,7 @@ describe("loadAIConfig", () => {
       "AI_ANALYSIS_ENABLED",
       "AI_ANALYSIS_RESUMES_ENABLED",
       "AI_MODEL",
+      "AI_FALLBACK_MODEL",
       "AI_API_KEY",
       "AI_API_BASE",
       "AI_TEMPERATURE",
@@ -34,6 +35,7 @@ describe("loadAIConfig", () => {
       "AI_ANALYSIS_ENABLED",
       "AI_ANALYSIS_RESUMES_ENABLED",
       "AI_MODEL",
+      "AI_FALLBACK_MODEL",
       "AI_API_KEY",
       "AI_API_BASE",
       "AI_TEMPERATURE",
@@ -49,7 +51,8 @@ describe("loadAIConfig", () => {
     const config = loadAIConfig();
     expect(config.enabled).toBe(false);
     expect(config.resumesEnabled).toBe(true);
-    expect(config.model).toBe("openai/deepseek-v4-flash");
+    expect(config.model).toBe("openai/deepseek-v4-flash-e");
+    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash");
     expect(config.apiKey).toBe("");
     expect(config.apiBase).toBeUndefined();
     expect(config.temperature).toBe(0);
@@ -100,6 +103,14 @@ describe("loadAIConfig", () => {
     const config = loadAIConfig();
     expect(config.apiKey).toBe("sk-test-key");
     expect(config.bonded).toContain("AI_API_KEY");
+  });
+
+  it("parses AI_FALLBACK_MODEL", () => {
+    clearAIEnv();
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash";
+    const config = loadAIConfig();
+    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash");
+    expect(config.bonded).toContain("AI_FALLBACK_MODEL");
   });
 
   it("parses AI_API_BASE", () => {
@@ -229,7 +240,7 @@ describe("validateAIConfig", () => {
     const { validateAIConfig } = await importWithEnv();
     expect(validateAIConfig()).toEqual({
       valid: false,
-      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')",
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash-e')",
     });
   });
 
@@ -310,7 +321,7 @@ describe("validateResumeAIConfig", () => {
     const { validateResumeAIConfig } = await importWithEnv();
     expect(validateResumeAIConfig()).toEqual({
       valid: false,
-      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')",
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash-e')",
     });
   });
 

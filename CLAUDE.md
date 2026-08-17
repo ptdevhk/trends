@@ -97,7 +97,8 @@ enforced by tests/CI:
     Reload/query-param recovery beats retry-clicks (connection-level drops).
 
 ## AI Model Policy (locked 2026-08-13)
-- Default/basic model for all daily agent tasks on the Trends platform: `openai/deepseek-v4-flash` (Poe gateway `AI_API_BASE=https://api.poe.com/v1`). ADR: `{WIKI_VAULT}/projects/trends/architecture/decisions/2026-08-13-deepseek-v4-flash-default-model.md`
+- Default/basic model for all daily agent tasks and basic services: `openai/deepseek-v4-flash-e` (Poe gateway `AI_API_BASE=https://api.poe.com/v1`). Historical ADR still at `{WIKI_VAULT}/projects/trends/architecture/decisions/2026-08-13-deepseek-v4-flash-default-model.md` — operational default swapped 2026-08-17 after live probe.
+- **Known bug (keep tracking):** Poe `deepseek-v4-flash` rejects `response_format` (HTTP 400 `Invalid input`). It is **not** the default. It stays `AI_FALLBACK_MODEL` / `POE_DEEPSEEK_V4_FLASH_KNOWN_BUG.status=open`. Do not promote it back until that bug is closed. Notes: `docs/runbooks/llm-api-provider-fallback.md`. Runtime change is `convex env set` / `scripts/sync-convex-env.sh`, not the BFF import-time `aiConfig` snapshot.
 - Canonical env form is `provider/model` (app validation requires it; `scripts/ai-model-check.sh` known-good list has both forms). Code fallback default: `apps/api/src/services/ai-config.ts`.
 - Reasoning-model caveat: Poe returns empty `content` with populated `reasoning_content` for this model on short prompts — expected.
 

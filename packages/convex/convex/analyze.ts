@@ -16,7 +16,11 @@ import {
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
-import { resolveChatCompletionModel } from "./lib/ai_model";
+import {
+    classifyChatCompletionCapability,
+    resolveChatCompletionModel,
+    selectAnalyzeChatModel,
+} from "./lib/ai_model";
 import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
 import { computeProtectedAttributeHashes } from "./audit.js";
@@ -39,6 +43,7 @@ import {
     getAiApiBase,
     getAiModel,
     getAiTemperature,
+    resolveAnalyzeLlmRuntimeConfig,
     type ChatMessage,
 } from "./lib/analysis_config.js";
 import { analysisKeyFactorValidator, matchingRulesValidator } from "./validators.js";
@@ -82,7 +87,9 @@ export {
     getAiApiKey,
     getAiApiBase,
     getAiModel,
+    getAiFallbackModel,
     getAiTemperature,
+    resolveAnalyzeLlmRuntimeConfig,
     SYSTEM_PROMPT,
     USER_PROMPT_TEMPLATE,
 } from "./lib/analysis_config.js";
@@ -256,30 +263,56 @@ function computeAuditFields(resume: Record<string, unknown>) {
 
 // Helper to call OpenAI/Compatible API
 export async function callLLM(messages: ChatMessage[], apiKey: string) {
-    const apiBase = getAiApiBase();
+    const runtime = resolveAnalyzeLlmRuntimeConfig();
+    const apiBase = runtime.apiBase;
     const url = `${apiBase}/chat/completions`;
-    const model = resolveChatCompletionModel(apiBase, getAiModel());
+    const primary = resolveChatCompletionModel(apiBase, runtime.primary);
+    const fallback = resolveChatCompletionModel(apiBase, runtime.fallback);
 
-    console.debug(`Calling LLM at ${url} with model ${model}...`);
+    const post = async (model: string) => {
+        console.debug(`Calling LLM at ${url} with model ${model}...`);
+        return fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: messages,
+                temperature: getAiTemperature(),
+                response_format: { type: "json_object" },
+            }),
+        });
+    };
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model,
-            messages: messages,
-            temperature: getAiTemperature(),
-            response_format: { type: "json_object" },
-        }),
+    let model = selectAnalyzeChatModel({
+        primary,
+        fallback,
+        capability: "full",
     });
-
+    let response = await post(model);
     if (!response.ok) {
-        // Handle 502/504 specially possibly?
         const text = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
+        const capability = classifyChatCompletionCapability({
+            status: response.status,
+            body: text,
+        });
+        const retryModel = selectAnalyzeChatModel({
+            primary,
+            fallback,
+            capability,
+        });
+        if (retryModel !== model) {
+            model = retryModel;
+            response = await post(model);
+            if (!response.ok) {
+                const retryText = await response.text();
+                throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${retryText}`);
+            }
+        } else {
+            throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
+        }
     }
 
     const data = (await response.json()) as {

@@ -51,8 +51,6 @@ const memberships: Record<UserKind, WorkspaceMembership[]> = {
   hr: [{ userId: users.hr.id, workspaceSlug: 'hr', role: 'admin' }],
 }
 
-const now = '2026-08-14T01:00:00.000Z'
-
 // ---------------------------------------------------------------------------
 // Industry proposal / packet mock data
 // ---------------------------------------------------------------------------
