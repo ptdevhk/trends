@@ -321,6 +321,131 @@ seed_preview_canonical_no_hire() {
     return 0
 }
 
+# stale_import_ids_from_sqlite DB_PATH
+# ------------------------------------
+# Print the ids of Convex import jobs currently stuck in "in_progress" in the
+# backend's SQLite journal, using latest-revision-per-id semantics.
+#
+# Why: a sync whose CLI-side `timeout` killed `convex import` mid-run leaves
+# the backend import job in_progress; the backend's single-import lock then
+# blocks every later sync. The journal is append-only — this function only
+# READS it (writer-side cleanup goes through the cancel API; see
+# cancel_stale_convex_imports). Never DELETE rows from `documents`: a
+# middle-row delete broke backend startup (2026-08-18).
+#
+# Usage: stale_import_ids_from_sqlite /path/to/convex_local_backend.sqlite3
+# Prints one import id per line. Exits 1 when the db is missing/unreadable.
+stale_import_ids_from_sqlite() {
+    local db_path="$1"
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        log_error "sqlite3 not available — cannot inspect preview Convex journal"
+        return 1
+    fi
+    if [ ! -r "$db_path" ]; then
+        log_error "Cannot read preview Convex journal at: $db_path"
+        return 1
+    fi
+    sqlite3 -readonly "$db_path" <<'SQL'
+SELECT json_extract(d.json_value, '$._id')
+FROM documents d
+JOIN (
+    SELECT json_extract(json_value, '$._id') AS import_id, MAX(ts) AS max_ts
+    FROM documents
+    WHERE hex(table_id) = '9A977BA13592DE3CB25B9458012D507A'
+       OR json_value LIKE '%"checkpoints"%'
+    GROUP BY import_id
+) latest ON latest.import_id = json_extract(d.json_value, '$._id')
+          AND latest.max_ts = d.ts
+WHERE json_extract(d.json_value, '$.state.state') = 'in_progress'
+  AND d.deleted = 0;
+SQL
+}
+
+# cancel_stale_convex_imports
+# ---------------------------
+# Pre-upload hygiene: cancel any wedged in_progress import on the preview
+# backend so `convex import --replace-all` cannot deadlock on the single-import
+# lock. Uses the backend HTTP API (POST /api/cancel_import) — never deletes
+# journal rows (append-only constraint).
+#
+# Resolves the journal path and the admin key from the preview Convex
+# container itself, so it works regardless of how the container was launched.
+#
+# Exit codes: 0 = clean, or every stale import cancelled/absent; 1 = could not
+# prove clean state (container/volume/journal/config missing, or the API
+# errored in a way that is not the backend's "no such import" proof).
+cancel_stale_convex_imports() {
+    local container="${PREVIEW_CONVEX_CONTAINER:-trends-preview-convex}"
+    local volume="${PREVIEW_CONVEX_STATE_VOLUME:-trends-preview_convex-state}"
+    local api_base="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
+
+    if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
+        log_error "Preview Convex container $container not running — cannot prove import state clean"
+        return 1
+    fi
+
+    local mountpoint
+    mountpoint="$(docker volume inspect "$volume" -f '{{.Mountpoint}}' 2>/dev/null)" || {
+        log_error "Cannot resolve preview Convex state volume $volume (docker volume inspect failed)"
+        return 1
+    }
+    if [ -z "$mountpoint" ]; then
+        log_error "Preview Convex state volume $volume has no mountpoint"
+        return 1
+    fi
+
+    local db_path="$mountpoint/local/default/convex_local_backend.sqlite3"
+    local ids
+    if ! ids="$(stale_import_ids_from_sqlite "$db_path")"; then
+        return 1
+    fi
+    ids="$(printf '%s\n' "$ids" | sed '/^[[:space:]]*$/d')"
+    if [ -z "$ids" ]; then
+        log_info "No wedged in_progress imports in preview Convex journal — nothing to cancel"
+        return 0
+    fi
+    log_warn "Found wedged in_progress import(s): $(printf '%s' "$ids" | tr '\n' ' ')"
+
+    local auth
+    auth="$(docker exec "$container" sh -c 'cat /app/packages/convex/.convex/local/default/config.json' 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("adminKey",""))' 2>/dev/null)" || {
+        log_error "Cannot read preview Convex admin key from $container config.json"
+        return 1
+    }
+    if [ -z "$auth" ]; then
+        log_error "Preview Convex config.json has no adminKey — cannot cancel imports via API"
+        return 1
+    fi
+
+    local id code body body_file
+    for id in $ids; do
+        body_file="/tmp/preview-cancel-import-body.$$"
+        code="$(curl -sS -o "$body_file" -w '%{http_code}' \
+            -X POST "$api_base/api/cancel_import" \
+            -H "Authorization: Convex $auth" \
+            -H 'Content-Type: application/json' \
+            -d "{\"importId\":\"$id\"}" \
+            --max-time 30 2>/dev/null || echo 000)"
+        body="$(cat "$body_file" 2>/dev/null || true)"
+        rm -f "$body_file"
+        case "$code" in
+            200)
+                log_info "Cancelled wedged import $id"
+                ;;
+            400)
+                # Backend proof the import is already gone or not cancelable —
+                # either way it cannot hold the single-import lock.
+                log_warn "cancel_import for $id returned 400 (already completed/cancelled): $(printf '%s' "$body" | head -c 200)"
+                ;;
+            *)
+                log_error "cancel_import for $id returned $code: $(printf '%s' "$body" | head -c 200)"
+                return 1
+                ;;
+        esac
+    done
+    return 0
+}
+
 write_manifest_line() {
     local manifest="$1"
     local key="$2"

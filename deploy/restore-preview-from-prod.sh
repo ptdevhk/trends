@@ -30,6 +30,12 @@ PREVIEW_DIR="${PREVIEW_DIR:-/home/ubuntu/trends-preview}"
 PREVIEW_API_URL="${PREVIEW_API_URL:-http://127.0.0.1:3002}"
 PREVIEW_CONVEX_URL="${PREVIEW_CONVEX_URL:-http://127.0.0.1:4210}"
 DIGEST_BACKFILL_BATCH_SIZE="${DIGEST_BACKFILL_BATCH_SIZE:-50}"
+# Wall-clock budget for the `convex import` CLI run. The 2026-08-18 import of
+# the full prod snapshot (~50k rows + file storage) exceeded the old 900s
+# timeout mid-run; the CLI-side kill left the backend import wedged
+# in_progress (single-import lock blocks later syncs — Step 3b.1 now cancels
+# such leftovers before upload). Raise/override with CONVEX_IMPORT_TIMEOUT_SEC.
+CONVEX_IMPORT_TIMEOUT_SEC="${CONVEX_IMPORT_TIMEOUT_SEC:-3600}"
 
 wait_for_preview_api() {
     local max_wait=120
@@ -248,10 +254,23 @@ echo ""
 echo "=== Step 3b: Sync preview AI env into Convex ==="
 PREVIEW_DIR="$PREVIEW_DIR" "$PREVIEW_DIR/deploy/sync-preview-convex-env.sh"
 
+echo ""
+echo "=== Step 3b.1: Cancel any wedged import before uploading ==="
+# A previous sync whose CLI-side `timeout` killed `convex import` mid-run
+# leaves the backend import job in_progress; the backend's single-import lock
+# then blocks every later sync (2026-08-18 failure mode). Cancel via the
+# backend API only — the import journal `documents` table is append-only;
+# a middle-row DELETE broke backend startup (2026-08-18), so no journal edits.
+if ! cancel_stale_convex_imports; then
+    echo "FATAL: could not prove preview Convex import state clean; refusing to import over a possibly wedged import." >&2
+    echo "Manual fix: docker restart trends-preview-convex, then re-run this sync." >&2
+    exit 1
+fi
+
 # Run import inside the container (where 127.0.0.1:3210 resolves to local backend)
 docker exec trends-preview-convex bash -c "
     cd /app/packages/convex && \
-    timeout 900 npx convex import --replace-all /app/prod-convex-export.zip --yes
+    timeout ${CONVEX_IMPORT_TIMEOUT_SEC} npx convex import --replace-all /app/prod-convex-export.zip --yes
 "
 
 echo ""
@@ -266,6 +285,108 @@ if ! seed_preview_canonical_no_hire "hr"; then
     echo "FATAL: canonical no-hire re-seed failed — preview blacklist would be unset." >&2
     echo "Manual fix: docker exec trends-preview-convex bash -c 'cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET | tail -1) && npx convex run companies:seedCanonicalCompanies \"{\\\"workspaceSlug\\\":\\\"hr\\\",\\\"seedNoHireForWorkspace\\\":true,\\\"writeSecret\\\":\\\"\$WS\\\"}\" --env-file .env.local'" >&2
     exit 1
+fi
+
+echo ""
+echo "=== Step 3d: Preview system_settings smoke ==="
+# The export fixer keeps system_settings/ but drops environment-local rows
+# (maintenanceMode, industryMaintenanceSchedulePaused) so env-local flags
+# never propagate, while search-affecting settings (resumeWorkHistoryLimit)
+# do — preview no longer reverts to defaults on every sync. Smoke-verify the
+# env-local flag did not leak and the search setting propagated.
+# Extract the JSON result from a `convex run` line (ANSI-decorated).
+# Empty stdout means the query returned null (row absent) — `convex run`
+# prints nothing for null, and system_settings:get returns row?.value ?? null.
+# Missing rows are the EXPECTED state for env-local keys (filtered from the
+# export), so empty input parses as "null" instead of failing.
+parse_convex_json_value() {
+    python3 -c '
+import json, re, sys
+data = sys.stdin.read()
+data = re.sub(r"\x1b\[[0-9;]*m", "", data)
+lines = [ln.strip() for ln in data.splitlines() if ln.strip()]
+if not lines:
+    print("null")
+    sys.exit(0)
+for line in lines:
+    candidates = [line]
+    # tolerate a leading CLI marker (e.g. "✔ false")
+    parts = line.split(None, 1)
+    if len(parts) == 2:
+        candidates.append(parts[1])
+    for cand in candidates:
+        try:
+            print(json.dumps(json.loads(cand), ensure_ascii=False))
+            sys.exit(0)
+        except ValueError:
+            pass
+    m = re.search(r"\{.*\}", line, re.DOTALL)
+    if m:
+        try:
+            print(json.dumps(json.loads(m.group(0)), ensure_ascii=False))
+            sys.exit(0)
+        except ValueError:
+            pass
+sys.exit(1)
+'
+}
+
+# Distinguish "convex run failed" (nonzero rc — fail fast) from
+# "ran fine, returned null" (rc 0 + empty stdout — absent row).
+preview_setting() {
+    local key="$1" out rc
+    out="$(docker exec trends-preview-convex bash -c \
+        "cd /app/packages/convex && npx convex run system_settings:get '{\"key\":\"$key\"}' --env-file .env.local" 2>&1)"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "convex run failed (rc=$rc): $out" >&2
+        return 1
+    fi
+    printf '%s\n' "$out" | parse_convex_json_value
+}
+
+prod_setting() {
+    local key="$1" out rc
+    out="$(sudo -u trends env CONVEX_URL="$SOURCE_CONVEX_URL" bash -c \
+        'cd "$1" && npx convex run system_settings:get "$2"' \
+        bash "$SOURCE_CONVEX_DIR" "{\"key\":\"$key\"}" 2>&1)"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "convex run failed (rc=$rc): $out" >&2
+        return 1
+    fi
+    printf '%s\n' "$out" | parse_convex_json_value
+}
+
+MM_PREVIEW=""
+if ! MM_PREVIEW="$(preview_setting maintenanceMode)"; then
+    echo "FATAL: cannot read preview system_settings:maintenanceMode" >&2
+    exit 1
+fi
+echo "preview system_settings:maintenanceMode = $MM_PREVIEW"
+if [ "$MM_PREVIEW" = "true" ]; then
+    echo "FATAL: preview maintenanceMode=true after restore — environment-local flag must not import." >&2
+    exit 1
+fi
+if [ "$MM_PREVIEW" = "null" ]; then
+    echo "  -> absent (expected: environment-local key is filtered from the export)"
+fi
+
+if RWL_PROD="$(prod_setting resumeWorkHistoryLimit 2>/dev/null)"; then
+    if RWL_PREVIEW="$(preview_setting resumeWorkHistoryLimit 2>/dev/null)"; then
+        echo "system_settings:resumeWorkHistoryLimit prod=$RWL_PROD preview=$RWL_PREVIEW"
+        if [ "$RWL_PROD" = "null" ] && [ "$RWL_PREVIEW" = "null" ]; then
+            echo "  -> not configured on either side (nothing to propagate)"
+        elif [ "$RWL_PROD" != "$RWL_PREVIEW" ]; then
+            echo "  WARN: resumeWorkHistoryLimit differs (warn-only — operator may align deliberately)"
+        else
+            echo "  -> propagated"
+        fi
+    else
+        echo "  WARN: preview resumeWorkHistoryLimit unreadable (warn-only)"
+    fi
+else
+    echo "  WARN: prod resumeWorkHistoryLimit unreadable (warn-only)"
 fi
 
 echo ""
