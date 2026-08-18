@@ -77,6 +77,19 @@ window.__TR_RESUME_DATA__.status()
 
 Ensure Chrome is running with remote debugging enabled and the extension is loaded on `hr.job5156.com/search`.
 
+**CDP usage boundary:** the extension itself never uses `chrome.debugger`
+(capture is content-script + page-hook based); all CDP automation lives in
+the harness (`scripts/browser_cdp.py`, `make refresh-sample`), which attaches
+to a target's `webSocketDebuggerUrl` and drives `Page`/`Runtime` directly.
+Do not add `chrome.debugger` to the extension unless a capture genuinely
+needs protocol-level access (yellow banner + service-worker termination risk).
+
+**Auto-scrape tab-hijack hazard (F18b lineage):** the auto-scrape task can
+navigate the driven tab to `https://hr.job5156.com/search` mid-test — no
+loading indicator, failure panel, or empty state exists in that state. e2e
+settle recovery must track completed API responses and recover via
+query-param re-navigation, not DOM state alone.
+
 ## Auto Search (URL Keyword)
 - Enable via URL: `?keyword=<search term>`
 - Supports: Simplified Chinese, Traditional Chinese, English, mixed
