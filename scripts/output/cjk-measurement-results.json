@@ -1,0 +1,957 @@
+{
+  "generatedAt": "2026-08-18T11:12:41.172Z",
+  "convexUrl": "http://127.0.0.1:3210",
+  "longRunLength": 66,
+  "fixtures": [
+    "f1",
+    "f2",
+    "f3",
+    "f4",
+    "f5",
+    "f6",
+    "f7"
+  ],
+  "probes": [
+    {
+      "cls": "single",
+      "query": "数控",
+      "queryLength": 2,
+      "expected": [
+        "f1",
+        "f7"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 1014,
+      "scanPages": 64,
+      "scanFixtureHits": [
+        "f7"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0.5
+    },
+    {
+      "cls": "single",
+      "query": "磨床",
+      "queryLength": 2,
+      "expected": [
+        "f4"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [
+        "f4"
+      ],
+      "searchTotalHits500": 92,
+      "searchFixtureHits500": [
+        "f4"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 92,
+      "scanPages": 6,
+      "scanFixtureHits": [
+        "f4"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "single",
+      "query": "模具",
+      "queryLength": 2,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [
+        "f5",
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 779,
+      "scanPages": 49,
+      "scanFixtureHits": [
+        "f5",
+        "f1"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "single",
+      "query": "焊工",
+      "queryLength": 2,
+      "expected": [
+        "f6"
+      ],
+      "searchTotalHits50": 9,
+      "searchFixtureHits50": [
+        "f6"
+      ],
+      "searchTotalHits500": 9,
+      "searchFixtureHits500": [
+        "f6"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 9,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f6"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "single",
+      "query": "电工",
+      "queryLength": 2,
+      "expected": [
+        "f6"
+      ],
+      "searchTotalHits50": 42,
+      "searchFixtureHits50": [
+        "f6"
+      ],
+      "searchTotalHits500": 42,
+      "searchFixtureHits500": [
+        "f6"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 42,
+      "scanPages": 3,
+      "scanFixtureHits": [
+        "f6"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "single",
+      "query": "跨境电商",
+      "queryLength": 4,
+      "expected": [
+        "f3"
+      ],
+      "searchTotalHits50": 9,
+      "searchFixtureHits50": [
+        "f3"
+      ],
+      "searchTotalHits500": 9,
+      "searchFixtureHits500": [
+        "f3"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 9,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f3"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "compound",
+      "query": "数控车床",
+      "queryLength": 4,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [
+        "f1"
+      ],
+      "searchTotalHits500": 245,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 245,
+      "scanPages": 16,
+      "scanFixtureHits": [
+        "f1"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "compound",
+      "query": "平面磨床",
+      "queryLength": 4,
+      "expected": [
+        "f4"
+      ],
+      "searchTotalHits50": 2,
+      "searchFixtureHits50": [
+        "f4"
+      ],
+      "searchTotalHits500": 2,
+      "searchFixtureHits500": [
+        "f4"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 2,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f4"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "compound",
+      "query": "冲压模具",
+      "queryLength": 4,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 5,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 5,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 5,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "compound",
+      "query": "品质主管",
+      "queryLength": 4,
+      "expected": [
+        "f2"
+      ],
+      "searchTotalHits50": 33,
+      "searchFixtureHits50": [
+        "f2"
+      ],
+      "searchTotalHits500": 33,
+      "searchFixtureHits500": [
+        "f2"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 33,
+      "scanPages": 3,
+      "scanFixtureHits": [
+        "f2"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "compound",
+      "query": "跨境电商运营",
+      "queryLength": 6,
+      "expected": [
+        "f3"
+      ],
+      "searchTotalHits50": 8,
+      "searchFixtureHits50": [
+        "f3"
+      ],
+      "searchTotalHits500": 8,
+      "searchFixtureHits500": [
+        "f3"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 8,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f3"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "compound",
+      "query": "模具设计",
+      "queryLength": 4,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 28,
+      "searchFixtureHits50": [
+        "f5"
+      ],
+      "searchTotalHits500": 28,
+      "searchFixtureHits500": [
+        "f5"
+      ],
+      "searchRecall": 0.5,
+      "scanTotalHits": 28,
+      "scanPages": 2,
+      "scanFixtureHits": [
+        "f5"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0.5
+    },
+    {
+      "cls": "compound",
+      "query": "数控车床师傅",
+      "queryLength": 6,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 3,
+      "searchFixtureHits50": [
+        "f1"
+      ],
+      "searchTotalHits500": 3,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 3,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f1"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "cjk-ascii",
+      "query": "CNC编程",
+      "queryLength": 5,
+      "expected": [
+        "f7"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cjk-ascii",
+      "query": "CNC操机",
+      "queryLength": 5,
+      "expected": [
+        "f7"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cjk-ascii",
+      "query": "ISO9001",
+      "queryLength": 7,
+      "expected": [
+        "f2"
+      ],
+      "searchTotalHits50": 21,
+      "searchFixtureHits50": [
+        "f2"
+      ],
+      "searchTotalHits500": 21,
+      "searchFixtureHits500": [
+        "f2"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 21,
+      "scanPages": 2,
+      "scanFixtureHits": [
+        "f2"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "cjk-ascii",
+      "query": "Mastercam",
+      "queryLength": 9,
+      "expected": [
+        "f7"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [
+        "f7"
+      ],
+      "searchTotalHits500": 85,
+      "searchFixtureHits500": [
+        "f7"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 85,
+      "scanPages": 6,
+      "scanFixtureHits": [
+        "f7"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "cjk-ascii",
+      "query": "UG编程",
+      "queryLength": 4,
+      "expected": [
+        "f1",
+        "f7"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "multi",
+      "query": "数控 车床",
+      "queryLength": 5,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 5,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 13,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 48,
+      "scanPages": 3,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "multi",
+      "query": "模具 设计",
+      "queryLength": 5,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 3,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 19,
+      "searchFixtureHits500": [
+        "f5"
+      ],
+      "searchRecall": 0.5,
+      "scanTotalHits": 293,
+      "scanPages": 19,
+      "scanFixtureHits": [
+        "f5",
+        "f1"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "multi",
+      "query": "磨床 技工",
+      "queryLength": 5,
+      "expected": [
+        "f4"
+      ],
+      "searchTotalHits50": 5,
+      "searchFixtureHits50": [
+        "f4"
+      ],
+      "searchTotalHits500": 11,
+      "searchFixtureHits500": [
+        "f4"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 15,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f4"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "multi",
+      "query": "品质 主管",
+      "queryLength": 5,
+      "expected": [
+        "f2"
+      ],
+      "searchTotalHits50": 5,
+      "searchFixtureHits50": [
+        "f2"
+      ],
+      "searchTotalHits500": 13,
+      "searchFixtureHits500": [
+        "f2"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 116,
+      "scanPages": 8,
+      "scanFixtureHits": [
+        "f2"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "multi",
+      "query": "跨境电商 运营",
+      "queryLength": 7,
+      "expected": [
+        "f3"
+      ],
+      "searchTotalHits50": 2,
+      "searchFixtureHits50": [
+        "f3"
+      ],
+      "searchTotalHits500": 5,
+      "searchFixtureHits500": [
+        "f3"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 9,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f3"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "multi",
+      "query": "CNC 操机",
+      "queryLength": 6,
+      "expected": [
+        "f7"
+      ],
+      "searchTotalHits50": 4,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 9,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 550,
+      "scanPages": 35,
+      "scanFixtureHits": [
+        "f7"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "long-compound",
+      "query": "五金冲压模具设计",
+      "queryLength": 8,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "long-compound",
+      "query": "跨境电商运营经验",
+      "queryLength": 8,
+      "expected": [
+        "f3"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "long-compound",
+      "query": "平面磨床技工",
+      "queryLength": 6,
+      "expected": [
+        "f4"
+      ],
+      "searchTotalHits50": 1,
+      "searchFixtureHits50": [
+        "f4"
+      ],
+      "searchTotalHits500": 1,
+      "searchFixtureHits500": [
+        "f4"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 1,
+      "scanPages": 1,
+      "scanFixtureHits": [
+        "f4"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "alias",
+      "query": "cnc",
+      "queryLength": 3,
+      "expected": [
+        "f7"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 1024,
+      "scanPages": 64,
+      "scanFixtureHits": [
+        "f7"
+      ],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 1
+    },
+    {
+      "cls": "alias",
+      "query": "机床",
+      "queryLength": 2,
+      "expected": [
+        "f1",
+        "f4",
+        "f7"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 787,
+      "scanPages": 50,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "alias",
+      "query": "machine tools",
+      "queryLength": 13,
+      "expected": [],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 129,
+      "searchFixtureHits500": [],
+      "searchRecall": null,
+      "scanTotalHits": 968,
+      "scanPages": 61,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": null
+    },
+    {
+      "cls": "alias",
+      "query": "sales",
+      "queryLength": 5,
+      "expected": [],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [],
+      "searchRecall": null,
+      "scanTotalHits": 1016,
+      "scanPages": 64,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": null
+    },
+    {
+      "cls": "cap-length",
+      "query": "本公司主营高精密数控车床加工中心五金零件",
+      "queryLength": 20,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cap-length",
+      "query": "本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服",
+      "queryLength": 32,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cap-length",
+      "query": "本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务，涵盖模具设计",
+      "queryLength": 40,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 1,
+      "searchFixtureHits50": [
+        "f1"
+      ],
+      "searchTotalHits500": 1,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cap-length",
+      "query": "本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务，涵盖模具设计开发、自动化生产线维护调试及数控编程标准化工作全",
+      "queryLength": 64,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 1,
+      "searchFixtureHits50": [
+        "f1"
+      ],
+      "searchTotalHits500": 1,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cap-length",
+      "query": "本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务，涵盖模具设计开发、自动化生产线维护调试及数控编程标准化工作全流程",
+      "queryLength": 66,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 1,
+      "searchFixtureHits50": [
+        "f1"
+      ],
+      "searchTotalHits500": 1,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 1,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": 0
+    },
+    {
+      "cls": "cap-terms",
+      "query": "数控 车床 加工 中心 零件 生产 制造 工艺 优化 维护 操作 调试 编程 机床 模具 设计 zzzzz",
+      "queryLength": 53,
+      "expected": [],
+      "searchTotalHits50": 0,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 0,
+      "searchFixtureHits500": [],
+      "searchRecall": null,
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": null
+    },
+    {
+      "cls": "single-char",
+      "query": "车",
+      "queryLength": 1,
+      "expected": [
+        "f1"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanStatus": "bff-dropped"
+    },
+    {
+      "cls": "single-char",
+      "query": "模",
+      "queryLength": 1,
+      "expected": [
+        "f1",
+        "f5"
+      ],
+      "searchTotalHits50": 50,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 500,
+      "searchFixtureHits500": [
+        "f5"
+      ],
+      "searchRecall": 0.5,
+      "scanStatus": "bff-dropped"
+    },
+    {
+      "cls": "noise",
+      "query": "汽车维修",
+      "queryLength": 4,
+      "expected": [],
+      "searchTotalHits50": 10,
+      "searchFixtureHits50": [],
+      "searchTotalHits500": 10,
+      "searchFixtureHits500": [],
+      "searchRecall": null,
+      "scanTotalHits": 10,
+      "scanPages": 1,
+      "scanFixtureHits": [],
+      "scanTokenOverlapFailures": 0,
+      "scanRecall": null
+    }
+  ],
+  "digestSamples": [
+    {
+      "id": "f1",
+      "searchTextLength": 523,
+      "sample": "cnc 数控 陈师傅 陈 师傅 中专 数控车床 数 控 车床 加工中心 加工 中心 ug 编程 钳工 本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务 本公司 主 营 高 精密 五金 零件 批量 生产 制造 与 工艺 优 化 服务，涵盖模具设计开发 涵 盖 模具 设计 开发、自动化生产线维护调试及数控编程标准化工作全流程 自动 线 维护 调 试 及 编 程 标准 工作 全 流程 我们工厂专注于不锈钢钣金件激光切割焊接抛光与表面处理工序 我们 工厂 专注 于 不锈钢 钣 金 件 激光 切割 焊接 抛光 表面 处理 工序，严格执行质量管理体系并持续改善现场作业环境与安全规范 严格"
+    },
+    {
+      "id": "f2",
+      "searchTextLength": 95,
+      "sample": "王主管 王 主管 大专 品质管理 品质 管理 iso9001 客诉处理 客 诉 处理 2019-02 ~ 2025-05 联创电子科技 联 创 电子 科技 品质主管 associate 机械"
+    },
+    {
+      "id": "f3",
+      "searchTextLength": 115,
+      "sample": "李运营 李 运营 本科 亚马逊运营 亚马逊 速卖通 速 卖 通 数据分析 数据 分析 2021-04 ~ 2025-07 星链跨境电子商务有限公司 星 链 跨 境 电子 商务 有限公司 跨境电商运营 电 商 bachelor 机械"
+    },
+    {
+      "id": "f4",
+      "searchTextLength": 100,
+      "sample": "张技工 张 技工 高中 平面磨床 平面 磨床 无心磨床 无 心 内圆磨床 内 圆 2013-06 ~ 2025-04 顺达精密五金厂 顺 达 精密 五金 厂 平面磨床技工 high_school 机械"
+    },
+    {
+      "id": "f5",
+      "searchTextLength": 94,
+      "sample": "赵设计 赵 设计 大专 五金冲压 五金 冲 压 模具设计 模具 cad ug 2017-09 ~ 2025-03 精工模具有限公司 精工 有限公司 模具设计师 师 associate 机械"
+    },
+    {
+      "id": "f6",
+      "searchTextLength": 100,
+      "sample": "刘电工 刘 电工 中专 电工证 证 焊工证 焊工 氩弧焊 氩 弧 焊 电路维修 电路 维修 2015-01 ~ 2025-06 宏远机电设备公司 宏 远 机电 设备 公司 high_school 机械"
+    },
+    {
+      "id": "f7",
+      "searchTextLength": 93,
+      "sample": "cnc 数控 孙编程 孙 编 程 大专 编程 mastercam 操机 2020-03 ~ 2025-05 锐志机械制造厂 锐志 机械 制造 厂 编程技术员 技术 员 associate"
+    }
+  ],
+  "classSummary": {
+    "single": {
+      "probes": 6,
+      "searchMeanRecall": 0.8333333333333334,
+      "scanMeanRecall": 0.9166666666666666,
+      "errors": 0
+    },
+    "compound": {
+      "probes": 7,
+      "searchMeanRecall": 0.7857142857142857,
+      "scanMeanRecall": 0.7857142857142857,
+      "errors": 0
+    },
+    "cjk-ascii": {
+      "probes": 5,
+      "searchMeanRecall": 0.4,
+      "scanMeanRecall": 0.4,
+      "errors": 0
+    },
+    "multi": {
+      "probes": 6,
+      "searchMeanRecall": 0.5833333333333334,
+      "scanMeanRecall": 0.8333333333333334,
+      "errors": 0
+    },
+    "long-compound": {
+      "probes": 3,
+      "searchMeanRecall": 0.3333333333333333,
+      "scanMeanRecall": 0.3333333333333333,
+      "errors": 0
+    },
+    "alias": {
+      "probes": 4,
+      "searchMeanRecall": 0,
+      "scanMeanRecall": 0.5,
+      "errors": 0
+    },
+    "cap-length": {
+      "probes": 5,
+      "searchMeanRecall": 0.6,
+      "scanMeanRecall": 0,
+      "errors": 0
+    },
+    "cap-terms": {
+      "probes": 1,
+      "searchMeanRecall": null,
+      "scanMeanRecall": null,
+      "errors": 0
+    },
+    "single-char": {
+      "probes": 2,
+      "searchMeanRecall": 0.25,
+      "scanMeanRecall": null,
+      "errors": 0
+    },
+    "noise": {
+      "probes": 1,
+      "searchMeanRecall": null,
+      "scanMeanRecall": null,
+      "errors": 0
+    }
+  },
+  "remainingFixtures": 0
+}
