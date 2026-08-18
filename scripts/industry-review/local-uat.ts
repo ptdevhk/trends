@@ -62,6 +62,11 @@ function approvalSafeSourceIds(sources: FixtureSource[]): string[] {
 function expectedAction(item: FixtureCase, explicitCncEvidence: boolean, safeIds: string[]): string {
   if (!item.companyKey) return 'inspect'
   if (item.kind === 'explicit_cnc' && explicitCncEvidence && safeIds.length > 0) return 'approve'
+  // clean_standard mirrors buildRecommendation's approval gate: canonical
+  // company, no explicit CNC claim, and >=2 approval-safe sources (the
+  // low_source_diversity guard only passes a single authoritative registry
+  // row; two safe sources never trip it).
+  if (item.kind === 'clean_standard' && !explicitCncEvidence && safeIds.length >= 2) return 'approve'
   return 'needs_more_evidence'
 }
 

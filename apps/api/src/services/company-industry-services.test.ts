@@ -83,7 +83,7 @@ describe("company industry API services", () => {
         runId: "run-replacement",
         workspaceSlug: "hr",
         companyKey: "acme-industrial",
-        targetRevisionId: "revision-1",
+        targetRevisionId: "undo-revision-2",
         proposalId: "proposal-1",
         requestedBy: "reviewer-42",
         status: "running",
@@ -150,7 +150,7 @@ describe("company industry API services", () => {
     expect(mocks.recomputeStart).not.toHaveBeenCalled();
   });
 
-  it("starts a replacement recompute when no matching restored-revision run exists", async () => {
+  it("starts a replacement recompute when no matching reversal-target run exists", async () => {
     mocks.mutation.mockResolvedValueOnce({
       proposalId: "proposal-1",
       companyKey: "acme-industrial",
@@ -197,12 +197,59 @@ describe("company industry API services", () => {
     expect(mocks.recomputeStart).toHaveBeenCalledWith({
       workspaceSlug: "hr",
       companyKey: "acme-industrial",
-      targetRevisionId: "revision-1",
+      targetRevisionId: "undo-revision-2",
       proposalId: "proposal-1",
       requestedBy: "reviewer-42",
       // No `advance: false`: the undo path intentionally inherits start()'s
       // synchronous default (backfill + advance-to-terminal) so the reversal
       // propagation cannot silently park on a dead scheduler.
+    });
+  });
+
+  it("starts a reversal-target recompute when the approval had no predecessor", async () => {
+    mocks.mutation.mockResolvedValueOnce({
+      proposalId: "proposal-1",
+      companyKey: "acme-industrial",
+      reversalRevisionId: "undo-revision-2",
+      previousRunId: "run-approved",
+      previousRunStatus: "completed",
+      replacementRecomputeRequired: true,
+      idempotent: false,
+    });
+    mocks.recomputeList.mockResolvedValueOnce([]);
+    mocks.recomputeStart.mockResolvedValueOnce({
+      runId: "run-replacement-new",
+      status: "queued",
+    });
+
+    await expect(
+      undoIndustryProposalApproval(
+        {
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          workspaceSlug: "hr",
+        },
+        "reviewer-42",
+        "admin",
+      ),
+    ).resolves.toEqual({
+      proposalId: "proposal-1",
+      reversalRevisionId: "undo-revision-2",
+      status: "ready_for_review",
+      recompute: {
+        previousRunId: "run-approved",
+        previousRunStatus: "completed",
+        replacementRunId: "run-replacement-new",
+        status: "queued",
+      },
+    });
+
+    expect(mocks.recomputeStart).toHaveBeenCalledWith({
+      workspaceSlug: "hr",
+      companyKey: "acme-industrial",
+      targetRevisionId: "undo-revision-2",
+      proposalId: "proposal-1",
+      requestedBy: "reviewer-42",
     });
   });
 

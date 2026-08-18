@@ -420,23 +420,20 @@ export async function undoIndustryProposalApproval(
       : undefined;
 
   if (value.replacementRecomputeRequired) {
-    if (!restoredRevisionId) {
-      throw new Error(
-        "Invalid companies:undoIndustryProposalApproval response: restoredRevisionId is required for replacement recompute",
-      );
-    }
-
+    // The undo mutation sets the reversal as the current revision, and the
+    // recompute target must be the current revision — so target the reversal,
+    // never the restored pre-approval revision (already superseded).
     const existingRuns = await companyIndustryRecomputeService.list({
       workspaceSlug: input.workspaceSlug,
       companyKey,
       limit: 100,
     });
     const replacement =
-      existingRuns.find((run) => run.targetRevisionId === restoredRevisionId) ??
+      existingRuns.find((run) => run.targetRevisionId === reversalRevisionId) ??
       (await companyIndustryRecomputeService.start({
         workspaceSlug: input.workspaceSlug,
         companyKey,
-        targetRevisionId: restoredRevisionId,
+        targetRevisionId: reversalRevisionId,
         proposalId,
         requestedBy: reviewer,
       }));
