@@ -8384,6 +8384,299 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/policy-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List candidate policy overrides */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Candidate policy override list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                workspaceSlug: string;
+                                resumeId: string;
+                                resumeIdentity: string;
+                                companyKey: string;
+                                effect: string;
+                                reason?: string;
+                                authorizedBy?: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Set a candidate policy override (allow) for a resume/company pair */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeId: string;
+                        resumeIdentity: string;
+                        companyKey: string;
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Override set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            id: string;
+                        };
+                    };
+                };
+                /** @description Missing required fields */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Remove a candidate policy override */
+        delete: {
+            parameters: {
+                query: {
+                    resumeIdentity: string;
+                    companyKey: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Override removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            removed: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspace/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export a workspace snapshot (hr-ops or full profile) */
+        get: {
+            parameters: {
+                query?: {
+                    profile?: "hr-ops" | "full";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workspace snapshot envelope */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {number} */
+                            schemaVersion: 1;
+                            /** @enum {string} */
+                            profile: "hr-ops" | "full";
+                            workspaceSlug: string;
+                            exportedAt: number;
+                            tables: {
+                                candidateStatus: {
+                                    [key: string]: unknown;
+                                }[];
+                                candidateBlocks: {
+                                    [key: string]: unknown;
+                                }[];
+                                searchProfiles: {
+                                    [key: string]: unknown;
+                                }[];
+                                workspaceConfig: {
+                                    [key: string]: unknown;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Export failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspace/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a workspace snapshot (replace or merge mode) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        schemaVersion?: number;
+                        /** @enum {string} */
+                        profile: "hr-ops" | "full";
+                        /** @enum {string} */
+                        mode: "replace" | "merge";
+                        tables: {
+                            candidateStatus: {
+                                [key: string]: unknown;
+                            }[];
+                            candidateBlocks: {
+                                [key: string]: unknown;
+                            }[];
+                            searchProfiles: {
+                                [key: string]: unknown;
+                            }[];
+                            workspaceConfig: {
+                                [key: string]: unknown;
+                            }[];
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {number} */
+                            schemaVersion: 1;
+                            /** @enum {string} */
+                            profile: "hr-ops" | "full";
+                            workspaceSlug: string;
+                            /** @enum {string} */
+                            mode: "replace" | "merge";
+                            applied: {
+                                candidateStatus: number;
+                                candidateBlocks: number;
+                                searchProfiles: number;
+                                workspaceConfig: number;
+                            };
+                            deleted: {
+                                candidateStatus: number;
+                                candidateBlocks: number;
+                                searchProfiles: number;
+                                workspaceConfig: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Envelope rejected */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/companies": {
         parameters: {
             query?: never;
