@@ -487,3 +487,266 @@ export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity
 export function deriveResumeIdentityKey(input: ResumeIdentityInput): string {
     return deriveResumeIdentity(input).identityKey;
 }
+
+// ---------------------------------------------------------------------------
+// Contact signals + dedup block keys (item #9)
+//
+// These functions normalize PII captured at submit time (email / phone /
+// linkedin) and derive coarse blocking keys used by the read-only
+// suggested-merge review surface. They never mutate identityKey.
+// ---------------------------------------------------------------------------
+
+const EMAIL_KEYS = ["email", "emailAddress", "email_address"];
+const PHONE_KEYS = ["phone", "phoneNumber", "phone_number", "mobile", "mobilePhone", "mobile_phone"];
+const LINKEDIN_KEYS = ["linkedin", "linkedinUrl", "linkedin_url", "linkedinProfileUrl", "linkedin_profile_url"];
+const NAME_KEYS = ["name", "candidateName", "candidate_name", "fullName", "full_name", "displayName", "display_name"];
+
+export function normalizeEmailAddress(value: unknown): string | null {
+    const raw = readString(value);
+    if (!raw) {
+        return null;
+    }
+    const trimmed = raw.toLowerCase();
+    if (trimmed.length > 254 || /\s/.test(trimmed)) {
+        return null;
+    }
+    const atIndex = trimmed.indexOf("@");
+    if (atIndex <= 0 || atIndex !== trimmed.lastIndexOf("@")) {
+        return null;
+    }
+    const localPart = trimmed.slice(0, atIndex);
+    const domain = trimmed.slice(atIndex + 1);
+    if (!/^[a-z0-9._%+-]+$/.test(localPart)) {
+        return null;
+    }
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(domain)) {
+        return null;
+    }
+    return trimmed;
+}
+
+export function normalizePhoneNumber(value: unknown): string | null {
+    const raw = readString(value);
+    if (!raw) {
+        return null;
+    }
+    let digits = raw.replace(/\D+/g, "");
+    if (!digits) {
+        return null;
+    }
+    // Strip CN country prefix only when the remainder still looks like a
+    // domestic number (avoids mangling e.g. 10-digit US numbers starting 86).
+    if (digits.startsWith("0086") && digits.length > 13) {
+        digits = digits.slice(4);
+    } else if (digits.startsWith("86") && digits.length > 11) {
+        digits = digits.slice(2);
+    }
+    if (digits.length < 7 || digits.length > 15) {
+        return null;
+    }
+    return digits;
+}
+
+export function normalizeLinkedinUrl(value: unknown): string | null {
+    const raw = readString(value);
+    if (!raw) {
+        return null;
+    }
+    let parsed: URL | null = null;
+    try {
+        parsed = new URL(raw);
+    } catch {
+        try {
+            parsed = new URL(`https://${raw}`);
+        } catch {
+            parsed = null;
+        }
+    }
+    if (!parsed) {
+        return null;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    const bareHost = hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+    if (bareHost !== "linkedin.com" && !bareHost.endsWith(".linkedin.com")) {
+        return null;
+    }
+    const path = parsed.pathname.replace(/\/+$/, "");
+    return `${bareHost}${path}`.toLowerCase();
+}
+
+export type ResumeContactSignals = {
+    email?: string;
+    phone?: string;
+    linkedin?: string;
+};
+
+export function deriveResumeContactSignals(content: unknown): ResumeContactSignals | null {
+    if (!isRecord(content)) {
+        return null;
+    }
+    const signals: ResumeContactSignals = {};
+    const email = readCandidate(content, EMAIL_KEYS);
+    if (email) {
+        const normalized = normalizeEmailAddress(email);
+        if (normalized) {
+            signals.email = normalized;
+        }
+    }
+    const phone = readCandidate(content, PHONE_KEYS);
+    if (phone) {
+        const normalized = normalizePhoneNumber(phone);
+        if (normalized) {
+            signals.phone = normalized;
+        }
+    }
+    const linkedin = readCandidate(content, LINKEDIN_KEYS);
+    if (linkedin) {
+        const normalized = normalizeLinkedinUrl(linkedin);
+        if (normalized) {
+            signals.linkedin = normalized;
+        }
+    }
+    return Object.keys(signals).length > 0 ? signals : null;
+}
+
+export function deriveResumeDisplayName(content: unknown): string | null {
+    return isRecord(content) ? readCandidate(content, NAME_KEYS) : null;
+}
+
+export function deriveResumeBlockKeys(signals: ResumeContactSignals | null, source: string | undefined): string[] {
+    const normalizedSource = source?.trim().toLowerCase() || "unknown";
+    const blockKeys = new Set<string>();
+    if (signals?.phone) {
+        const prefix = signals.phone.slice(0, 7);
+        if (prefix.length === 7) {
+            blockKeys.add(`phone:${prefix}|${normalizedSource}`);
+        }
+    }
+    if (signals?.email) {
+        const atIndex = signals.email.indexOf("@");
+        if (atIndex > 0) {
+            blockKeys.add(`email:${signals.email.slice(atIndex + 1)}|${normalizedSource}`);
+        }
+    }
+    return Array.from(blockKeys);
+}
+
+export function deriveResumeSignalKey(blockKey: string): string {
+    const separator = blockKey.indexOf("|");
+    return separator > 0 ? blockKey.slice(0, separator) : blockKey;
+}
+
+export function areContactSignalsEqual(
+    left: ResumeContactSignals | null | undefined,
+    right: ResumeContactSignals | null | undefined,
+): boolean {
+    return (left?.email ?? null) === (right?.email ?? null)
+        && (left?.phone ?? null) === (right?.phone ?? null)
+        && (left?.linkedin ?? null) === (right?.linkedin ?? null);
+}
+
+// ---------------------------------------------------------------------------
+// Soft-signal extractors (used for merge-pair scoring, never for identity)
+// ---------------------------------------------------------------------------
+
+export function normalizeEntryList(value: unknown): Array<Record<string, unknown>> {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    const result: Array<Record<string, unknown>> = [];
+    for (const entry of value) {
+        if (isRecord(entry)) {
+            result.push(entry);
+        }
+    }
+    return result;
+}
+
+const COMPANY_NAME_KEYS = ["companyName", "company_name", "company", "employer"];
+// "name" is a valid school-name key inside education entries but must not be
+// read from the top level of the resume (that is the candidate's name).
+const SCHOOL_NAME_ENTRY_KEYS = ["schoolName", "school_name", "school", "institution", "name"];
+const SCHOOL_NAME_TOP_KEYS = ["schoolName", "school_name", "school", "institution"];
+const WORK_HISTORY_KEYS = ["workHistory", "experience", "workExperience"];
+const EDUCATION_KEYS = ["education", "profileEducation", "educationList", "educations"];
+
+export function collectResumeCompanyNames(content: unknown): string[] {
+    if (!isRecord(content)) {
+        return [];
+    }
+    const names = new Set<string>();
+    for (const entry of normalizeEntryList(content[WORK_HISTORY_KEYS[0]] ?? content[WORK_HISTORY_KEYS[1]] ?? content[WORK_HISTORY_KEYS[2]])) {
+        const name = readCandidate(entry, COMPANY_NAME_KEYS);
+        if (name) {
+            names.add(name.toLowerCase());
+        }
+    }
+    const topLevel = readCandidate(content, COMPANY_NAME_KEYS);
+    if (topLevel) {
+        names.add(topLevel.toLowerCase());
+    }
+    return Array.from(names);
+}
+
+export function collectResumeEducationSchools(content: unknown): string[] {
+    if (!isRecord(content)) {
+        return [];
+    }
+    const schools = new Set<string>();
+    for (const key of EDUCATION_KEYS) {
+        for (const entry of normalizeEntryList(content[key])) {
+            const name = readCandidate(entry, SCHOOL_NAME_ENTRY_KEYS);
+            if (name) {
+                schools.add(name.toLowerCase());
+            }
+        }
+    }
+    const topLevel = readCandidate(content, SCHOOL_NAME_TOP_KEYS);
+    if (topLevel) {
+        schools.add(topLevel.toLowerCase());
+    }
+    return Array.from(schools);
+}
+
+const TIMELINE_DATE_KEYS = ["startDate", "start_date", "startTime", "start_time", "from", "endDate", "end_date", "endTime", "end_time", "to", "period", "duration"];
+
+export function deriveResumeTimelineYears(content: unknown): number[] {
+    if (!isRecord(content)) {
+        return [];
+    }
+    const years = new Set<number>();
+    for (const entry of normalizeEntryList(content[WORK_HISTORY_KEYS[0]] ?? content[WORK_HISTORY_KEYS[1]] ?? content[WORK_HISTORY_KEYS[2]])) {
+        for (const key of TIMELINE_DATE_KEYS) {
+            const value = readString(entry[key]);
+            if (!value) {
+                continue;
+            }
+            for (const match of value.matchAll(/\b(19\d\d|20\d\d|2100)\b/g)) {
+                const year = Number(match[1]);
+                if (year >= 1980 && year <= 2100) {
+                    years.add(year);
+                }
+            }
+        }
+    }
+    return Array.from(years);
+}
+
+const COMPANY_TOKEN_STOPLIST = new Set([
+    "co", "ltd", "inc", "llc", "corp", "gmbh", "ag", "plc", "sa", "srl",
+    "公司", "有限公司", "有限责任公司", "集团", "股份", "控股", "责任",
+]);
+
+export function companyNameTokens(names: string[]): Set<string> {
+    const tokens = new Set<string>();
+    for (const name of names) {
+        for (const part of name.toLowerCase().split(/[^a-z0-9\u4e00-\u9fff]+/)) {
+            const trimmed = part.trim();
+            if (trimmed.length < 2 || COMPANY_TOKEN_STOPLIST.has(trimmed)) {
+                continue;
+            }
+            tokens.add(trimmed);
+        }
+    }
+    return tokens;
+}

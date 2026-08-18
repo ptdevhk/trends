@@ -4,7 +4,13 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { collectionTaskResultsValidator, ingestDataValidator, analysisResultValidator, resumeAnalysisValidator, jsonRecordValidator } from "./validators.js";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
-import { deriveResumeIdentity } from "./lib/resume_identity";
+import {
+    deriveResumeIdentity,
+    deriveResumeContactSignals,
+    deriveResumeBlockKeys,
+    areContactSignalsEqual,
+    type ResumeContactSignals,
+} from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { resolveDiagnosticsSourceKeyForResume } from "./resumes";
 import {
@@ -438,6 +444,7 @@ export const submitResumes = mutation({
         let nextIndex = 0;
         const parallelism = resolveSubmitResumeParallelism(resumes.length);
         const ingestProcessIds: Id<"resumes">[] = [];
+        const blockEntries: Array<{ resumeId: Id<"resumes">; source: string; blockKeys: string[] }> = [];
 
         const worker = async (): Promise<void> => {
             while (true) {
@@ -466,6 +473,8 @@ export const submitResumes = mutation({
                     }
 
                 const parsedAge = parseAgeFromContent(resume.content);
+                const contactSignals = deriveResumeContactSignals(resume.content);
+                const blockKeys = deriveResumeBlockKeys(contactSignals, resume.source);
 
                 if (existing) {
                     const nextTags = mergeTags(existing.tags, resume.tags);
@@ -484,6 +493,7 @@ export const submitResumes = mutation({
                             primaryRuleScore?: number;
                             ingestData?: Doc<"resumes">["ingestData"];
                             age?: number;
+                            contactSignals?: ResumeContactSignals;
                         } = {
                             externalId: resume.externalId,
                             identityKey: entry.identityKey,
@@ -494,6 +504,7 @@ export const submitResumes = mutation({
                             tags: nextTags,
                             searchText: resolveStoredSearchText(resume.content, restoreState),
                             sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
+                            contactSignals: contactSignals ?? undefined,
                         };
                         const restoredAnalysis = applyRestoreStateFields(patch, restoreState);
                         applyParsedAgePatch(patch, parsedAge, existing.age);
@@ -509,6 +520,11 @@ export const submitResumes = mutation({
                         }
                         updated += 1;
                         searchTextRefreshed += 1;
+                        if (!areContactSignalsEqual(existing.contactSignals, contactSignals)) {
+                            // Refresh blocks even when the new content has no
+                            // signals — this clears stale blocks on PII removal.
+                            blockEntries.push({ resumeId: existing._id, source: resume.source, blockKeys });
+                        }
                         if (shouldScheduleIngest(restoreState)) {
                             ingestProcessIds.push(existing._id);
                         }
@@ -522,6 +538,7 @@ export const submitResumes = mutation({
                         primaryRuleScore?: number;
                         ingestData?: Doc<"resumes">["ingestData"];
                         age?: number;
+                        contactSignals?: ResumeContactSignals;
                     } = {};
 
                     const restoredSearchText = resolveStoredSearchText(resume.content, restoreState);
@@ -533,6 +550,9 @@ export const submitResumes = mutation({
                     }
                     if (tagsChanged) {
                         patch.tags = nextTags;
+                    }
+                    if (!areContactSignalsEqual(existing.contactSignals, contactSignals)) {
+                        patch.contactSignals = contactSignals ?? undefined;
                     }
                     const restoredAnalysis = applyRestoreStateFields(patch, restoreState);
                     applyParsedAgePatch(patch, parsedAge, existing.age);
@@ -574,6 +594,7 @@ export const submitResumes = mutation({
                         ingestData?: Doc<"resumes">["ingestData"];
                         age?: number;
                         needsEmbedding?: boolean;
+                        contactSignals?: ResumeContactSignals;
                     } = {
                         externalId: resume.externalId,
                         identityKey: entry.identityKey,
@@ -585,6 +606,7 @@ export const submitResumes = mutation({
                         crawledAt: restoreState?.crawledAt ?? Date.now(),
                         sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
                         needsEmbedding: true,
+                        contactSignals: contactSignals ?? undefined,
                     };
                     const restoredAnalysis = applyRestoreStateFields(insertPayload, restoreState);
                     applyParsedAgePatch(insertPayload, parsedAge);
@@ -599,6 +621,9 @@ export const submitResumes = mutation({
                         );
                     }
                     inserted += 1;
+                    if (blockKeys.length > 0) {
+                        blockEntries.push({ resumeId: newId, source: resume.source, blockKeys });
+                    }
                     if (shouldScheduleIngest(restoreState)) {
                         ingestProcessIds.push(newId);
                     }
@@ -608,6 +633,12 @@ export const submitResumes = mutation({
 
         const workers = Array.from({ length: parallelism }, () => worker());
         await Promise.all(workers);
+
+        // Maintain dedup blocking keys for any resume whose contact signals
+        // were captured/changed in this batch (item #9).
+        if (blockEntries.length > 0) {
+            await ctx.runMutation(internal.resume_dedup.maintainResumeDedupBlocks, { entries: blockEntries });
+        }
 
         // Schedule ingest computation for new/updated resumes (M3)
         if (ingestProcessIds.length > 0) {
