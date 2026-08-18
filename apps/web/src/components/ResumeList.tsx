@@ -138,6 +138,9 @@ export function ResumeList() {
     getAiFeedback,
     ratingsByResume,
     commentsByResume,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   } = useResumeListState(historyRequested)
   useEffect(() => {
     if (!activeLoading) {
@@ -209,6 +212,13 @@ export function ResumeList() {
     if (!detailResume) return undefined
     return buildResumeKey(detailResume, 0)
   }, [detailResume])
+
+  const detailIdentityKey = useMemo(() => {
+    if (!detailKey) return undefined
+    return displayedResumes.find((entry) => entry.key === detailKey)?.identityKey
+  }, [detailKey, displayedResumes])
+
+  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
 
   const detailMatch = useMemo(() => {
     if (!detailKey) return undefined
@@ -392,6 +402,8 @@ export function ResumeList() {
         isReviewed={reviewedIdsSet.has(entry.key)}
         aiScoreFeedback={getAiFeedback(entry.key, 'ai_score')}
         onAiFeedback={(target, sentiment) => handleAiFeedback(entry.key, target, sentiment)}
+        policyOverrides={policyOverrides}
+        resumeIdentity={entry.identityKey}
       />
     )
   }
@@ -682,6 +694,10 @@ export function ResumeList() {
             onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
             userRating={detailKey ? ratingsByResume[detailKey] : undefined}
             onRating={detailKey ? (rating) => handleRating(detailKey, rating) : undefined}
+            policyOverrides={policyOverrides}
+            resumeIdentity={detailIdentityKey}
+            onSetOverride={setOverride}
+            onRemoveOverride={removeOverride}
           />
         </Suspense>
       ) : null}

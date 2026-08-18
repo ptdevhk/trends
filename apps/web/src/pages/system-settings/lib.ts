@@ -152,6 +152,8 @@ export type SystemSettingsSubpageId =
   | 'industry-data'
   | 'locations'
   | 'export-fields'
+  | 'workspace'
+  | 'resume-dedup'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -206,6 +208,14 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   'export-fields': {
     descriptionKey: 'debugConfig.exportFieldsPageDescription',
     defaultDescription: 'Configure which columns appear in resume CSV/XLSX exports.',
+  },
+  workspace: {
+    descriptionKey: 'debugConfig.workspacePageDescription',
+    defaultDescription: 'Export and import portable workspace snapshots (same format as the CLI).',
+  },
+  'resume-dedup': {
+    descriptionKey: 'debugConfig.resumeDedupPageDescription',
+    defaultDescription: 'Review suggested same-person matches across resume collection sources (advisory only — no merge action).',
   },
 }
 

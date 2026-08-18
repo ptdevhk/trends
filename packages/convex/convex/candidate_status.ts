@@ -983,3 +983,40 @@ export const stampWorkspaceByExternalIds = mutation({    args: {
         };
     },
 });
+
+/**
+ * Operator helper: remove a single candidate status row by identity key.
+ * Gated by CONVEX_WRITE_SECRET. Mirrors candidate_blocks.remove; intended for
+ * targeted cleanup without clearWorkspace's workspace-wide deletion.
+ */
+export const remove = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        identityKey: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const identityKey = normalizeIdentityKey(args.identityKey);
+        if (!identityKey) {
+            return false;
+        }
+
+        const existing = await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+            )
+            .collect();
+
+        if (existing.length === 0) {
+            return false;
+        }
+
+        for (const status of existing) {
+            await ctx.db.delete(status._id);
+        }
+        return true;
+    },
+});

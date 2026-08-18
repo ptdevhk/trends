@@ -223,6 +223,9 @@ const baseMockState = {
   getAiFeedback: vi.fn(() => undefined),
   ratingsByResume: {},
   commentsByResume: {},
+  overridesByKey: {},
+  setOverride: vi.fn(async () => true),
+  removeOverride: vi.fn(async () => true),
 }
 
 let mockResumeListState = { ...baseMockState }

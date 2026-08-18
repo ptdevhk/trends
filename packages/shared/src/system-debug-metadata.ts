@@ -420,6 +420,22 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/system/settings/export-fields",
     matchesSuffixes: ["/system/settings/export-fields"],
   },
+  {
+    id: "workspace",
+    titleKey: "debugConfig.settingsNavWorkspace",
+    defaultTitle: "Workspace",
+    hrefSuffix: "/system/settings/workspace",
+    matchesSuffixes: ["/system/settings/workspace"],
+    requiresAdmin: true,
+  },
+  {
+    id: "resume-dedup",
+    titleKey: "debugConfig.settingsNavResumeDedup",
+    defaultTitle: "Resume dedup review",
+    hrefSuffix: "/system/settings/resume-dedup",
+    matchesSuffixes: ["/system/settings/resume-dedup"],
+    requiresAdmin: true,
+  },
 ];
 
 export const DEBUG_PAGE_SECTION_DEFINITIONS: Array<{

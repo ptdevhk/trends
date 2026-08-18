@@ -15,6 +15,8 @@ export { default as sessionsRoutes } from "./sessions.js";
 export { default as publicSharesRoutes } from "./public-shares.js";
 export { default as actionsRoutes } from "./actions.js";
 export { default as blocksRoutes } from "./blocks.js";
+export { default as policyOverridesRoutes } from "./policy-overrides.js";
+export { default as workspaceSnapshotRoutes } from "./workspace-snapshots.js";
 export { default as companiesRoutes } from "./companies.js";
 export { default as researchRoutes } from "./research.js";
 export { default as candidateStatusRoutes } from "./candidate-status.js";

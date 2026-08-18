@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SystemSettingsIndustryVerificationPage } from './SystemSettingsIndustryVerificationPage'
+import { SettingsRequestError } from '@/pages/system-settings/lib'
 
 function LocationProbe() {
   const location = useLocation()
@@ -987,6 +988,70 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       expectedCurrentRevisionId: 'revision-clean',
       expectedProposalUpdatedAt: 99,
       recomputeRunId: 'run-clean',
+    })
+  })
+
+  it('blocks same-row undo after a stale 409 and keeps the session approval visible', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    const base = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith('/undo-approval') && init?.method === 'POST') {
+        return Promise.reject(new SettingsRequestError(409, {
+          success: false,
+          error: 'The approval is no longer current',
+          code: 'INDUSTRY_REVIEW_STALE',
+        }))
+      }
+      return base?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    expect(await screen.findByTestId('industry-review-row-error-clean-proposal')).toHaveTextContent('The approval is no longer current')
+    // Conflict on an approved row: no Retry affordance, undo button blocked,
+    // and the session approval is retained for a later explicit refresh.
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeDisabled()
+    expect(screen.getByText('Approved in this session')).toBeInTheDocument()
+  })
+
+  it('fails cleanly on a 500 undo and recovers via Retry without stuck pending state', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    const base = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith('/undo-approval') && init?.method === 'POST') {
+        return Promise.reject(new SettingsRequestError(500, { success: false }))
+      }
+      return base?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    expect(await screen.findByTestId('industry-review-row-error-clean-proposal')).toHaveTextContent('Undo failed. Retry or refresh to reconcile.')
+    // Network-kind failure keeps the Retry affordance and leaves the row
+    // interactive again (pending state cleared in the finally path).
+    const retryButton = screen.getByRole('button', { name: 'Retry' })
+    expect(retryButton).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeEnabled()
+
+    await user.click(retryButton)
+    await waitFor(() => {
+      const undoCalls = requestJsonMock.mock.calls.filter(
+        ([path, init]) => path.endsWith('/undo-approval') && init?.method === 'POST',
+      )
+      expect(undoCalls).toHaveLength(2)
     })
   })
 

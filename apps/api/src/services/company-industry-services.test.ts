@@ -277,6 +277,27 @@ describe("company industry API services", () => {
     expect(mocks.recomputeStart).not.toHaveBeenCalled();
   });
 
+  it("propagates non-stale undo mutation failures unchanged (proposal already deleted)", async () => {
+    mocks.mutation.mockRejectedValueOnce(
+      new Error("Unknown industry proposal: proposal-1"),
+    );
+
+    await expect(
+      undoIndustryProposalApproval(
+        {
+          proposalId: "proposal-1",
+          approvedRevisionId: "revision-2",
+          workspaceSlug: "hr",
+        },
+        "reviewer-42",
+        "admin",
+      ),
+    ).rejects.toThrow("Unknown industry proposal: proposal-1");
+    // No follow-up recompute traffic and no partial result on the failure path.
+    expect(mocks.recomputeList).not.toHaveBeenCalled();
+    expect(mocks.recomputeStart).not.toHaveBeenCalled();
+  });
+
   it("batch-loads reviewed catalog entries once, preserves key order, and diagnoses missing/invalid revisions", async () => {
     mocks.query.mockResolvedValueOnce([
       { companyKey: "acme-cnc", status: "reviewed", profile: reviewedSnapshot },

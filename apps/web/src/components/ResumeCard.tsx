@@ -9,7 +9,7 @@ import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { toast } from 'sonner'
-import { isAdvancingCandidateStatus } from '@trends/shared'
+import { isAdvancingCandidateStatus, type CandidatePolicyOverride } from '@trends/shared'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
@@ -109,6 +109,8 @@ interface ResumeCardProps {
   onRatingComment?: (comment: string) => void
   confirmedScore?: number
   refreshState?: ResumeRefreshState
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -257,6 +259,8 @@ export const ResumeCard = memo(function ResumeCard({
   onRatingComment,
   confirmedScore,
   refreshState,
+  policyOverrides,
+  resumeIdentity,
   industryTags,
   companyHits,
   brandHits,
@@ -298,8 +302,10 @@ export const ResumeCard = memo(function ResumeCard({
           companyHits,
         },
         matchResume,
+        policyOverrides,
+        resumeIdentity,
       ),
-    [companyHits, matchResume, resume.workHistory],
+    [companyHits, matchResume, policyOverrides, resume.workHistory, resumeIdentity],
   )
   const companyPolicyHits = companyPolicyState.hits
   const guardWorkflowAdvance = (fn: () => void) => {
@@ -522,6 +528,11 @@ export const ResumeCard = memo(function ResumeCard({
         ) : null}
         {scoreNode}
         <CompanyPolicyBadges hits={companyPolicyHits} />
+        {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+            {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+          </Badge>
+        ) : null}
         {experienceBadge ? (
           <Badge
             variant="outline"

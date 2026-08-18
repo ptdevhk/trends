@@ -1,4 +1,4 @@
-import { deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
+import { compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -11,8 +11,9 @@ import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
+import { useCandidatePolicyOverrides } from '@/hooks/useCandidatePolicyOverrides'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
+import { matchResumeCompanyPolicyCached, useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 
 import { useStableQuery } from '@/hooks/useStableQuery'
 import {
@@ -406,9 +407,16 @@ function sortResults(
   sortValue: SearchSortValue,
 ): ResumeSearchResultItem[] {
   if (sortValue === 'score') {
-    return [...results].sort(
-      (left, right) => (right.score ?? -1) - (left.score ?? -1),
-    )
+    return [...results].sort((left, right) => {
+      const tierDiff = compareCompanyRankingEffects(
+        left.companyRankingEffect,
+        right.companyRankingEffect,
+      )
+      if (tierDiff !== 0) {
+        return tierDiff
+      }
+      return (right.score ?? -1) - (left.score ?? -1)
+    })
   }
 
   return [...results].sort((left, right) => {
@@ -780,6 +788,8 @@ export function useResumeSearchState() {
   })
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(canLoadOperationalState)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(canLoadOperationalState)
+  const { overridesByKey, setOverride, removeOverride } = useCandidatePolicyOverrides(canLoadOperationalState)
+  const { matchResume } = useCompanyPolicyIndex(canLoadOperationalState)
   const { actions: actionsByResume, ratingsByResume, commentsByResume, saveAction, getAiFeedback } = useCandidateActions(
     sessionKey,
     parsedState.jobDescriptionId,
@@ -972,6 +982,10 @@ export function useResumeSearchState() {
         parsedState.jobDescriptionId,
         normalizedAnalysis,
       )
+      const policyHits = matchResume({
+        workHistory: resume.workHistory,
+        companyHits: resume.ingestData?.companyHits,
+      })
       return {
         key: `${resume.resumeId}`,
         identityKey,
@@ -985,6 +999,7 @@ export function useResumeSearchState() {
               ? 'ai'
               : 'rule'
             : undefined,
+        companyRankingEffect: primaryCompanyPolicyHit(policyHits)?.rankingEffect,
           status: statusRecord?.status ?? 'new',
           statusMeta: statusRecord,
           refreshState,
@@ -994,6 +1009,7 @@ export function useResumeSearchState() {
     analysisKeywords,
     blocksByIdentity,
     currentPromptVersion,
+    matchResume,
     parsedState.jobDescriptionId,
     parsedState.location,
     resumeQuery.resumes,
@@ -2130,6 +2146,9 @@ export function useResumeSearchState() {
     handleRatingComment,
     handleCandidateStatusChange,
     handleToggleBlock,
+    overridesByKey,
+    setOverride,
+    removeOverride,
     highScoreCount,
     selectedIds,
     selectAll,

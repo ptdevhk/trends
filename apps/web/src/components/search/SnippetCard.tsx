@@ -1,4 +1,4 @@
-import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, hasActiveOverride, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
 import {
   Check,
   ChevronDown,
@@ -63,6 +63,8 @@ type SnippetCardProps = {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   /** Raw search query text for highlighting matches in the card */
   searchQuery?: string
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -156,6 +158,8 @@ export const SnippetCard = memo(function SnippetCard({
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
+  policyOverrides,
+  resumeIdentity,
 }: SnippetCardProps) {
   const { t } = useTranslation()
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
@@ -188,6 +192,19 @@ export const SnippetCard = memo(function SnippetCard({
       }),
     [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
   )
+  const overriddenCompanyKeys = useMemo(() => {
+    if (!policyOverrides || policyOverrides.length === 0) {
+      return []
+    }
+    const identity = (resumeIdentity ?? item.identityKey).trim()
+    if (!identity) {
+      return []
+    }
+    return companyPolicyHits
+      .filter((hit) => hit.effects.workflow === 'blocked')
+      .filter((hit) => hasActiveOverride(policyOverrides, identity, hit.companyKey))
+      .map((hit) => hit.companyKey)
+  }, [companyPolicyHits, item.identityKey, policyOverrides, resumeIdentity])
   const score = item.score
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
@@ -387,6 +404,11 @@ export const SnippetCard = memo(function SnippetCard({
           </Badge>
         ))}
         <CompanyPolicyBadges hits={companyPolicyHits} />
+        {overriddenCompanyKeys.length > 0 ? (
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+            {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+          </Badge>
+        ) : null}
         {cardAnchorId ? (
           <TooltipProvider>
             <Tooltip>
@@ -582,6 +604,8 @@ export const SnippetCard = memo(function SnippetCard({
           showAiScore={showAiScore}
           onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
           candidateStatus={candidateStatus}
+          policyOverrides={policyOverrides}
+          resumeIdentity={resumeIdentity ?? item.identityKey}
           onCandidateStatusChange={onCandidateStatusChange
             ? (identityKey, nextStatus) => {
               if (nextStatus === 'interviewed_reject' || nextStatus === 'withdrawn') {

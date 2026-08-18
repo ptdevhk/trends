@@ -24,6 +24,7 @@ import { useSession } from '@/hooks/useSession'
 import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
+import { useCandidatePolicyOverrides } from '@/hooks/useCandidatePolicyOverrides'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
 import {
@@ -357,6 +358,7 @@ export function useResumeListState(loadSearchHistory = false) {
     auxiliaryResumeDataEnabled,
   )
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(auxiliaryResumeDataEnabled)
+  const { overridesByKey, setOverride, removeOverride } = useCandidatePolicyOverrides(auxiliaryResumeDataEnabled)
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
   const { tasks: analysisTasks, dispatch: dispatchAnalysis } = useAnalysisTasks()
   const [analyzing, setAnalyzing] = useState(false)
@@ -2213,5 +2215,8 @@ export function useResumeListState(loadSearchHistory = false) {
     handleResetAll,
     ensureApiSession,
     handleShareSessionCopied,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   }
 }

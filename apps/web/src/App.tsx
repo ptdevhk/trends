@@ -144,6 +144,16 @@ const LazySystemSettingsExportFieldsPage = lazy(async () => {
   return { default: module.SystemSettingsExportFieldsPage }
 })
 
+const LazySystemSettingsWorkspacePage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsWorkspacePage')
+  return { default: module.SystemSettingsWorkspacePage }
+})
+
+const LazySystemSettingsResumeDedupReviewPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/ResumeDedupReviewPage')
+  return { default: module.default }
+})
+
 const LazyAccountPage = lazy(async () => {
   const module = await import('@/pages/AccountPage')
   return { default: module.AccountPage }
@@ -608,6 +618,22 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsExportFieldsPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="workspace"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsWorkspacePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="resume-dedup"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsResumeDedupReviewPage />
                     </RouteSuspense>
                   )}
                 />

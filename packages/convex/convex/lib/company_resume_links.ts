@@ -1,6 +1,7 @@
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { DEFAULT_WORKSPACE_SLUG } from "../sessions";
+import { normalizeCompanyAlias } from "@trends/shared";
 
 type IngestData = NonNullable<Doc<"resumes">["ingestData"]>;
 
@@ -134,8 +135,9 @@ export async function replaceCompanyResumeLinksForResume(
     normalizeToken(resume.externalId) ??
     String(resume._id);
   const updatedAt = Date.now();
+  const derived = deriveCompanyResumeLinks(ingestData);
 
-  for (const link of deriveCompanyResumeLinks(ingestData)) {
+  for (const link of derived) {
     const revisionIds = [...link.verdictRevisionIds].sort();
     for (const workspaceSlug of workspaces) {
       await ctx.db.insert("company_resume_links", {
@@ -156,6 +158,19 @@ export async function replaceCompanyResumeLinksForResume(
       });
     }
   }
+
+  // Keep content.workHistory stamps in sync with the freshly derived links.
+  await stampWorkHistoryCompanyKeys(
+    ctx,
+    resume,
+    derived.map((link) => ({
+      companyKey: link.companyKey,
+      matchedEmployerSurfaces: [...link.matchedEmployerSurfaces],
+      ...(link.verdictRevisionIds.size === 1
+        ? { companyKeyRevision: [...link.verdictRevisionIds][0] }
+        : {}),
+    })),
+  );
 }
 
 /**
@@ -210,4 +225,90 @@ export async function upsertCompanyResumeLinkForCompany(
       updatedAt: Date.now(),
     });
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Stamp canonical companyKey links onto a resume's content.workHistory
+ * entries so policy evaluation can prefer persisted links over runtime
+ * alias re-matching. Entries whose normalized companyName resolves to one of
+ * the given matched surfaces get `companyKey` (plus `companyKeyRevision`
+ * when the caller has one); a matched entry without a revision has any stale
+ * revision cleared. Entries with no matching surface keep their stamps
+ * untouched — per-company backfill batches must never clobber the stamps of
+ * other companies on multi-company resumes. Callers pass the full derived
+ * link set (recompute path) or the per-company backfill batch (backfill
+ * path); the surface set drives which entries get stamped.
+ */
+export async function stampWorkHistoryCompanyKeys(
+  ctx: Pick<MutationCtx, "db">,
+  resume: Pick<Doc<"resumes">, "_id" | "content">,
+  links: Array<{
+    companyKey: string;
+    matchedEmployerSurfaces: string[];
+    companyKeyRevision?: string;
+  }>,
+): Promise<void> {
+  const content = resume.content;
+  if (!isRecord(content) || !Array.isArray(content.workHistory)) {
+    return;
+  }
+
+  const surfaceToLink = new Map<
+    string,
+    { companyKey: string; companyKeyRevision?: string }
+  >();
+  for (const link of links) {
+    for (const surface of link.matchedEmployerSurfaces) {
+      const normalized = normalizeCompanyAlias(surface);
+      if (!normalized || surfaceToLink.has(normalized)) {
+        continue;
+      }
+      surfaceToLink.set(normalized, {
+        companyKey: link.companyKey,
+        ...(link.companyKeyRevision?.trim()
+          ? { companyKeyRevision: link.companyKeyRevision.trim() }
+          : {}),
+      });
+    }
+  }
+  if (surfaceToLink.size === 0) {
+    return;
+  }
+
+  let changed = false;
+  const workHistory = content.workHistory.map((entry) => {
+    if (!isRecord(entry) || typeof entry.companyName !== "string") {
+      return entry;
+    }
+    const link = surfaceToLink.get(normalizeCompanyAlias(entry.companyName));
+    if (!link) {
+      return entry;
+    }
+    const next = { ...entry };
+    if (next.companyKey !== link.companyKey) {
+      next.companyKey = link.companyKey;
+      changed = true;
+    }
+    const nextRevision = next.companyKeyRevision;
+    if ((nextRevision as string | undefined) !== link.companyKeyRevision) {
+      if (link.companyKeyRevision) {
+        next.companyKeyRevision = link.companyKeyRevision;
+      } else {
+        delete next.companyKeyRevision;
+      }
+      changed = true;
+    }
+    return next;
+  });
+
+  if (!changed) {
+    return;
+  }
+  await ctx.db.patch(resume._id, {
+    content: { ...content, workHistory },
+  });
 }

@@ -106,6 +106,7 @@ PROD_SHA="$(sudo -u "${PROD_SERVICE_USER:-trends}" git -C "${PROD_DIR:-/opt/tren
 ADMIN_USER="${BOOTSTRAP_ADMIN_USERS%%,*}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 HR_USER="${BOOTSTRAP_HR_DEMO_USER:-hr-demo}"
+HR_WS="${BOOTSTRAP_HR_DEMO_WORKSPACE:-hr}"
 JAR_A="/tmp/preview-gate-admin-$$.jar"
 JAR_H="/tmp/preview-gate-hr-$$.jar"
 if preview_auth_login "$ADMIN_USER" "${AUTH_BOOTSTRAP_PASSWORD:-}" "$JAR_A"; then
@@ -114,10 +115,44 @@ fi
 if preview_auth_login "$HR_USER" "${AUTH_HR_DEMO_PASSWORD:-}" "$JAR_H"; then
     HR_LOGIN=PASS
 fi
+
+# 6) hr-ops snapshot artifact (P4): evidence for migration rehearsal workflows.
+log_step "hr-ops snapshot artifact"
+SNAPSHOT_DIR="${SNAPSHOT_DIR:-$LOG_DIR}"
+mkdir -p "$SNAPSHOT_DIR" 2>/dev/null || true
+SNAPSHOT_FILE="${SNAPSHOT_FILE:-$SNAPSHOT_DIR/preview-hr-ops-snapshot-${TS}.json}"
+SNAPSHOT_FILE_EMITTED=""
+if [[ "$ADMIN_LOGIN" == "PASS" ]]; then
+    if preview_auth_curl "$JAR_A" "$HR_WS" --max-time 60 \
+        "${PREVIEW_API_URL:-http://127.0.0.1:3002}/api/workspace/export?profile=hr-ops" \
+        > "$SNAPSHOT_FILE.tmp" \
+        && python3 - "$SNAPSHOT_FILE.tmp" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    doc = json.load(f)
+ok = (
+    doc.get("success") is True
+    and doc.get("schemaVersion") == 1
+    and doc.get("profile") == "hr-ops"
+    and isinstance(doc.get("tables"), dict)
+)
+sys.exit(0 if ok else 1)
+PY
+    then
+        mv "$SNAPSHOT_FILE.tmp" "$SNAPSHOT_FILE"
+        SNAPSHOT_FILE_EMITTED="$SNAPSHOT_FILE"
+        log_info "hr-ops snapshot artifact: $SNAPSHOT_FILE"
+    else
+        rm -f "$SNAPSHOT_FILE.tmp"
+        fail_note "hr-ops snapshot artifact export failed"
+    fi
+else
+    fail_note "hr-ops snapshot artifact skipped (admin login failed)"
+fi
 rm -f "$JAR_A" "$JAR_H"
 
 NOTES_JOINED="$(printf '%s|' "${NOTES[@]:-}" | sed 's/|$//')"
-export RESULT PREVIEW_VER PREVIEW_SHA PROD_SHA ADMIN_LOGIN HR_LOGIN TS NOTES_JOINED GATE_JSON
+export RESULT PREVIEW_VER PREVIEW_SHA PROD_SHA ADMIN_LOGIN HR_LOGIN TS NOTES_JOINED GATE_JSON SNAPSHOT_FILE_EMITTED
 python3 <<'PY'
 import json, os
 doc = {
@@ -127,6 +162,7 @@ doc = {
   "prod_sha": os.environ.get("PROD_SHA", ""),
   "admin_login": os.environ.get("ADMIN_LOGIN", "FAIL"),
   "hr_demo_login": os.environ.get("HR_LOGIN", "FAIL"),
+  "snapshot_artifact": os.environ.get("SNAPSHOT_FILE_EMITTED", ""),
   "notes": [n for n in os.environ.get("NOTES_JOINED", "").split("|") if n],
   "ts": os.environ.get("TS", ""),
 }

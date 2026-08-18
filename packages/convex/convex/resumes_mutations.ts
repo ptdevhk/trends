@@ -22,6 +22,7 @@ import {
 } from "./lib/resumes_pagination.js";
 import {
     replaceCompanyResumeLinksForResume,
+    stampWorkHistoryCompanyKeys,
     upsertCompanyResumeLinkForCompany,
 } from "./lib/company_resume_links.js";
 
@@ -227,6 +228,7 @@ export const upsertBackfilledCompanyResumeLinks = internalMutation({
             workEntryFingerprints: v.array(v.string()),
             currentVerdictRevisionId: v.optional(v.string()),
         })),
+        companyKeyRevision: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         let linkedRows = 0;
@@ -243,6 +245,13 @@ export const upsertBackfilledCompanyResumeLinks = internalMutation({
                     ? { currentVerdictRevisionId: row.currentVerdictRevisionId.trim() }
                     : {}),
             });
+            await stampWorkHistoryCompanyKeys(ctx, resume, [
+                {
+                    companyKey: args.companyKey,
+                    matchedEmployerSurfaces: row.matchedEmployerSurfaces,
+                    companyKeyRevision: args.companyKeyRevision,
+                },
+            ]);
             linkedRows += 1;
         }
         return { linkedRows };
@@ -671,6 +680,31 @@ export const deleteResumes = mutation({
             }
         }
         for (const rowId of analysesBatches) {
+            await ctx.db.delete(rowId);
+        }
+
+        // Derived company links are durable snapshots of the resume's
+        // work-history matches; hard-delete them with the resume so
+        // resume-impact counts and affected lists never reference deleted
+        // resumes. Same batched by_resume lookup pattern as above.
+        const companyLinkBatches: Array<Id<"company_resume_links">> = [];
+        for (let i = 0; i < existingResumeIds.length; i += DIGEST_LOOKUP_BATCH) {
+            const batchIds = existingResumeIds.slice(i, i + DIGEST_LOOKUP_BATCH);
+            const linkResults = await Promise.all(
+                batchIds.map((resumeId) =>
+                    ctx.db
+                        .query("company_resume_links")
+                        .withIndex("by_resume", (q) => q.eq("resumeId", resumeId))
+                        .collect()
+                )
+            );
+            for (const batch of linkResults) {
+                for (const row of batch) {
+                    companyLinkBatches.push(row._id);
+                }
+            }
+        }
+        for (const rowId of companyLinkBatches) {
             await ctx.db.delete(rowId);
         }
 

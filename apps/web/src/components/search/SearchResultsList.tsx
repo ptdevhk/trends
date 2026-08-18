@@ -16,6 +16,7 @@ import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PR
 import { ExternalLink, SearchCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
+import type { CandidatePolicyOverride } from '@trends/shared'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
@@ -67,6 +68,9 @@ type SearchResultsListProps = {
   onRatingComment?: (resumeId: string, comment: string) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
+  policyOverrides?: CandidatePolicyOverride[]
+  onSetOverride?: (resumeId: string, resumeIdentity: string, companyKey: string, reason: string) => Promise<boolean>
+  onRemoveOverride?: (resumeIdentity: string, companyKey: string) => Promise<boolean>
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
   /** Raw search query text for highlighting matches in result cards */
@@ -129,6 +133,9 @@ export function SearchResultsList({
   onRatingComment,
   onCandidateStatusChange,
   onToggleBlock,
+  policyOverrides,
+  onSetOverride,
+  onRemoveOverride,
   searchQuery,
   onQueueIndustryResearch,
   industryResearchQueueEnabled = false,
@@ -242,6 +249,10 @@ export function SearchResultsList({
           }
         }}
         loading={detailResumeLoading}
+        policyOverrides={policyOverrides}
+        resumeIdentity={detailItem.identityKey}
+        onSetOverride={onSetOverride}
+        onRemoveOverride={onRemoveOverride}
         userRating={ratingsByResume?.[detailItem.resume.resumeId]}
         initialComment={detailItem.statusMeta?.notes ?? commentsByResume?.[detailItem.resume.resumeId]}
         onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
@@ -478,6 +489,8 @@ export function SearchResultsList({
     onRatingComment,
     onCandidateStatusChange,
     onToggleBlock,
+    policyOverrides,
+    resumeIdentity: item.identityKey,
   })
   const isHighlighted = (item: ResumeSearchResultItem) =>
     item.resume.resumeId != null && highlightedResumeId === `resume-${item.resume.resumeId}`

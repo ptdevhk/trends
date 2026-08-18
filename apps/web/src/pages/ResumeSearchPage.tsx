@@ -141,7 +141,11 @@ export function ResumeSearchPage() {
     pruneSelection,
     clearSelection,
     toggleSelectItem,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   } = useResumeSearchState()
+  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
   const collapseExpandedCards = useCallback(() => {
     setExpandedIds(new Set())
   }, [])
@@ -703,6 +707,9 @@ export function ResumeSearchPage() {
                   onRatingComment={canManageCandidateData ? handleRatingComment : undefined}
                   onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
                   onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
+                  policyOverrides={policyOverrides}
+                  onSetOverride={canManageCandidateData ? setOverride : undefined}
+                  onRemoveOverride={canManageCandidateData ? removeOverride : undefined}
                   searchQuery={queryInput}
                   onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
                   industryResearchQueueEnabled={industryResearchQueueEnabled}

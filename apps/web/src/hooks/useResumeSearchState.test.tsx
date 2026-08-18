@@ -89,6 +89,7 @@ const {
   useCandidateActionsHookMock,
   useCandidateBlocksHookMock,
   useCandidateStatusHookMock,
+  useCompanyPolicyIndexHookMock,
   useMutationMock,
   useQueryMock,
   useAnalysisTasksMock,
@@ -125,6 +126,7 @@ const {
   useCandidateActionsHookMock: vi.fn(),
   useCandidateBlocksHookMock: vi.fn(),
   useCandidateStatusHookMock: vi.fn(),
+  useCompanyPolicyIndexHookMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
   useAnalysisTasksMock: vi.fn(),
@@ -164,6 +166,11 @@ vi.mock('@/hooks/useCandidateBlocks', () => ({
   useCandidateBlocks: (...args: unknown[]) => useCandidateBlocksHookMock(...args),
 }))
 
+vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
+  useCompanyPolicyIndex: (...args: unknown[]) => useCompanyPolicyIndexHookMock(...args),
+  matchResumeCompanyPolicyCached: () => [],
+}))
+
 vi.mock('@/hooks/useCandidateActions', () => ({
   useCandidateActions: (...args: unknown[]) => useCandidateActionsHookMock(...args),
 }))
@@ -178,6 +185,12 @@ function createCandidateStatusHookValue() {
 function createCandidateBlocksHookValue() {
   return {
     blocksByIdentity: blocksByIdentityMock,
+  }
+}
+
+function createCompanyPolicyIndexHookValue() {
+  return {
+    matchResume: () => [],
   }
 }
 
@@ -342,6 +355,7 @@ describe('useResumeSearchState', () => {
     })
     useCandidateStatusHookMock.mockReturnValue(createCandidateStatusHookValue())
     useCandidateBlocksHookMock.mockReturnValue(createCandidateBlocksHookValue())
+    useCompanyPolicyIndexHookMock.mockReturnValue(createCompanyPolicyIndexHookValue())
     useCandidateActionsHookMock.mockReturnValue(createCandidateActionsHookValue())
 
     useQueryMock.mockImplementation((query) => {
@@ -407,6 +421,7 @@ describe('useResumeSearchState', () => {
 
     expect(useCandidateStatusHookMock).toHaveBeenCalledWith(false)
     expect(useCandidateBlocksHookMock).toHaveBeenCalledWith(false)
+    expect(useCompanyPolicyIndexHookMock).toHaveBeenCalledWith(false)
     expect(useCandidateActionsHookMock).toHaveBeenCalledWith(
       expect.any(String),
       undefined,
@@ -480,6 +495,84 @@ describe('useResumeSearchState', () => {
     ])
     expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
     expect(result.current.filteredResults[0]?.analysis?.summary).toBe('Best AI match')
+  })
+
+  it('stratifies score sort by company ranking effect tier without mutating scores', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Good tier (band_known_good) — highest score in the tier.
+      createResume(1, {
+        primaryRuleScore: 88,
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+      // Neutral tier — no policy hit.
+      createResume(2, {
+        primaryRuleScore: 99,
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Bad tier (band_known_bad) — lower score than resume-4 within tier.
+      createResume(3, {
+        primaryRuleScore: 70,
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Bad tier — higher score than resume-3 within tier.
+      createResume(4, {
+        primaryRuleScore: 80,
+        ingestData: { ...createResume(4).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('score')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
+      'resume-2',
+      'resume-4',
+      'resume-3',
+    ])
+    expect(result.current.results.map((item) => item.companyRankingEffect)).toEqual([
+      'band_known_good',
+      undefined,
+      'band_known_bad',
+      'band_known_bad',
+    ])
+    // No score rewrite: raw scores survive the sort untouched.
+    expect(result.current.filteredResults.map((item) => item.score)).toEqual([88, 99, 80, 70])
   })
 
   it('derives raw and cluster tags, applies local filters, and sorts matching results', () => {

@@ -1,4 +1,4 @@
-import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
 import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,8 @@ type SnippetCardExpandedProps = {
   onNoteTrigger?: () => void
   userRating?: number
   showIndustryEvidence?: boolean
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 function formatSnakeCaseLabel(value: string): string {
@@ -113,6 +115,8 @@ export function SnippetCardExpanded({
   onNoteTrigger,
   userRating,
   showIndustryEvidence = true,
+  policyOverrides,
+  resumeIdentity,
 }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -128,8 +132,10 @@ export function SnippetCardExpanded({
           companyHits: item.resume.ingestData?.companyHits,
         },
         matchResume,
+        policyOverrides,
+        resumeIdentity ?? item.identityKey,
       ),
-    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
+    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume, policyOverrides, resumeIdentity],
   )
   const workflowBlocked = companyPolicyState.workflowBlocked
   const guardWorkflowAdvance = (fn: () => void) => {
@@ -427,6 +433,11 @@ export function SnippetCardExpanded({
               {(item.resume.ingestData?.companyHits ?? []).slice(0, 5).map((company) => (
                 <Badge key={company} variant="outline">{company}</Badge>
               ))}
+              {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                  {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+                </Badge>
+              ) : null}
               {brandSummary.map((brand) => (
                 <Badge key={`brand-${brand}`} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{resolveBrand(brand)}</Badge>
               ))}

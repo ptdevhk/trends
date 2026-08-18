@@ -8,10 +8,13 @@ import {
   RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE,
   sanitizeResumeRecordForSurface,
   selectLatestWorkHistory,
+  type CandidatePolicyOverride,
 } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { StarRating } from '@/components/StarRating'
@@ -27,6 +30,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
+import { getResumeCompanyPolicyState } from '@/lib/company-policy-runtime'
 import { CompanyResearchStrip } from '@/components/research/CompanyResearchStrip'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { IndustryEvidenceDetail, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
@@ -64,6 +68,10 @@ interface ResumeDetailProps {
   onRating?: (rating: number) => void
   onRatingComment?: (comment: string) => void
   refreshState?: ResumeRefreshState
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
+  onSetOverride?: (resumeId: string, resumeIdentity: string, companyKey: string, reason: string) => Promise<boolean>
+  onRemoveOverride?: (resumeIdentity: string, companyKey: string) => Promise<boolean>
 }
 
 function normalizeEvidenceValue(value: string | undefined): string {
@@ -160,6 +168,10 @@ export function ResumeDetail({
   onRating,
   onRatingComment,
   refreshState,
+  policyOverrides,
+  resumeIdentity,
+  onSetOverride,
+  onRemoveOverride,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -314,14 +326,69 @@ export function ResumeDetail({
   )
   const experienceBadge = getExperienceBadge(ingestData?.experienceLevel, t)
   const { matchResume } = useCompanyPolicyIndex(Boolean(resume))
-  const companyPolicyHits = useMemo(
+  const companyPolicyState = useMemo(
     () =>
-      matchResume({
-        workHistory: presentationResume?.workHistory ?? resume?.workHistory,
-        companyHits: ingestData?.companyHits,
-      }),
-    [ingestData?.companyHits, matchResume, presentationResume?.workHistory, resume?.workHistory],
+      getResumeCompanyPolicyState(
+        {
+          workHistory: presentationResume?.workHistory ?? resume?.workHistory,
+          companyHits: ingestData?.companyHits,
+        },
+        matchResume,
+        policyOverrides,
+        resumeIdentity,
+      ),
+    [
+      ingestData?.companyHits,
+      matchResume,
+      policyOverrides,
+      presentationResume?.workHistory,
+      resume?.workHistory,
+      resumeIdentity,
+    ],
   )
+  const companyPolicyHits = companyPolicyState.hits
+  const blockedCompanyHits = companyPolicyHits.filter((hit) => hit.effects.workflow === 'blocked')
+  const convexResumeId = resume && typeof resume.resumeId === 'string' ? resume.resumeId : undefined
+  const canManageOverrides = Boolean(convexResumeId && resumeIdentity && onSetOverride && onRemoveOverride)
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false)
+  const [overrideReasonByCompany, setOverrideReasonByCompany] = useState<Record<string, string>>({})
+  const [overrideBusy, setOverrideBusy] = useState(false)
+
+  const handleGrantOverride = async (companyKey: string) => {
+    if (!convexResumeId || !resumeIdentity || !onSetOverride) return
+    const reason = (overrideReasonByCompany[companyKey] ?? '').trim()
+    if (!reason) {
+      toast.error(t('settings.policies.runtime.overrideReasonRequired'))
+      return
+    }
+    setOverrideBusy(true)
+    try {
+      const ok = await onSetOverride(convexResumeId, resumeIdentity, companyKey, reason)
+      if (ok) {
+        toast.success(t('settings.policies.runtime.overrideSetSuccess'))
+        setOverrideReasonByCompany((prev) => ({ ...prev, [companyKey]: '' }))
+      } else {
+        toast.error(t('settings.policies.runtime.overrideSetFailed'))
+      }
+    } finally {
+      setOverrideBusy(false)
+    }
+  }
+
+  const handleRemoveOverride = async (companyKey: string) => {
+    if (!resumeIdentity || !onRemoveOverride) return
+    setOverrideBusy(true)
+    try {
+      const ok = await onRemoveOverride(resumeIdentity, companyKey)
+      if (ok) {
+        toast.success(t('settings.policies.runtime.overrideRemoveSuccess'))
+      } else {
+        toast.error(t('settings.policies.runtime.overrideRemoveFailed'))
+      }
+    } finally {
+      setOverrideBusy(false)
+    }
+  }
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const sourceLabel = getResumeSourceLabel(resume)
@@ -339,9 +406,10 @@ export function ResumeDetail({
   const displayResume = presentationResume
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        data-testid="resume-detail-content"
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          data-testid="resume-detail-content"
         lang={contentLocale}
         className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto p-4 sm:w-full sm:p-6 md:max-w-3xl lg:max-w-4xl"
       >
@@ -387,10 +455,28 @@ export function ResumeDetail({
                 </Badge>
               ) : null}
               <CompanyPolicyBadges hits={companyPolicyHits} />
+              {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+                  {t('settings.policies.runtime.overrideBadge')}
+                </Badge>
+              ) : null}
             </div>
             {companyPolicyHits.length > 0 ? (
               <div className="mt-2">
                 <CompanyPolicyBadges hits={companyPolicyHits} variant="banner" />
+              </div>
+            ) : null}
+            {canManageOverrides && blockedCompanyHits.length > 0 ? (
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => setOverrideDialogOpen(true)}
+                >
+                  {t('settings.policies.runtime.overrideManage')}
+                </Button>
               </div>
             ) : null}
             {companyPolicyHits[0]?.companyKey ? (
@@ -667,5 +753,94 @@ export function ResumeDetail({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    {canManageOverrides ? (
+      <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
+        <DialogContent
+          data-testid="policy-override-dialog"
+          className="max-h-[85vh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto p-4 sm:w-full sm:p-6"
+        >
+          <DialogHeader>
+            <DialogTitle>{t('settings.policies.runtime.overrideDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('settings.policies.runtime.overrideDialogDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {blockedCompanyHits.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('settings.policies.runtime.overrideEmpty')}</p>
+            ) : (
+              blockedCompanyHits.map((hit) => {
+                const companyKey = hit.companyKey
+                const identity = (resumeIdentity ?? '').trim()
+                const activeOverride = policyOverrides?.find(
+                  (override) =>
+                    override.resumeIdentity.trim() === identity && override.companyKey.trim() === companyKey,
+                )
+                const reason = overrideReasonByCompany[companyKey] ?? ''
+                return (
+                  <div key={companyKey} className="rounded border border-slate-200 p-3 dark:border-slate-800">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{resolveBrand(companyKey)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {activeOverride
+                            ? t('settings.policies.runtime.overrideCompanyAllowed')
+                            : t('settings.policies.runtime.overrideCompanyBlocked')}
+                        </p>
+                      </div>
+                      {activeOverride ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={overrideBusy}
+                          onClick={() => void handleRemoveOverride(companyKey)}
+                        >
+                          {t('settings.policies.runtime.overrideRemove')}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {activeOverride ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t('settings.policies.runtime.overrideAuthorizedBy', {
+                          author: activeOverride.authorizedBy ?? '--',
+                        })}
+                        {activeOverride.reason ? ` · ${activeOverride.reason}` : ''}
+                      </p>
+                    ) : (
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          value={reason}
+                          onChange={(event) =>
+                            setOverrideReasonByCompany((prev) => ({
+                              ...prev,
+                              [companyKey]: event.target.value,
+                            }))
+                          }
+                          placeholder={t('settings.policies.runtime.overrideReasonPlaceholder')}
+                          className="h-9 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={overrideBusy || reason.trim().length === 0}
+                          onClick={() => void handleGrantOverride(companyKey)}
+                        >
+                          {t('settings.policies.runtime.overrideGrant')}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOverrideDialogOpen(false)}>
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ) : null}
+  </>
   )
 }

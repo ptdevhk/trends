@@ -1061,6 +1061,35 @@ describe("companies routes", () => {
     });
   });
 
+  it("fails cleanly (500, no success envelope) when the undo mutation reports a non-stale error", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call.pathName).toBe("companies:undoIndustryProposalApproval");
+      return convexFailure("Unknown industry proposal: proposal-1");
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/undo-approval",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    // The undo must never be reported as done on a failed mutation: no
+    // success envelope, no partial reversal payload.
+    const text = await response.text();
+    expect(text).not.toContain('"success":true');
+    expect(text).not.toContain("reversalRevisionId");
+  });
+
   it("requires an admin for industry approval undo", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     const fetchSpy = vi.spyOn(globalThis, "fetch");

@@ -3,6 +3,7 @@ import type { SearchHistoryItem } from '@/hooks/useSession'
 import type { CandidateStatus } from '@/types/resume'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
+import type { CompanyRankingEffect } from '@trends/shared'
 
 export type SearchSortValue = 'score' | 'newest' | 'experience'
 export type SearchScoreSource = 'ai' | 'rule'
@@ -33,6 +34,8 @@ export type ResumeSearchResultItem = {
   analysis?: ConvexResumeItem['analysis']
   score?: number
   scoreSource?: SearchScoreSource
+  /** Primary company-policy ranking effect; score-sort stratification only. */
+  companyRankingEffect?: CompanyRankingEffect
   status: CandidateStatus
   statusMeta?: CandidateStatusRecord
   refreshState?: ResumeRefreshState

@@ -20,19 +20,19 @@ edit, or commit anything for it).
 
 | # | Item | Status | Evidence / next step |
 |---|------|--------|----------------------|
-| 1 | industry-verification-grouped-inbox-undo | **Closeout remains** | §6.1 |
-| 2 | historical-preview-backup-rehearsal | Committed; **rehearsal log pending in vault** | §6.2 |
+| 1 | industry-verification-grouped-inbox-undo | DONE | §6.1 |
+| 2 | historical-preview-backup-rehearsal | DONE | §6.2 |
 | 3 | convex-search-byte-budget | DONE | commit `f4ef1318` (item1) + runbook |
 | 4 | extension-mv3-cdp | DONE | commit `763be521` (item3) + F18b hazard note |
 | 5 | hono-server-timing | DONE | commit `5e8c6cfa` (item2) |
 | 6 | ai-scoring-evaluation-ndcg-recall | DONE | local-data demo run done |
 | 7 | cjk-segmentation-convex-tantivy | DONE | commit `918cf3a5` (item7) + runbook + vault closeout `da3ba3a26` |
 | 8 | worker | DONE | commit `cef3f5fd` (item8) + vault closeout (2026-08-18) |
-| 9 | dedup | PENDING | §6.4 |
-| 10 | resume-scoring-explainability-drift | b5 done; **delta doc pending** | §6.5 |
+| 9 | dedup | DONE | §6.4; commits pending (Commit 1 #9-core, Commit 2 mixed wiring) |
+| 10 | resume-scoring-explainability-drift | DONE | §6.5: delta doc verified + metrics-CLI mention; vault closeout pushed |
 | 11 | company-policy | DONE | 3 items all implemented |
 | 12 | workspace-portability P2–P4 | DONE | incl. vault closeout |
-| 13 | my-scoring-cohort | **BLOCKED — log only** | needs HR-rated MY resumes |
+| 13 | my-scoring-cohort | **BLOCKED — log only** | §6.6: vault log records the block (2026-08-18) |
 
 Branch: `preview-v0.4.23` (ahead 5, **NO-PUSH** policy; local commits only).
 Vault push IS allowed via `bash /root/.grok/installed-plugins/vault-sync-ae1287d3/skills/vault-presync/wiki-sync.sh --execute`.
@@ -188,20 +188,30 @@ Original steps (all completed 2026-08-18):
 
 ## 6. Remaining items — concrete steps
 
-### 6.1 Item #1 industry-verification-grouped-inbox-undo — closeout
-Remaining: (a) error-injection matrix (verify undo path fails cleanly when the
-undo mutation throws / resume already deleted — via script or unit test),
-(b) screen-reader color audit (review new UI colors for contrast/not-color-only
-signaling in `apps/web` verification components), (c) owner sign-off (ask user),
-(d) vault work item → completed. Code itself was implemented + browser-UAT'd
-(commit `bd142b2e` + `72bdabff` hardening); verify current dev tree still passes
-`apps/web` tests: `cd apps/web && bunx vitest run --reporter=dot` (or the
-package's test script).
+### 6.1 Item #1 industry-verification-grouped-inbox-undo — DONE
+Closeout completed 2026-08-18 (owner sign-off granted):
+(a) error-injection matrix — 3 new tests: service propagates non-stale undo
+mutation failures unchanged with no recompute traffic; route returns 500 with
+no success/reversal envelope; web 409 blocks same-row undo (conflict message,
+no Retry, Undo disabled, session approval retained) and web 500 fails cleanly
+with Retry recovery + pending cleared. API 66/66, web 36/36 green. Stale-409
+translation was already covered by pre-existing tests.
+(b) screen-reader color audit — no color-only signaling: every colored surface
+(status icon, progress bars, amber borders, error box) carries text/aria/
+placeholder counterparts; contrast ≥4.5:1 text, icons ≥3:1 graphical; app is
+light-theme only.
+(d) vault work item → completed (log/plan/spec/index updated; commit pushed).
+Code itself was implemented + browser-UAT'd (commit `bd142b2e` + `72bdabff`
+hardening; undo-500 fix in `company-industry-proposal-service.ts`); workspace
+commits for the closeout tests still pending (mixed Commit 2).
 
-### 6.2 Item #2 historical-preview-backup-rehearsal
-Code committed (workspace backup + snapshot routes). Decision made: NO host run
-(no prod/preview data restore rehearsal on this host). Vault work item needs a
-rehearsal-log.md documenting the dry-run/what-was-decided + status completed.
+### 6.2 Item #2 historical-preview-backup-rehearsal — DONE
+Code committed (workspace backup + snapshot routes). Rehearsal-log decision
+recorded 2026-08-18: **NO host run** (no prod/preview data restore rehearsal
+on this host). `rehearsal-log.md` written (dry-run evidence: 71/71 safety
+tests, backup manifest-verified on `ptcloud`, controller checkout not ready)
++ status completed for the claimed scope; live run stays an owner-authorized
+on-host follow-up.
 
 ### 6.3 Item #8 worker — DONE (2026-08-18)
 Implemented inline + verified: dispatch envelope parsing (queued:false/maintenance
@@ -215,21 +225,32 @@ pass + live Convex roundtrip (task `jn7f3asm1szrfvpecnn3rtv3158cq01n`,
 cancelled after smoke). Vault closeout done (spec/plan/log/index), vault pushed.
 Commit: `cef3f5fd`.
 
-### 6.4 Item #9 dedup
-Scope: capture-time identity normalization + blocking + fingerprint suggestion
-(NO auto-merge). Inspect `packages/convex/convex/company_resume_links.ts`,
-`resumes_mutations.ts` submitResumes dedup fields (`deduped`,
-`identityDeduped`, `identityMatched` — seen in spike submit output).
-Implement normalization + blocking + fingerprint suggestion, tests.
+### 6.4 Item #9 dedup — DONE (2026-08-18)
+Implemented inline + verified: capture-time contact-signal normalization
+(`lib/resume_identity.ts`: email/phone/linkedin normalizers +
+`deriveResumeContactSignals`/`deriveResumeBlockKeys`), blocking
+(`phone:<first7>|<source>` + `email:<domain>|<source>` → new
+`resume_dedup_blocks` table, maintained by `maintainResumeDedupBlocks` from
+`submitResumes`), advisory `suggestMergeCandidates` query with
+`scoreMergePair` fingerprint (exact PII +2, name +1.5, company tokens +1,
+timeline +0.75, schools +0.5), admin review page
+`/admin/system/settings/resume-dedup` (lazy route, nav item, i18n
+en/zh-Hans/zh-Hant). **NO auto-merge, NO identityKey mutation.** Verification:
+2196/2196 convex tests (17 new), 648/648 shared, dedup page 4/4,
+system-settings 235/235, tsc exit 0, i18n sync exit 0. Suggestion list is
+empty against the current PII-free corpus by design. Vault closeout done
+(spec/plan/log/index), commits pending (Commit 1 = #9-core files; Commit 2 =
+mixed wiring + items 10–12 pile).
 
 ### 6.5 Item #10 resume-scoring-explainability-drift
 b5 done (convex + web). Remaining: delta doc — `docs/design-patterns/scoring-explanation-signals.md`
 exists (untracked); write/verify the delta runbook documenting before/after
 scoring explanation signals. Check `scripts/compute-scoring-metrics.ts` usage.
 
-### 6.6 Item #13 my-scoring-cohort
-BLOCKED: needs HR-rated MY (Malaysia) resumes. Log only — record the block in
-vault log.md, do not implement.
+### 6.6 Item #13 my-scoring-cohort — BLOCKED (log only)
+BLOCKED: needs HR-rated MY (Malaysia) resumes. Block recorded in vault
+log.md 2026-08-18 (no implementation, no spec/plan flips; `automation_ready:
+false` retained). Unblock = MY HR/product reviewer provides a scored cohort.
 
 ## 7. Final gates (after all items)
 

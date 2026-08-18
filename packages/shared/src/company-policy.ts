@@ -19,6 +19,38 @@ export type CompanyRankingEffect =
   | "boost"
   | "demote";
 
+/** Stratification tier for ranking-effect sorting; never rewrites scores. */
+export type CompanyRankingTier = "good" | "neutral" | "bad";
+
+export function companyRankingEffectTier(
+  effect: CompanyRankingEffect | undefined,
+): CompanyRankingTier {
+  if (effect === "band_known_good" || effect === "boost") {
+    return "good";
+  }
+  if (effect === "band_known_bad" || effect === "demote") {
+    return "bad";
+  }
+  return "neutral";
+}
+
+const COMPANY_RANKING_TIER_ORDER: Record<CompanyRankingTier, number> = {
+  good: 0,
+  neutral: 1,
+  bad: 2,
+};
+
+/** Sort delta for score-sort stratification: good tier first, bad last. */
+export function compareCompanyRankingEffects(
+  left: CompanyRankingEffect | undefined,
+  right: CompanyRankingEffect | undefined,
+): number {
+  return (
+    COMPANY_RANKING_TIER_ORDER[companyRankingEffectTier(left)] -
+    COMPANY_RANKING_TIER_ORDER[companyRankingEffectTier(right)]
+  );
+}
+
 export type CompanyAliasSource = "seed" | "operator" | "observed";
 
 export type CompanyPolicyEffects = {
@@ -274,7 +306,9 @@ export function buildCompanyPolicyAliasIndex(
  * Does not mutate score; used only for operational policy signals.
  */
 export function collectResumeEmployerStrings(input: {
-  workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null;
+  workHistory?: Array<
+    { companyName?: string; raw?: string; companyKey?: string } | null | undefined
+  > | null;
   companyHits?: string[] | null;
 }): string[] {
   const out: string[] = [];
@@ -294,6 +328,12 @@ export function collectResumeEmployerStrings(input: {
 
   for (const entry of input.workHistory ?? []) {
     if (!entry) {
+      continue;
+    }
+    // Prefer durable companyKey stamps persisted by the backfill/recompute
+    // flows; surface-string matching only as fallback for unlinked entries.
+    if (entry.companyKey?.trim()) {
+      push(entry.companyKey);
       continue;
     }
     push(entry.companyName);
@@ -354,7 +394,9 @@ export function matchCompanyPoliciesForEmployers(
 
 export function matchResumeCompanyPolicies(
   input: {
-    workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null;
+    workHistory?: Array<
+      { companyName?: string; raw?: string; companyKey?: string } | null | undefined
+    > | null;
     companyHits?: string[] | null;
   },
   aliasIndex: Map<string, CompanyPolicyIndexEntry>,
@@ -374,6 +416,47 @@ export function primaryCompanyPolicyHit(
   hits: CompanyPolicyMatchHit[],
 ): CompanyPolicyMatchHit | null {
   return hits[0] ?? null;
+}
+
+/**
+ * Operator override that lifts the workflow-blocked gate for one candidate
+ * against one company. Only the advance gate is lifted; visibility/ranking
+ * effects stay intact so badges and banners remain visible.
+ */
+export type CandidatePolicyOverride = {
+  _id: string;
+  workspaceSlug: string;
+  resumeId: string;
+  resumeIdentity: string;
+  companyKey: string;
+  effect: "allow";
+  reason: string;
+  authorizedBy?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/**
+ * True when an active override exists for the resume/company pair.
+ * Matches on trimmed identity + company keys to tolerate whitespace drift.
+ */
+export function hasActiveOverride(
+  overrides: CandidatePolicyOverride[] | undefined,
+  resumeIdentity: string,
+  companyKey: string,
+): boolean {
+  if (!overrides || overrides.length === 0) {
+    return false;
+  }
+  const identity = resumeIdentity.trim();
+  const key = companyKey.trim();
+  if (!identity || !key) {
+    return false;
+  }
+  return overrides.some(
+    (override) =>
+      override.resumeIdentity.trim() === identity && override.companyKey.trim() === key,
+  );
 }
 
 /** Status values treated as "advancing" for soft workflow gate. */

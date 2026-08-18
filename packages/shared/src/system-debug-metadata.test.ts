@@ -160,6 +160,14 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     })
   })
 
+  it('marks workspace snapshot transfer as an admin system setting', () => {
+    const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'workspace')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/workspace',
+      requiresAdmin: true,
+    })
+  })
+
   it('does not expose relocated keyword or location editors in system settings navigation', () => {
     const ids = SYSTEM_SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).not.toContain('keywords')
