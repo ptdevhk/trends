@@ -221,4 +221,8 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
 
     { file: "workspace_config.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "workspace_config.ts", name: "remove", quiesceAware: true, reason: "Blocked by BFF middleware" },
+
+    // Workspace snapshot restore — admin-only (requireAdmin), and the import
+    // IS the restore path, so it must run during maintenance/restore windows.
+    { file: "workspace_snapshots.ts", name: "importWorkspaceSnapshot", quiesceAware: false, reason: "Snapshot import is the restore path — must run during maintenance/restore windows; admin-only via requireAdmin" },
 ];
