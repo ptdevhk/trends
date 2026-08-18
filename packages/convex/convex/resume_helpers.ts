@@ -5,6 +5,7 @@
  * They are re-exported by resumes.ts for backward compatibility.
  */
 import { isRecord } from "@trends/shared";
+import { MAX_SEARCH_INDEX_TERMS } from "./lib/resumes_pagination.js";
 
 // ---------------------------------------------------------------------------
 // String / value helpers
@@ -90,7 +91,11 @@ export function splitQueryTokens(query: string): string[] {
         .trim()
         .toLowerCase()
         .split(/\s+/)
-        .filter((token) => token.length >= 1);
+        .filter((token) => token.length >= 1)
+        // Bound the multi-token AND loop to the Convex 16-term expression cap:
+        // each token becomes one index query, and an unbounded token count is
+        // an unbounded sequence of index scans per request.
+        .slice(0, MAX_SEARCH_INDEX_TERMS);
 }
 
 export function matchesAllTokens(searchText: string | undefined, tokens: string[]): boolean {

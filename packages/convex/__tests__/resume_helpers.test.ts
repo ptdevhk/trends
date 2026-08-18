@@ -285,6 +285,12 @@ describe("splitQueryTokens", () => {
     it("collapses multiple spaces", () => {
         expect(splitQueryTokens("a   b   c")).toEqual(["a", "b", "c"]);
     });
+
+    it("caps tokens at the Convex 16-term search-expression limit", () => {
+        const tokens = splitQueryTokens("t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 t13 t14 t15 t16 t17 t18");
+        expect(tokens).toHaveLength(16);
+        expect(tokens.at(-1)).toBe("t16");
+    });
 });
 
 // ---------------------------------------------------------------------------

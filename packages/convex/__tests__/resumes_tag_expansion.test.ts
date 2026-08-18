@@ -155,6 +155,25 @@ describe("buildTagExpansionSearchQuery", () => {
         expect(result).toContain("cnc");
         expect(result).toContain("machining");
     });
+
+    it("caps AND-mode anchor variants at the Convex 16-term limit", () => {
+        const groups = [{
+            original: "cnc",
+            variants: Array.from({ length: 20 }, (_, i) => `variant-${i + 1}`),
+        }];
+        const result = buildTagExpansionSearchQuery(groups, "AND");
+        expect(result.split(" ")).toHaveLength(16);
+        expect(result).toBe(Array.from({ length: 16 }, (_, i) => `variant-${i + 1}`).join(" "));
+    });
+
+    it("caps OR-mode expanded terms at the Convex 16-term limit", () => {
+        const groups = [{
+            original: "cnc",
+            variants: Array.from({ length: 20 }, (_, i) => `variant-${i + 1}`),
+        }];
+        const result = buildTagExpansionSearchQuery(groups, "OR");
+        expect(result.split(" ")).toHaveLength(16);
+    });
 });
 
 // ---------------------------------------------------------------------------
