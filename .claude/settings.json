@@ -6,7 +6,6 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [],
-    "defaultMode": "bypassPermissions",
     "deny": [
       "Bash(gh pr merge * --delete-branch*)",
       "Bash(gh pr merge * --admin*)"
