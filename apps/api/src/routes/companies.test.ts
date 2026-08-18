@@ -442,6 +442,7 @@ describe("companies routes", () => {
       status: "ready_for_review",
       limit: 20,
       workspaceSlug: "hr",
+      timing: expect.any(Function),
     });
   });
 

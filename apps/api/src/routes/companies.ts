@@ -1005,6 +1005,7 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
       confidenceBand,
       recommendedAction,
       workspaceSlug: c.var.workspaceSlug,
+      timing: (name, durMs) => c.var.serverTiming.add(name, durMs),
     });
     const companyKeys = Array.from(
       new Set(

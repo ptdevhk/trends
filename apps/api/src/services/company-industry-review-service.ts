@@ -698,11 +698,20 @@ export async function listIndustryReviewQueue(input: {
   riskFlag?: IndustryReviewRiskFlag;
   confidenceBand?: IndustryReviewConfidenceBand;
   recommendedAction?: IndustryReviewAction;
+  /**
+   * Optional observer for named timing segments. The service reports
+   * `idx-cache` covering the advisory-index lookup plus build-on-miss;
+   * routes forward it to the Server-Timing accumulator
+   * (`c.var.serverTiming.add`). Cache hits report ≈0 ms; misses report the
+   * full index build cost.
+   */
+  timing?: (name: string, durMs: number) => void;
 }): Promise<IndustryReviewQueueResponse> {
   const limit = Math.min(100, Math.max(1, Math.floor(input.limit ?? 50)));
   const maintenance = await loadMaintenanceContext(input.workspaceSlug);
   const maintenanceFingerprint = fingerprint(maintenance);
   const cacheKey = reviewIndexCacheKey(input);
+  const cacheSegmentStart = performance.now();
   const cachedEntries = getCachedIndustryReviewIndex(
     cacheKey,
     maintenanceFingerprint,
@@ -761,6 +770,7 @@ export async function listIndustryReviewQueue(input: {
     }));
     setCachedIndustryReviewIndex(cacheKey, indexEntries, maintenanceFingerprint);
   }
+  input.timing?.("idx-cache", performance.now() - cacheSegmentStart);
   const page = paginateIndustryReviewIndex(indexEntries, {
     limit,
     cursor: input.cursor,
