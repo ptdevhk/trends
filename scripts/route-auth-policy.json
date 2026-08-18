@@ -71,6 +71,14 @@
     "class": "admin",
     "reason": "Admin password reset uses requireAdmin middleware plus an inline dev-workspace check."
   },
+  "policy-overrides.ts": {
+    "class": "workspace-write",
+    "reason": "Candidate policy override reads and mutations require authenticated workspace membership through requireWorkspaceUser."
+  },
+  "workspace-snapshots.ts": {
+    "class": "admin",
+    "reason": "Workspace snapshot export/import are admin-only through route-level requireAdmin middleware."
+  },
   "resumes_diagnostics.ts": {
     "class": "admin",
     "reason": "Resume diagnostic routes use requireAdmin middleware."
