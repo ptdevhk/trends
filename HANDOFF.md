@@ -26,16 +26,17 @@ edit, or commit anything for it).
 | 4 | extension-mv3-cdp | DONE | commit `763be521` (item3) + F18b hazard note |
 | 5 | hono-server-timing | DONE | commit `5e8c6cfa` (item2) |
 | 6 | ai-scoring-evaluation-ndcg-recall | DONE | local-data demo run done |
-| 7 | cjk-segmentation-convex-tantivy | DONE | commit `918cf3a5` (item7) + runbook + vault closeout `da3ba3a26` |
-| 8 | worker | DONE | commit `cef3f5fd` (item8) + vault closeout (2026-08-18) |
-| 9 | dedup | DONE | §6.4; commits pending (Commit 1 #9-core, Commit 2 mixed wiring) |
-| 10 | resume-scoring-explainability-drift | DONE | §6.5: delta doc verified + metrics-CLI mention; vault closeout pushed |
-| 11 | company-policy | DONE | 3 items all implemented |
-| 12 | workspace-portability P2–P4 | DONE | incl. vault closeout |
+| 7 | cjk-segmentation-convex-tantivy | DONE | commit `918cf3a5` (item7) + runbook; vault evidence pushed `5621fd8ab` |
+| 8 | worker | DONE | commit `cef3f5fd` (item8) + vault closeout |
+| 9 | dedup | DONE | commits `25ac7676` (#9-core) + `3ec04044` (wiring) + vault evidence |
+| 10 | resume-scoring-explainability-drift | DONE | commit `3ec04044` (delta doc + evidence) |
+| 11 | company-policy | DONE | commits `3ec04044`/`82d4713d` (policy overrides) + vault evidence |
+| 12 | workspace-portability P2–P4 | DONE | commits `3ec04044`/`cc9a1a48`/`82d4713d`/`63cf6105` + vault evidence/log |
 | 13 | my-scoring-cohort | **BLOCKED — log only** | §6.6: vault log records the block (2026-08-18) |
 
-Branch: `preview-v0.4.23` (ahead 5, **NO-PUSH** policy; local commits only).
+Branch: `preview-v0.4.23` (ahead 13, **NO-PUSH** policy; local commits only).
 Vault push IS allowed via `bash /root/.grok/installed-plugins/vault-sync-ae1287d3/skills/vault-presync/wiki-sync.sh --execute`.
+ALL local work committed (last: `63cf6105` mutations registry); working tree clean.
 
 ## 2. Environment & conventions
 
@@ -61,8 +62,9 @@ Vault push IS allowed via `bash /root/.grok/installed-plugins/vault-sync-ae1287d
 ## 3. CJK #7 — DONE (closed 2026-08-18)
 
 Spike + report + vault closeout complete: commit `918cf3a5` (spike script +
-results JSON + `docs/runbooks/cjk-segmentation-measurement.md`), vault pushed
-`da3ba3a26` (log + completed status). Key findings preserved in the runbook:
+results JSON + `docs/runbooks/cjk-segmentation-measurement.md`), vault evidence
+pushed `5621fd8ab` (log + completed status; earlier item-closeout pushes at
+`da3ba3a26` and prior). Key findings preserved in the runbook:
 measured recall per class (A/B), substring-vs-exact-term tantivy behavior,
 cap behavior (16-term BFF cap, dedupe-at-1500 quirk), **no search-path code
 change**; candidate fixes (query-side segmentation/ngram) recorded for
@@ -172,19 +174,13 @@ Original steps (all completed 2026-08-18):
    CLAUDE.md completed-items line if convention demands.
 3. Commit locally (NO-PUSH): spike script + results JSON + report + vault log.
 
-## 5. Repo state at handoff
+## 5. Repo state (final, 2026-08-18)
 
-- `git status` (uncommitted, pre-existing): apps/api + apps/web + packages/convex
-  + packages/shared + packages/cli + deploy + scripts modified; many new files
-  (workspace-snapshots, candidate-policy-overrides, workspace_backup.go,
-  SystemSettingsWorkspacePage, t3/t6/t12 scripts, ws-*.yaml dumps, etc.) — all
-  belong to items #10/#11/#12 already implemented; DO NOT stash or revert.
-- Recent local commits (NO-PUSH): `763be521` item3, `5e8c6cfa` item2,
-  `f4ef1318` item1, `bd142b2e` fix undo reversal revision, `1ea67a0d` trends-cli
-  docs, `bdd58d63` deepseek-v4-flash-e default (Poe gateway; `deepseek-v4-flash`
-  has known `response_format` bug — stays FALLBACK, do not promote).
-- Untracked dir `.claude/dev-loop/` and `scripts/output/` are session artifacts;
-  `scripts/output/` now holds the CJK results JSON (commit it — it's evidence).
+- Working tree CLEAN; all 13 local commits present (see §1 commit refs; last
+  `63cf6105` mutations registry). Branch ahead of origin by 13 — NO-PUSH.
+- All session artifacts committed as evidence: `scripts/output/cjk-measurement-results.json`,
+  spike script, runbooks, api-types regen, route-auth entries, mutations registry.
+- `make ci-local` GREEN (exit 0, all gates incl. check-mutation-entry-points).
 
 ## 6. Remaining items — concrete steps
 
@@ -202,8 +198,8 @@ placeholder counterparts; contrast ≥4.5:1 text, icons ≥3:1 graphical; app is
 light-theme only.
 (d) vault work item → completed (log/plan/spec/index updated; commit pushed).
 Code itself was implemented + browser-UAT'd (commit `bd142b2e` + `72bdabff`
-hardening; undo-500 fix in `company-industry-proposal-service.ts`); workspace
-commits for the closeout tests still pending (mixed Commit 2).
+hardening; undo-500 fix in `company-industry-proposal-service.ts`); closeout
+tests (error matrix) committed in `3ec04044` (mixed Commit 2).
 
 ### 6.2 Item #2 historical-preview-backup-rehearsal — DONE
 Code committed (workspace backup + snapshot routes). Rehearsal-log decision
@@ -239,27 +235,34 @@ en/zh-Hans/zh-Hant). **NO auto-merge, NO identityKey mutation.** Verification:
 2196/2196 convex tests (17 new), 648/648 shared, dedup page 4/4,
 system-settings 235/235, tsc exit 0, i18n sync exit 0. Suggestion list is
 empty against the current PII-free corpus by design. Vault closeout done
-(spec/plan/log/index), commits pending (Commit 1 = #9-core files; Commit 2 =
-mixed wiring + items 10–12 pile).
+(spec/plan/log/index). Commits: `25ac7676` (#9-core files), `3ec04044`
+(mixed wiring + items 10–12 pile).
 
-### 6.5 Item #10 resume-scoring-explainability-drift
-b5 done (convex + web). Remaining: delta doc — `docs/design-patterns/scoring-explanation-signals.md`
-exists (untracked); write/verify the delta runbook documenting before/after
-scoring explanation signals. Check `scripts/compute-scoring-metrics.ts` usage.
+### 6.5 Item #10 resume-scoring-explainability-drift — DONE
+b5 done (convex + web). Delta doc verified: `docs/design-patterns/scoring-explanation-signals.md`
+Status section + runbook `docs/runbooks/rerank-gap-analysis.md` +
+`scripts/compute-scoring-metrics.ts` (SQLite path) + cohort evaluator
+`scripts/evaluate-hr-cohort-ranking.ts`. Evidence.md written (verify+document
+only; deep-research candidates 1/3/4 unimplemented by design). Commits:
+`3ec04044`. Vault evidence pushed `5621fd8ab`.
 
 ### 6.6 Item #13 my-scoring-cohort — BLOCKED (log only)
 BLOCKED: needs HR-rated MY (Malaysia) resumes. Block recorded in vault
 log.md 2026-08-18 (no implementation, no spec/plan flips; `automation_ready:
 false` retained). Unblock = MY HR/product reviewer provides a scored cohort.
 
-## 7. Final gates (after all items)
+## 7. Final gates — ALL PASSED (2026-08-18)
 
-1. `make ci-local` (node-major check + i18n + agent policy + check-build + test-coverage)
-2. `make check-agent-policy` / `make sync-agent-policy` if AGENTS.md touched
-3. Vault: lint-delta 0 (`skillwiki lint`), `work-validate` all work items,
-   push via vault-presync wiki-sync script
-4. Commit all local work (NO-PUSH), summarize to user with claims audit
-   (which items DONE / BLOCKED / excluded)
+1. `make ci-local` GREEN (exit 0: node-major + i18n + agent policy + check-build
+   + test-coverage + check-route-auth + check-node + check-mutation-entry-points;
+   registry fix committed `63cf6105`)
+2. `make check-agent-policy` — passed within ci-local chain (AGENTS.md untouched)
+3. Vault: lint-delta 0 (`skillwiki lint`: 80 errors = known baseline, 0 new),
+   `work-validate --require-complete` valid on all 12 completed items, #13 valid
+   in default mode (9 human-gated boxes open by design), pushed `5621fd8ab`
+   (presync gate: behind=0 ahead=0 dirty=19 → lint delta new=0, no collisions)
+4. All local work committed (NO-PUSH, ahead 13)
+5. REMAINING: claims audit summary to user (DONE/BLOCKED/excluded per item)
 
 ## 8. Session references
 
