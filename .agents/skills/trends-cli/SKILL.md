@@ -34,6 +34,14 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume snapshot --source job5156 --count 50`
 - `./bin/trends resume import-51job ~/Downloads/51job.rar --keyword "CNC 销售"`
 - `./bin/trends resume restore output/resume-backups/<run-stamp> --mode replace --yes`
+- `./bin/trends resume show <resume-id> --source convex` (one resume with detailed work experience)
+- `./bin/trends resume archive <id> [<id>...]` (soft-delete resumes)
+- `./bin/trends resume unarchive <id> [<id>...]` (restore archived resumes)
+- `./bin/trends resume backup --out <file> --limit 200` (portable backup from $API_URL)
+- `./bin/trends resume deploy-backup write <run-dir> --limit 200` (write into the deploy backup layout, .tar.gz by default)
+- `./bin/trends resume deploy-backup restore <run-dir> --mode replace --yes` (restore from a deploy backup run directory)
+- `./bin/trends resume full-restore <backup-file>` (replace ALL local data from a backup file; auto-backs up current state first)
+- `./bin/trends resume note --from-file feedback.csv --dry-run` (import HR feedback comments as resume notes)
 - `./bin/trends resume match --query "CNC 销售" --source convex --mode rules_only`
 - `./bin/trends resume debug ai-score --query "CNC 销售" --limit 5 --top-n 3`
 - `./bin/trends resume debug matches --job-description lathe-sales`
@@ -50,6 +58,11 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume debug trigger-reingest --limit 200`
 - `./bin/trends resume debug trigger-reingest --mode any --dry-run` (count skills-stale vs compute-stale)
 - `./bin/trends resume debug trigger-reingest --mode compute --limit 200` (algorithm epoch lag only)
+- `./bin/trends resume debug diagnostics --source-key job5156 --limit 100` (ingest/archive diagnostics rows)
+- `./bin/trends resume debug diagnostics --archived`
+- `./bin/trends resume debug clear-demo-resumes` (delete workspace-demo tagged resumes)
+- `./bin/trends resume debug reingest --resume-id <id> --dry-run` (resolve an exact resume cohort; `--yes --wait` schedules and waits for evidence)
+- `./bin/trends resume debug workflow-dataset --query "CNC 销售" --source-key seek --top 10`
 - `./bin/trends resume analyze --query "CNC 销售" --limit 50`
 - `./bin/trends resume analyze --job-description lathe-sales --dry-run`
 - `./bin/trends resume analyze --query "CNC Sales" --min-experience 3 --locations "Dongguan,Shenzhen"`
@@ -60,6 +73,9 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends jd create ./config/job-descriptions/lathe-sales.md --name lathe-sales-copy`
 - `./bin/trends worker status`
 - `./bin/trends worker run --once`
+- `./bin/trends worker summary run --period daily --dry-run` (render without sending)
+- `./bin/trends worker summary history --limit 20`
+- `./bin/trends worker summary show <run-id>`
 - `./bin/trends industry review --status ready_for_review --limit 20`
 - `./bin/trends industry inspect <proposal-id>`
 - `./bin/trends industry recommend <proposal-id> --output json`
@@ -70,6 +86,14 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends migrate backfill-ingest --limit 100`
 - `./bin/trends migrate backfill-manual-51job --limit 100`
 - `./bin/trends migrate backfill-score`
+- `./bin/trends migrate backfill-verified-role-years --batch-size 100`
+- `./bin/trends migrate validate-consistency --force` (full data consistency validation and repair)
+- `./bin/trends research company "CNC 东莞" --persona hr` (persona re-ranked company signals)
+- `./bin/trends research ingest` (trigger Research Eng native ingest; operator command)
+- `./bin/trends research parity` (latest research parity run / kill-switch ledger)
+- `./bin/trends system metadata`
+- `./bin/trends system sources`
+- `./bin/trends system source <key>`
 - `./bin/trends mcp serve`
 
 ## Rules
@@ -95,6 +119,14 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `reset-database` deletes ALL resume, JD, search profile, and screening data; use with extreme caution.
 - `clear-analyses` now routes through the BFF API instead of calling Convex directly; `--dry-run` counts affected records without mutating.
 - `--dry-run` on any destructive command shows what would happen without performing the operation.
+- `resume archive` soft-deletes resumes; `resume unarchive` restores them. `resume full-restore` replaces ALL local data from a backup file and auto-backs up the current state first — treat as destructive.
+- `resume deploy-backup` reads/writes backups in the standard deploy layout under `--base-dir` (default `/var/backups/trends/deploy`); `restore --mode replace` requires `--yes`, `--mode merge` does not.
+- `resume note` imports HR feedback rows from CSV/TSV (`--delimiter auto|tab|comma`, `--from-file` or stdin); `--dry-run` previews rows without posting.
+- `resume debug reingest` resolves an exact resume cohort from `--resume-id`/`--manifest`; live scheduling requires `--yes`, `--dry-run` previews targets, `--wait --wait-timeout` waits for the expected ingest evidence.
+- `resume debug clear-demo-resumes` deletes `workspace-demo`-tagged resumes from the target Convex deployment (destructive).
+- `resume debug diagnostics` is read-only; `--archived` lists archived rows instead of active ingest rows.
+- `worker summary run` renders the daily/weekly workspace summary; `--dry-run` renders without sending, `--via-worker` routes through the worker endpoint instead of the API summary route.
+- `research company` shows persona re-ranked company signals (`--persona hr|sales`); `research ingest` and `research parity` are operator commands for the Research Eng ingest lane and its kill-switch ledger.
 - `resume analyze` dispatches the production Convex AI analysis pipeline; results are stored per-resume in the `analyses` map.
 - Use `--dry-run` on `resume analyze` to preview candidate count without dispatching analysis.
 - Check analysis task status with `resume debug analysis-tasks`.
