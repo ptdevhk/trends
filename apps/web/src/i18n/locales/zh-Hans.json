@@ -1584,6 +1584,7 @@
   },
   "settings": {
     "searchSetup": {
+      "nav": "搜索设置",
       "title": "搜索设置",
       "description": "设置工作区关键字与地区显示，引导候选人发掘。",
       "locationsTitle": "地区",
@@ -1592,6 +1593,7 @@
       "brandKeywordsDescription": "只读品牌参考数据，协助成员对齐自定义搜索关键字。"
     },
     "setup": {
+      "nav": "设置",
       "title": "设置向导",
       "description": "三步上手：安装扩展功能、配置搜索设置、从简历工作台启动首次收集。",
       "goToSearchSetup": "前往搜索设置",

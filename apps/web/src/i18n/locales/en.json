@@ -859,6 +859,7 @@
   },
   "settings": {
     "searchSetup": {
+      "nav": "Search setup",
       "title": "Search setup",
       "description": "Configure the workspace keywords and location visibility that steer candidate discovery.",
       "locationsTitle": "Locations",
@@ -867,6 +868,7 @@
       "brandKeywordsDescription": "Read-only brand reference data to help members align custom search keywords."
     },
     "setup": {
+      "nav": "Setup",
       "title": "Setup",
       "description": "Get started in 3 steps: install the extension, configure search setup, and launch your first collection from the resumes desk.",
       "goToSearchSetup": "Go to Search Setup",

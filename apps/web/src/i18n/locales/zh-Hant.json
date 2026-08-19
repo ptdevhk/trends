@@ -859,6 +859,7 @@
   },
   "settings": {
     "searchSetup": {
+      "nav": "搜尋設定",
       "title": "搜尋設定",
       "description": "設定工作區關鍵字與地區顯示，引導候選人發掘。",
       "locationsTitle": "地區",
@@ -867,6 +868,7 @@
       "brandKeywordsDescription": "唯讀品牌參考資料，協助成員對齊自訂搜尋關鍵字。"
     },
     "setup": {
+      "nav": "設置",
       "title": "設置嚮導",
       "description": "三步上手：安裝擴充功能、配置搜尋設定、從簡歷工作台啟動首次收集。",
       "goToSearchSetup": "前往搜尋設定",
