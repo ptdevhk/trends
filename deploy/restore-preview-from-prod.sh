@@ -288,6 +288,20 @@ if ! seed_preview_canonical_no_hire "hr"; then
 fi
 
 echo ""
+echo "=== Step 3c.2: Re-seed reviewed company-industry catalog ==="
+# The prod export carries no company_industry_* rows (the catalog was written
+# by a July attended bootstrap that predates the export path), so
+# --replace-all materializes those schema tables EMPTY on preview while prod
+# keeps the catalog. Replay the deterministic reviewed bootstrap plan
+# (deploy/seed-data/company-industry-seed-plan.json) through the same mutation
+# chain — idempotent, so a repeat restore cycle leaves the catalog SET.
+if ! seed_preview_company_industry; then
+    echo "FATAL: company-industry re-seed failed — preview catalog would be empty." >&2
+    echo "Manual fix: fix the SEED_FATAL error above, then re-run this sync (the seed leg is idempotent)." >&2
+    exit 1
+fi
+
+echo ""
 echo "=== Step 3d: Preview system_settings smoke ==="
 # The export fixer keeps system_settings/ but drops environment-local rows
 # (maintenanceMode, industryMaintenanceSchedulePaused) so env-local flags

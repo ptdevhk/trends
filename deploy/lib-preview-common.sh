@@ -30,10 +30,11 @@ if [[ -f "${BASH_SOURCE[0]%/*}/lib-bff-defaults.sh" ]]; then
   source "${BASH_SOURCE[0]%/*}/lib-bff-defaults.sh"
 fi
 
-log_info()  { printf '[INFO] %s\n' "$*"; }
-log_warn()  { printf '[WARN] %s\n' "$*" >&2; }
-log_error() { printf '[ERROR] %s\n' "$*" >&2; }
-log_step()  { printf '\n=== %s ===\n' "$*"; }
+_log_ts() { date '+%H:%M:%S'; }
+log_info()  { printf '[%s] [INFO] %s\n' "$(_log_ts)" "$*"; }
+log_warn()  { printf '[%s] [WARN] %s\n' "$(_log_ts)" "$*" >&2; }
+log_error() { printf '[%s] [ERROR] %s\n' "$(_log_ts)" "$*" >&2; }
+log_step()  { printf '\n[%s] === %s ===\n' "$(_log_ts)" "$*"; }
 
 require_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -246,6 +247,14 @@ assert_not_prod_services_targeted() {
     done
 }
 
+convex_healthy() {
+    # Probe a Convex instance's /version endpoint; true only on HTTP 200.
+    local url="$1"
+    local code
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$url/version" 2>/dev/null || echo 000)"
+    [ "$code" = "200" ]
+}
+
 wait_for_http() {
     # Accept any HTTP status < 500 (auth-enabled APIs often return 401 until login).
     # Prefer /health for liveness. Override: WAIT_HTTP_OK_CODES=200,401
@@ -316,6 +325,77 @@ seed_preview_canonical_no_hire() {
         "cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET 2>/dev/null | tail -1) && npx convex run companies:seedCanonicalCompanies \"{\\\"workspaceSlug\\\":\\\"$workspace_slug\\\",\\\"seedNoHireForWorkspace\\\":true,\\\"writeSecret\\\":\\\"\$WS\\\"}\" --env-file .env.local" \
         || {
             log_warn "Canonical no-hire re-seed failed (container=$container workspace=$workspace_slug)"
+            return 1
+        }
+    return 0
+}
+
+# seed_preview_company_industry
+# -----------------------------
+# Re-seed the reviewed company-industry catalog (company rows, proposals,
+# evidence sources, approved verdicts) on a preview workspace after any
+# Convex data replace.
+#
+# Why: `convex import --replace-all` materializes schema tables missing from
+# the imported snapshot as EMPTY. The prod export carries no
+# company_industry_* rows (the catalog was written by a July attended
+# bootstrap that predates the export path), so a restore silently empties the
+# preview catalog while prod keeps it. This leg replays the deterministic
+# reviewed bootstrap plan (deploy/seed-data/company-industry-seed-plan.json)
+# through the same mutation chain the attended bootstrap used — idempotent,
+# so a repeat restore cycle leaves the catalog SET.
+#
+# Preview-only by construction: refuses to run against a non-trends-preview-*
+# container. The write secret is fetched from the deployment's own env
+# (`npx convex env get`) and never echoed; the driver prints only SEED_OK /
+# SEED_FATAL lines. The driver is copied to /app in the container so Node
+# resolves `convex/browser` from the image's /app/node_modules.
+#
+# Usage: seed_preview_company_industry
+# Exit codes: 0 = catalog present (driver smoke: 27 approved profiles);
+# 1 = any step failed (FATAL path in restore-preview-from-prod.sh,
+# best-effort log_warn path in restore-preview-from-backup.sh).
+seed_preview_company_industry() {
+    local container="${PREVIEW_CONVEX_CONTAINER:-trends-preview-convex}"
+    local seed_dir
+    seed_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/seed-data"
+    local plan_path="$seed_dir/company-industry-seed-plan.json"
+    local driver_path="$seed_dir/seed-company-industry.mjs"
+    local container_dir="/tmp/company-industry-seed"
+
+    case "$container" in
+        trends-preview-*) ;;
+        *)
+            log_error "Refusing to re-seed company-industry catalog on non-preview container: $container"
+            return 1
+            ;;
+    esac
+    if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
+        log_error "Preview Convex container $container not running — cannot re-seed company-industry catalog"
+        return 1
+    fi
+    if [ ! -r "$plan_path" ] || [ ! -r "$driver_path" ]; then
+        log_error "Company-industry seed files missing under $seed_dir (need company-industry-seed-plan.json and seed-company-industry.mjs)"
+        return 1
+    fi
+
+    log_step "Re-seed reviewed company-industry catalog (plan=$(basename "$plan_path"))"
+    docker exec "$container" mkdir -p "$container_dir" || {
+        log_error "Cannot create $container_dir in container $container"
+        return 1
+    }
+    docker cp "$plan_path" "$container:$container_dir/company-industry-seed-plan.json" || {
+        log_error "Cannot copy seed plan into container $container"
+        return 1
+    }
+    docker cp "$driver_path" "$container:/app/seed-company-industry.mjs" || {
+        log_error "Cannot copy seed driver into container $container"
+        return 1
+    }
+    docker exec "$container" bash -c \
+        "cd /app/packages/convex && WS=\$(npx convex env get CONVEX_WRITE_SECRET 2>/dev/null | tail -1) && CONVEX_URL=\"\$(grep -E '^CONVEX_URL=' .env.local 2>/dev/null | head -1 | cut -d= -f2-)\"; [ -n \"\$CONVEX_URL\" ] || CONVEX_URL='http://127.0.0.1:3210'; CONVEX_URL=\"\$CONVEX_URL\" CONVEX_WRITE_SECRET=\"\$WS\" node /app/seed-company-industry.mjs $container_dir/company-industry-seed-plan.json" \
+        || {
+            log_error "Company-industry re-seed failed (container=$container)"
             return 1
         }
     return 0

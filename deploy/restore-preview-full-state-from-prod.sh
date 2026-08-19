@@ -59,7 +59,7 @@ for arg in "$@"; do
 done
 
 log() {
-    printf '%s\n' "$*"
+    printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
 require_root() {
@@ -267,20 +267,36 @@ stabilize_preview_convex() {
     log "=== Stabilize preview Convex after import/swap ==="
     if [ -f "$PREVIEW_DIR/docker-compose.preview.yml" ]; then
         cd "$PREVIEW_DIR"
-        docker compose -f docker-compose.preview.yml up -d --force-recreate convex
-        local i=0
-        local code="000"
-        for i in $(seq 1 48); do
-            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
-            if [ "$code" = "200" ]; then
-                log "Preview Convex /version → 200 after ${i} attempts"
-                break
+        local healthy_code
+        healthy_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" 2>/dev/null || echo 000)"
+        local recreate=0
+        if [ "$healthy_code" = "200" ]; then
+            if [ "${FORCE_CONVEX_RECREATE:-0}" = "1" ]; then
+                recreate=1
+                log "FORCE_CONVEX_RECREATE=1 — force-recreating despite healthy /version"
+            else
+                log "Preview Convex already healthy (/version 200) — skipping force-recreate (override: FORCE_CONVEX_RECREATE=1)"
             fi
-            sleep 5
-        done
-        if [ "$code" != "200" ]; then
-            echo "Preview Convex did not become healthy after stabilize" >&2
-            exit 1
+        else
+            recreate=1
+            log "Preview Convex not healthy (/version $healthy_code) — force-recreating"
+        fi
+        if [ "$recreate" -eq 1 ]; then
+            docker compose -f docker-compose.preview.yml up -d --force-recreate convex
+            local i=0
+            local code="000"
+            for i in $(seq 1 48); do
+                code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
+                if [ "$code" = "200" ]; then
+                    log "Preview Convex /version → 200 after ${i} attempts"
+                    break
+                fi
+                sleep 5
+            done
+            if [ "$code" != "200" ]; then
+                echo "Preview Convex did not become healthy after stabilize" >&2
+                exit 1
+            fi
         fi
     fi
     systemctl restart "$PREVIEW_API_SERVICE"

@@ -228,6 +228,13 @@ import_preview_convex() {
     # not abort the replay.
     seed_preview_canonical_no_hire "hr" \
         || log_warn "canonical no-hire re-seed failed (rehearsal baseline may predate the seed mutation) — re-run manually after install-target"
+    # Same reasoning for the reviewed company-industry catalog: a replayed
+    # baseline predating the July attended bootstrap would materialize the
+    # company_industry_* tables EMPTY. Best-effort here too — a rehearsal
+    # baseline may predate the catalog mutations (function not found), which
+    # must not abort the replay.
+    seed_preview_company_industry \
+        || log_warn "company-industry re-seed failed (rehearsal baseline may predate the catalog bootstrap) — re-run manually after install-target"
 }
 
 recreate_preview_containers() {
