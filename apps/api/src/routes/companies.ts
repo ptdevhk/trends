@@ -1553,6 +1553,14 @@ const approveIndustryProposalRoute = createRoute({
       },
       description: "Approved immutable revision",
     },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), error: z.string() }),
+        },
+      },
+      description: "Proposal not found",
+    },
     409: {
       content: {
         "application/json": { schema: IndustryReviewConflictSchema },
@@ -1586,7 +1594,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     );
     const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
     if (!packet) {
-      throw new Error("Industry proposal not found");
+      return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
     }
     const decision = buildIndustryApprovalDecision({
       workspaceSlug: c.var.workspaceSlug,

@@ -626,6 +626,37 @@ describe("companies routes", () => {
     });
   });
 
+  it("returns 404 with an error envelope when approving a nonexistent proposal", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(null as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/does-not-exist/approve",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          verificationLevel: "verified",
+          industryClass: "cnc",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Reviewed official evidence.",
+          decisionReason: "Reviewed primary evidence",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(await parseJsonBody(response)).toMatchObject({
+      success: false,
+      error: "Industry proposal not found",
+    });
+    // The approval mutation must never run against a nonexistent proposal.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("fails closed when the approval boundary reports a stale packet", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue({
