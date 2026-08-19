@@ -116,9 +116,23 @@ Prioritize by impact: broken flows > confusing states > a11y > polish. For every
 
 | Commit | Change |
 |---|---|
-| _(fill in)_ | |
+| `f2fa22cd` | F1: industry-verification inbox + coverage panel 500s — BFF tolerates malformed proposal rows (skip accounting + trigger-reason allowlist) |
+| `43bdba25` | F2: detail-pane approve now registers in the session registry (page-level approve left stale UI until refresh) |
+| `f7c21e3b` | F3: settings sidebar 设置/搜索设置/导出字段 labels — missing `titleKey`s across 3 locales |
+| `9843d268` | F4: non-admins no longer fire admin-only market policy GETs (mode-keyed cache, scope switcher 工作区 only) |
+| `0e5a7c5f` | F5: lower-bound `+` suffix dropped from zero result counts ("0 条结果" not "0+ 条结果") |
+| `5abb3386` | Gate debt: F1/F4 test-file/lint/typecheck fixes (`make ci-local` GREEN) |
 
-**Verification (evidence):** _(fill in — UAT pass results, backlog items fixed, test counts, `make ci-local` result)_
+**Verification (evidence):** UAT pass over 8 surfaces per role (hr-demo,
+demo-admin, uat-reviewer) — every surface walked end to end in the browser
+with network capture; 5 defects found and fixed (backlog now **empty**,
+per user decision "fix everything until empty"). Regression re-walk after
+fixes: 4/4 surfaces green (F2 approve→counter→撤销→undo; F3 sidebar labels;
+F4 admin scope switcher 3 scopes; F5 quick-start no-query state). Tests:
+`make ci-local` all gates passed (web 2041/2041, API + shared + convex
+suites green, i18n, lint, typechecks, node-major, agent policy). Evidence
+screenshots in vault `artifacts/` (f2-undo-verify.png, f5-zero-count.png).
+Vault work item `2026-08-19-uiux-uat` completed and pushed.
 
 **Wiki:** _(fill in — work item path, index entry, push state)_
 
