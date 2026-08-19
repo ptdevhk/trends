@@ -10522,6 +10522,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Proposal not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Review packet or current revision is stale */
                 409: {
                     headers: {
