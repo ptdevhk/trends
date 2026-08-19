@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { CheckCircle2, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -86,6 +86,13 @@ type IndustryReviewInboxProps = {
   onQueueStatusChange: (status: ReviewQueueStatus) => void
   onSelectProposal: (proposal: ReviewInboxProposal | undefined) => void
   onLoadedProposalsChange?: (proposals: ReviewInboxProposal[]) => void
+  /**
+   * Lifted session-approval registry (controlled mode). When provided, the
+   * inbox routes all registry reads/writes through these props; otherwise it
+   * falls back to its internal state.
+   */
+  sessionApprovals?: ReadonlyMap<string, SessionApproval>
+  onSessionApprovalsChange?: Dispatch<SetStateAction<Map<string, SessionApproval>>>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -275,6 +282,8 @@ export function IndustryReviewInbox({
   onQueueStatusChange,
   onSelectProposal,
   onLoadedProposalsChange,
+  sessionApprovals: sessionApprovalsProp,
+  onSessionApprovalsChange,
 }: IndustryReviewInboxProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -295,6 +304,11 @@ export function IndustryReviewInbox({
   const [historyError, setHistoryError] = useState<string>()
   const [historyPartial, setHistoryPartial] = useState(false)
   const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
+  // Controlled-lift: when the parent supplies the registry (and its setter),
+  // use those instead of the internal state. Both fallbacks are stable
+  // identities, so the effective registry/setter stay stable across renders.
+  const registry = sessionApprovalsProp ?? sessionApprovals
+  const setRegistry = onSessionApprovalsChange ?? setSessionApprovals
   const [pendingActions, setPendingActions] = useState<Map<string, ReviewRowAction>>(new Map())
   const [rowErrors, setRowErrors] = useState<Map<string, ReviewRowError>>(new Map())
   const [forcedNeedsReview, setForcedNeedsReview] = useState<Set<string>>(new Set())
@@ -439,10 +453,13 @@ export function IndustryReviewInbox({
 
   useEffect(() => {
     if (!targetItem || !targetIsTerminal || searchParams.has('filter')) return
+    // A terminal target that was approved in this session stays in the queue
+    // view (Undo affordance) until refresh — do not auto-redirect to History.
+    if (registry.has(targetItem.proposal.proposalId)) return
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('filter', 'history')
     setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams, targetIsTerminal, targetItem])
+  }, [registry, searchParams, setSearchParams, targetIsTerminal, targetItem])
 
   useEffect(() => {
     if (!requestedProposalId) return
@@ -453,13 +470,17 @@ export function IndustryReviewInbox({
   }, [items, onSelectProposal, requestedProposalId, selectedProposalId])
 
   const itemsWithTarget = useMemo(() => {
-    if (!targetItem || targetIsTerminal) return items
+    if (!targetItem) return items
+    // A terminal target is normally dropped from the queue view, but a
+    // session-approved terminal target is still actionable (Undo) and must
+    // stay visible until refresh.
+    if (targetIsTerminal && !registry.has(targetItem.proposal.proposalId)) return items
     const targetProposalId = targetItem.proposal.proposalId
     return [
       targetItem,
       ...items.filter((item) => item.proposal.proposalId !== targetProposalId),
     ]
-  }, [items, targetIsTerminal, targetItem])
+  }, [items, registry, targetIsTerminal, targetItem])
 
   useEffect(() => {
     // Report the QUEUE order (not the target-prepended display order) so the
@@ -471,7 +492,7 @@ export function IndustryReviewInbox({
   }, [items, onLoadedProposalsChange])
 
   const partition = useMemo(() => {
-    const base = partitionReviewQueue(itemsWithTarget, sessionApprovals)
+    const base = partitionReviewQueue(itemsWithTarget, registry)
     const approvable: ReviewInboxRow[] = []
     const forcedReviewRows: ReviewInboxRow[] = []
     for (const row of base.approvable) {
@@ -483,11 +504,11 @@ export function IndustryReviewInbox({
       approvable,
       needsReview: [...base.needsReview, ...forcedReviewRows],
     }
-  }, [forcedNeedsReview, itemsWithTarget, sessionApprovals])
+  }, [forcedNeedsReview, itemsWithTarget, registry])
 
   const visibleHistory = useMemo(
-    () => filterHistoryForSession(historyItems, new Set(sessionApprovals.keys())),
-    [historyItems, sessionApprovals],
+    () => filterHistoryForSession(historyItems, new Set(registry.keys())),
+    [historyItems, registry],
   )
 
   const visibleRows = activeFilter === 'all'
@@ -495,7 +516,7 @@ export function IndustryReviewInbox({
     : activeFilter === 'approvable'
       ? partition.approvable
       : partition.needsReview
-  const sessionApprovalCount = sessionApprovals.size
+  const sessionApprovalCount = registry.size
 
   const changeQueueStatus = useCallback((status: ReviewQueueStatus) => {
     setQueueStatus(status)
@@ -575,7 +596,7 @@ export function IndustryReviewInbox({
         ? response.recompute.runId
         : undefined
       const approvedAt = Date.now()
-      setSessionApprovals((current) => new Map(current).set(proposalId, {
+      setRegistry((current) => new Map(current).set(proposalId, {
         proposalId,
         approvedRevisionId: response.revisionId as string,
         ...(recompute ? { recomputeRunId: recompute } : {}),
@@ -622,11 +643,11 @@ export function IndustryReviewInbox({
     } finally {
       updatePending(proposalId)
     }
-  }, [clearRowError, loadPacket, requestJson, setRowError, t, updatePending])
+  }, [clearRowError, loadPacket, requestJson, setRegistry, setRowError, t, updatePending])
 
   const handleUndo = useCallback(async (item: ReviewInboxItem) => {
     const proposalId = item.proposal.proposalId
-    const approval = sessionApprovals.get(proposalId)
+    const approval = registry.get(proposalId)
     if (!approval || undoBlocked.has(proposalId)) return
     updatePending(proposalId, 'undo')
     clearRowError(proposalId)
@@ -642,7 +663,7 @@ export function IndustryReviewInbox({
         `/api/company-industry-proposals/${encodeURIComponent(proposalId)}/undo-approval`,
         { method: 'POST', body: JSON.stringify(body) },
       )
-      setSessionApprovals((current) => {
+      setRegistry((current) => {
         const next = new Map(current)
         next.delete(proposalId)
         return next
@@ -691,15 +712,15 @@ export function IndustryReviewInbox({
     } finally {
       updatePending(proposalId)
     }
-  }, [clearRowError, loadPacket, requestJson, sessionApprovals, setRowError, t, undoBlocked, updatePending])
+  }, [clearRowError, loadPacket, requestJson, registry, setRegistry, setRowError, t, undoBlocked, updatePending])
 
   const refreshInbox = useCallback(async () => {
     setRefreshing(true)
-    const previousSessionIds = new Set(sessionApprovals.keys())
+    const previousSessionIds = new Set(registry.keys())
     const [nextItems, nextHistory] = await Promise.all([loadActiveQueue(), loadHistory()])
     if (nextItems && nextHistory) {
       setItems((current) => current.filter((item) => !previousSessionIds.has(item.proposal.proposalId)))
-      setSessionApprovals(new Map())
+      setRegistry(new Map())
       setPendingActions(new Map())
       setRowErrors(new Map())
       setForcedNeedsReview(new Set())
@@ -717,7 +738,7 @@ export function IndustryReviewInbox({
       toast.error(message)
     }
     setRefreshing(false)
-  }, [loadActiveQueue, loadHistory, onSelectProposal, selectedProposalId, sessionApprovals, t])
+  }, [loadActiveQueue, loadHistory, onSelectProposal, registry, selectedProposalId, setRegistry, t])
 
   const handleRowRetry = useCallback((row: ReviewInboxRow) => {
     if (row.sessionApproval) void handleUndo(row.item)
@@ -760,7 +781,7 @@ export function IndustryReviewInbox({
         return next
       })
       const approvedAt = Date.now()
-      setSessionApprovals((current) => {
+      setRegistry((current) => {
         const next = new Map(current)
         for (const item of succeeded) {
           if (item.kind !== 'approve' || !item.revisionId) continue
@@ -833,7 +854,7 @@ export function IndustryReviewInbox({
     } finally {
       setBatchSubmitting(false)
     }
-  }, [loadActiveQueue, requestJson, t])
+  }, [loadActiveQueue, requestJson, setRegistry, t])
 
   const openIdentityDialog = useCallback(async (items: ReviewInboxItem[]) => {
     if (items.length === 0) return
@@ -1041,7 +1062,9 @@ export function IndustryReviewInbox({
         <div id="industry-review-tabpanel-history" role="tabpanel" aria-label={t('industryEvidence.history', { defaultValue: 'History' })}>
           <IndustryHistoryList
             items={visibleHistory}
-            targetItem={targetIsTerminal ? targetItem?.proposal as IndustryHistoryItem | undefined : undefined}
+            targetItem={targetIsTerminal && targetItem && !registry.has(targetItem.proposal.proposalId)
+              ? targetItem.proposal as IndustryHistoryItem | undefined
+              : undefined}
             loading={historyLoading}
             loaded={historyLoaded}
             error={historyError}

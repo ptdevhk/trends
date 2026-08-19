@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
   isExplicitCncEvidenceSource,
+  isRecord,
   type IndustryReviewAttestation,
 } from '@trends/shared'
 
@@ -23,6 +24,7 @@ import { EvidenceRecoveryPanel } from './EvidenceRecoveryPanel'
 import {
   isTerminalIndustryProposalStatus,
   type ReviewInboxItem,
+  type SessionApproval,
 } from './industry-review-inbox-model'
 import {
   createRevisionId,
@@ -100,6 +102,10 @@ export function SystemSettingsIndustryVerificationPage() {
   const [acknowledgementReason, setAcknowledgementReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
+  // Session-approval registry lifted from the inbox so detail-pane approvals
+  // (which call the same /approve API) register too, keeping the counter,
+  // row badge, and Undo affordance symmetric across both approval paths.
+  const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
   const [userInitiatedSelection, setUserInitiatedSelection] = useState(false)
   const detailSectionRef = useRef<HTMLDivElement | null>(null)
   const userInitiatedSelectionRef = useRef(false)
@@ -300,7 +306,7 @@ export function SystemSettingsIndustryVerificationPage() {
             acknowledgementReason: acknowledgementReason.trim(),
           }
         : undefined
-      await requestJson(
+      const response = await requestJson(
         `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/approve`,
         {
           method: 'POST',
@@ -320,6 +326,20 @@ export function SystemSettingsIndustryVerificationPage() {
           }),
         },
       )
+      // Register into the session registry exactly like the inbox row path so
+      // the summary counter, row badge, and Undo affordance stay symmetric.
+      if (isRecord(response) && typeof response.revisionId === 'string') {
+        const revisionId = response.revisionId
+        const recomputeRunId = isRecord(response.recompute) && typeof response.recompute.runId === 'string'
+          ? response.recompute.runId
+          : undefined
+        setSessionApprovals((current) => new Map(current).set(selectedProposal.proposalId, {
+          proposalId: selectedProposal.proposalId,
+          approvedRevisionId: revisionId,
+          ...(recomputeRunId ? { recomputeRunId } : {}),
+          approvedAt: Date.now(),
+        }))
+      }
       toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
       setApprovalConfirmOpen(false)
       await reloadDirectReviewPacket()
@@ -451,6 +471,8 @@ export function SystemSettingsIndustryVerificationPage() {
         onQueueStatusChange={changeQueueStatus}
         onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
         onLoadedProposalsChange={setProposals}
+        sessionApprovals={sessionApprovals}
+        onSessionApprovalsChange={setSessionApprovals}
       />
 
       <div className="space-y-6">

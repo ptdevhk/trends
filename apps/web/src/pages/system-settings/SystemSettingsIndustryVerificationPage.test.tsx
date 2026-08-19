@@ -1297,6 +1297,79 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('Industry verdict revision approved')
   })
 
+  it('registers a detail-pane approval into the session registry (counter, badge, Undo)', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    // The clean-proposal fixture is an industrial (non-CNC) one-click-eligible
+    // row, so it lives in the All/Approvable partitions — open its detail pane.
+    await user.click(await screen.findByTestId('industry-review-row-clean-proposal'))
+    expect(await screen.findByRole('button', { name: 'Approve revision' })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Evidence summary'))
+    await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
+    await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
+
+    // F2: the detail-pane approve path must behave like the one-click row
+    // path — the approval registers into the session registry, so the summary
+    // counter, the session badge, and the same-row Undo affordance appear.
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('1')
+    })
+    expect(await screen.findByText('Approved in this session')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    // History stays session-filtered: the approved row only reconciles there
+    // after an explicit refresh, same as the one-click path.
+    await user.click(screen.getByRole('tab', { name: /History/ }))
+    expect(screen.queryByTestId('industry-history-row-clean-proposal')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /All/ }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+  })
+
+  it('undoes a detail-pane session approval and restores the session counter', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByTestId('industry-review-row-clean-proposal'))
+    expect(await screen.findByRole('button', { name: 'Approve revision' })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Evidence summary'))
+    await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
+    await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('1')
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/clean-proposal/undo-approval',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    const undoCall = requestJsonMock.mock.calls.find(
+      ([path, init]) => path.endsWith('/undo-approval') && init?.method === 'POST',
+    )
+    expect(JSON.parse(String(undoCall?.[1]?.body))).toMatchObject({
+      approvedRevisionId: 'revision-clean',
+      expectedCurrentRevisionId: 'revision-clean',
+      expectedProposalUpdatedAt: 99,
+      recomputeRunId: 'run-clean',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('0')
+    })
+    expect(screen.queryByText('Approved in this session')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).not.toBeInTheDocument()
+  })
+
   it('requests more evidence without changing current truth', async () => {
     const user = userEvent.setup()
     renderPage()
