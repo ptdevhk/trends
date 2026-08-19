@@ -247,8 +247,11 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", resumesFeedbackBatchRoutes);
   app.route("/", resumesSearchRoutes);
   app.route("/", resumesMatchRoutes);
-  app.route("/", resumesRoutes);
   app.route("/", resumesAdminRoutes);
+  // NOTE: resumesAdminRoutes must stay mounted BEFORE resumesRoutes — the
+  // latter defines GET /api/resumes/{resumeId}, and an earlier param route
+  // shadows later static routes (bias-report / anomaly-alerts) for GET.
+  app.route("/", resumesRoutes);
   app.route("/", resumeSubmitRoutes);
   app.route("/", industryRoutes);
   app.route("/", industryDataAdminRoutes);

@@ -1,9 +1,18 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "./app";
 import { createAuthHeaders } from "./routes/test-auth-helpers";
 import { AuthEventStorage } from "./services/auth-event-storage";
 import { resetResumeScreeningDb } from "./services/database";
+
+// Mock the Convex helper so admin audit GETs resolve without a live backend.
+vi.mock("./services/convex-utils.js", () => ({
+  callConvexQuery: vi.fn().mockResolvedValue(null),
+  callConvexMutation: vi.fn(),
+  callConvexAction: vi.fn(),
+  isConvexPaginatedQueryPage: vi.fn(() => false),
+  isConvexResumeIdValidationError: vi.fn(() => false),
+}));
 
 describe("createApp auth event storage wiring", () => {
   afterEach(() => {
@@ -88,5 +97,26 @@ describe("createApp auth event storage wiring", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("admin audit GET routes under /api/resumes/* (shadowing regression)", () => {
+  it("serves bias-report and anomaly-alerts instead of the {resumeId} param route", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "dev", role: "admin" });
+    const app = createApp({ authStorage: auth.storage, authTtlSeconds: 3600 });
+
+    const biasResponse = await app.request("/api/resumes/bias-report?workspaceSlug=dev", {
+      headers: auth.headers,
+    });
+    expect(biasResponse.status).toBe(200);
+    const biasBody = await biasResponse.json();
+    expect(biasBody.success).toBe(true);
+
+    const alertsResponse = await app.request("/api/resumes/anomaly-alerts?workspaceSlug=dev", {
+      headers: auth.headers,
+    });
+    expect(alertsResponse.status).toBe(200);
+    const alertsBody = await alertsResponse.json();
+    expect(alertsBody.success).toBe(true);
   });
 });
