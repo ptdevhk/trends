@@ -3,9 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 const mockUseCompanyPolicies = vi.fn()
+const authMock = vi.hoisted(() => ({ memberships: [] as Array<{ userId: string; workspaceSlug: string; role: string }> }))
 
 vi.mock('@/hooks/useCompanyPolicies', () => ({
   useCompanyPolicies: (...args: unknown[]) => mockUseCompanyPolicies(...args),
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => authMock,
 }))
 
 vi.mock('@/pages/BlacklistPage', () => ({
@@ -56,6 +61,7 @@ function renderPolicies(initialEntry = '/hr/settings/policies') {
 
 describe('PoliciesPage', () => {
   beforeEach(() => {
+    authMock.memberships = [{ userId: 'u1', workspaceSlug: 'hr', role: 'admin' }]
     mockUseCompanyPolicies.mockReturnValue({
       companies: [
         {
@@ -223,5 +229,28 @@ describe('PoliciesPage', () => {
     fireEvent.click(screen.getByTestId('policy-scope-cn'))
 
     expect(screen.getByText(/No CN market policy yet/)).toBeInTheDocument()
+  })
+
+  it('shows all three scope tabs to a workspace admin', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+    expect(screen.getByTestId('policy-scope-workspace')).toBeInTheDocument()
+    expect(screen.getByTestId('policy-scope-cn')).toBeInTheDocument()
+    expect(screen.getByTestId('policy-scope-my')).toBeInTheDocument()
+  })
+
+  it('hides market scope tabs from a non-admin workspace member', () => {
+    authMock.memberships = [{ userId: 'u1', workspaceSlug: 'hr', role: 'user' }]
+    renderPolicies('/hr/settings/policies?tab=companies')
+    expect(screen.getByTestId('policy-scope-workspace')).toBeInTheDocument()
+    expect(screen.queryByTestId('policy-scope-cn')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('policy-scope-my')).not.toBeInTheDocument()
+  })
+
+  it('hides market scope tabs when the user is an admin of another workspace only', () => {
+    authMock.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'admin' }]
+    renderPolicies('/hr/settings/policies?tab=companies')
+    expect(screen.getByTestId('policy-scope-workspace')).toBeInTheDocument()
+    expect(screen.queryByTestId('policy-scope-cn')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('policy-scope-my')).not.toBeInTheDocument()
   })
 })

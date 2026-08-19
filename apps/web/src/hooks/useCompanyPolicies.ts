@@ -85,20 +85,30 @@ async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
     if (policiesResult.error || !policiesResult.data?.success) {
       return null
     }
-    if (cnPoliciesResult.error || !cnPoliciesResult.data?.success) {
+    // Market-scope reads are admin-only (T5); non-admins get 403, which is
+    // treated as an empty market layer rather than a hard failure.
+    if (cnPoliciesResult.error && cnPoliciesResult.response?.status !== 403) {
       return null
     }
-    if (myPoliciesResult.error || !myPoliciesResult.data?.success) {
+    if (myPoliciesResult.error && myPoliciesResult.response?.status !== 403) {
       return null
     }
+
+    const cnPolicies = cnPoliciesResult.error
+      ? []
+      : Array.isArray(cnPoliciesResult.data?.items)
+        ? cnPoliciesResult.data.items
+        : []
+    const myPolicies = myPoliciesResult.error
+      ? []
+      : Array.isArray(myPoliciesResult.data?.items)
+        ? myPoliciesResult.data.items
+        : []
 
     return {
       companies: Array.isArray(companiesResult.data.items) ? companiesResult.data.items : [],
       policies: Array.isArray(policiesResult.data.items) ? policiesResult.data.items : [],
-      marketPolicies: {
-        cn: Array.isArray(cnPoliciesResult.data.items) ? cnPoliciesResult.data.items : [],
-        my: Array.isArray(myPoliciesResult.data.items) ? myPoliciesResult.data.items : [],
-      },
+      marketPolicies: { cn: cnPolicies, my: myPolicies },
       loadedAt: Date.now(),
     }
   } catch {

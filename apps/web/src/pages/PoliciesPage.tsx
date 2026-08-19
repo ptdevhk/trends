@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { hasWorkspaceAdminAccess } from '@/lib/workspace-access'
+import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 type PoliciesTab = 'candidates' | 'companies'
@@ -54,6 +56,13 @@ function scopeDisplayName(scope: PolicyScope, t: (key: string, options?: Record<
 function CompaniesTab() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const { memberships } = useAuth()
+  const isWorkspaceAdmin = hasWorkspaceAdminAccess(memberships, slug)
+  // Market-scope policy editing is admin-only (T5); non-admins see the
+  // workspace layer only.
+  const availableScopes: PolicyScope[] = isWorkspaceAdmin
+    ? ['workspace', 'cn', 'my']
+    : ['workspace']
   const teamSlug = slug || 'hr'
   const {
     companies,
@@ -236,7 +245,7 @@ function CompaniesTab() {
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="flex items-center gap-1 rounded-md border p-0.5" role="group" aria-label={t('settings.policies.scopeLabel', { defaultValue: 'Policy scope' })}>
-                {(['workspace', 'cn', 'my'] as PolicyScope[]).map((scope) => (
+                {availableScopes.map((scope) => (
                   <Button
                     key={scope}
                     type="button"

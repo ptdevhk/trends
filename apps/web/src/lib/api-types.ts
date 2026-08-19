@@ -9140,6 +9140,32 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required for market scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -9181,6 +9207,32 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             revision: number;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required for market scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };

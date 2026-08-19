@@ -19,6 +19,7 @@ import {
 } from "@trends/shared";
 
 import {
+  getAdminAccessError,
   getAuthenticatedActorId,
   requireAdmin,
   requireIndustryReviewer,
@@ -402,6 +403,10 @@ app.openapi(archiveCompanyRoute, async (c) => {
 });
 
 const MarketScopeEnum = z.enum(["cn", "my"]);
+const PolicyErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
 
 const listPoliciesRoute = createRoute({
   method: "get",
@@ -422,11 +427,29 @@ const listPoliciesRoute = createRoute({
       },
       description: "Company policies for the requested scope",
     },
+    401: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Authentication required",
+    },
+    403: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Admin access required for market scope",
+    },
   },
 });
 
 app.openapi(listPoliciesRoute, async (c) => {
   const { market } = c.req.valid("query");
+  if (market) {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+  }
   const items = market
     ? await listMarketPolicies(market)
     : await listWorkspacePolicies(c.var.workspaceSlug);
@@ -467,11 +490,29 @@ const appendPolicyRoute = createRoute({
       },
       description: "Policy revision appended",
     },
+    401: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Authentication required",
+    },
+    403: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Admin access required for market scope",
+    },
   },
 });
 
 app.openapi(appendPolicyRoute, async (c) => {
   const body = c.req.valid("json");
+  if (body.market) {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+  }
   const actorId = getAuthenticatedActorId(c);
   const result = body.market
     ? await appendMarketPolicy({

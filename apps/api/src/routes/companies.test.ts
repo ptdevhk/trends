@@ -166,8 +166,8 @@ describe("companies routes", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("lists market policies for a market scope query", async () => {
-    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+  it("lists market policies for an admin market scope query", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -203,8 +203,21 @@ describe("companies routes", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("appends a market policy revision with lowercase scope id", async () => {
+  it("rejects market policy listing for a non-admin user", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies?market=cn", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(403);
+    const body = await parseJsonBody<{ error: string }>(response);
+    expect(body.error).toBe("Admin access required");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("appends a market policy revision with lowercase scope id", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -237,6 +250,28 @@ describe("companies routes", () => {
     const body = await parseJsonBody<{ revision: number }>(response);
     expect(body.revision).toBe(3);
     expect(calls).toHaveLength(1);
+  });
+
+  it("rejects market policy append for a non-admin user", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "my",
+      }),
+    });
+    expect(response.status).toBe(403);
+    const body = await parseJsonBody<{ error: string }>(response);
+    expect(body.error).toBe("Admin access required");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown market scope on append", async () => {
