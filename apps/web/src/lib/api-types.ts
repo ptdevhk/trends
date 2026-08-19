@@ -2928,6 +2928,8 @@ export interface paths {
                             success: true;
                             currentSkillsVersion: number;
                             currentIngestComputeEpoch: number;
+                            currentCompanyKeyProjectionEpoch: number;
+                            companyKeyProjectionStale: number;
                             apiReachable: boolean;
                             lagScanFailed: boolean;
                             lag: {
@@ -4141,6 +4143,7 @@ export interface paths {
                     status?: string | string[];
                     recommendation?: string | string[];
                     showBlocked?: "true" | "false";
+                    includeHidden?: "true" | "false";
                     enableSemantic?: "true" | "false";
                     semanticWeight?: number | null;
                     semanticLimit?: string;
@@ -4561,6 +4564,7 @@ export interface paths {
                 query?: {
                     sample?: string;
                     source?: "sample" | "convex";
+                    includeHidden?: "true" | "false";
                 };
                 header?: never;
                 path: {
@@ -7093,6 +7097,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/industry-data/unresolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    minCount?: number;
+                    priorityOnly?: boolean | null;
+                    search?: string;
+                    status?: "unresolved" | "linked" | "ignored" | "all";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Unresolved employer queue with admin resolutions */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: unknown[];
+                            total: number;
+                            counts: {
+                                unresolved: number;
+                                linked: number;
+                                ignored: number;
+                                total: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Auth required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry-data/unresolved/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        keys: string[];
+                        /** @enum {string} */
+                        action: "link" | "ignore";
+                        targetCompanyKey?: string;
+                        actor?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Resolve unresolved employer keys */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            resolved: unknown[];
+                            updatedAt: string;
+                        };
+                    };
+                };
+                /** @description Validation failed */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Auth required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/job-descriptions": {
         parameters: {
             query?: never;
@@ -8927,17 +9097,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List effective workspace company policies */
+        /** List effective workspace or market company policies */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    market?: "cn" | "my";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description Workspace company policies */
+                /** @description Company policies for the requested scope */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -8971,7 +9143,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Append a workspace company policy revision */
+        /** Append a workspace or market company policy revision */
         post: {
             parameters: {
                 query?: never;
@@ -8983,6 +9155,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         companyKey: string;
+                        /** @enum {string} */
+                        market?: "cn" | "my";
                         /** @enum {string} */
                         preset?: "known_good" | "no_hire" | "none";
                         /** @enum {string} */
@@ -21338,6 +21512,8 @@ export interface components {
             profileUrl: string;
             /** @example hr.job5156.com */
             source?: string;
+            /** @example seek */
+            sourceKey?: string;
             /** @example Active today */
             activityStatus: string;
             /** @example 28 */
@@ -21380,6 +21556,7 @@ export interface components {
             profileType?: string;
             /** @example seek:profile:503033454 */
             externalId?: string;
+            identityKey?: string;
         };
         ResumeWorkHistory: {
             /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */

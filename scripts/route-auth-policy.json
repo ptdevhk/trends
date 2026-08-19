@@ -61,7 +61,7 @@
   },
   "resumes.ts": {
     "class": "admin",
-    "reason": "Resume analysis, audit, reingest, and reset operations use requireAdmin middleware."
+    "reason": "Resume analysis, audit, reingest, and reset operations use requireAdmin middleware; ?includeHidden=true is honored only for admin/reviewer."
   },
   "resumes_admin.ts": {
     "class": "admin",
@@ -101,7 +101,7 @@
   },
   "resumes_search.ts": {
     "class": "workspace-read",
-    "reason": "The operational resume list route uses workspace permission checks so hr can grant anonymous/everyone resume:search while operational overlays stay authenticated."
+    "reason": "The operational resume list route uses workspace permission checks so hr can grant anonymous/everyone resume:search while operational overlays stay authenticated; ?includeHidden=true is honored only for admin/reviewer."
   },
   "research.ts": {
     "class": "workspace-write",
