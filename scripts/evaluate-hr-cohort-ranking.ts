@@ -32,6 +32,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { computeMetrics, type MetricsResult } from "./lib/ranking-metrics";
+import { quadraticWeightedKappa, gwetAC2, fleissKappa } from "./lib/inter-rater-reliability";
 
 export interface CohortRow {
   profileResumeId: string;
@@ -46,6 +47,11 @@ export interface BoardMetrics {
   metrics: MetricsResult;
 }
 
+export interface IrrMetrics {
+  qwk: number;
+  ac2: number;
+}
+
 export interface CohortReport {
   generatedAt: string;
   sourceCsv: string;
@@ -53,6 +59,8 @@ export interface CohortReport {
   totalPairs: number;
   excluded: { noRating: number; noScore: number; noStableId: number };
   overall: MetricsResult;
+  irr?: IrrMetrics;
+  fleiss?: number | null;
   boards: BoardMetrics[];
 }
 
@@ -193,6 +201,24 @@ export function buildCohortPairs(rows: Array<Record<string, string>>): {
   return { pairs, excluded };
 }
 
+/** Helper to convert score or rating to discrete integer category 1..categories. */
+function discretize(values: number[], categories = 5): number[] {
+  // If values are already in 1..categories integers, preserve
+  const allInts = values.every((v) => Number.isInteger(v) && v >= 1 && v <= categories);
+  if (allInts) return values;
+
+  // Otherwise map continuous or larger scale to 1..categories
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (min === max) return values.map(() => Math.min(Math.max(Math.round(min), 1), categories));
+
+  return values.map((v) => {
+    const norm = (v - min) / (max - min); // 0..1
+    const cat = Math.floor(norm * categories) + 1;
+    return Math.min(Math.max(cat, 1), categories);
+  });
+}
+
 /** Compute overall + per-board metrics for a cohort. */
 export function evaluateCohort(
   pairs: CohortRow[],
@@ -219,6 +245,21 @@ export function evaluateCohort(
   }
   boardMetrics.sort((a, b) => b.n - a.n);
 
+  let irr: IrrMetrics | undefined = undefined;
+  if (pairs.length >= 2) {
+    try {
+      const maxRating = Math.max(...pairs.map((p) => p.rating ?? 1));
+      const categories = Math.max(5, Math.ceil(maxRating));
+      const rA = discretize(pairs.map((p) => p.rating ?? 1), categories);
+      const rB = discretize(pairs.map((p) => p.score ?? 0), categories);
+      const qwk = quadraticWeightedKappa(rA, rB, categories);
+      const ac2 = gwetAC2(rA, rB, { weights: "quadratic", categories });
+      irr = { qwk, ac2 };
+    } catch {
+      // Keep irr optional if computation cannot run
+    }
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     sourceCsv,
@@ -229,6 +270,8 @@ export function evaluateCohort(
       pairs.map((r) => r.score),
       pairs.map((r) => r.rating)
     ),
+    irr,
+    fleiss: null,
     boards: boardMetrics,
   };
 }
@@ -270,8 +313,9 @@ function fmt(value: number): string {
   return value.toFixed(4);
 }
 
-function printMetrics(label: string, m: MetricsResult): void {
-  console.log(`  ${label.padEnd(22)} N=${String(m.n).padEnd(4)} ρ=${fmt(m.spearmanRho)} r=${fmt(m.pearsonR)} MAE=${m.mae.toFixed(2)} NDCG@5=${fmt(m.ndcg5)} NDCG@10=${fmt(m.ndcg10)} Recall@10=${fmt(m.recall10)} [${m.confidence}]`);
+function printMetrics(label: string, m: MetricsResult, irr?: IrrMetrics): void {
+  const irrPart = irr ? ` QWK=${fmt(irr.qwk)} AC2=${fmt(irr.ac2)}` : "";
+  console.log(`  ${label.padEnd(22)} N=${String(m.n).padEnd(4)} ρ=${fmt(m.spearmanRho)} r=${fmt(m.pearsonR)} MAE=${m.mae.toFixed(2)} NDCG@5=${fmt(m.ndcg5)} NDCG@10=${fmt(m.ndcg10)} Recall@10=${fmt(m.recall10)}${irrPart} [${m.confidence}]`);
 }
 
 function main() {
@@ -317,7 +361,7 @@ function main() {
   }
 
   console.log("\n=== Overall ===");
-  printMetrics("Overall", report.overall);
+  printMetrics("Overall", report.overall, report.irr);
 
   if (report.boards.length > 1) {
     console.log("\n=== Per Board (HR Category) ===");

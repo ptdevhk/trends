@@ -112,6 +112,10 @@ describe("evaluateCohort", () => {
     expect(report.overall.recall10).toBe(1);
     expect(report.overall.spearmanRho).toBe(1);
     expect(report.overall.confidence).toBe("low"); // n=6 → low band
+    expect(report.irr).toBeDefined();
+    expect(report.irr?.qwk).toBeCloseTo(1, 6);
+    expect(report.irr?.ac2).toBeCloseTo(1, 6);
+    expect(report.fleiss).toBeNull();
   });
 
   it("stratifies per board with independently computed metrics", () => {
