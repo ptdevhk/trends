@@ -6,7 +6,7 @@
 **Repo:** `/root/workspace` (trends)
 **Branch:** `preview-v0.4.23` (local, NO-PUSH; ahead of origin — do not push without explicit approval)
 **HEAD at handoff:** `2ec40bce` — `docs: record preview deploy test 0.4.23 closeout in reference index`
-**Status:** Deploy test **complete & verified**; **defect open** (stale-import cleanup); preview site **ready for UAT**
+**Status:** Deploy test **complete & verified**; fixes **implemented & closed** (2026-08-19, workspace commits `8a843e82` + `b60fa04d` + `4a0b2ba1` — see **Closeout** below); preview site **UAT-complete**
 
 **Requested action:** Implement the sync-script defect fix (stale-import cleanup + timeout) and the recorded recommendations, then run UAT on the preview site and report. Do **not** touch prod. Do **not** push anything to GitHub without explicit user approval.
 
@@ -152,3 +152,25 @@ Prior session verified without browser tools. Substitutes that worked:
 | Vault presync | `bash /root/.grok/installed-plugins/vault-sync-ae1287d3/skills/vault-presync/wiki-sync.sh --execute` |
 
 **Suggested first steps for the new session:** (1) reproduce the wedged-import scenario or inspect current import state via the journal table, (2) implement D1 (pre-upload `/api/cancel_import` or fail-fast) + D2 (timeout), (3) run the canonical sync once to prove a clean pass, (4) execute the UAT checklist, (5) commit locally (NO-PUSH), (6) report with evidence, ask before any push.
+
+---
+
+## Closeout (2026-08-19)
+
+**Done by:** the receiving session (this handoff's follow-up session)
+**Branch:** `preview-v0.4.23` — all commits local, **NO-PUSH**
+
+| Commit | Change |
+|---|---|
+| `8a843e82` | D1 stale-import cleanup — pre-import `POST /api/cancel_import` via `cancel_stale_convex_imports` (`deploy/lib-preview-common.sh`), sqlite journal read-only latest-revision scan, **no journal deletes**, fail-fast on unexpected errors; restore gate exits 1 when cleanup fails. D2 — `CONVEX_IMPORT_TIMEOUT_SEC` default 3600 (was hardcoded `timeout 900`). R3 — export keeps `system_settings/` but drops environment-local rows by key (`maintenanceMode`, `industryMaintenanceSchedulePaused`); post-sync settings smoke asserts them. R4 — `CHECK_MIN_SCORE` parity bucket gated on `api_version` match; version drift alone warns, fails only with `PARITY_STRICT_SEARCH=1` |
+| `b60fa04d` | Follow-up F1: approving a nonexistent industry proposal returns `404 {success:false, error:"Industry proposal not found"}` with an OpenAPI 404 schema instead of a bare 500 (route `apps/api/src/routes/companies.ts` + regression test) |
+| `4a0b2ba1` | Follow-up F2: reference-index note — extension manifest was 1.3.6 at v0.4.21, now 1.3.7 (bumped in v0.4.22 `11776c01`) |
+
+**Verification (evidence):**
+- Canonical re-sync 6/6 legs green: Convex import completed 49,516 rows, sqlite `candidate_actions` 406=406, `TOTAL_TOLERANCE=0` PARITY OK — WARNs are version drift only (0.4.16 → 0.4.23), by design.
+- Second full UAT pass on https://preview.pt-mes.com: **37/37 green** (endpoints `/` `/convex/version` 200, `/api/blocks` `/api/resumes` 401; auth; system_settings smoke; doctor `--full` 0 failures; industry review queue/detail/approve-422 by design; CJK search; candidate_actions parity; CDP parity smoke VERSION-DIFFERS).
+- Deploy script tests: `lib-convex-export-fix`, `preview-parity-check` (new), `restore-stale-import` (extended) all pass. Follow-up F1 regression test green — API suite 67/67, typecheck clean.
+
+**Wiki:** work item `projects/trends/work/2026-08-18-preview-sync-hardening/` (spec/plan/evidence, completed via `skillwiki work-complete`), index entry + vault pushed (tree clean).
+
+**Out of scope (unchanged):** prod untouched; GitHub push withheld; human-only vault items never auto-claimed.
