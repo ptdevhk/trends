@@ -9,16 +9,22 @@ import type { CompanyPolicyItem, CompanyItem } from '@/hooks/useCompanyPolicies'
 const {
   useCompanyPoliciesHookMock,
   workspaceMock,
+  authMock,
 } = vi.hoisted(() => ({
   useCompanyPoliciesHookMock: vi.fn(),
   workspaceMock: {
     slug: 'dev',
     isPublicSurface: false,
   },
+  authMock: { memberships: [] as Array<{ workspaceSlug: string; role: string }> },
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => workspaceMock,
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ memberships: authMock.memberships }),
 }))
 
 vi.mock('@/hooks/useCompanyPolicies', () => ({
@@ -80,6 +86,7 @@ describe('useCompanyPolicyIndex', () => {
     vi.clearAllMocks()
     workspaceMock.slug = 'dev'
     workspaceMock.isPublicSurface = false
+    authMock.memberships = []
     useCompanyPoliciesHookMock.mockReturnValue({
       companies: [],
       policies: [],
@@ -105,7 +112,7 @@ describe('useCompanyPolicyIndex', () => {
 
     const { result } = renderHook(() => useCompanyPolicyIndex(true))
 
-    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(true)
+    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(true, false)
     expect(result.current.hasPolicies).toBe(true)
     expect(result.current.matchResume({ workHistory: [{ companyName: 'Adastream' }] })).toEqual(
       expect.arrayContaining([expect.objectContaining({ companyKey: 'adastream-sdn-bhd' })]),
@@ -119,7 +126,7 @@ describe('useCompanyPolicyIndex', () => {
 
     // The public surface must not call workspace-gated API endpoints
     // (they 401/403 for anonymous / non-member viewers).
-    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(false)
+    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(false, false)
     expect(result.current.hasPolicies).toBe(false)
     expect(result.current.matchResume({ workHistory: [{ companyName: 'Adastream' }] })).toEqual([])
   })
@@ -129,7 +136,7 @@ describe('useCompanyPolicyIndex', () => {
 
     renderHook(() => useCompanyPolicyIndex())
 
-    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(false)
+    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(false, false)
   })
 
   it('a CN market "none" overrides the workspace no-hire for CN resumes only', () => {
@@ -202,5 +209,13 @@ describe('useCompanyPolicyIndex', () => {
     expect(
       matchResumeCompanyPolicyCached({ workHistory: [{ companyName: 'Adastream' }], sourceKey: '51job' }),
     ).toEqual([])
+  })
+
+  it('includes market layers when the user is a workspace admin', () => {
+    authMock.memberships = [{ workspaceSlug: 'dev', role: 'admin' }]
+
+    renderHook(() => useCompanyPolicyIndex(true))
+
+    expect(useCompanyPoliciesHookMock).toHaveBeenCalledWith(true, true)
   })
 })

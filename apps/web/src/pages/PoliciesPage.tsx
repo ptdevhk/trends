@@ -75,7 +75,7 @@ function CompaniesTab() {
     addAlias,
     setPolicyPreset,
     setCompanyArchived,
-  } = useCompanyPolicies(true)
+  } = useCompanyPolicies(true, isWorkspaceAdmin)
 
   const [policyScope, setPolicyScope] = useState<PolicyScope>('workspace')
   const [search, setSearch] = useState('')

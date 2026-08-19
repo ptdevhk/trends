@@ -151,4 +151,46 @@ describe('useCompanyPolicies', () => {
       body: { companyKey: 'acme-cnc', preset: 'no_hire', summary: 'reason' },
     })
   })
+
+  it('skips market fetches when includeMarkets is false', async () => {
+    getMock
+      .mockResolvedValueOnce(okResponse([companyItem]))
+      .mockResolvedValueOnce(okResponse([workspacePolicy]))
+      // Extra mocks consumed by the current (buggy) code; with the fix
+      // only 2 calls are made and the extra mocks are never consumed.
+      .mockResolvedValueOnce(okResponse([]))
+      .mockResolvedValueOnce(okResponse([]))
+    const { useCompanyPolicies } = await import('./useCompanyPolicies')
+    const { result } = renderHook(() => useCompanyPolicies(true, false))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(getMock).toHaveBeenCalledTimes(2)
+    expect(getMock).not.toHaveBeenCalledWith(expect.stringContaining('?market='))
+    expect(result.current.marketPolicies).toEqual({ cn: [], my: [] })
+    expect(result.current.companies).toEqual([companyItem])
+    expect(result.current.policies).toEqual([workspacePolicy])
+    expect(result.current.error).toBeNull()
+  })
+
+  it('maintains separate caches for restricted and full loads', async () => {
+    getMock
+      // First load (restricted): 2 calls
+      .mockResolvedValueOnce(okResponse([companyItem]))
+      .mockResolvedValueOnce(okResponse([workspacePolicy]))
+      // Second load (full): 4 calls
+      .mockResolvedValueOnce(okResponse([companyItem]))
+      .mockResolvedValueOnce(okResponse([workspacePolicy]))
+      .mockResolvedValueOnce(okResponse([marketPolicy]))
+      .mockResolvedValueOnce(okResponse([]))
+    const { useCompanyPolicies } = await import('./useCompanyPolicies')
+    // Restricted load — includeMarkets=false
+    const { result: r1 } = renderHook(() => useCompanyPolicies(true, false))
+    await waitFor(() => expect(r1.current.loading).toBe(false))
+    expect(getMock).toHaveBeenCalledTimes(2)
+    // Full load — includeMarkets=true should fire all 4 since cache key is different
+    const { result: r2 } = renderHook(() => useCompanyPolicies(true, true))
+    await waitFor(() => expect(r2.current.loading).toBe(false))
+    expect(getMock).toHaveBeenCalledTimes(6) // 2 + 4
+    expect(r2.current.marketPolicies.cn).toEqual([marketPolicy])
+    expect(r2.current.marketPolicies.my).toEqual([])
+  })
 })

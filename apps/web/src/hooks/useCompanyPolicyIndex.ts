@@ -10,6 +10,8 @@ import {
 } from '@trends/shared'
 import { useCompanyPolicies, type CompanyPolicyItem } from '@/hooks/useCompanyPolicies'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { hasWorkspaceAdminAccess } from '@/lib/workspace-access'
 
 export type CompanyPolicyMatchInput = {
   workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
@@ -41,10 +43,12 @@ export function matchResumeCompanyPolicyCached(
  * authenticated non-members), and policy badges are a workspace feature.
  */
 export function useCompanyPolicyIndex(enabled: boolean = true) {
-  const { isPublicSurface } = useWorkspace()
+  const { isPublicSurface, slug } = useWorkspace()
+  const { memberships } = useAuth()
+  const isWorkspaceAdmin = hasWorkspaceAdminAccess(memberships, slug)
   const effectiveEnabled = enabled && !isPublicSurface
   const { companies, policies, marketPolicies, loading, error, load } =
-    useCompanyPolicies(effectiveEnabled)
+    useCompanyPolicies(effectiveEnabled, isWorkspaceAdmin)
 
   const workspaceByCompanyKey = useMemo(() => {
     const map = new Map<string, CompanyPolicyEffects>()
