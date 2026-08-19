@@ -44,4 +44,10 @@ describe('settings nav i18n keys', () => {
     expect(lookupPath(LOCALES['zh-Hans'], 'settings.searchSetup.nav')).toBe('搜索设置')
     expect(lookupPath(LOCALES['zh-Hant'], 'settings.searchSetup.nav')).toBe('搜尋設定')
   })
+
+  it('localizes the research nav label in zh locales (no English leftover)', () => {
+    expect(lookupPath(LOCALES.en, 'nav.research')).toBe('Research')
+    expect(lookupPath(LOCALES['zh-Hans'], 'nav.research')).toBe('研究')
+    expect(lookupPath(LOCALES['zh-Hant'], 'nav.research')).toBe('研究')
+  })
 })
