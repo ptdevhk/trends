@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
-import { callConvexMutation } from "../services/convex-utils.js";
+import { callConvexMutation, isConvexResumeIdValidationError } from "../services/convex-utils.js";
 import { getConvexWriteSecret } from "../services/config.js";
 import { getAuthenticatedActorId, requireWorkspaceUser } from "../middleware/auth.js";
 import { listCandidatePolicyOverrides } from "../services/candidate-policy-override-service.js";
@@ -113,6 +113,14 @@ const setRoute = createRoute({
 
 app.openapi(setRoute, async (c) => {
   const body = c.req.valid("json");
+  const resumeId = body.resumeId.trim();
+  if (!resumeId) {
+    return c.json(
+      { success: false as const, error: "resumeId is required" },
+      400
+    );
+  }
+
   const resumeIdentity = body.resumeIdentity.trim();
   const companyKey = body.companyKey.trim();
   const reason = body.reason.trim();
@@ -123,15 +131,23 @@ app.openapi(setRoute, async (c) => {
     );
   }
 
-  const id = await callConvexMutation("candidate_policy_overrides:set", {
-    workspaceSlug: c.var.workspaceSlug,
-    resumeId: body.resumeId,
-    resumeIdentity,
-    companyKey,
-    reason,
-    authorizedBy: getAuthenticatedActorId(c),
-    writeSecret: getConvexWriteSecret(),
-  });
+  let id: unknown;
+  try {
+    id = await callConvexMutation("candidate_policy_overrides:set", {
+      workspaceSlug: c.var.workspaceSlug,
+      resumeId,
+      resumeIdentity,
+      companyKey,
+      reason,
+      authorizedBy: getAuthenticatedActorId(c),
+      writeSecret: getConvexWriteSecret(),
+    });
+  } catch (error) {
+    if (isConvexResumeIdValidationError(error)) {
+      return c.json({ success: false as const, error: "Invalid resumeId" }, 400);
+    }
+    throw error;
+  }
 
   return c.json({ success: true as const, id: typeof id === "string" ? id : String(id) }, 200);
 });

@@ -76,6 +76,7 @@ import {
   callConvexMutation,
   callConvexAction,
   isConvexPaginatedQueryPage,
+  isConvexResumeIdValidationError,
 } from "../services/convex-utils.js";
 import {
   IndustryEvidenceResearchError,
@@ -139,11 +140,6 @@ const actionStorage = new ActionStorage(config.projectRoot);
 
 const DEFAULT_AI_TOP_N = 20;
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
-
-function isConvexResumeIdValidationError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("Path: .resumeId") && message.includes('v.id("resumes")');
-}
 const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
