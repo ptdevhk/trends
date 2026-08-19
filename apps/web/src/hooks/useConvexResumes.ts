@@ -1547,11 +1547,21 @@ export function useConvexResumes(
   }
 }
 
+const CONVEX_DOCUMENT_ID_PATTERN = /^[a-z0-9]{32}$/
+
+export function isConvexDocumentId(value: string): boolean {
+  // Convex ids are 32 lowercase alphanumeric chars; URL route segments
+  // (e.g. /hr/resumes/<route-name>) must never reach a Convex query.
+  return CONVEX_DOCUMENT_ID_PATTERN.test(value)
+}
+
 export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | undefined) {
-  const detailDoc = useQuery(api.resumes.getResumeDetail, resumeId ? { resumeId } : 'skip')
+  const queryableResumeId =
+    resumeId !== null && resumeId !== undefined && isConvexDocumentId(resumeId) ? resumeId : null
+  const detailDoc = useQuery(api.resumes.getResumeDetail, queryableResumeId ? { resumeId: queryableResumeId } : 'skip')
 
   return useMemo(() => ({
     resume: detailDoc ? mapResumeDoc(detailDoc) : null,
-    loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
-  }), [detailDoc, resumeId])
+    loading: queryableResumeId !== null && queryableResumeId !== undefined && detailDoc === undefined,
+  }), [detailDoc, queryableResumeId])
 }
