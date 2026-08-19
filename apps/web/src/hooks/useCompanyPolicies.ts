@@ -63,8 +63,8 @@ type CompanyPolicyCache = {
  * vice versa — otherwise a role switch would surface stale market layers.
  */
 type CacheMode = 'full' | 'restricted'
-let caches: Record<CacheMode, CompanyPolicyCache | null> = { full: null, restricted: null }
-let inflights: Record<CacheMode, Promise<CompanyPolicyCache | null> | null> = {
+const caches: Record<CacheMode, CompanyPolicyCache | null> = { full: null, restricted: null }
+const inflights: Record<CacheMode, Promise<CompanyPolicyCache | null> | null> = {
   full: null,
   restricted: null,
 }

@@ -580,6 +580,8 @@ describe("companies routes", () => {
         },
       ],
       maintenance: { latest: null, lastFailed: null },
+      skippedCount: 0,
+      skippedProposalIds: [],
     });
     const impactCalls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -700,6 +702,8 @@ describe("companies routes", () => {
         },
       ],
       maintenance: { latest: null, lastFailed: null },
+      skippedCount: 0,
+      skippedProposalIds: [],
     });
     const impactCalls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

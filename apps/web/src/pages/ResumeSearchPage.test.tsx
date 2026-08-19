@@ -1137,6 +1137,7 @@ describe('ResumeSearchPage', () => {
     authMock.value = {
       user: null,
       workspaceRole: null,
+      memberships: [],
       isAuthenticated: false,
       isLoading: false,
       login: vi.fn(async () => false),
