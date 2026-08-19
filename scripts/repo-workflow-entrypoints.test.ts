@@ -28,6 +28,15 @@ describe("workflow verifier repo entrypoints", () => {
     expect(packageJson.scripts?.["clear:workspace-demo-resumes"]).toBe("tsx scripts/resume/clear-workspace-demo-resumes.ts");
   });
 
+  it("exposes the industry-review UAT fixture setup script with the local-write opt-in flag", () => {
+    // The setup script refuses to run without --allow-local-write
+    // (scripts/industry-review/setup-local-uat.ts), so the documented gate
+    // invocation `bun run setup:industry-review-uat` must forward the flag.
+    expect(packageJson.scripts?.["setup:industry-review-uat"]).toBe(
+      "tsx scripts/industry-review/setup-local-uat.ts --allow-local-write",
+    );
+  });
+
   it("exposes the reusable local demo auth bootstrap script through package.json", () => {
     expect(packageJson.scripts?.["auth:bootstrap-demo"]).toBe(
       'tsx scripts/auth/manage-user.ts --username demo-admin --email demo-admin@example.com --display-name "Demo Admin" --workspace dev --role admin --replace-memberships --password-env AUTH_BOOTSTRAP_PASSWORD --output json',
