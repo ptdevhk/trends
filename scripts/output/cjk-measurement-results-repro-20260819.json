@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-19T07:15:39.242Z",
+  "generatedAt": "2026-08-19T05:46:45.873Z",
   "convexUrl": "http://127.0.0.1:3210",
   "longRunLength": 66,
   "fixtures": [
@@ -21,13 +21,15 @@
         "f7"
       ],
       "searchTotalHits50": 50,
-      "searchFixtureHits50": [],
+      "searchFixtureHits50": [
+        "f7"
+      ],
       "searchTotalHits500": 500,
       "searchFixtureHits500": [
         "f7"
       ],
       "searchRecall": 0.5,
-      "scanTotalHits": 1024,
+      "scanTotalHits": 1014,
       "scanPages": 64,
       "scanFixtureHits": [
         "f7"
@@ -91,16 +93,16 @@
       "expected": [
         "f6"
       ],
-      "searchTotalHits50": 13,
+      "searchTotalHits50": 9,
       "searchFixtureHits50": [
         "f6"
       ],
-      "searchTotalHits500": 13,
+      "searchTotalHits500": 9,
       "searchFixtureHits500": [
         "f6"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 13,
+      "scanTotalHits": 9,
       "scanPages": 1,
       "scanFixtureHits": [
         "f6"
@@ -115,16 +117,16 @@
       "expected": [
         "f6"
       ],
-      "searchTotalHits50": 45,
+      "searchTotalHits50": 42,
       "searchFixtureHits50": [
         "f6"
       ],
-      "searchTotalHits500": 45,
+      "searchTotalHits500": 42,
       "searchFixtureHits500": [
         "f6"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 45,
+      "scanTotalHits": 42,
       "scanPages": 3,
       "scanFixtureHits": [
         "f6"
@@ -167,13 +169,13 @@
       "searchFixtureHits50": [
         "f1"
       ],
-      "searchTotalHits500": 327,
+      "searchTotalHits500": 245,
       "searchFixtureHits500": [
         "f1"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 327,
-      "scanPages": 21,
+      "scanTotalHits": 245,
+      "scanPages": 16,
       "scanFixtureHits": [
         "f1"
       ],
@@ -187,16 +189,16 @@
       "expected": [
         "f4"
       ],
-      "searchTotalHits50": 8,
+      "searchTotalHits50": 2,
       "searchFixtureHits50": [
         "f4"
       ],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 2,
       "searchFixtureHits500": [
         "f4"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 8,
+      "scanTotalHits": 2,
       "scanPages": 1,
       "scanFixtureHits": [
         "f4"
@@ -279,17 +281,17 @@
         "f1",
         "f5"
       ],
-      "searchTotalHits50": 34,
+      "searchTotalHits50": 28,
       "searchFixtureHits50": [
         "f5"
       ],
-      "searchTotalHits500": 34,
+      "searchTotalHits500": 28,
       "searchFixtureHits500": [
         "f5"
       ],
       "searchRecall": 0.5,
-      "scanTotalHits": 34,
-      "scanPages": 3,
+      "scanTotalHits": 28,
+      "scanPages": 2,
       "scanFixtureHits": [
         "f5"
       ],
@@ -327,13 +329,13 @@
       "expected": [
         "f7"
       ],
-      "searchTotalHits50": 4,
+      "searchTotalHits50": 3,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 20,
+      "searchTotalHits500": 19,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 373,
-      "scanPages": 24,
+      "scanTotalHits": 347,
+      "scanPages": 22,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -347,11 +349,11 @@
       ],
       "searchTotalHits50": 4,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 9,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 619,
-      "scanPages": 39,
+      "scanTotalHits": 549,
+      "scanPages": 35,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -412,11 +414,13 @@
         "f1",
         "f7"
       ],
-      "searchTotalHits50": 15,
+      "searchTotalHits50": 16,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 55,
-      "searchFixtureHits500": [],
-      "searchRecall": 0,
+      "searchTotalHits500": 51,
+      "searchFixtureHits500": [
+        "f1"
+      ],
+      "searchRecall": 0.5,
       "scanTotalHits": 190,
       "scanPages": 12,
       "scanFixtureHits": [
@@ -432,13 +436,13 @@
       "expected": [
         "f1"
       ],
-      "searchTotalHits50": 2,
+      "searchTotalHits50": 5,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 16,
+      "searchTotalHits500": 13,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 83,
-      "scanPages": 6,
+      "scanTotalHits": 48,
+      "scanPages": 3,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -453,7 +457,7 @@
       ],
       "searchTotalHits50": 3,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 13,
+      "searchTotalHits500": 19,
       "searchFixtureHits500": [
         "f5"
       ],
@@ -498,16 +502,16 @@
       "expected": [
         "f2"
       ],
-      "searchTotalHits50": 6,
+      "searchTotalHits50": 5,
       "searchFixtureHits50": [
         "f2"
       ],
-      "searchTotalHits500": 14,
+      "searchTotalHits500": 13,
       "searchFixtureHits500": [
         "f2"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 119,
+      "scanTotalHits": 116,
       "scanPages": 8,
       "scanFixtureHits": [
         "f2"
@@ -522,7 +526,7 @@
       "expected": [
         "f3"
       ],
-      "searchTotalHits50": 3,
+      "searchTotalHits50": 2,
       "searchFixtureHits50": [
         "f3"
       ],
@@ -548,11 +552,11 @@
       ],
       "searchTotalHits50": 4,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 9,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 619,
-      "scanPages": 39,
+      "scanTotalHits": 549,
+      "scanPages": 35,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -652,8 +656,8 @@
         "f4"
       ],
       "searchRecall": 0.3333333333333333,
-      "scanTotalHits": 1012,
-      "scanPages": 64,
+      "scanTotalHits": 786,
+      "scanPages": 50,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -665,11 +669,11 @@
       "expected": [],
       "searchTotalHits50": 50,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 163,
+      "searchTotalHits500": 129,
       "searchFixtureHits500": [],
       "searchRecall": null,
-      "scanTotalHits": 1019,
-      "scanPages": 64,
+      "scanTotalHits": 968,
+      "scanPages": 61,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": null
@@ -684,7 +688,7 @@
       "searchTotalHits500": 500,
       "searchFixtureHits500": [],
       "searchRecall": null,
-      "scanTotalHits": 1014,
+      "scanTotalHits": 1016,
       "scanPages": 64,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
@@ -908,7 +912,7 @@
     },
     "cjk-ascii": {
       "probes": 5,
-      "searchMeanRecall": 0.4,
+      "searchMeanRecall": 0.5,
       "scanMeanRecall": 0.5,
       "errors": 0
     },

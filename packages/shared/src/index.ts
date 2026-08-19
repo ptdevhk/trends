@@ -29,3 +29,4 @@ export * from "./export-fields-config.js";
 export * from "./scoring/related-exp-evaluator.js";
 export * from "./scoring/resume-score-semantics.js";
 export * from "./scoring/brand-signals.js";
+export * from "./search-text.js";

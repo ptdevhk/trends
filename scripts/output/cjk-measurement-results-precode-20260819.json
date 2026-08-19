@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-19T07:15:39.242Z",
+  "generatedAt": "2026-08-19T04:59:14.061Z",
   "convexUrl": "http://127.0.0.1:3210",
   "longRunLength": 66,
   "fixtures": [
@@ -23,11 +23,9 @@
       "searchTotalHits50": 50,
       "searchFixtureHits50": [],
       "searchTotalHits500": 500,
-      "searchFixtureHits500": [
-        "f7"
-      ],
-      "searchRecall": 0.5,
-      "scanTotalHits": 1024,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 1014,
       "scanPages": 64,
       "scanFixtureHits": [
         "f7"
@@ -91,16 +89,16 @@
       "expected": [
         "f6"
       ],
-      "searchTotalHits50": 13,
+      "searchTotalHits50": 9,
       "searchFixtureHits50": [
         "f6"
       ],
-      "searchTotalHits500": 13,
+      "searchTotalHits500": 9,
       "searchFixtureHits500": [
         "f6"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 13,
+      "scanTotalHits": 9,
       "scanPages": 1,
       "scanFixtureHits": [
         "f6"
@@ -115,16 +113,16 @@
       "expected": [
         "f6"
       ],
-      "searchTotalHits50": 45,
+      "searchTotalHits50": 42,
       "searchFixtureHits50": [
         "f6"
       ],
-      "searchTotalHits500": 45,
+      "searchTotalHits500": 42,
       "searchFixtureHits500": [
         "f6"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 45,
+      "scanTotalHits": 42,
       "scanPages": 3,
       "scanFixtureHits": [
         "f6"
@@ -167,13 +165,13 @@
       "searchFixtureHits50": [
         "f1"
       ],
-      "searchTotalHits500": 327,
+      "searchTotalHits500": 245,
       "searchFixtureHits500": [
         "f1"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 327,
-      "scanPages": 21,
+      "scanTotalHits": 245,
+      "scanPages": 16,
       "scanFixtureHits": [
         "f1"
       ],
@@ -187,16 +185,16 @@
       "expected": [
         "f4"
       ],
-      "searchTotalHits50": 8,
+      "searchTotalHits50": 2,
       "searchFixtureHits50": [
         "f4"
       ],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 2,
       "searchFixtureHits500": [
         "f4"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 8,
+      "scanTotalHits": 2,
       "scanPages": 1,
       "scanFixtureHits": [
         "f4"
@@ -279,17 +277,17 @@
         "f1",
         "f5"
       ],
-      "searchTotalHits50": 34,
+      "searchTotalHits50": 28,
       "searchFixtureHits50": [
         "f5"
       ],
-      "searchTotalHits500": 34,
+      "searchTotalHits500": 28,
       "searchFixtureHits500": [
         "f5"
       ],
       "searchRecall": 0.5,
-      "scanTotalHits": 34,
-      "scanPages": 3,
+      "scanTotalHits": 28,
+      "scanPages": 2,
       "scanFixtureHits": [
         "f5"
       ],
@@ -327,13 +325,13 @@
       "expected": [
         "f7"
       ],
-      "searchTotalHits50": 4,
+      "searchTotalHits50": 0,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 20,
+      "searchTotalHits500": 0,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 373,
-      "scanPages": 24,
+      "scanTotalHits": 0,
+      "scanPages": 1,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -345,13 +343,13 @@
       "expected": [
         "f7"
       ],
-      "searchTotalHits50": 4,
+      "searchTotalHits50": 0,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 0,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 619,
-      "scanPages": 39,
+      "scanTotalHits": 0,
+      "scanPages": 1,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -412,18 +410,16 @@
         "f1",
         "f7"
       ],
-      "searchTotalHits50": 15,
+      "searchTotalHits50": 0,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 55,
+      "searchTotalHits500": 0,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 190,
-      "scanPages": 12,
-      "scanFixtureHits": [
-        "f1"
-      ],
+      "scanTotalHits": 0,
+      "scanPages": 1,
+      "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
-      "scanRecall": 0.5
+      "scanRecall": 0
     },
     {
       "cls": "multi",
@@ -432,13 +428,13 @@
       "expected": [
         "f1"
       ],
-      "searchTotalHits50": 2,
+      "searchTotalHits50": 5,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 16,
+      "searchTotalHits500": 13,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 83,
-      "scanPages": 6,
+      "scanTotalHits": 48,
+      "scanPages": 3,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -453,7 +449,7 @@
       ],
       "searchTotalHits50": 3,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 13,
+      "searchTotalHits500": 19,
       "searchFixtureHits500": [
         "f5"
       ],
@@ -498,16 +494,16 @@
       "expected": [
         "f2"
       ],
-      "searchTotalHits50": 6,
+      "searchTotalHits50": 5,
       "searchFixtureHits50": [
         "f2"
       ],
-      "searchTotalHits500": 14,
+      "searchTotalHits500": 13,
       "searchFixtureHits500": [
         "f2"
       ],
       "searchRecall": 1,
-      "scanTotalHits": 119,
+      "scanTotalHits": 116,
       "scanPages": 8,
       "scanFixtureHits": [
         "f2"
@@ -522,7 +518,7 @@
       "expected": [
         "f3"
       ],
-      "searchTotalHits50": 3,
+      "searchTotalHits50": 2,
       "searchFixtureHits50": [
         "f3"
       ],
@@ -548,14 +544,16 @@
       ],
       "searchTotalHits50": 4,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 8,
+      "searchTotalHits500": 9,
       "searchFixtureHits500": [],
       "searchRecall": 0,
-      "scanTotalHits": 619,
-      "scanPages": 39,
-      "scanFixtureHits": [],
+      "scanTotalHits": 550,
+      "scanPages": 35,
+      "scanFixtureHits": [
+        "f7"
+      ],
       "scanTokenOverlapFailures": 0,
-      "scanRecall": 0
+      "scanRecall": 1
     },
     {
       "cls": "long-compound",
@@ -632,9 +630,11 @@
       "searchRecall": 0,
       "scanTotalHits": 1024,
       "scanPages": 64,
-      "scanFixtureHits": [],
+      "scanFixtureHits": [
+        "f7"
+      ],
       "scanTokenOverlapFailures": 0,
-      "scanRecall": 0
+      "scanRecall": 1
     },
     {
       "cls": "alias",
@@ -648,12 +648,10 @@
       "searchTotalHits50": 50,
       "searchFixtureHits50": [],
       "searchTotalHits500": 500,
-      "searchFixtureHits500": [
-        "f4"
-      ],
-      "searchRecall": 0.3333333333333333,
-      "scanTotalHits": 1012,
-      "scanPages": 64,
+      "searchFixtureHits500": [],
+      "searchRecall": 0,
+      "scanTotalHits": 787,
+      "scanPages": 50,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": 0
@@ -665,11 +663,11 @@
       "expected": [],
       "searchTotalHits50": 50,
       "searchFixtureHits50": [],
-      "searchTotalHits500": 163,
+      "searchTotalHits500": 129,
       "searchFixtureHits500": [],
       "searchRecall": null,
-      "scanTotalHits": 1019,
-      "scanPages": 64,
+      "scanTotalHits": 968,
+      "scanPages": 61,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
       "scanRecall": null
@@ -684,7 +682,7 @@
       "searchTotalHits500": 500,
       "searchFixtureHits500": [],
       "searchRecall": null,
-      "scanTotalHits": 1014,
+      "scanTotalHits": 1016,
       "scanPages": 64,
       "scanFixtureHits": [],
       "scanTokenOverlapFailures": 0,
@@ -859,44 +857,44 @@
   "digestSamples": [
     {
       "id": "f1",
-      "searchTextLength": 628,
-      "sample": "cnc 数控 陈师傅 陈 师傅 中专 数控车床 数 控 车床 加工中心 加工 中心 ug 编程 钳工 本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务 本公司 主 营 高 精密 五金 零件 批量 生产 制造 与 工艺 优 化 服务 公司 主营 优化，涵盖模具设计开发 涵 盖 模具 设计 开发 涵盖、自动化生产线维护调试及数控编程标准化工作全流程 自动 线 维护 调 试 及 编 程 标准 工作 全 流程 自动化 生产线 调试 标准化 我们工厂专注于不锈钢钣金件激光切割焊接抛光与表面处理工序 我们 工厂 专注 于 不锈钢 钣 金 件 激光 切割 焊接 抛光 表面 处理 工序 钣金"
+      "searchTextLength": 523,
+      "sample": "cnc 数控 陈师傅 陈 师傅 中专 数控车床 数 控 车床 加工中心 加工 中心 ug 编程 钳工 本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务 本公司 主 营 高 精密 五金 零件 批量 生产 制造 与 工艺 优 化 服务，涵盖模具设计开发 涵 盖 模具 设计 开发、自动化生产线维护调试及数控编程标准化工作全流程 自动 线 维护 调 试 及 编 程 标准 工作 全 流程 我们工厂专注于不锈钢钣金件激光切割焊接抛光与表面处理工序 我们 工厂 专注 于 不锈钢 钣 金 件 激光 切割 焊接 抛光 表面 处理 工序，严格执行质量管理体系并持续改善现场作业环境与安全规范 严格"
     },
     {
       "id": "f2",
-      "searchTextLength": 160,
-      "sample": "王主管 王 主管 大专 品质管理 品质 管理 iso9001 客诉处理 客 诉 处理 2019-02 ~ 2025-05 联创电子科技 联 创 电子 科技 联创 电子科技 品质主管 associate 机械 八年 管理经验 主导 质量管理 体系 推行 擅长 供应商 质量 审核 改善 专案 熟悉 检验 标准 sop 制定"
+      "searchTextLength": 95,
+      "sample": "王主管 王 主管 大专 品质管理 品质 管理 iso9001 客诉处理 客 诉 处理 2019-02 ~ 2025-05 联创电子科技 联 创 电子 科技 品质主管 associate 机械"
     },
     {
       "id": "f3",
-      "searchTextLength": 178,
-      "sample": "李运营 李 运营 本科 亚马逊运营 亚马逊 速卖通 速 卖 通 数据分析 数据 分析 2021-04 ~ 2025-07 星链跨境电子商务有限公司 星 链 跨 境 电子 商务 有限公司 星链跨境 电子商务 有限 公司 跨境电商运营 电 商 跨境 bachelor 机械 三年 经验 负责 店铺 日常 精通 选品 投放 站外 推广 擅长 listing 优化"
+      "searchTextLength": 115,
+      "sample": "李运营 李 运营 本科 亚马逊运营 亚马逊 速卖通 速 卖 通 数据分析 数据 分析 2021-04 ~ 2025-07 星链跨境电子商务有限公司 星 链 跨 境 电子 商务 有限公司 跨境电商运营 电 商 bachelor 机械"
     },
     {
       "id": "f4",
-      "searchTextLength": 169,
-      "sample": "张技工 张 技工 高中 平面磨床 平面 磨床 无心磨床 无 心 无心 内圆磨床 内 圆 2013-06 ~ 2025-04 顺达精密五金厂 顺 达 精密 五金 厂 顺达 五金厂 平面磨床技工 high_school 机械 十二年 操作 经验 研磨 加工 尺寸 公差 控制 熟悉 量具 使用 机床 保养 machine tool tools"
+      "searchTextLength": 100,
+      "sample": "张技工 张 技工 高中 平面磨床 平面 磨床 无心磨床 无 心 内圆磨床 内 圆 2013-06 ~ 2025-04 顺达精密五金厂 顺 达 精密 五金 厂 平面磨床技工 high_school 机械"
     },
     {
       "id": "f5",
-      "searchTextLength": 143,
-      "sample": "赵设计 赵 设计 赵设 大专 五金冲压 五金 冲 压 冲压 模具设计 模具 cad ug 2017-09 ~ 2025-03 精工模具有限公司 精工 有限公司 模具设计师 师 设计师 associate 机械 开发 经验 熟练 使用 进行 绘图 负责 工艺 分析 试模 改善 连续 工程"
+      "searchTextLength": 94,
+      "sample": "赵设计 赵 设计 大专 五金冲压 五金 冲 压 模具设计 模具 cad ug 2017-09 ~ 2025-03 精工模具有限公司 精工 有限公司 模具设计师 师 associate 机械"
     },
     {
       "id": "f6",
-      "searchTextLength": 135,
-      "sample": "刘电工 刘 电工 中专 电工证 证 焊工证 焊工 氩弧焊 氩 弧 焊 电路维修 电路 维修 2015-01 ~ 2025-06 宏远机电设备公司 宏 远 机电 设备 公司 宏远 high_school 机械 电焊 熟练 擅长 安装 调试 负责 工厂 电气设备 日常 维护"
+      "searchTextLength": 100,
+      "sample": "刘电工 刘 电工 中专 电工证 证 焊工证 焊工 氩弧焊 氩 弧 焊 电路维修 电路 维修 2015-01 ~ 2025-06 宏远机电设备公司 宏 远 机电 设备 公司 high_school 机械"
     },
     {
       "id": "f7",
-      "searchTextLength": 163,
-      "sample": "cnc 数控 孙编程 孙 编 程 大专 编程 mastercam 操机 2020-03 ~ 2025-05 锐志机械制造厂 锐志 机械 制造 厂 机械制造厂 编程技术员 技术 员 技术员 associate 五年 经验 熟练 使用 ug 操作 加工 中心 负责 批量 零件 数控机床 调试 machine tool tools"
+      "searchTextLength": 93,
+      "sample": "cnc 数控 孙编程 孙 编 程 大专 编程 mastercam 操机 2020-03 ~ 2025-05 锐志机械制造厂 锐志 机械 制造 厂 编程技术员 技术 员 associate"
     }
   ],
   "classSummary": {
     "single": {
       "probes": 6,
-      "searchMeanRecall": 0.9166666666666666,
+      "searchMeanRecall": 0.8333333333333334,
       "scanMeanRecall": 0.9166666666666666,
       "errors": 0
     },
@@ -909,13 +907,13 @@
     "cjk-ascii": {
       "probes": 5,
       "searchMeanRecall": 0.4,
-      "scanMeanRecall": 0.5,
+      "scanMeanRecall": 0.4,
       "errors": 0
     },
     "multi": {
       "probes": 6,
       "searchMeanRecall": 0.5833333333333334,
-      "scanMeanRecall": 0.6666666666666666,
+      "scanMeanRecall": 0.8333333333333334,
       "errors": 0
     },
     "long-compound": {
@@ -926,8 +924,8 @@
     },
     "alias": {
       "probes": 4,
-      "searchMeanRecall": 0.16666666666666666,
-      "scanMeanRecall": 0,
+      "searchMeanRecall": 0,
+      "scanMeanRecall": 0.5,
       "errors": 0
     },
     "cap-length": {

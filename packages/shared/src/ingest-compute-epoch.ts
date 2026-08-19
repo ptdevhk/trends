@@ -41,6 +41,12 @@ export const INGEST_COMPUTE_EPOCH_HISTORY: readonly IngestComputeEpochReason[] =
       "Revision-backed reviewed company-industry evidence, strict role-year projection, and recruiter evidence summaries",
     introduced: "2026-07-29",
   },
+  {
+    epoch: 4,
+    reason:
+      "CJK search digest materialization: selfIntro prose tokens (jieba union) in digest searchText",
+    introduced: "2026-08-19",
+  },
 ] as const;
 
 /** Code-required ingest compute epoch stamped on every successful compute write. */

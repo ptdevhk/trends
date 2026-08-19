@@ -25,6 +25,7 @@ import "dotenv/config";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../packages/convex/convex/_generated/api.js";
+import { normalizeSearchQuery } from "../packages/shared/src/search-text.js";
 
 const CONVEX_URL = process.env.CONVEX_URL ?? "http://127.0.0.1:3210";
 const PREFIX = "fixture.cjk.";
@@ -376,12 +377,14 @@ async function main() {
     }
 
     // Path B: tag-expansion scan page, emulating the BFF's expandSearchQuery
-    // group shape (per-whitespace-token groups, variants=[token], AND mode,
-    // <2-char tokens dropped by the BFF before any Convex call).
-    const bffTokens = probe.q
-      .trim()
-      .toLowerCase()
-      .split(/\s+/)
+    // group shape: normalizeSearchQuery (boundary-space CJK-ASCII joins),
+    // punctuation/newline/comma segment split, per-whitespace-token groups,
+    // variants=[token], AND mode, <2-char tokens dropped by the BFF.
+    const bffTokens = normalizeSearchQuery(probe.q)
+      .split(/[\n\r,，、;；。.．]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .flatMap((s) => s.split(/\s+/))
       .filter((t) => t.length >= 2);
     if (bffTokens.length === 0) {
       entry.scanStatus = "bff-dropped";

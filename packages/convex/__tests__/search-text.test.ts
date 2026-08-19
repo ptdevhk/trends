@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { appendMissingSearchTokens, buildIngestSearchTokens, buildSearchText, mergeSearchTextWithIngestData } from "../convex/search_text";
+import { appendMissingSearchTokens, buildIngestSearchTokens, buildSearchText, deriveProseSearchTokens, mergeSearchTextWithIngestData, segmentChineseRuns } from "../convex/search_text";
 
 describe("buildIngestSearchTokens", () => {
     it("normalizes and deduplicates ingest metadata tokens", () => {
@@ -129,5 +129,63 @@ describe("buildSearchText", () => {
         for (const token of ["cnc", "数控", "销售", "机床", "渠道"]) {
             expect(result).toContain(token);
         }
+    });
+});
+
+describe("deriveProseSearchTokens (A3)", () => {
+    it("derives jieba word tokens from selfIntro prose plus domain aliases", () => {
+        const tokens = deriveProseSearchTokens(
+            "十年数控车床加工中心操作经验，负责高精密零件批量生产制造，主导工艺优化与设备维护，熟悉机床操作调试与数控编程，参与五金冲压模具设计改进。",
+        );
+
+        for (const token of ["数控车床", "加工", "机床", "调试", "数控", "编程", "五金", "冲压", "模具"]) {
+            expect(tokens).toContain(token);
+        }
+        // Domain aliases derived from the prose
+        expect(tokens).toContain("cnc");
+        expect(tokens).toContain("machine tool");
+        // Punctuation / single-char tokens are dropped
+        expect(tokens.some((token) => /[，。、]/.test(token))).toBe(false);
+        expect(tokens.includes("与")).toBe(false);
+    });
+
+    it("keeps ASCII/alnum tokens from mixed prose", () => {
+        const tokens = deriveProseSearchTokens("ISO9001品质管理经验");
+        expect(tokens).toContain("iso");
+        expect(tokens).toContain("9001");
+        expect(tokens).toContain("品质");
+    });
+
+    it("returns [] for empty and undefined input", () => {
+        expect(deriveProseSearchTokens(undefined)).toEqual([]);
+        expect(deriveProseSearchTokens("")).toEqual([]);
+    });
+
+    it("bounds dense-overlap prose (工程师×20) sub-second", () => {
+        const startedAt = Date.now();
+        const tokens = deriveProseSearchTokens("工程师".repeat(20));
+        expect(Date.now() - startedAt).toBeLessThan(1000);
+        expect(tokens).toContain("工程师");
+    });
+});
+
+describe("segmentChineseRuns (A4 jieba augmentation)", () => {
+    it("adds jieba word tokens that Intl.Segmenter fragments into single chars", () => {
+        const tokens = segmentChineseRuns("数控编程").split(/\s+/g);
+        // Full run token preserved
+        expect(tokens).toContain("数控编程");
+        // Jieba words that Intl splits into single chars
+        expect(tokens).toContain("数控");
+        expect(tokens).toContain("编程");
+    });
+
+    it("bounds dense-overlap runs so doSegment stays sub-second (chunked)", () => {
+        // DictTokenizer.getChunks enumerates all chunkings; 60 chars of
+        // overlapping dict matches took ~5 s unchunked. Chunking must keep
+        // this fast while preserving the word tokens.
+        const startedAt = Date.now();
+        const tokens = segmentChineseRuns("工程师".repeat(20)).split(/\s+/g);
+        expect(Date.now() - startedAt).toBeLessThan(1000);
+        expect(tokens).toContain("工程师");
     });
 });
