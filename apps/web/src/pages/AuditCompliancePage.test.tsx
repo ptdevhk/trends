@@ -6,9 +6,10 @@ import { AuditCompliancePage } from './AuditCompliancePage'
 
 const mockSetOutcome = vi.fn().mockResolvedValue(true)
 
-// Mock the workspace context
+// Mock the workspace context (context hardcodes isAdmin: false; these tests
+// mock the audit hooks, so admin is derived from the AuthContext mock below)
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({ slug: 'test-workspace', isAdmin: true }),
+  useWorkspace: () => ({ slug: 'test-workspace' }),
 }))
 
 const mockBiasReport = {

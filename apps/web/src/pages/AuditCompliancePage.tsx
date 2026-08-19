@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { useAuditLogs, useBiasReport } from '@/hooks/useAuditLogs'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { hasWorkspaceAdminAccess } from '@/lib/workspace-access'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -226,7 +228,11 @@ function OutcomeDialog({
 
 export function AuditCompliancePage() {
   const { t } = useTranslation()
-  const { slug, isAdmin } = useWorkspace()
+  const { slug } = useWorkspace()
+  // WorkspaceContext hardcodes `isAdmin: false`; derive admin from memberships
+  // so the audit dashboard matches the API's requireAdmin (admin of this slug).
+  const { memberships } = useAuth()
+  const isAdmin = hasWorkspaceAdminAccess(memberships, slug)
   const { logs, loading, error, filters, setFilters, setOutcome } = useAuditLogs(slug, isAdmin)
   const { report, anomalyAlerts, loading: reportLoading, error: reportError } = useBiasReport(slug, isAdmin)
 
