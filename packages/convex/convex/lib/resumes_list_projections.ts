@@ -44,6 +44,7 @@ export type ResumeListProjectedDoc = {
     content: Record<string, unknown>;
     crawledAt: number;
     source: string;
+    sourceKey?: string;
     tags: string[];
     analysis?: Doc<"resumes">["analysis"];
     analyses?: Doc<"resumes">["analyses"];
@@ -353,6 +354,7 @@ export function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjecte
         content: projectResumeListContent(resume),
         crawledAt: resume.crawledAt,
         source: resume.source,
+        ...(resume.sourceKey ? { sourceKey: resume.sourceKey } : {}),
         tags: resume.tags,
         // Phase 3: analysis/analyses/confirmedScore stripped from list projection.
         // Score display fields now come from resume_digests (displayScore etc.).
@@ -375,6 +377,7 @@ export async function projectResumeDetailDoc(
         content: projectResumeDetailContent(resume),
         crawledAt: resume.crawledAt,
         source: resume.source,
+        ...(resume.sourceKey ? { sourceKey: resume.sourceKey } : {}),
         tags: resume.tags,
         ...(resume.confirmedScore === undefined ? {} : { confirmedScore: resume.confirmedScore }),
         ...(resume.confirmedAt === undefined ? {} : { confirmedAt: resume.confirmedAt }),

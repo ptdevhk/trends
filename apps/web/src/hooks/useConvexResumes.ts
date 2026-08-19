@@ -870,6 +870,7 @@ function useBffAndModeSearch(
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
   limit?: number,
+  includeHidden?: boolean,
 ): BffAndModeResult & { loadingMore: boolean } {
   const [total, setTotal] = useState(0)
   const [accumulatedResumes, setAccumulatedResumes] = useState<ConvexResumeItem[]>([])
@@ -968,6 +969,7 @@ function useBffAndModeSearch(
       ...(sortBy ? { sortBy } : {}),
       ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
+      ...(includeHidden ? { includeHidden: 'true' } : {}),
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
     }
 
@@ -1211,6 +1213,7 @@ export function useConvexResumes(
     normalizedJobDescriptionId,
     bffRefetchTrigger,
     limit,
+    true,
   )
 
   const paginatedSearchResults = useStablePaginatedQuery(

@@ -65,9 +65,11 @@ export function ResumeSearchPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
   const resolveSearchResumeEmployers = useCallback(
-    (item: { resume: { workHistory?: unknown; ingestData?: { companyHits?: string[] } } }) => ({
-      workHistory: item.resume.workHistory as Array<{ companyName?: string; raw?: string }> | undefined,
+    (item: { resume: { workHistory?: unknown; ingestData?: { companyHits?: string[] }; identityKey?: string; externalId?: string; sourceKey?: string | null } }) => ({
+      workHistory: item.resume.workHistory as Array<{ companyName?: string; raw?: string; companyKey?: string }> | undefined,
       companyHits: item.resume.ingestData?.companyHits,
+      identityKey: item.resume.identityKey?.trim() || item.resume.externalId,
+      sourceKey: item.resume.sourceKey,
     }),
     [],
   )
@@ -169,7 +171,7 @@ export function ResumeSearchPage() {
     hiddenCount: companyPolicyHiddenCount,
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
-  } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers)
+  } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers, policyOverrides)
 
   // Selection + counts must use the same universe as the list (policy-visible).
   const policyVisibleKeys = useMemo(

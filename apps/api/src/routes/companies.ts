@@ -27,8 +27,10 @@ import {
 import type { AuthContext } from "../services/auth-types.js";
 import {
   addCompanyAlias,
+  appendMarketPolicy,
   appendWorkspacePolicy,
   listCompanies,
+  listMarketPolicies,
   listWorkspacePolicies,
   seedCanonicalCompanies,
   setCompanyArchived,
@@ -399,11 +401,18 @@ app.openapi(archiveCompanyRoute, async (c) => {
   return c.json({ success: true as const, ...result }, 200);
 });
 
+const MarketScopeEnum = z.enum(["cn", "my"]);
+
 const listPoliciesRoute = createRoute({
   method: "get",
   path: "/api/company-policies",
   tags: ["companies"],
-  summary: "List effective workspace company policies",
+  summary: "List effective workspace or market company policies",
+  request: {
+    query: z.object({
+      market: MarketScopeEnum.optional(),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -411,13 +420,16 @@ const listPoliciesRoute = createRoute({
           schema: z.object({ success: z.literal(true), items: z.array(PolicySchema) }),
         },
       },
-      description: "Workspace company policies",
+      description: "Company policies for the requested scope",
     },
   },
 });
 
 app.openapi(listPoliciesRoute, async (c) => {
-  const items = await listWorkspacePolicies(c.var.workspaceSlug);
+  const { market } = c.req.valid("query");
+  const items = market
+    ? await listMarketPolicies(market)
+    : await listWorkspacePolicies(c.var.workspaceSlug);
   return c.json({ success: true as const, items }, 200);
 });
 
@@ -425,13 +437,14 @@ const appendPolicyRoute = createRoute({
   method: "post",
   path: "/api/company-policies",
   tags: ["companies"],
-  summary: "Append a workspace company policy revision",
+  summary: "Append a workspace or market company policy revision",
   request: {
     body: {
       content: {
         "application/json": {
           schema: z.object({
             companyKey: z.string().min(1),
+            market: MarketScopeEnum.optional(),
             preset: z.enum(["known_good", "no_hire", "none"]).optional(),
             visibility: z.enum(["default", "hide"]).optional(),
             workflow: z.enum(["default", "blocked"]).optional(),
@@ -460,17 +473,29 @@ const appendPolicyRoute = createRoute({
 app.openapi(appendPolicyRoute, async (c) => {
   const body = c.req.valid("json");
   const actorId = getAuthenticatedActorId(c);
-  const result = await appendWorkspacePolicy({
-    companyKey: body.companyKey,
-    workspaceSlug: c.var.workspaceSlug,
-    createdBy: actorId,
-    preset: body.preset,
-    visibility: body.visibility,
-    workflow: body.workflow,
-    rankingEffect: body.rankingEffect,
-    reasonCodes: body.reasonCodes,
-    summary: body.summary,
-  });
+  const result = body.market
+    ? await appendMarketPolicy({
+        companyKey: body.companyKey,
+        market: body.market,
+        createdBy: actorId,
+        preset: body.preset,
+        visibility: body.visibility,
+        workflow: body.workflow,
+        rankingEffect: body.rankingEffect,
+        reasonCodes: body.reasonCodes,
+        summary: body.summary,
+      })
+    : await appendWorkspacePolicy({
+        companyKey: body.companyKey,
+        workspaceSlug: c.var.workspaceSlug,
+        createdBy: actorId,
+        preset: body.preset,
+        visibility: body.visibility,
+        workflow: body.workflow,
+        rankingEffect: body.rankingEffect,
+        reasonCodes: body.reasonCodes,
+        summary: body.summary,
+      });
   return c.json({ success: true as const, revision: result.revision }, 200);
 });
 

@@ -25,6 +25,7 @@ import {
     stampWorkHistoryCompanyKeys,
     upsertCompanyResumeLinkForCompany,
 } from "./lib/company_resume_links.js";
+import { computeCompanyKeyProjection } from "./lib/resume_identity.js";
 
 // ---------------------------------------------------------------------------
 // Workspace access guard (defense-in-depth)
@@ -65,6 +66,8 @@ export type ResumeScanRow = {
     workspaceSlug?: Doc<"resumes">["workspaceSlug"];
     identityKey?: Doc<"resumes">["identityKey"];
     externalId?: Doc<"resumes">["externalId"];
+    isArchived?: Doc<"resumes">["isArchived"];
+    companyKeyProjection?: Doc<"resumes">["companyKeyProjection"];
 };
 
 export type ResumeUsageScanRow = {
@@ -205,6 +208,15 @@ export const updateIngestDataBatch = internalMutation({
 
             await ctx.db.patch(update.resumeId, patch);
             await replaceCompanyResumeLinksForResume(ctx, resume, update.ingestData);
+            // Re-read after link/stamp sync: stampWorkHistoryCompanyKeys writes
+            // companyKey onto DB content.workHistory entries, so the projection
+            // must be computed from the stamped row, not the in-memory copy.
+            const stamped = await ctx.db.get(update.resumeId);
+            if (stamped) {
+                await ctx.db.patch(update.resumeId, {
+                    companyKeyProjection: computeCompanyKeyProjection(stamped.content),
+                });
+            }
             await ctx.runMutation(internal.resumes_search.upsertResumeDigest, { resumeId: update.resumeId });
         }));
     },
@@ -290,6 +302,8 @@ export const listResumeScanBatch = internalQuery({
                 workspaceSlug: resume.workspaceSlug,
                 identityKey: resume.identityKey,
                 externalId: resume.externalId,
+                isArchived: resume.isArchived,
+                companyKeyProjection: resume.companyKeyProjection,
             })),
         };
     },

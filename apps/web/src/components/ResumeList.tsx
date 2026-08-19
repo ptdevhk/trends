@@ -155,19 +155,22 @@ export function ResumeList() {
   const resolveListResumeEmployers = useCallback(
     (entry: { resume: ResumeItem | ConvexResumeItem }) => {
       const ingest = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+      const resume = entry.resume as { workHistory?: ResumeItem['workHistory']; identityKey?: string; externalId?: string }
       return {
-        workHistory: entry.resume.workHistory,
+        workHistory: resume.workHistory,
         companyHits: ingest?.companyHits,
+        identityKey: resume.identityKey?.trim() || resume.externalId,
       }
     },
     [],
   )
+  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
   const {
     visibleItems: displayedResumes,
     hiddenCount: companyPolicyHiddenCount,
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
-  } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers)
+  } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers, policyOverrides)
 
   const policyVisibleKeys = useMemo(
     () => new Set(displayedResumes.map((entry) => entry.key)),
@@ -217,8 +220,6 @@ export function ResumeList() {
     if (!detailKey) return undefined
     return displayedResumes.find((entry) => entry.key === detailKey)?.identityKey
   }, [detailKey, displayedResumes])
-
-  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
 
   const detailMatch = useMemo(() => {
     if (!detailKey) return undefined

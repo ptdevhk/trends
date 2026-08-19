@@ -4,6 +4,7 @@ import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 import {
+  CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
   CURRENT_INGEST_COMPUTE_EPOCH,
   resolveGateRoleYears,
   resolveResumeDiagnosticsSourceKey,
@@ -60,6 +61,8 @@ const SearchFreshnessResponseSchema = z.object({
   success: z.literal(true),
   currentSkillsVersion: z.number().int(),
   currentIngestComputeEpoch: z.number().int(),
+  currentCompanyKeyProjectionEpoch: z.number().int(),
+  companyKeyProjectionStale: z.number().int(),
   apiReachable: z.boolean(),
   /** True when dry-run lag scan threw (timeout / overload); not a clean zero-stale. */
   lagScanFailed: z.boolean(),
@@ -731,6 +734,25 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     messages.push(`lag scan failed: ${message}`);
   }
 
+  // T3: report-only company-key projection staleness (dry-run drain scan).
+  // No exit-code impact — this is an observability signal, not a gate.
+  let companyKeyProjectionStale = 0;
+  try {
+    const { triggerRecomputeCompanyKeyProjections } = await import("./resumes.js");
+    const dry = await triggerRecomputeCompanyKeyProjections({
+      limit: scanLimit ?? 200,
+      dryRun: true,
+    });
+    companyKeyProjectionStale = dry.staleCount;
+    messages.push(
+      `dry-run company-key projection: scanned=${dry.scannedRows} stale=${dry.staleCount} hasMore=${dry.hasMore}` +
+        (dry.hasMore ? "; scan window INCOMPLETE (hasMore=true)" : ""),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    messages.push(`company-key projection dry-run failed: ${message}`);
+  }
+
   const { SEARCH_FRESHNESS_GOLDEN_QUERIES } = await import("@trends/shared");
   const workspaceSlug = c.req.header("X-Workspace-Slug") || "dev";
   const goldenQueries: Array<{
@@ -892,6 +914,8 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     success: true as const,
     currentSkillsVersion,
     currentIngestComputeEpoch: currentEpoch,
+    currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+    companyKeyProjectionStale,
     apiReachable,
     lagScanFailed,
     lag: {

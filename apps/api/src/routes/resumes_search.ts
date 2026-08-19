@@ -35,6 +35,8 @@ import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { listCandidateBlocks } from "../services/candidate-block-service.js";
+import { getIndustryReviewAccessError } from "../middleware/auth.js";
+import { ResumePolicyEnforcer } from "../services/resume-policy-enforcer.js";
 import {
   buildResumeIngestData,
   toOptionalNumber,
@@ -773,6 +775,7 @@ app.openapi(getResumesRoute, (c) => {
     minMatchScore,
     recommendation,
     showBlocked,
+    includeHidden,
     sortBy,
     sortOrder,
     sessionId,
@@ -1043,6 +1046,12 @@ app.openapi(getResumesRoute, (c) => {
             const match = matchMap?.get(candidate.resumeId);
             return match && allowed.has(match.recommendation);
           });
+        }
+
+        const canReadHidden = includeHidden === true && getIndustryReviewAccessError(c) === null;
+        if (!canReadHidden && prepared.length > 0) {
+          const policyEnforcer = await ResumePolicyEnforcer.load(workspaceSlug);
+          prepared = prepared.filter((candidate) => !policyEnforcer.evaluate(candidate.resume).hidden);
         }
 
         // When the cursor scan path already applied filters server-side via

@@ -1570,6 +1570,7 @@ export function useResumeListState(loadSearchHistory = false) {
             const hits = matchResumeCompanyPolicyCached({
               workHistory: entry.resume.workHistory,
               companyHits: ingest?.companyHits,
+              sourceKey: entry.resume.sourceKey,
             })
             return !isCompanyWorkflowBlocked(hits)
           })

@@ -722,6 +722,7 @@ export const getByIdsForExport = query({
                             ?? toOptionalStringValue(content.profileURL)
                             ?? toOptionalStringValue(content.url),
                         source: doc.source,
+                        sourceKey: doc.sourceKey,
                         selfIntro: toOptionalStringValue(content.selfIntro),
                         workHistory: Array.isArray(content.workHistory) ? content.workHistory : undefined,
                         ingestData: doc.ingestData ? {

@@ -1,6 +1,5 @@
 import {
   hasActiveOverride,
-  isCompanyPolicyHidden,
   isCompanyWorkflowBlocked,
   primaryCompanyPolicyHit,
   type CandidatePolicyOverride,
@@ -12,6 +11,9 @@ export type ResumeEmployerInput = {
     { companyName?: string; raw?: string; companyKey?: string } | null | undefined
   > | null
   companyHits?: string[] | null
+  identityKey?: string
+  /** Resume source market key (schema field); routes the per-market index (T5). */
+  sourceKey?: string | null
 }
 
 export type ResumeCompanyPolicyState = {
@@ -29,16 +31,32 @@ export function getResumeCompanyPolicyState(
   resumeIdentity?: string | undefined,
 ): ResumeCompanyPolicyState {
   const hits = matchResume(input)
-  const identity = resumeIdentity?.trim() ?? ''
-  const blockedCompanies = hits.filter((hit) => hit.effects.workflow === 'blocked')
-  const overriddenCompanyKeys = blockedCompanies
+  const identity = (resumeIdentity ?? input.identityKey)?.trim() ?? ''
+
+  const hiddenCompanies = hits.filter((hit) => hit.effects.visibility === 'hide')
+  const hiddenCompanyKeys = hiddenCompanies.map((hit) => hit.companyKey)
+  const overriddenHiddenKeys = hiddenCompanies
     .filter((hit) => hasActiveOverride(overrides, identity, hit.companyKey))
     .map((hit) => hit.companyKey)
+
+  const blockedCompanies = hits.filter((hit) => hit.effects.workflow === 'blocked')
+  const overriddenBlockedKeys = blockedCompanies
+    .filter((hit) => hasActiveOverride(overrides, identity, hit.companyKey))
+    .map((hit) => hit.companyKey)
+
+  const overriddenCompanyKeys = Array.from(
+    new Set([...overriddenBlockedKeys, ...overriddenHiddenKeys]),
+  )
+
   const allBlockedOverridden =
-    blockedCompanies.length > 0 && overriddenCompanyKeys.length === blockedCompanies.length
+    blockedCompanies.length > 0 && overriddenBlockedKeys.length === blockedCompanies.length
+
+  const hidden =
+    hiddenCompanyKeys.length > 0 && overriddenHiddenKeys.length < hiddenCompanyKeys.length
+
   return {
     hits,
-    hidden: isCompanyPolicyHidden(hits),
+    hidden,
     workflowBlocked: isCompanyWorkflowBlocked(hits) && !allBlockedOverridden,
     primary: primaryCompanyPolicyHit(hits),
     overriddenCompanyKeys,
@@ -50,11 +68,13 @@ export function filterItemsByCompanyPolicyHide<T>(
   resolve: (item: T) => ResumeEmployerInput,
   matchResume: (input: ResumeEmployerInput) => CompanyPolicyMatchHit[],
   showHidden: boolean,
+  overrides?: CandidatePolicyOverride[] | undefined,
 ): { visible: T[]; hiddenCount: number } {
   const visible: T[] = []
   let hiddenCount = 0
   for (const item of items) {
-    const state = getResumeCompanyPolicyState(resolve(item), matchResume)
+    const resolved = resolve(item)
+    const state = getResumeCompanyPolicyState(resolved, matchResume, overrides, resolved.identityKey)
     if (state.hidden) {
       hiddenCount += 1
       if (showHidden) {

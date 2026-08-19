@@ -90,6 +90,7 @@ export type ResumeItem = {
   name: string;
   profileUrl: string;
   source?: string;
+  sourceKey?: string;
   activityStatus: string;
   age: string;
   experience: string;
@@ -118,6 +119,7 @@ export type ResumeItem = {
   profileId?: string;
   profileType?: string;
   externalId?: string;
+  identityKey?: string;
   searchText?: string;
 };
 

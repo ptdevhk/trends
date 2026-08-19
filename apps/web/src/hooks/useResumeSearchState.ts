@@ -406,20 +406,10 @@ function sortResults(
   results: ResumeSearchResultItem[],
   sortValue: SearchSortValue,
 ): ResumeSearchResultItem[] {
-  if (sortValue === 'score') {
-    return [...results].sort((left, right) => {
-      const tierDiff = compareCompanyRankingEffects(
-        left.companyRankingEffect,
-        right.companyRankingEffect,
-      )
-      if (tierDiff !== 0) {
-        return tierDiff
-      }
+  const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
+    if (sortValue === 'score') {
       return (right.score ?? -1) - (left.score ?? -1)
-    })
-  }
-
-  return [...results].sort((left, right) => {
+    }
     if (sortValue === 'newest') {
       const rightTimestamp = right.resume.extractedAt
         ? Date.parse(right.resume.extractedAt)
@@ -434,6 +424,19 @@ function sortResults(
       parseExperienceYears(right.resume.experience) -
       parseExperienceYears(left.resume.experience)
     )
+  }
+
+  return [...results].sort((left, right) => {
+    // Company-policy ranking tier is the primary key for every sort mode:
+    // known-good above unknown, no-hire grouped below. Never rewrites scores.
+    const tierDiff = compareCompanyRankingEffects(
+      left.companyRankingEffect,
+      right.companyRankingEffect,
+    )
+    if (tierDiff !== 0) {
+      return tierDiff
+    }
+    return tiebreak(left, right)
   })
 }
 
@@ -2020,6 +2023,7 @@ export function useResumeSearchState() {
           const hits = matchResumeCompanyPolicyCached({
             workHistory: item.resume.workHistory,
             companyHits: item.resume.ingestData?.companyHits,
+            sourceKey: item.resume.sourceKey,
           })
           return !isCompanyWorkflowBlocked(hits)
         })

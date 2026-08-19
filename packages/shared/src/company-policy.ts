@@ -143,20 +143,53 @@ export function inferPolicyPreset(effects: CompanyPolicyEffects | null | undefin
 
 /**
  * Most-specific-wins among optional scoped effect bags.
- * Pass in order: workspace, market, global (only defined ones compete).
+ * Market beats workspace; global is not a resolution tier (rows are inert).
  */
 export function resolveMostSpecificPolicy(
   layers: Array<{ scopeType: CompanyPolicyScopeType; effects: CompanyPolicyEffects | null }>,
 ): CompanyPolicyEffects | null {
   const rank: Record<CompanyPolicyScopeType, number> = {
-    workspace: 3,
     market: 2,
-    global: 1,
+    workspace: 1,
+    global: 0,
   };
   const present = layers
-    .filter((layer) => layer.effects != null)
+    .filter((layer) => layer.effects != null && rank[layer.scopeType] > 0)
     .sort((left, right) => rank[right.scopeType] - rank[left.scopeType]);
   return present[0]?.effects ?? null;
+}
+
+/**
+ * Per-company most-specific resolution across scope layers.
+ * Each layer maps companyKey → effects (null/undefined = absent for that
+ * company). A company present in multiple layers resolves to the most
+ * specific scope (market > workspace); global layers never compete.
+ */
+export function resolvePolicyEffectsForCompanies(
+  layers: Array<{
+    scopeType: CompanyPolicyScopeType;
+    effectsByCompanyKey: ReadonlyMap<string, CompanyPolicyEffects | null | undefined>;
+  }>,
+): Map<string, CompanyPolicyEffects> {
+  const companyKeys = new Set<string>();
+  for (const layer of layers) {
+    for (const companyKey of layer.effectsByCompanyKey.keys()) {
+      companyKeys.add(companyKey);
+    }
+  }
+  const merged = new Map<string, CompanyPolicyEffects>();
+  for (const companyKey of companyKeys) {
+    const effects = resolveMostSpecificPolicy(
+      layers.map((layer) => ({
+        scopeType: layer.scopeType,
+        effects: layer.effectsByCompanyKey.get(companyKey) ?? null,
+      })),
+    );
+    if (effects) {
+      merged.set(companyKey, effects);
+    }
+  }
+  return merged;
 }
 
 export type CompanyPolicyMatchHit = {

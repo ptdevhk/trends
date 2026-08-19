@@ -455,6 +455,7 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
     name: toStringValue(record.name),
     profileUrl,
     ...(toStringValue(record.source) || source ? { source: toStringValue(record.source) || source } : {}),
+    sourceKey: toStringValue(record.sourceKey) || undefined,
     activityStatus: toStringValue(record.activityStatus),
     age: toStringValue(record.age),
     experience: toStringValue(record.experience),
@@ -473,6 +474,7 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
     profileId: toStringValue(record.profileId) || undefined,
     profileType: toStringValue(record.profileType) || (source ? source : undefined),
     externalId: toStringValue(record.externalId) || undefined,
+    ...(typeof record.identityKey === "string" && record.identityKey ? { identityKey: record.identityKey } : {}),
     ...(typeof record.searchText === 'string' ? { searchText: record.searchText } : {}),
   };
 }
@@ -655,6 +657,18 @@ export function prepareResumeCandidate(params: {
 }
 
 // ---------------------------------------------------------------------------
+// Build a ResumeItem from a Convex resume doc projection, carrying the
+// doc-level sourceKey (schema field) through so market-scoped company
+// policy enforcement can route by source market (T5).
+function toResumeItemFromResumeDoc(resumeRecord: Record<string, unknown>): ResumeItem {
+  const content = isRecord(resumeRecord.content) ? resumeRecord.content : {};
+  const sourceKey = toStringValue(resumeRecord.sourceKey);
+  return toResumeItemFromRecord(
+    sourceKey ? { ...content, sourceKey } : content,
+    toStringValue(resumeRecord.source),
+  );
+}
+
 // prepareConvexCandidates — the large duplicated function
 // ---------------------------------------------------------------------------
 
@@ -804,7 +818,7 @@ export async function prepareConvexCandidates(params: {
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
-          const resume = toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source));
+          const resume = toResumeItemFromResumeDoc(doc);
           // Override resumeId with Convex _id so the frontend can use it
           // for Convex mutations (dispatch analysis, etc.). Content's
           // resumeId is a source-specific ID (e.g., "13467969") that
@@ -887,7 +901,7 @@ export async function prepareConvexCandidates(params: {
             continue;
           }
 
-          const resumeItem = toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source));
+          const resumeItem = toResumeItemFromResumeDoc(resumeRecord);
           if (typeof resumeRecord.searchText === 'string') {
             resumeItem.searchText = resumeRecord.searchText;
           }
@@ -989,7 +1003,7 @@ export async function prepareConvexCandidates(params: {
       if (!resumeId) {
         return [];
       }
-      const resumeItem = toResumeItemFromRecord(isRecord(item.content) ? item.content : {}, toStringValue(item.source));
+      const resumeItem = toResumeItemFromResumeDoc(item);
       if (typeof item.searchText === 'string') {
         resumeItem.searchText = item.searchText;
       }

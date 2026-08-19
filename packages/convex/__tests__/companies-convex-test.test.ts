@@ -264,7 +264,7 @@ describe("companies (convex-test)", () => {
     ).rejects.toThrow("Unauthorized Convex write");
   });
 
-  it("appends policy revisions and resolves workspace over global", async () => {
+  it("appends policy revisions and resolves market over workspace (global inert)", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {
       writeSecret: WRITE_SECRET,
@@ -288,15 +288,54 @@ describe("companies (convex-test)", () => {
       writeSecret: WRITE_SECRET,
       createdBy: "hr-user",
     });
+    await t.mutation(api.companies.appendPolicyRevision, {
+      companyKey: "pro-technic-machinery",
+      scopeType: "market",
+      scopeId: "cn",
+      rankingEffect: "none",
+      visibility: "default",
+      writeSecret: WRITE_SECRET,
+      createdBy: "cn-operator",
+    });
 
+    // Explicit market CN row wins over the workspace row.
     const effective = await t.query(api.companies.getEffectivePolicy, {
       companyKey: "pro-technic-machinery",
       workspaceSlug: "hr",
       market: "CN",
       writeSecret: WRITE_SECRET,
     });
-    expect(effective?.effects?.rankingEffect).toBe("band_known_good");
-    expect(effective?.resolvedFrom?.scopeType).toBe("workspace");
+    expect(effective?.effects?.rankingEffect).toBe("none");
+    expect(effective?.resolvedFrom?.scopeType).toBe("market");
+    expect(effective?.resolvedFrom?.scopeId).toBe("cn");
+
+    // No market MY row → workspace fallback still applies.
+    const fallback = await t.query(api.companies.getEffectivePolicy, {
+      companyKey: "pro-technic-machinery",
+      workspaceSlug: "hr",
+      market: "MY",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(fallback?.effects?.rankingEffect).toBe("band_known_good");
+    expect(fallback?.resolvedFrom?.scopeType).toBe("workspace");
+
+    // Global-only company resolves to null: global is not a resolution tier.
+    await t.mutation(api.companies.appendPolicyRevision, {
+      companyKey: "polywell",
+      scopeType: "global",
+      scopeId: "global",
+      rankingEffect: "band_known_bad",
+      visibility: "hide",
+      writeSecret: WRITE_SECRET,
+      createdBy: "admin",
+    });
+    const inert = await t.query(api.companies.getEffectivePolicy, {
+      companyKey: "polywell",
+      workspaceSlug: "hr",
+      market: "CN",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(inert?.effects).toBeNull();
   });
 
   it("refuses alias reassignment across companies", async () => {

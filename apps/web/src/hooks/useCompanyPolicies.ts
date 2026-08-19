@@ -47,9 +47,13 @@ type ListResponse<T> = {
   items?: T[]
 }
 
+export type PolicyScope = 'workspace' | 'cn' | 'my'
+
 type CompanyPolicyCache = {
   companies: CompanyItem[]
   policies: CompanyPolicyItem[]
+  /** Market-scoped policy rows, keyed by lowercase market id (T5). */
+  marketPolicies: { cn: CompanyPolicyItem[]; my: CompanyPolicyItem[] }
   loadedAt: number
 }
 
@@ -66,11 +70,13 @@ function notifyListeners() {
 
 async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
   try {
-    const [companiesResult, policiesResult] = await Promise.all([
+    const [companiesResult, policiesResult, cnPoliciesResult, myPoliciesResult] = await Promise.all([
       // Archived companies are hidden by default server-side; the companies
       // tab opts in so operators can restore them.
       rawApiClient.GET<ListResponse<CompanyItem>>('/api/companies?includeArchived=true'),
       rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies'),
+      rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies?market=cn'),
+      rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies?market=my'),
     ])
 
     if (companiesResult.error || !companiesResult.data?.success) {
@@ -79,10 +85,20 @@ async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
     if (policiesResult.error || !policiesResult.data?.success) {
       return null
     }
+    if (cnPoliciesResult.error || !cnPoliciesResult.data?.success) {
+      return null
+    }
+    if (myPoliciesResult.error || !myPoliciesResult.data?.success) {
+      return null
+    }
 
     return {
       companies: Array.isArray(companiesResult.data.items) ? companiesResult.data.items : [],
       policies: Array.isArray(policiesResult.data.items) ? policiesResult.data.items : [],
+      marketPolicies: {
+        cn: Array.isArray(cnPoliciesResult.data.items) ? cnPoliciesResult.data.items : [],
+        my: Array.isArray(myPoliciesResult.data.items) ? myPoliciesResult.data.items : [],
+      },
       loadedAt: Date.now(),
     }
   } catch {
@@ -114,6 +130,10 @@ async function loadShared(force = false): Promise<CompanyPolicyCache | null> {
 export function useCompanyPolicies(enabled: boolean = true) {
   const [companies, setCompanies] = useState<CompanyItem[]>(cache?.companies ?? [])
   const [policies, setPolicies] = useState<CompanyPolicyItem[]>(cache?.policies ?? [])
+  const [marketPolicies, setMarketPolicies] = useState<{
+    cn: CompanyPolicyItem[]
+    my: CompanyPolicyItem[]
+  }>(cache?.marketPolicies ?? { cn: [], my: [] })
   const [loading, setLoading] = useState(enabled && !cache)
   const [error, setError] = useState<string | null>(null)
 
@@ -123,6 +143,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
     }
     setCompanies(next.companies)
     setPolicies(next.policies)
+    setMarketPolicies(next.marketPolicies)
   }, [])
 
   const load = useCallback(async (force = false) => {
@@ -243,7 +264,12 @@ export function useCompanyPolicies(enabled: boolean = true) {
   )
 
   const setPolicyPreset = useCallback(
-    async (companyKey: string, preset: CompanyPolicyPreset, summary?: string) => {
+    async (
+      companyKey: string,
+      preset: CompanyPolicyPreset,
+      summary?: string,
+      scope: PolicyScope = 'workspace',
+    ) => {
       const { data, error: apiError } = await rawApiClient.POST<{
         success: boolean
         revision?: number
@@ -252,6 +278,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
           companyKey,
           preset,
           ...(summary ? { summary } : {}),
+          ...(scope === 'cn' || scope === 'my' ? { market: scope } : {}),
         },
       })
       if (apiError || !data?.success) {
@@ -267,6 +294,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
   return {
     companies,
     policies,
+    marketPolicies,
     loading,
     error,
     load: () => load(true),

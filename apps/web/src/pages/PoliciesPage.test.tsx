@@ -16,7 +16,15 @@ vi.mock('@/components/PageHeader', () => ({
   PageHeader: ({ title }: { title?: string }) => <div>{title || 'Policies'}</div>,
 }))
 
-const mockT = (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key;
+const mockT = (key: string, options?: Record<string, unknown>) => {
+  let value = (options?.defaultValue as string | undefined) ?? key
+  if (options) {
+    for (const [name, replacement] of Object.entries(options)) {
+      value = value.replaceAll(`{{${name}}}`, String(replacement))
+    }
+  }
+  return value
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -84,6 +92,7 @@ describe('PoliciesPage', () => {
           createdAt: 1,
         },
       ],
+      marketPolicies: { cn: [], my: [] },
       loading: false,
       error: null,
       load: vi.fn(),
@@ -137,5 +146,82 @@ describe('PoliciesPage', () => {
     const legacyRow = screen.getByText(/Legacy CNC/)
     fireEvent.click(legacyRow.closest('tr')!.querySelector('[data-testid="company-archive-toggle"]')!)
     expect(setCompanyArchived).toHaveBeenCalledWith('legacy-cnc', false)
+  })
+
+  it('switches policy scope to a market and shows the market column header', () => {
+    mockUseCompanyPolicies.mockReturnValue({
+      ...mockUseCompanyPolicies(),
+      marketPolicies: {
+        cn: [
+          {
+            companyKey: 'pro-technic-machinery',
+            displayName: '宝力机械 / Pro-Technic Machinery',
+            status: 'confirmed',
+            scopeType: 'market',
+            scopeId: 'cn',
+            revision: 2,
+            effects: { rankingEffect: 'band_known_bad' },
+            createdAt: 1,
+          },
+        ],
+        my: [],
+      },
+    })
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    // Workspace scope first: the workspace known-good row is shown.
+    expect(screen.getAllByText(/Known good/i).length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByTestId('policy-scope-cn'))
+
+    // Market column header and per-row state now reflect the CN market row.
+    expect(screen.getByText('CN market policy')).toBeInTheDocument()
+    expect(screen.getAllByText(/^No-hire$/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/rev 2 · band_known_bad/)).toBeInTheDocument()
+  })
+
+  it('writes preset changes to the active market scope', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.click(screen.getByTestId('policy-scope-my'))
+    fireEvent.click(screen.getByTestId('company-preset-no-hire'))
+
+    const { setPolicyPreset } = mockUseCompanyPolicies()
+    expect(setPolicyPreset).toHaveBeenCalledWith('pro-technic-machinery', 'no_hire', undefined, 'my')
+  })
+
+  it('writes preset changes to the workspace scope by default', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.click(screen.getByTestId('company-preset-known-good'))
+
+    const { setPolicyPreset } = mockUseCompanyPolicies()
+    expect(setPolicyPreset).toHaveBeenCalledWith(
+      'pro-technic-machinery',
+      'known_good',
+      undefined,
+      'workspace',
+    )
+  })
+
+  it('shows market-scoped hints when a market has no policy rows', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.click(screen.getByTestId('policy-scope-cn'))
+
+    expect(screen.getByText('No CN market policy yet')).toBeInTheDocument()
+  })
+
+  it('shows the market empty state when the registry has no companies', () => {
+    mockUseCompanyPolicies.mockReturnValue({
+      ...mockUseCompanyPolicies(),
+      companies: [],
+      policies: [],
+    })
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.click(screen.getByTestId('policy-scope-cn'))
+
+    expect(screen.getByText(/No CN market policy yet/)).toBeInTheDocument()
   })
 })

@@ -166,6 +166,100 @@ describe("companies routes", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("lists market policies for a market scope query", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:listPoliciesForScope") {
+        expect(call.args.scopeType).toBe("market");
+        expect(call.args.scopeId).toBe("cn");
+        return convexSuccess([
+          {
+            companyKey: "pro-technic-machinery",
+            displayName: "宝力机械 / Pro-Technic Machinery",
+            status: "confirmed",
+            scopeType: "market",
+            scopeId: "cn",
+            revision: 1,
+            effects: { rankingEffect: "none" },
+            createdAt: 1,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies?market=cn", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ effects: { rankingEffect: string } }>;
+    }>(response);
+    expect(body.items[0].effects.rankingEffect).toBe("none");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("appends a market policy revision with lowercase scope id", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:appendPolicyRevision") {
+        expect(call.args.scopeType).toBe("market");
+        expect(call.args.scopeId).toBe("my");
+        expect(call.args.companyKey).toBe("pro-technic-machinery");
+        expect(call.args.visibility).toBe("default");
+        return convexSuccess({ id: "rev1", revision: 3 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "my",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ revision: number }>(response);
+    expect(body.revision).toBe(3);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects an unknown market scope on append", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "jp",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("seeds canonical companies for the authenticated workspace", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

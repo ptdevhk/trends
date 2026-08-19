@@ -171,6 +171,18 @@ export async function listWorkspacePolicies(workspaceSlug: string): Promise<Comp
   return value.map(parsePolicy).filter((item): item is CompanyPolicyRecord => item != null);
 }
 
+export async function listMarketPolicies(market: string): Promise<CompanyPolicyRecord[]> {
+  const value = await callConvexQuery("companies:listPoliciesForScope", {
+    scopeType: "market",
+    scopeId: market.toLowerCase(),
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  if (!Array.isArray(value)) {
+    throw new Error("Invalid companies:listPoliciesForScope response");
+  }
+  return value.map(parsePolicy).filter((item): item is CompanyPolicyRecord => item != null);
+}
+
 export async function upsertCompany(input: {
   companyKey: string;
   displayName: string;
@@ -224,6 +236,36 @@ export async function appendWorkspacePolicy(input: {
     companyKey: input.companyKey,
     scopeType: "workspace",
     scopeId: input.workspaceSlug,
+    createdBy: input.createdBy,
+    visibility: input.visibility ?? fromPreset?.visibility,
+    workflow: input.workflow ?? fromPreset?.workflow,
+    rankingEffect: input.rankingEffect ?? fromPreset?.rankingEffect,
+    reasonCodes: input.reasonCodes ?? fromPreset?.reasonCodes,
+    summary: input.summary ?? fromPreset?.summary,
+    writeSecret: config.auth.convexWriteSecret,
+  });
+  if (!isRecord(value) || typeof value.revision !== "number") {
+    throw new Error("Invalid companies:appendPolicyRevision response");
+  }
+  return { revision: value.revision };
+}
+
+export async function appendMarketPolicy(input: {
+  companyKey: string;
+  market: string;
+  createdBy?: string;
+  preset?: CompanyPolicyPreset;
+  visibility?: "default" | "hide";
+  workflow?: "default" | "blocked";
+  rankingEffect?: "none" | "band_known_good" | "band_known_bad" | "boost" | "demote";
+  reasonCodes?: string[];
+  summary?: string;
+}): Promise<{ revision: number }> {
+  const fromPreset = input.preset ? policyEffectsFromPreset(input.preset) : null;
+  const value = await callConvexMutation("companies:appendPolicyRevision", {
+    companyKey: input.companyKey,
+    scopeType: "market",
+    scopeId: input.market.toLowerCase(),
     createdBy: input.createdBy,
     visibility: input.visibility ?? fromPreset?.visibility,
     workflow: input.workflow ?? fromPreset?.workflow,

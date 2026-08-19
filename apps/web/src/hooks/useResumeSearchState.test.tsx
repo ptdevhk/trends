@@ -575,6 +575,141 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.score)).toEqual([88, 99, 80, 70])
   })
 
+  it('stratifies newest sort by company ranking effect tier', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: { sortBy: 'extractedAt', sortOrder: 'desc' },
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Bad tier — newest resume overall, must still sort below neutral/good.
+      createResume(1, {
+        extractedAt: '2026-03-28T10:00:00.000Z',
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Neutral tier — oldest resume.
+      createResume(2, {
+        extractedAt: '2026-03-01T10:00:00.000Z',
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Good tier — middle recency, must sort above unknown and bad.
+      createResume(3, {
+        extractedAt: '2026-03-15T10:00:00.000Z',
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('newest')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-3',
+      'resume-2',
+      'resume-1',
+    ])
+    expect(result.current.filteredResults.map((item) => item.companyRankingEffect)).toEqual([
+      'band_known_good',
+      undefined,
+      'band_known_bad',
+    ])
+  })
+
+  it('stratifies experience sort by company ranking effect tier', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: { sortBy: 'experience', sortOrder: 'desc' },
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Bad tier — most experienced, must still sort below neutral/good.
+      createResume(1, {
+        experience: '20 years',
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Neutral tier — least experienced.
+      createResume(2, {
+        experience: '10 years',
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Good tier — middle experience, must sort above unknown and bad.
+      createResume(3, {
+        experience: '15 years',
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('experience')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-3',
+      'resume-2',
+      'resume-1',
+    ])
+  })
+
   it('derives raw and cluster tags, applies local filters, and sorts matching results', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',

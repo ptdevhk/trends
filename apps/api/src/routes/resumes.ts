@@ -65,9 +65,10 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import { logger } from "../services/logger.js";
-import { getAuthenticatedActorId, requireAdmin } from "../middleware/auth.js";
+import { getAuthenticatedActorId, getIndustryReviewAccessError, requireAdmin } from "../middleware/auth.js";
+import { ResumePolicyEnforcer } from "../services/resume-policy-enforcer.js";
 
-import { CURRENT_INGEST_COMPUTE_EPOCH, isRecord } from "@trends/shared";
+import { CURRENT_COMPANY_KEY_PROJECTION_EPOCH, CURRENT_INGEST_COMPUTE_EPOCH, isRecord } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import {
@@ -890,6 +891,72 @@ export function shouldTriggerSkillsReingest(observation: string): boolean {
   return normalized.startsWith("synonym_suggestion:") || normalized.startsWith("domain_expansion:");
 }
 
+// ---------------------------------------------------------------------------
+// T3: durable company-key projection recompute (report-only drain trigger)
+// ---------------------------------------------------------------------------
+
+export type TriggerProjectionResult = {
+  scheduled: number;
+  batches: number;
+  currentEpoch: number;
+  hasMore: boolean;
+  cursor: string | null;
+  dryRun: boolean;
+  scannedRows: number;
+  staleCount: number;
+};
+
+export type TriggerProjectionOptions = {
+  limit?: number;
+  cursor?: string;
+  dryRun?: boolean;
+};
+
+export const PROJECTION_ACTION_FALLBACK_HINT =
+  "Company-key projection recompute unavailable; retry the dry-run scan when the backend recovers";
+
+export async function triggerRecomputeCompanyKeyProjections(
+  limitOrOptions: number | TriggerProjectionOptions = 200,
+): Promise<TriggerProjectionResult> {
+  const options: TriggerProjectionOptions =
+    typeof limitOrOptions === "number" ? { limit: limitOrOptions } : limitOrOptions;
+  const limit = options.limit ?? 200;
+  const cursor = options.cursor;
+  const dryRun = options.dryRun === true;
+
+  let value: unknown;
+  try {
+    value = await callConvexAction("migrations:recomputeCompanyKeyProjections", {
+      limit,
+      cursor,
+      dryRun,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message} — ${PROJECTION_ACTION_FALLBACK_HINT}`);
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`Invalid projection recompute response from Convex — ${PROJECTION_ACTION_FALLBACK_HINT}`);
+  }
+
+  const result = value;
+
+  return {
+    scheduled: typeof result.scheduled === "number" ? result.scheduled : 0,
+    batches: typeof result.batches === "number" ? result.batches : 0,
+    currentEpoch:
+      typeof result.currentEpoch === "number"
+        ? result.currentEpoch
+        : CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+    hasMore: result.hasMore === true,
+    cursor: typeof result.cursor === "string" && result.cursor.length > 0 ? result.cursor : null,
+    dryRun: result.dryRun === true || dryRun,
+    scannedRows: typeof result.scannedRows === "number" ? result.scannedRows : 0,
+    staleCount: typeof result.staleCount === "number" ? result.staleCount : 0,
+  };
+}
+
 function mapStoredMatchRun(run: StoredMatchRun): {
   id: string;
   sessionId?: string;
@@ -1123,7 +1190,13 @@ async function getConvexResumeDetail(resumeId: string): Promise<ResumeItem | nul
 
   const content = isRecord(value.content) ? value.content : {};
   const source = toStringValue(value.source) || undefined;
-  const resume = toResumeItemFromRecord(content, source);
+  const resume = toResumeItemFromRecord({
+    ...content,
+    ...(typeof value.sourceKey === "string" ? { sourceKey: value.sourceKey } : {}),
+    ...(typeof value.identityKey === "string" ? { identityKey: value.identityKey } : {}),
+    ...(typeof value.externalId === "string" ? { externalId: value.externalId } : {}),
+    ...(typeof value.resumeId === "string" ? { resumeId: value.resumeId } : {}),
+  }, source);
   if (typeof value.searchText === "string") {
     resume.searchText = value.searchText;
   }
@@ -1149,6 +1222,7 @@ const getResumeDetailRoute = createRoute({
     query: ResumesQuerySchema.pick({
       sample: true,
       source: true,
+      includeHidden: true,
     }),
   },
   responses: {
@@ -1173,7 +1247,7 @@ const getResumeDetailRoute = createRoute({
 
 app.openapi(getResumeDetailRoute, async (c) => {
   const resumeId = c.req.param("resumeId").trim();
-  const { sample, source } = c.req.valid("query");
+  const { sample, source, includeHidden } = c.req.valid("query");
   const sampleName = sample?.trim() || undefined;
 
   if (source === "convex") {
@@ -1183,6 +1257,18 @@ app.openapi(getResumeDetailRoute, async (c) => {
         success: false as const,
         error: `Resume not found: ${resumeId}`,
       }, 404);
+    }
+
+    const canReadHidden = includeHidden === true && getIndustryReviewAccessError(c) === null;
+    if (!canReadHidden) {
+      const workspaceSlug = c.var.workspaceSlug ?? "dev";
+      const policyEnforcer = await ResumePolicyEnforcer.load(workspaceSlug);
+      if (policyEnforcer.evaluate(resume).hidden) {
+        return c.json({
+          success: false as const,
+          error: `Resume not found: ${resumeId}`,
+        }, 404);
+      }
     }
 
     return c.json({

@@ -477,7 +477,21 @@ export const getEffectivePolicy = query({
     }
 
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+    const marketScopeId = args.market?.toLowerCase();
     const layers = [
+      ...(marketScopeId
+        ? [
+            {
+              scopeType: "market" as const,
+              scopeId: marketScopeId,
+              revision: await latestPolicyRevision(ctx, {
+                scopeType: "market",
+                scopeId: marketScopeId,
+                companyKey,
+              }),
+            },
+          ]
+        : []),
       {
         scopeType: "workspace" as const,
         scopeId: workspaceSlug,
@@ -487,31 +501,10 @@ export const getEffectivePolicy = query({
           companyKey,
         }),
       },
-      ...(args.market
-        ? [
-            {
-              scopeType: "market" as const,
-              scopeId: args.market,
-              revision: await latestPolicyRevision(ctx, {
-                scopeType: "market",
-                scopeId: args.market,
-                companyKey,
-              }),
-            },
-          ]
-        : []),
-      {
-        scopeType: "global" as const,
-        scopeId: "global",
-        revision: await latestPolicyRevision(ctx, {
-          scopeType: "global",
-          scopeId: "global",
-          companyKey,
-        }),
-      },
     ];
 
-    const rank = { workspace: 3, market: 2, global: 1 } as const;
+    // Market beats workspace; global rows are not a resolution tier.
+    const rank = { market: 2, workspace: 1 } as const;
     const present = layers
       .filter((layer) => layer.revision != null)
       .sort((left, right) => rank[right.scopeType] - rank[left.scopeType]);

@@ -9,7 +9,7 @@ import {
 } from '@trends/shared'
 import { PageHeader } from '@/components/PageHeader'
 import { BlacklistPage } from '@/pages/BlacklistPage'
-import { useCompanyPolicies, type CompanyItem } from '@/hooks/useCompanyPolicies'
+import { useCompanyPolicies, type CompanyItem, type PolicyScope } from '@/hooks/useCompanyPolicies'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +31,26 @@ function presetLabel(preset: CompanyPolicyPreset, t: (key: string, options?: Rec
   }
 }
 
+function scopeLabel(scope: PolicyScope, t: (key: string, options?: Record<string, unknown>) => string) {
+  switch (scope) {
+    case 'cn':
+      return t('settings.policies.scope.cn', { defaultValue: 'CN' })
+    case 'my':
+      return t('settings.policies.scope.my', { defaultValue: 'MY' })
+    case 'workspace':
+      return t('settings.policies.scope.workspace', { defaultValue: 'Workspace' })
+  }
+}
+
+function scopeDisplayName(scope: PolicyScope, t: (key: string, options?: Record<string, unknown>) => string) {
+  return scope === 'workspace'
+    ? t('settings.policies.columns.policy', { defaultValue: 'Workspace policy' })
+    : t('settings.policies.columns.policyMarket', {
+        defaultValue: '{{scope}} market policy',
+        scope: scopeLabel(scope, t),
+      })
+}
+
 function CompaniesTab() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
@@ -38,6 +58,7 @@ function CompaniesTab() {
   const {
     companies,
     policies,
+    marketPolicies,
     loading,
     error,
     seedCanonical,
@@ -47,6 +68,7 @@ function CompaniesTab() {
     setCompanyArchived,
   } = useCompanyPolicies(true)
 
+  const [policyScope, setPolicyScope] = useState<PolicyScope>('workspace')
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [seeding, setSeeding] = useState(false)
@@ -57,10 +79,20 @@ function CompaniesTab() {
   const [newNameEn, setNewNameEn] = useState('')
   const [aliasDrafts, setAliasDrafts] = useState<Record<string, string>>({})
 
+  const scopePolicies = useMemo(() => {
+    if (policyScope === 'cn') {
+      return marketPolicies.cn
+    }
+    if (policyScope === 'my') {
+      return marketPolicies.my
+    }
+    return policies
+  }, [marketPolicies, policies, policyScope])
+
   const policyByCompany = useMemo(() => {
-    const map = new Map(policies.map((item) => [item.companyKey, item]))
+    const map = new Map(scopePolicies.map((item) => [item.companyKey, item]))
     return map
-  }, [policies])
+  }, [scopePolicies])
 
   const filteredCompanies = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -131,7 +163,7 @@ function CompaniesTab() {
 
   const handlePreset = async (companyKey: string, preset: CompanyPolicyPreset) => {
     setSavingKey(companyKey)
-    const ok = await setPolicyPreset(companyKey, preset)
+    const ok = await setPolicyPreset(companyKey, preset, undefined, policyScope)
     setSavingKey(null)
     if (!ok) {
       toast.error(t('settings.policies.toasts.policyFailed', { defaultValue: 'Failed to update policy' }))
@@ -190,13 +222,33 @@ function CompaniesTab() {
             <div>
               <CardTitle>{t('settings.policies.companiesTitle', { defaultValue: 'Company registry & policy' })}</CardTitle>
               <CardDescription>
-                {t('settings.policies.companiesDescription', {
-                  defaultValue:
-                    'Manage known-good and no-hire companies for this workspace. Policy does not change AI score; search enforcement comes later.',
-                })}
+                {policyScope === 'workspace'
+                  ? t('settings.policies.companiesDescription', {
+                      defaultValue:
+                        'Manage known-good and no-hire companies for this workspace. Policy does not change AI score; search enforcement comes later.',
+                    })
+                  : t('settings.policies.companiesDescriptionMarket', {
+                      defaultValue:
+                        '{{scope}} market policy beats the workspace policy for resumes sourced from this market. Policy does not change AI score.',
+                      scope: scopeLabel(policyScope, t),
+                    })}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1 rounded-md border p-0.5" role="group" aria-label={t('settings.policies.scopeLabel', { defaultValue: 'Policy scope' })}>
+                {(['workspace', 'cn', 'my'] as PolicyScope[]).map((scope) => (
+                  <Button
+                    key={scope}
+                    type="button"
+                    size="sm"
+                    variant={policyScope === scope ? 'default' : 'ghost'}
+                    onClick={() => setPolicyScope(scope)}
+                    data-testid={`policy-scope-${scope}`}
+                  >
+                    {scopeLabel(scope, t)}
+                  </Button>
+                ))}
+              </div>
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -241,9 +293,14 @@ function CompaniesTab() {
           {!loading && error ? <div className="text-sm text-destructive">{error}</div> : null}
           {!loading && !error && filteredCompanies.length === 0 ? (
             <div className="text-sm text-muted-foreground">
-              {t('settings.policies.empty', {
-                defaultValue: 'No companies yet. Seed canonical companies or add one below.',
-              })}
+              {policyScope === 'workspace'
+                ? t('settings.policies.empty', {
+                    defaultValue: 'No companies yet. Seed canonical companies or add one below.',
+                  })
+                : t('settings.policies.emptyMarket', {
+                    defaultValue: 'No {{scope}} market policy yet. Set one to override the workspace policy for this market.',
+                    scope: scopeLabel(policyScope, t),
+                  })}
             </div>
           ) : null}
 
@@ -253,7 +310,7 @@ function CompaniesTab() {
                 <TableRow>
                   <TableHead>{t('settings.policies.columns.company', { defaultValue: 'Company' })}</TableHead>
                   <TableHead>{t('settings.policies.columns.aliases', { defaultValue: 'Aliases' })}</TableHead>
-                  <TableHead>{t('settings.policies.columns.policy', { defaultValue: 'Workspace policy' })}</TableHead>
+                  <TableHead>{scopeDisplayName(policyScope, t)}</TableHead>
                   <TableHead className="text-right">
                     {t('settings.policies.columns.actions', { defaultValue: 'Actions' })}
                   </TableHead>
@@ -348,9 +405,16 @@ function CompaniesTab() {
                               rev {policy.revision}
                               {policy.effects?.rankingEffect ? ` · ${policy.effects.rankingEffect}` : ''}
                             </div>
-                          ) : (
+                          ) : policyScope === 'workspace' ? (
                             <div className="text-xs text-muted-foreground">
                               {t('settings.policies.noPolicy', { defaultValue: 'No workspace policy yet' })}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              {t('settings.policies.noPolicyMarket', {
+                                defaultValue: 'No {{scope}} market policy yet',
+                                scope: scopeLabel(policyScope, t),
+                              })}
                             </div>
                           )}
                         </div>

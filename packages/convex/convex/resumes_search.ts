@@ -1286,6 +1286,7 @@ export const getResumeDocsByIds = query({
                 searchText: doc.searchText,
                 isArchived: doc.isArchived,
                 source: doc.source,
+                sourceKey: doc.sourceKey,
                 primaryRuleScore: doc.primaryRuleScore,
                 age: doc.age,
                 content: doc.content,

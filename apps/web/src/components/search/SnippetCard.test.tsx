@@ -35,7 +35,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   useCompanyPolicyIndex: () => ({
-    aliasIndex: new Map(),
+    aliasIndexByMarket: { cn: new Map(), my: new Map() },
     loading: false,
     error: null,
     load: vi.fn(),

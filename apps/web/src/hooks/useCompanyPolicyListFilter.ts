@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { CandidatePolicyOverride } from '@trends/shared'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import {
   filterItemsByCompanyPolicyHide,
@@ -12,13 +13,14 @@ import {
 export function useCompanyPolicyListFilter<T>(
   items: T[],
   resolveResume: (item: T) => ResumeEmployerInput,
+  overrides?: CandidatePolicyOverride[] | undefined,
 ) {
   const { matchResume } = useCompanyPolicyIndex(true)
   const [showHidden, setShowHidden] = useState(false)
 
   const { visible, hiddenCount } = useMemo(
-    () => filterItemsByCompanyPolicyHide(items, resolveResume, matchResume, showHidden),
-    [items, matchResume, resolveResume, showHidden],
+    () => filterItemsByCompanyPolicyHide(items, resolveResume, matchResume, showHidden, overrides),
+    [items, matchResume, resolveResume, showHidden, overrides],
   )
 
   return {

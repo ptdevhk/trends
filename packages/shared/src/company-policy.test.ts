@@ -15,6 +15,7 @@ import {
   policyEffectsFromPreset,
   resolveCompanyAlias,
   resolveMostSpecificPolicy,
+  resolvePolicyEffectsForCompanies,
 } from "./company-policy.js";
 
 describe("company-policy helpers", () => {
@@ -45,7 +46,21 @@ describe("company-policy helpers", () => {
     expect(inferPolicyPreset(null)).toBe("none");
   });
 
-  it("resolves most-specific scope wins", () => {
+  it("resolves most-specific scope: market beats workspace", () => {
+    const effective = resolveMostSpecificPolicy([
+      {
+        scopeType: "market",
+        effects: { rankingEffect: "none" },
+      },
+      {
+        scopeType: "workspace",
+        effects: { rankingEffect: "band_known_good" },
+      },
+    ]);
+    expect(effective?.rankingEffect).toBe("none");
+  });
+
+  it("resolves most-specific scope: ignores global layers (no global tier)", () => {
     const effective = resolveMostSpecificPolicy([
       {
         scopeType: "global",
@@ -55,12 +70,62 @@ describe("company-policy helpers", () => {
         scopeType: "workspace",
         effects: { rankingEffect: "band_known_good" },
       },
-      {
-        scopeType: "market",
-        effects: { rankingEffect: "none" },
-      },
     ]);
     expect(effective?.rankingEffect).toBe("band_known_good");
+  });
+
+  it("resolves most-specific scope: explicit market none overrides workspace no-hire", () => {
+    const effective = resolveMostSpecificPolicy([
+      {
+        scopeType: "market",
+        effects: policyEffectsFromPreset("none"),
+      },
+      {
+        scopeType: "workspace",
+        effects: policyEffectsFromPreset("no_hire"),
+      },
+    ]);
+    expect(effective?.visibility).toBe("default");
+    expect(effective?.workflow).toBe("default");
+  });
+
+  it("resolves most-specific scope: null effects are absent from competition", () => {
+    const effective = resolveMostSpecificPolicy([
+      {
+        scopeType: "market",
+        effects: null,
+      },
+      {
+        scopeType: "workspace",
+        effects: policyEffectsFromPreset("no_hire"),
+      },
+    ]);
+    expect(effective?.visibility).toBe("hide");
+  });
+
+  it("resolves per-company effects: market map wins per company, workspace is fallback", () => {
+    const merged = resolvePolicyEffectsForCompanies([
+      {
+        scopeType: "market",
+        effectsByCompanyKey: new Map([
+          ["polywell", policyEffectsFromPreset("none")],
+        ]),
+      },
+      {
+        scopeType: "workspace",
+        effectsByCompanyKey: new Map([
+          ["pro-technic-machinery", policyEffectsFromPreset("no_hire")],
+          ["polywell", policyEffectsFromPreset("no_hire")],
+        ]),
+      },
+    ]);
+    expect(merged.get("pro-technic-machinery")?.visibility).toBe("hide");
+    // Market "none" neutralizes the workspace no-hire for polywell.
+    expect(merged.get("polywell")?.visibility).toBe("default");
+  });
+
+  it("resolves per-company effects: empty layers yield an empty map", () => {
+    expect(resolvePolicyEffectsForCompanies([]).size).toBe(0);
   });
 
   it("matches resume employers to workspace policy without needing score changes", () => {

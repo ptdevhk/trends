@@ -913,13 +913,30 @@ describe("resumes_diagnostics", () => {
       delete process.env.BFF_API_URL;
       delete process.env.API_URL;
 
-      let actionCalls = 0;
-      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      let reingestCalls = 0;
+      let projectionCalls = 0;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
         if (url.endsWith("/api/action")) {
-          actionCalls += 1;
-          if (actionCalls < 3) {
+          const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+            path: string;
+          };
+          if (body.path === "migrations:recomputeCompanyKeyProjections") {
+            projectionCalls += 1;
+            return convexSuccess({
+              scheduled: 0,
+              batches: 0,
+              currentEpoch: 1,
+              hasMore: false,
+              cursor: null,
+              dryRun: true,
+              scannedRows: 0,
+              staleCount: 0,
+            });
+          }
+          reingestCalls += 1;
+          if (reingestCalls < 3) {
             return new Response("server error", { status: 500 });
           }
           return convexSuccess({
@@ -962,8 +979,11 @@ describe("resumes_diagnostics", () => {
 
       // The lag scan must retry transient 5xx Convex responses (connection
       // resets under load) instead of failing the scan on the first error.
+      // The report-only projection dry-run must not be affected by the retry
+      // count and must succeed immediately.
       expect(response.status).toBe(200);
-      expect(actionCalls).toBe(3);
+      expect(reingestCalls).toBe(3);
+      expect(projectionCalls).toBe(1);
       const payload = await parseJsonBody<{ lagScanFailed?: boolean }>(response);
       expect(payload.lagScanFailed).toBe(false);
     });
@@ -1072,6 +1092,18 @@ describe("resumes_diagnostics", () => {
             path: string;
             args: Record<string, unknown>;
           };
+          if (body.path === "migrations:recomputeCompanyKeyProjections") {
+            return convexSuccess({
+              scheduled: 0,
+              batches: 0,
+              currentEpoch: 1,
+              hasMore: false,
+              cursor: null,
+              dryRun: true,
+              scannedRows: 0,
+              staleCount: 0,
+            });
+          }
           expect(body.path).toBe("migrations:reIngestStaleSkillsVersion");
           return convexSuccess({
             scheduled: 0,
