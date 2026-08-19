@@ -414,6 +414,14 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     requiresAdmin: true,
   },
   {
+    id: "unresolved-queue",
+    titleKey: "debugConfig.settingsNavUnresolvedQueue",
+    defaultTitle: "Unresolved queue",
+    hrefSuffix: "/system/settings/unresolved-queue",
+    matchesSuffixes: ["/system/settings/unresolved-queue"],
+    requiresAdmin: true,
+  },
+  {
     id: "export-fields",
     titleKey: "debugConfig.settingsNavExportFields",
     defaultTitle: "Export Fields",

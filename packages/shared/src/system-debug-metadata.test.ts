@@ -160,6 +160,14 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     })
   })
 
+  it('marks the unresolved employer queue as an admin system setting', () => {
+    const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'unresolved-queue')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/unresolved-queue',
+      requiresAdmin: true,
+    })
+  })
+
   it('marks workspace snapshot transfer as an admin system setting', () => {
     const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'workspace')
     expect(item).toMatchObject({

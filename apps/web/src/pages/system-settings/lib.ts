@@ -150,6 +150,7 @@ export type SystemSettingsSubpageId =
   | 'taxonomy'
   | 'industry-verification'
   | 'industry-data'
+  | 'unresolved-queue'
   | 'locations'
   | 'export-fields'
   | 'workspace'
@@ -200,6 +201,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   'industry-data': {
     descriptionKey: 'debugConfig.industryDataPageDescription',
     defaultDescription: 'Central management of CN industry data, maintenance controls, and evidence audit.',
+  },
+  'unresolved-queue': {
+    descriptionKey: 'debugConfig.unresolvedQueuePageDescription',
+    defaultDescription: 'Review employer names that failed to resolve during capture and link or ignore them.',
   },
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',

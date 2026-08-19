@@ -134,6 +134,11 @@ const LazySystemSettingsIndustryDataPage = lazy(async () => {
   return { default: module.SystemSettingsIndustryDataPage }
 })
 
+const LazySystemSettingsUnresolvedQueuePage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsUnresolvedQueuePage')
+  return { default: module.SystemSettingsUnresolvedQueuePage }
+})
+
 const LazySystemSettingsIndustryAuditPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsIndustryAuditPage')
   return { default: module.default }
@@ -614,6 +619,14 @@ function App() {
                   )}
                 />
                 <Route
+                  path="unresolved-queue"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsUnresolvedQueuePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
                   path="export-fields"
                   element={(
                     <RouteSuspense>
@@ -740,6 +753,18 @@ function App() {
                     <MainShell>
                       <RouteSuspense>
                         <LazySystemSettingsIndustryDataPage />
+                      </RouteSuspense>
+                    </MainShell>
+                  </WorkspaceIndustryOpsGate>
+                )}
+              />
+              <Route
+                path="settings/unresolved-queue"
+                element={(
+                  <WorkspaceIndustryOpsGate>
+                    <MainShell>
+                      <RouteSuspense>
+                        <LazySystemSettingsUnresolvedQueuePage />
                       </RouteSuspense>
                     </MainShell>
                   </WorkspaceIndustryOpsGate>
