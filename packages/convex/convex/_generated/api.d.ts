@@ -19,6 +19,7 @@ import type * as candidate_blocks from "../candidate_blocks.js";
 import type * as candidate_policy_overrides from "../candidate_policy_overrides.js";
 import type * as candidate_status from "../candidate_status.js";
 import type * as companies from "../companies.js";
+import type * as company_key_projection from "../company_key_projection.js";
 import type * as company_registry from "../company_registry.js";
 import type * as company_resume_links from "../company_resume_links.js";
 import type * as crons from "../crons.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   candidate_policy_overrides: typeof candidate_policy_overrides;
   candidate_status: typeof candidate_status;
   companies: typeof companies;
+  company_key_projection: typeof company_key_projection;
   company_registry: typeof company_registry;
   company_resume_links: typeof company_resume_links;
   crons: typeof crons;

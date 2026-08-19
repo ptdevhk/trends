@@ -86,6 +86,15 @@ export const verifiedIndustryEvidenceSummaryValidator = v.object({
 
 // --- ingestData (resumes table) ---
 
+// T3: durable company-key projection snapshot (work-history based). Stamped
+// on the resume doc by the write path and the recompute drain; read by
+// advisor paths instead of recomputing on the fly.
+export const companyKeyProjectionValidator = v.object({
+    epoch: v.number(),
+    companyKeys: v.array(v.string()),
+    companyTokens: v.array(v.string()),
+});
+
 export const ingestDataValidator = v.object({
     market: v.optional(v.string()),
     evidenceText: v.optional(v.string()),

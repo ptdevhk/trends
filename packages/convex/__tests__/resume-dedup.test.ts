@@ -207,6 +207,47 @@ describe("resume_dedup: scoreMergePair", () => {
         expect(disjoint.score).toBe(0);
         expect(disjoint.evidence).toEqual([]);
     });
+
+    it("reads company tokens from the durable projection snapshot first", () => {
+        // Left has no company names in content — only the snapshot carries them.
+        const left = {
+            content: { name: "Alice Chen" },
+            contactSignals: { email: "alice@example.com" },
+            companyKeyProjection: {
+                epoch: 1,
+                companyKeys: ["acme-cnc"],
+                companyTokens: ["acme", "technology"],
+            },
+        };
+        const right = {
+            content: {
+                name: "alice chen",
+                workHistory: [{ companyName: "Acme Technology" }],
+            },
+            contactSignals: { email: "alice@example.com" },
+        };
+        const { score, evidence } = scoreMergePair(left, right);
+        expect(score).toBe(4.5);
+        expect(evidence).toEqual(expect.arrayContaining([
+            "shared email: alice@example.com",
+            "shared name: Alice Chen",
+            "shared company tokens: acme, technology",
+        ]));
+    });
+
+    it("falls back to content-derived tokens when no snapshot exists", () => {
+        const left = {
+            content: { name: "Alice Chen", workHistory: [{ companyName: "ACME Technology" }] },
+            contactSignals: { phone: "13812345678" },
+        };
+        const right = {
+            content: { name: "alice chen", workHistory: [{ companyName: "Acme Technology" }] },
+            contactSignals: { phone: "13812345678" },
+        };
+        const { score, evidence } = scoreMergePair(left, right);
+        expect(score).toBe(4.5);
+        expect(evidence).toEqual(expect.arrayContaining(["shared company tokens: acme, technology"]));
+    });
 });
 
 // ---------------------------------------------------------------------------

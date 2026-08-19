@@ -163,6 +163,54 @@ export function shouldSelectForReingest(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Company-key projection epoch (T3) — a SEPARATE counter from the ingest
+// compute epoch. Bumping this registry must never flip isComputeStale /
+// shouldSelectForReingest: the projection is a cheap durable snapshot for
+// advisor reads (dedup/identity), not computed ingest data.
+// ---------------------------------------------------------------------------
+
+export type CompanyKeyProjectionFields = {
+  /** Projection epoch this snapshot was built against. */
+  epoch?: number | null;
+};
+
+/**
+ * Registry of company-key projection epoch bumps (newest last). Do not
+ * renumber historical rows — only append.
+ */
+export const COMPANY_KEY_PROJECTION_EPOCH_HISTORY: readonly IngestComputeEpochReason[] = [
+  {
+    epoch: 1,
+    reason:
+      "Baseline: durable companyKey/company-token snapshot stamped on resume docs for advisor reads",
+    introduced: "2026-08-19",
+  },
+] as const;
+
+/** Code-required projection epoch stamped on every successful projection write. */
+export const CURRENT_COMPANY_KEY_PROJECTION_EPOCH: number =
+  COMPANY_KEY_PROJECTION_EPOCH_HISTORY[COMPANY_KEY_PROJECTION_EPOCH_HISTORY.length - 1]!.epoch;
+
+/**
+ * True when the stored company-key projection is missing or behind the
+ * required projection epoch. Future epochs (rolled-back code) stay fresh
+ * until the registry catches up.
+ */
+export function isCompanyKeyProjectionStale(
+  projection: CompanyKeyProjectionFields | null | undefined,
+  currentEpoch: number = CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+): boolean {
+  if (!projection) {
+    return true;
+  }
+  const epoch = projection.epoch;
+  if (typeof epoch !== "number" || !Number.isFinite(epoch)) {
+    return true;
+  }
+  return epoch < currentEpoch;
+}
+
 /**
  * Golden search floors for search-data doctor (live API when reachable).
  *

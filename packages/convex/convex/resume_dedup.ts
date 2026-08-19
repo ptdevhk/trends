@@ -60,7 +60,24 @@ export type MergePairScore = {
     evidence: string[];
 };
 
-type ScoreableResume = Pick<Doc<"resumes">, "contactSignals" | "content">;
+type ScoreableResume = Pick<
+    Doc<"resumes">,
+    "contactSignals" | "content" | "companyKeyProjection"
+>;
+
+/**
+ * T3: snapshot-first company tokens. Advisor paths read the durable
+ * projection stamped by the ingest write path / recompute drain; docs
+ * without a snapshot (or with an empty token list) fall back to deriving
+ * tokens from content on the fly.
+ */
+function companyTokensFrom(resume: ScoreableResume): Set<string> {
+    const snapshot = resume.companyKeyProjection;
+    if (snapshot?.companyTokens && snapshot.companyTokens.length > 0) {
+        return new Set(snapshot.companyTokens);
+    }
+    return companyNameTokens(collectResumeCompanyNames(resume.content));
+}
 
 function sharedValues(left: string[], right: string[]): string[] {
     return left.filter((value) => right.includes(value));
@@ -95,8 +112,8 @@ export function scoreMergePair(
         evidence.push(`shared name: ${leftName}`);
     }
 
-    const leftCompanyTokens = companyNameTokens(collectResumeCompanyNames(left.content));
-    const rightCompanyTokens = companyNameTokens(collectResumeCompanyNames(right.content));
+    const leftCompanyTokens = companyTokensFrom(left);
+    const rightCompanyTokens = companyTokensFrom(right);
     const sharedCompanyTokens = Array.from(leftCompanyTokens).filter((token) => rightCompanyTokens.has(token));
     if (sharedCompanyTokens.length > 0) {
         score += 1;

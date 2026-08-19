@@ -1,4 +1,4 @@
-import { isRecord } from "@trends/shared";
+import { CURRENT_COMPANY_KEY_PROJECTION_EPOCH, isRecord } from "@trends/shared";
 
 export type ResumeIdentitySource = "profileUrl" | "resumeId" | "perUserId" | "externalId";
 
@@ -749,4 +749,42 @@ export function companyNameTokens(names: string[]): Set<string> {
         }
     }
     return tokens;
+}
+
+export type CompanyKeyProjection = {
+    epoch: number;
+    companyKeys: string[];
+    companyTokens: string[];
+};
+
+/**
+ * T3: durable company-key projection snapshot for a resume's content.
+ *
+ * Keys come from the first-non-null work-history list (same precedence as
+ * the identity extractors); tokens come from the full company-name surface
+ * (work history + top-level company name). Order-preserving, deduped.
+ * Non-object content yields an empty snapshot at the current epoch.
+ */
+export function computeCompanyKeyProjection(
+    content: unknown,
+    epoch: number = CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+): CompanyKeyProjection {
+    if (!isRecord(content)) {
+        return { epoch, companyKeys: [], companyTokens: [] };
+    }
+    const keys: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of normalizeEntryList(content[WORK_HISTORY_KEYS[0]] ?? content[WORK_HISTORY_KEYS[1]] ?? content[WORK_HISTORY_KEYS[2]])) {
+        const companyKey = readCandidate(entry, ["companyKey"]);
+        if (!companyKey || seen.has(companyKey)) {
+            continue;
+        }
+        seen.add(companyKey);
+        keys.push(companyKey);
+    }
+    return {
+        epoch,
+        companyKeys: keys,
+        companyTokens: Array.from(companyNameTokens(collectResumeCompanyNames(content))),
+    };
 }

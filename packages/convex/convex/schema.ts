@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+    companyKeyProjectionValidator,
     ingestDataValidator,
     collectionTaskResultsValidator,
     resumeFiltersValidator,
@@ -108,6 +109,11 @@ export default defineSchema({
 
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(ingestDataValidator),
+
+        // T3: durable company-key projection snapshot (epoch + keys + tokens).
+        // Stamped by the ingest write path and the recompute drain
+        // (company_key_projection:recomputeCompanyKeyProjections).
+        companyKeyProjection: v.optional(companyKeyProjectionValidator),
 
         // Link to vector embedding for semantic search
         embeddingId: v.optional(v.id("resume_embeddings")),
