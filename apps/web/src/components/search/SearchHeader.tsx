@@ -54,7 +54,7 @@ export function SearchHeader({
   onSortChange,
 }: SearchHeaderProps) {
   const { t } = useTranslation()
-  const resultCountLabel = `${activeResultCount.toLocaleString()}${activeResultCountIsLowerBound ? '+' : ''}`
+  const resultCountLabel = `${activeResultCount.toLocaleString()}${activeResultCount > 0 && activeResultCountIsLowerBound ? '+' : ''}`
   const processedStatusCount = statusSummary
     ? Math.max(0, statusSummary.total - statusSummary.new)
     : 0

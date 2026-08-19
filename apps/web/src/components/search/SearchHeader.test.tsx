@@ -159,6 +159,28 @@ describe('SearchHeader', () => {
     expect(screen.getAllByText('为"machine tools"找到 1,250+ 条结果')[0]).toBeInTheDocument()
   })
 
+  it('does not append a plus to a zero lower-bound count', () => {
+    render(
+      <SearchHeader
+        activeQuery="machine tools"
+        activeResultCount={0}
+        activeResultCountIsLowerBound
+        queryInput="machine tools"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByText('为"machine tools"找到 0 条结果')[0]).toBeInTheDocument()
+    expect(screen.queryByText('为"machine tools"找到 0+ 条结果')).not.toBeInTheDocument()
+  })
+
   it('counts all non-new candidate statuses as processed in the summary badges', () => {
     render(
       <SearchHeader
