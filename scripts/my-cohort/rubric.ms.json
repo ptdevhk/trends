@@ -1,0 +1,79 @@
+{
+  "schema": "my-cohort-rubric/1",
+  "language": "ms",
+  "title": "Kohort MY — Skala Penilaian Berasaskan Tingkah Laku (BARS)",
+  "description": "Rubrik lima mata untuk menilai kesesuaian calon dalam kohort Malaysia (MY). Setiap dimensi mempunyai penanda tingkah laku pada setiap tahap (1-5). Nilaikan setiap dimensi sebelum membentuk penilaian keseluruhan. Rujuk rater-kit.md untuk penentukuran Rangka Rujukan (FoR).",
+  "scale": {
+    "min": 1,
+    "max": 5,
+    "labels": {
+      "1": "Tidak Layak — ketidakpadanan teruk",
+      "2": "Sempadan — risiko tinggi",
+      "3": "Layak Asas — padanan sasaran",
+      "4": "Padanan Kuat",
+      "5": "Cemerlang"
+    }
+  },
+  "dimensions": [
+    {
+      "id": "hard_skills",
+      "name": "Kemahiran Keras & Kesesuaian Kompetensi Teknikal",
+      "description": "Padanan antara kemahiran teknikal yang ditunjukkan oleh calon dengan alat, proses, dan sistem yang digunakan dalam peranan sasaran.",
+      "anchors": {
+        "1": "Kemahiran tidak berkaitan atau tiada langsung bagi peranan sasaran; tiada bukti penggunaan mana-mana alat, proses, atau sistem yang diperlukan; tidak dapat melaksanakan tugas teras tanpa latihan menyeluruh.",
+        "2": "Terdapat beberapa kemahiran bersebelahan tetapi alat utama yang diperlukan tiada atau digunakan pada tahap asas sahaja; prestasi memerlukan tempoh peningkatan yang ketara dan risiko kerja semula adalah tinggi.",
+        "3": "Kemahiran teras yang diperlukan ada dengan 1-3 tahun penggunaan praktikal; dapat melaksanakan tugas standard peranan secara berdikari dengan penyeliaan biasa.",
+        "4": "Kemahiran teras dikuasai dan alat bersebelahan atau lanjutan turut digunakan; kemahiran terkini, digunakan berterusan merentas pelbagai projek, dan calon boleh melatih orang lain.",
+        "5": "Pakar yang diiktiraf: keluasan dan kedalaman melebihi keperluan peranan; kemahiran terkini dan boleh dipindah terus; terbukti meningkatkan keupayaan seluruh pasukan."
+      }
+    },
+    {
+      "id": "experience_depth",
+      "name": "Kedalaman Pengalaman & Kerelevanan Domain",
+      "description": "Kedalaman dan kerelevanan sejarah pekerjaan berbanding tanggungjawab teras peranan.",
+      "anchors": {
+        "1": "Tiada pengalaman kerja yang berkaitan; peranan tidak berkaitan dan calon tidak dapat menunjukkan satu pun tanggungjawab yang setara.",
+        "2": "1-2 tahun pengalaman yang sebahagiannya berkaitan; tanggungjawab hanya bertindih di bahagian tepi dan kebanyakan tugas adalah baharu bagi calon.",
+        "3": "3-5 tahun pengalaman yang berkaitan; calon telah menguruskan tanggungjawab teras dari awal hingga akhir dalam persekitaran yang setara.",
+        "4": "5-8 tahun pengalaman yang berkaitan dengan skop yang semakin meningkat; calon telah mengetuai projek atau inisiatif dalam domain dengan hasil yang boleh diukur.",
+        "5": "8+ tahun pengalaman mendalam yang berkaitan secara langsung termasuk kerja kompleks berisiko tinggi; calon diiktiraf dalam industri."
+      }
+    },
+    {
+      "id": "domain_context",
+      "name": "Konteks Domain",
+      "description": "Kebiasaan dengan konteks operasi: Kejuruteraan Ketepatan, FMCG, B2B SaaS, Zon Perindustrian Bebas Bayan Lepas, atau Lembah Klang.",
+      "anchors": {
+        "1": "Tiada pendedahan kepada mana-mana konteks yang disenaraikan; tidak dapat menjelaskan cara industri berfungsi atau kekangan yang dihadapinya.",
+        "2": "Pendedahan pinggiran sahaja (contohnya, sisi pembekal atau industri bersebelahan); memahami permukaan tetapi bukan realiti operasi.",
+        "3": "Pernah bekerja dalam sekurang-kurangnya satu konteks yang berkaitan; memahami kekangan utama seperti piawaian kualiti, margin, masa utama, dan pematuhan, serta boleh mengaplikasikannya.",
+        "4": "Pernah bekerja dalam pelbagai konteks yang berkaitan termasuk konteks keutamaan seperti FIZ Pulau Pinang atau Lembah Klang; fasih berbahasa industri.",
+        "5": "Kepakaran mendalam merentas pelbagai konteks; pernah mengemudi krisis atau transformasi khusus industri; mempunyai rangkaian dan rujukan dalam konteks keutamaan."
+      }
+    },
+    {
+      "id": "progression",
+      "name": "Kemajuan Kerjaya & Kestabilan",
+      "description": "Tempoh perkhidmatan, trajektori kenaikan pangkat, jurang pekerjaan, dan isyarat pertukaran kerja sepanjang sejarah kerjaya.",
+      "anchors": {
+        "1": "Corak tempoh perkhidmatan pendek di bawah enam bulan tanpa kemajuan; jurang yang tidak dapat dijelaskan; berulang kali meninggalkan pekerjaan tanpa kenaikan pangkat.",
+        "2": "Corak bercampur: beberapa tempoh pendek atau jurang enam bulan atau lebih yang tidak dapat dijelaskan; kemajuan mendatar atau tidak jelas.",
+        "3": "Tempoh perkhidmatan stabil dua tahun atau lebih setiap peranan secara purata dengan sekurang-kurangnya satu kenaikan pangkat atau peningkatan skop yang jelas.",
+        "4": "Pertumbuhan berterusan: tanggungjawab semakin meningkat merentas peranan, dua atau lebih kenaikan pangkat atau perubahan tahap, dan tiada jurang yang tidak dapat dijelaskan.",
+        "5": "Komitmen jangka panjang dengan kemajuan berulang dan mobiliti dalaman; trajektori meningkat secara konsisten, boleh disahkan, dan bebas daripada gangguan yang tidak dapat dijelaskan."
+      }
+    },
+    {
+      "id": "credentials",
+      "name": "Pendidikan, Pensijilan & Kelayakan",
+      "description": "Kelayakan formal dan sijil yang berkaitan dengan peranan, serta kelancaran dwibahasa dalam Bahasa Inggeris dan Bahasa Malaysia untuk tempat kerja.",
+      "anchors": {
+        "1": "Tiada kelayakan atau sijil yang berkaitan; kelancaran dalam Bahasa Inggeris mahupun Bahasa Malaysia tidak mencukupi untuk tempat kerja.",
+        "2": "Kelayakan asas (contohnya, SPM/STPM) dengan kerelevanan terhad, atau sijil berkaitan tanpa bukti penggunaan praktikal; lemah dalam satu bahasa kerja.",
+        "3": "Diploma atau ijazah yang berkaitan (contohnya, UTM, TAR UMT) atau pensijilan yang diiktiraf (PMP, CIDB, ACCA) dengan bukti penggunaan; kelancaran dwibahasa untuk kerja.",
+        "4": "Kelayakan kukuh serta satu atau dua pensijilan lanjutan atau yang dipetakan terus kepada peranan; kelancaran profesional penuh dalam Bahasa Inggeris dan Bahasa Malaysia.",
+        "5": "Kelayakan tahap tertinggi seperti pendaftaran profesional, ijazah lanjutan, atau pelbagai pensijilan dalam domain dengan kedudukan yang diiktiraf; dwibahasa sepenuhnya dan mampu berunding serta menggubal dokumen dalam kedua-dua bahasa."
+      }
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "schema": "my-cohort-rubric/1",
+  "language": "en",
+  "title": "MY Scoring Cohort — Behaviorally Anchored Rating Scale (BARS)",
+  "description": "Five-point rubric for rating candidate fit in the Malaysia (MY) cohort. Each dimension has behavioral anchors at every level (1-5). Rate every dimension before forming an overall rating. See rater-kit.md for Frame-of-Reference calibration.",
+  "scale": {
+    "min": 1,
+    "max": 5,
+    "labels": {
+      "1": "Unqualified — severe mismatch",
+      "2": "Marginal — high risk",
+      "3": "Baseline qualified — target match",
+      "4": "Strong match",
+      "5": "Exceptional"
+    }
+  },
+  "dimensions": [
+    {
+      "id": "hard_skills",
+      "name": "Hard Skills & Technical Competency Fit",
+      "description": "Match between the candidate's demonstrated technical skills and the tools, processes, and systems used in the target role.",
+      "anchors": {
+        "1": "Skills are unrelated or absent for the target role; no evidence of any required tool, process, or system; cannot perform core tasks without extensive training.",
+        "2": "Some adjacent skills are present but key required tools are missing or used only at a basic level; performance would require significant ramp-up and rework risk is high.",
+        "3": "Required core skills are present with 1-3 years of applied use; can perform the role's standard tasks independently with normal supervision.",
+        "4": "Core skills are mastered and adjacent or advanced tools are also in use; skills are recent, sustained across multiple projects, and the candidate can train others.",
+        "5": "Recognized expert: breadth and depth exceed the role; skills are current and directly transferable; demonstrably raises the capability of the whole team."
+      }
+    },
+    {
+      "id": "experience_depth",
+      "name": "Experience Depth & Domain Relevance",
+      "description": "Depth and relevance of the work history relative to the role's core responsibilities.",
+      "anchors": {
+        "1": "No relevant work experience; roles are unrelated and the candidate cannot point to a single comparable responsibility.",
+        "2": "1-2 years of partially relevant experience; responsibilities overlap only at the edges and most duties would be new to the candidate.",
+        "3": "3-5 years of relevant experience; the candidate has owned the core responsibilities end-to-end in a comparable setting.",
+        "4": "5-8 years of relevant experience with increasing scope; the candidate has led projects or initiatives in the domain with quantifiable outcomes.",
+        "5": "8+ years of deep, directly relevant experience including complex, high-stakes work; the candidate is recognized within the industry."
+      }
+    },
+    {
+      "id": "domain_context",
+      "name": "Domain Context",
+      "description": "Familiarity with the operating context: Precision Engineering, FMCG, B2B SaaS, Bayan Lepas Free Industrial Zone, or Klang Valley.",
+      "anchors": {
+        "1": "No exposure to any listed context; cannot articulate how the industry works or what its constraints are.",
+        "2": "Peripheral exposure only (e.g., supplier side or an adjacent industry); understands the surface but not the operational realities.",
+        "3": "Worked within at least one relevant context; understands key constraints such as quality standards, margins, lead times, and compliance, and can apply them.",
+        "4": "Worked in multiple relevant contexts including a priority one such as the Penang FIZ or Klang Valley; speaks the language of the industry fluently.",
+        "5": "Deep multi-context expertise; has navigated industry-specific crises or transformations; carries network and references inside the priority context."
+      }
+    },
+    {
+      "id": "progression",
+      "name": "Career Progression & Stability",
+      "description": "Tenure, promotion trajectory, employment gaps, and job-hopping signals across the career history.",
+      "anchors": {
+        "1": "Pattern of short tenures under six months with no progression; unexplained gaps; repeated departures without advancement.",
+        "2": "Mixed pattern: some short stints or a gap of six or more months that is unexplained; progression is flat or unclear.",
+        "3": "Stable tenure of two or more years per role on average with at least one clear promotion or scope increase.",
+        "4": "Sustained growth: increasing responsibility across roles, two or more promotions or step changes, and no unexplained gaps.",
+        "5": "Long-term commitment with repeated advancement and internal mobility; the trajectory is monotonic, verifiable, and free of unexplained interruptions."
+      }
+    },
+    {
+      "id": "credentials",
+      "name": "Education, Certifications & Credentials",
+      "description": "Formal qualifications and credentials relevant to the role, plus bilingual working fluency in English and Bahasa Malaysia.",
+      "anchors": {
+        "1": "No relevant qualification or credential; fluency in neither English nor Bahasa Malaysia is sufficient for the workplace.",
+        "2": "Basic qualification (e.g., SPM/STPM) with limited relevance, or a relevant certificate with no evidence of applied use; weak in one working language.",
+        "3": "Relevant diploma or degree (e.g., UTM, TAR UMT) or a recognized certification (PMP, CIDB, ACCA) with evidence of use; bilingual working fluency.",
+        "4": "Strong qualification plus one or two advanced or directly role-mapped certifications; full professional fluency in both English and Bahasa Malaysia.",
+        "5": "Highest-tier credentials such as professional registration, advanced degrees, or multiple in-domain certifications with recognized standing; fully bilingual and able to negotiate and draft in both languages."
+      }
+    }
+  ]
+}
