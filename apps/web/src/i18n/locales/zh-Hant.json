@@ -1677,6 +1677,7 @@
     "queueEmpty": "沒有可供審查的提案。",
     "queueFilters": "佇列篩選",
     "queueLoadFailed": "載入產業證據提案佇列失敗",
+    "queueSkippedBanner": "本次佇列已跳過 {{count}} 筆格式異常的提案",
     "queueStatus": "佇列狀態",
     "recomputeFailed": "更新指定重新計算失敗",
     "recomputeStatus": "指定重新計算",

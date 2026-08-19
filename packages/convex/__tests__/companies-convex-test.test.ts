@@ -431,6 +431,71 @@ describe("companies (convex-test)", () => {
     expect(proposals[0]?.sampleReferences).toHaveLength(2);
   });
 
+  it("rejects upserts with an unknown industry proposal trigger reason", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await expect(
+      t.mutation(api.companies.upsertIndustryProposal, {
+        proposalId: "proposal-acme-unknown-reason",
+        companyKey: "acme-cnc",
+        triggerReasons: ["keyword_only_cnc"],
+        priority: 40,
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(
+      /Unknown industry proposal trigger reason: keyword_only_cnc/,
+    );
+  });
+
+  it("self-heals legacy trigger reasons on upsert merge", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    // Legacy row predating the reason allowlist, carrying a junk reason.
+    await t.run(async (ctx) =>
+      ctx.db.insert("company_industry_review_proposals", {
+        proposalId: "proposal-acme-legacy-reasons",
+        companyKey: "acme-cnc",
+        triggerReasons: ["manual", "keyword_only_cnc"],
+        priority: 40,
+        status: "ready_for_review",
+        requestedBy: "legacy-import",
+        createdAt: 1,
+        updatedAt: 2,
+      }),
+    );
+
+    const merged = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-legacy-reasons",
+      companyKey: "acme-cnc",
+      triggerReasons: ["high_value_candidate"],
+      priority: 40,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(merged.created).toBe(false);
+
+    const proposals = await t.query(api.companies.listIndustryProposals, {
+      status: "ready_for_review",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.triggerReasons).toEqual([
+      "high_value_candidate",
+      "manual",
+    ]);
+  });
+
   it("resolves review targets only from exact workspace, resume identity, and work-entry fingerprint links", async () => {
     const t = createTest();
     const resumeId = await t.run(async (ctx) =>

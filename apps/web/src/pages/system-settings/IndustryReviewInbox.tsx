@@ -12,6 +12,7 @@ import {
   isTerminalIndustryProposalStatus,
   parseReviewInboxFilter,
   parseReviewInboxItems,
+  parseReviewQueueSkippedCount,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
   TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
@@ -284,6 +285,7 @@ export function IndustryReviewInbox({
   const [actionFilter, setActionFilter] = useState('')
   const [items, setItems] = useState<ReviewInboxItem[]>([])
   const [nextCursor, setNextCursor] = useState<string>()
+  const [skippedCount, setSkippedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [queueError, setQueueError] = useState<string>()
@@ -361,6 +363,7 @@ export function IndustryReviewInbox({
         ? [...current, ...next.filter((item) => !current.some((existing) => existing.proposal.proposalId === item.proposal.proposalId))]
         : next)
       setNextCursor(isRecord(payload) && typeof payload.nextCursor === 'string' ? payload.nextCursor : undefined)
+      setSkippedCount(parseReviewQueueSkippedCount(isRecord(payload) ? payload.skippedCount : undefined))
       return next
     } catch (error) {
       const message = errorMessage(error, t('industryEvidence.queueLoadFailed', { defaultValue: 'Failed to load industry review queue' }))
@@ -1125,6 +1128,22 @@ export function IndustryReviewInbox({
             resolveIdentityDisabled={!batchSelectedItems.some((item) => requiresIdentityResolution(item))}
             onClear={clearBatchSelection}
           />
+
+          {skippedCount > 0 ? (
+            <div
+              className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+              role="status"
+              data-testid="industry-review-skipped-banner"
+            >
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p>
+                {t('industryEvidence.queueSkippedBanner', {
+                  defaultValue: '{{count}} malformed proposals were skipped from this queue',
+                  count: skippedCount,
+                })}
+              </p>
+            </div>
+          ) : null}
 
           {queueError ? (
             <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950" role="alert" data-testid="industry-review-queue-error">

@@ -1677,6 +1677,7 @@
     "queueEmpty": "No proposals ready for review.",
     "queueFilters": "Queue filters",
     "queueLoadFailed": "Failed to load industry evidence queue",
+    "queueSkippedBanner": "{{count}} malformed proposals were skipped from this queue",
     "queueStatus": "Queue status",
     "recomputeFailed": "Failed to update targeted recompute",
     "recomputeStatus": "Targeted recompute",

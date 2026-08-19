@@ -69,6 +69,8 @@ interface CachedIndustryReviewIndex {
   entries: IndustryReviewIndexEntry[];
   maintenanceFingerprint: string;
   expiresAt: number;
+  skippedCount?: number;
+  skippedProposalIds?: string[];
 }
 
 const REVIEW_INDEX_CACHE_TTL_MS = 15_000;
@@ -94,11 +96,31 @@ export function getCachedIndustryReviewIndex(
   return cached.entries;
 }
 
+/**
+ * Skip accounting stored alongside a cached index. Entries cached before
+ * skip accounting was introduced have no skip fields; they read as clean.
+ */
+export function getCachedIndustryReviewIndexSkip(
+  key: string,
+  maintenanceFingerprint: string,
+  now = Date.now(),
+): { skippedCount: number; skippedProposalIds: string[] } | undefined {
+  const cached = reviewIndexCache.get(key);
+  if (!cached || cached.expiresAt <= now || cached.maintenanceFingerprint !== maintenanceFingerprint) {
+    return undefined;
+  }
+  return {
+    skippedCount: cached.skippedCount ?? 0,
+    skippedProposalIds: cached.skippedProposalIds ?? [],
+  };
+}
+
 export function setCachedIndustryReviewIndex(
   key: string,
   entries: readonly IndustryReviewIndexEntry[],
   maintenanceFingerprint: string,
   now = Date.now(),
+  skip?: { skippedCount: number; skippedProposalIds: string[] },
 ): void {
   if (reviewIndexCache.has(key)) reviewIndexCache.delete(key);
   while (reviewIndexCache.size >= REVIEW_INDEX_CACHE_MAX_KEYS) {
@@ -110,6 +132,7 @@ export function setCachedIndustryReviewIndex(
     entries: [...entries],
     maintenanceFingerprint,
     expiresAt: now + REVIEW_INDEX_CACHE_TTL_MS,
+    ...(skip ? { skippedCount: skip.skippedCount, skippedProposalIds: skip.skippedProposalIds } : {}),
   });
 }
 

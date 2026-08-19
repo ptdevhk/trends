@@ -54,6 +54,7 @@ import {
 } from "./industry-evidence-research-service.js";
 import {
   getCachedIndustryReviewIndex,
+  getCachedIndustryReviewIndexSkip,
   paginateIndustryReviewIndex,
   setCachedIndustryReviewIndex,
   type IndustryReviewIndexEntry,
@@ -124,6 +125,8 @@ export interface IndustryReviewQueueResponse {
   items: IndustryReviewQueueItem[];
   maintenance: IndustryReviewMaintenanceContext;
   nextCursor?: string;
+  skippedCount: number;
+  skippedProposalIds: string[];
 }
 
 function stableValue(value: unknown): unknown {
@@ -718,15 +721,26 @@ export async function listIndustryReviewQueue(input: {
   );
 
   let indexEntries: IndustryReviewIndexEntry[];
+  let skippedCount = 0;
+  let skippedProposalIds: string[] = [];
   let itemsByProposalId: Map<string, IndustryReviewQueueItem> | undefined;
   if (cachedEntries) {
     indexEntries = [...cachedEntries];
+    const cachedSkip = getCachedIndustryReviewIndexSkip(
+      cacheKey,
+      maintenanceFingerprint,
+    );
+    skippedCount = cachedSkip?.skippedCount ?? 0;
+    skippedProposalIds = cachedSkip?.skippedProposalIds ?? [];
   } else {
-    const [proposals, allSources, profiles] = await Promise.all([
+    const [proposalsResult, allSources, profiles] = await Promise.all([
       listIndustryProposals(input.status),
       listIndustryEvidenceSources(),
       listIndustryProfiles(),
     ]);
+    const proposals = proposalsResult.items;
+    skippedCount = proposalsResult.skippedCount;
+    skippedProposalIds = proposalsResult.skippedProposalIds;
     const sourcesByProposal = new Map<string, IndustryEvidenceSource[]>();
     for (const source of allSources) {
       if (!source.proposalId) continue;
@@ -768,7 +782,13 @@ export async function listIndustryReviewQueue(input: {
       updatedAt: item.proposal.updatedAt,
       sourceCount: item.sourceCount,
     }));
-    setCachedIndustryReviewIndex(cacheKey, indexEntries, maintenanceFingerprint);
+    setCachedIndustryReviewIndex(
+      cacheKey,
+      indexEntries,
+      maintenanceFingerprint,
+      undefined,
+      { skippedCount, skippedProposalIds },
+    );
   }
   input.timing?.("idx-cache", performance.now() - cacheSegmentStart);
   const page = paginateIndustryReviewIndex(indexEntries, {
@@ -812,6 +832,8 @@ export async function listIndustryReviewQueue(input: {
     ),
     maintenance,
     ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    skippedCount,
+    skippedProposalIds,
   };
 }
 

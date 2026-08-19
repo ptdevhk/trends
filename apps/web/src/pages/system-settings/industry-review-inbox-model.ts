@@ -18,6 +18,18 @@ function parseResumeImpact(value: unknown): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
+/** Number of malformed proposals the server skipped while building the queue. */
+export function parseReviewQueueSkippedCount(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/** Proposal ids the server skipped; empty when the queue is clean. */
+export function parseReviewQueueSkippedProposalIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((id): id is string => typeof id === 'string')
+}
+
 /**
  * Parse one review-queue item, attaching a defensive `resumeImpact` default
  * of 0 when the server response does not (yet) include the field.

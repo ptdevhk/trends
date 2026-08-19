@@ -1209,6 +1209,7 @@
     "queueEmpty": "没有可供审核的提案。",
     "queueFilters": "队列筛选",
     "queueLoadFailed": "加载行业证据提案队列失败",
+    "queueSkippedBanner": "本次队列已跳过 {{count}} 条格式异常的提案",
     "queueStatus": "队列状态",
     "recomputeFailed": "更新指定重新计算失败",
     "recomputeStatus": "指定重新计算",

@@ -26,12 +26,6 @@ import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
 import { invalidateIndustryReviewIndex } from "./company-industry-review-index.js";
 import { logger } from "./logger.js";
 
-const terminalIndustryProposalStatuses = new Set<IndustryProposalStatus>([
-  "approved",
-  "rejected",
-  "superseded",
-]);
-
 /**
  * Workspace role of the acting reviewer on industry review audit writes.
  * Resolved server-side from the session membership at the API layer (never
@@ -39,16 +33,15 @@ const terminalIndustryProposalStatuses = new Set<IndustryProposalStatus>([
  */
 export type IndustryReviewActorRole = "admin" | "reviewer";
 
-function isTerminalIndustryProposalStatus(value: unknown): boolean {
-  return (
-    typeof value === "string" &&
-    terminalIndustryProposalStatuses.has(value as IndustryProposalStatus)
-  );
+export interface IndustryProposalListResult {
+  items: IndustryProposal[];
+  skippedCount: number;
+  skippedProposalIds: string[];
 }
 
 export async function listIndustryProposals(
   status?: IndustryProposalStatus,
-): Promise<IndustryProposal[]> {
+): Promise<IndustryProposalListResult> {
   const value = await callConvexQuery("companies:listIndustryProposals", {
     writeSecret: config.auth.convexWriteSecret,
     ...(status ? { status } : {}),
@@ -58,32 +51,35 @@ export async function listIndustryProposals(
   }
 
   const parsedItems: IndustryProposal[] = [];
+  const skippedProposalIds: string[] = [];
   for (const item of value) {
     const parsed = parseIndustryProposal(item);
     if (parsed) {
       parsedItems.push(parsed);
       continue;
     }
-    const rawStatus = isRecord(item) ? item.status : undefined;
-    if (
-      !isTerminalIndustryProposalStatus(status) &&
-      !isTerminalIndustryProposalStatus(rawStatus)
-    ) {
-      throw new Error("Invalid industry proposal response");
-    }
+    const proposalId =
+      isRecord(item) && typeof item.proposalId === "string"
+        ? item.proposalId
+        : "unknown";
+    skippedProposalIds.push(proposalId);
     logger.warn("Skipping invalid industry proposal record", {
       status: status ?? "all",
-      proposalId: isRecord(item) && typeof item.proposalId === "string"
-        ? item.proposalId
-        : undefined,
+      proposalId,
     });
   }
-  return parsedItems;
+  return {
+    items: parsedItems,
+    skippedCount: skippedProposalIds.length,
+    skippedProposalIds,
+  };
 }
 
 export interface IndustryProposalPage {
   items: IndustryProposal[];
   nextCursor?: string;
+  skippedCount: number;
+  skippedProposalIds: string[];
 }
 
 export async function listIndustryProposalsPage(
@@ -103,25 +99,21 @@ export async function listIndustryProposalsPage(
     throw new Error("Invalid companies:listIndustryProposalsPage response");
   }
   const parsedItems: IndustryProposal[] = [];
+  const skippedProposalIds: string[] = [];
   for (const item of value.items) {
     const parsed = parseIndustryProposal(item);
     if (parsed) {
       parsedItems.push(parsed);
       continue;
     }
-    const rawStatus = isRecord(item) ? item.status : undefined;
-    if (
-      !isTerminalIndustryProposalStatus(options.status) &&
-      !isTerminalIndustryProposalStatus(rawStatus)
-    ) {
-      throw new Error("Invalid industry proposal response");
-    }
+    const proposalId =
+      isRecord(item) && typeof item.proposalId === "string"
+        ? item.proposalId
+        : "unknown";
+    skippedProposalIds.push(proposalId);
     logger.warn("Skipping invalid industry proposal record", {
       status: options.status ?? "all",
-      proposalId:
-        isRecord(item) && typeof item.proposalId === "string"
-          ? item.proposalId
-          : undefined,
+      proposalId,
     });
   }
   return {
@@ -129,6 +121,8 @@ export async function listIndustryProposalsPage(
     ...(typeof value.nextCursor === "string"
       ? { nextCursor: value.nextCursor }
       : {}),
+    skippedCount: skippedProposalIds.length,
+    skippedProposalIds,
   };
 }
 

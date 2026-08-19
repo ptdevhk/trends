@@ -35,6 +35,7 @@ import {
 import {
   approveIndustryProposal,
   listIndustryProposals,
+  listIndustryProposalsPage,
   undoIndustryProposalApproval,
 } from "./company-industry-proposal-service.js";
 import { listIndustryVerdictRevisions } from "./company-industry-revision-service.js";
@@ -450,17 +451,21 @@ describe("company industry API services", () => {
         },
       ]);
 
-    await expect(listIndustryProposals()).resolves.toEqual([
-      expect.objectContaining({
-        sampleReferences: [
-          {
-            workspaceSlug: "my",
-            resumeIdentity: "resume-1",
-            workEntryFingerprint: "work-1",
-          },
-        ],
-      }),
-    ]);
+    await expect(listIndustryProposals()).resolves.toEqual({
+      items: [
+        expect.objectContaining({
+          sampleReferences: [
+            {
+              workspaceSlug: "my",
+              resumeIdentity: "resume-1",
+              workEntryFingerprint: "work-1",
+            },
+          ],
+        }),
+      ],
+      skippedCount: 0,
+      skippedProposalIds: [],
+    });
     await expect(
       listIndustryVerdictRevisions("acme-cnc"),
     ).resolves.toHaveLength(1);
@@ -492,9 +497,13 @@ describe("company industry API services", () => {
         },
       ]);
 
-      await expect(listIndustryProposals("superseded")).resolves.toEqual([
-        expect.objectContaining({ proposalId: "valid-superseded-proposal" }),
-      ]);
+      await expect(listIndustryProposals("superseded")).resolves.toEqual({
+        items: [
+          expect.objectContaining({ proposalId: "valid-superseded-proposal" }),
+        ],
+        skippedCount: 1,
+        skippedProposalIds: ["probe-nonexistent-xyz"],
+      });
       expect(warning).toHaveBeenCalledWith(
         "Skipping invalid industry proposal record",
         {
@@ -507,22 +516,73 @@ describe("company industry API services", () => {
     }
   });
 
-  it("keeps malformed active proposal rows strict", async () => {
-    mocks.query.mockResolvedValueOnce([
-      {
-        _id: "legacy-row",
-        proposalId: "legacy-active-proposal",
-        companyKey: "legacy-company",
-        triggerReasons: ["probe"],
-        priority: 1,
-        status: "ready_for_review",
-        createdAt: 1,
-        updatedAt: 2,
-      },
-    ]);
+  it("skips malformed active proposal rows without failing the live queue", async () => {
+    const warning = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      mocks.query.mockResolvedValueOnce([
+        {
+          _id: "legacy-row",
+          proposalId: "legacy-active-proposal",
+          companyKey: "legacy-company",
+          triggerReasons: ["probe"],
+          priority: 1,
+          status: "ready_for_review",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]);
 
-    await expect(listIndustryProposals("ready_for_review")).rejects.toThrow(
-      "Invalid industry proposal response",
-    );
+      await expect(listIndustryProposals("ready_for_review")).resolves.toEqual({
+        items: [],
+        skippedCount: 1,
+        skippedProposalIds: ["legacy-active-proposal"],
+      });
+      expect(warning).toHaveBeenCalledWith(
+        "Skipping invalid industry proposal record",
+        {
+          status: "ready_for_review",
+          proposalId: "legacy-active-proposal",
+        },
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it("pages past malformed active proposal rows with skip accounting", async () => {
+    mocks.query.mockResolvedValueOnce({
+      items: [
+        {
+          _id: "valid-row",
+          proposalId: "valid-proposal",
+          companyKey: "acme-cnc",
+          triggerReasons: ["scheduled_freshness"],
+          priority: 20,
+          status: "ready_for_review",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          _id: "legacy-row",
+          proposalId: "legacy-active-proposal",
+          companyKey: "legacy-company",
+          triggerReasons: ["probe"],
+          priority: 1,
+          status: "ready_for_review",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+      nextCursor: "cursor-2",
+    });
+
+    await expect(
+      listIndustryProposalsPage({ status: "ready_for_review", limit: 100 }),
+    ).resolves.toEqual({
+      items: [expect.objectContaining({ proposalId: "valid-proposal" })],
+      nextCursor: "cursor-2",
+      skippedCount: 1,
+      skippedProposalIds: ["legacy-active-proposal"],
+    });
   });
 });

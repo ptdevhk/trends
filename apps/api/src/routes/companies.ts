@@ -837,6 +837,8 @@ const listIndustryProposalsRoute = createRoute({
             success: z.literal(true),
             items: z.array(IndustryProposalSchema),
             nextCursor: z.string().optional(),
+            skippedCount: z.number().optional(),
+            skippedProposalIds: z.array(z.string()).optional(),
           }),
         },
       },
@@ -853,6 +855,8 @@ app.openapi(listIndustryProposalsRoute, async (c) => {
       success: true as const,
       items: page.items,
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      skippedCount: page.skippedCount ?? 0,
+      skippedProposalIds: page.skippedProposalIds ?? [],
     },
     200,
   );
@@ -1042,6 +1046,8 @@ const listIndustryReviewQueueRoute = createRoute({
             ),
             maintenance: IndustryReviewMaintenanceContextSchema,
             nextCursor: z.string().optional(),
+            skippedCount: z.number().optional(),
+            skippedProposalIds: z.array(z.string()).optional(),
           }),
         },
       },
@@ -1107,7 +1113,15 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
           : 0;
       return { ...item, resumeImpact };
     });
-    return c.json({ ...result, items }, 200);
+    return c.json(
+      {
+        ...result,
+        items,
+        skippedCount: result.skippedCount ?? 0,
+        skippedProposalIds: result.skippedProposalIds ?? [],
+      },
+      200,
+    );
   } catch (error) {
     if (
       error instanceof Error &&
@@ -2150,7 +2164,7 @@ const startIndustryRecomputeRunRoute = createRoute({
 
 app.openapi(startIndustryRecomputeRunRoute, async (c) => {
   const { workspaceSlug, companyKey } = c.req.valid("json");
-  const proposals = await listIndustryProposals("approved");
+  const proposals = (await listIndustryProposals("approved")).items;
   const proposal = proposals.find(
     (item) =>
       item.companyKey?.toLowerCase() === companyKey.trim().toLowerCase() &&

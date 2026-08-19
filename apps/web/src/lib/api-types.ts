@@ -9462,6 +9462,8 @@ export interface paths {
                                 updatedAt: number;
                             }[];
                             nextCursor?: string;
+                            skippedCount?: number;
+                            skippedProposalIds?: string[];
                         };
                     };
                 };
@@ -9667,6 +9669,8 @@ export interface paths {
                                 } | null;
                             };
                             nextCursor?: string;
+                            skippedCount?: number;
+                            skippedProposalIds?: string[];
                         };
                     };
                 };

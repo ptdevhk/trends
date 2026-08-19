@@ -435,6 +435,8 @@ describe("companies routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody<{
       items: Array<{ proposalId: string; status: string }>;
+      skippedCount?: number;
+      skippedProposalIds?: string[];
     }>(response);
     expect(body.items).toEqual([
       expect.objectContaining({
@@ -442,6 +444,50 @@ describe("companies routes", () => {
         status: "ready_for_review",
       }),
     ]);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
+  });
+
+  it("tolerates malformed active proposal rows on the governed list route", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call).toMatchObject({
+        type: "query",
+        pathName: "companies:listIndustryProposalsPage",
+      });
+      expect(call.args.status).toBe("ready_for_review");
+      return convexSuccess({
+        items: [
+          {
+            _id: "legacy-row",
+            proposalId: "probe-nonexistent-xyz",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+      });
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ proposalId: string }>;
+      skippedCount?: number;
+      skippedProposalIds?: string[];
+    }>(response);
+    expect(body.items).toEqual([]);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
   });
 
   it("pages governed industry proposals with limit and cursor (no 500-row cap)", async () => {
@@ -573,6 +619,40 @@ describe("companies routes", () => {
       workspaceSlug: "hr",
       timing: expect.any(Function),
     });
+  });
+
+  it("propagates skipped-proposal accounting from the review queue service", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "listIndustryReviewQueue").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      items: [],
+      maintenance: { latest: null, lastFailed: null },
+      skippedCount: 1,
+      skippedProposalIds: ["probe-nonexistent-xyz"],
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        return convexSuccess({});
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/review-queue?status=ready_for_review",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      skippedCount?: number;
+      skippedProposalIds?: string[];
+    }>(response);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
   });
 
   it("serves the review queue when the queue contains CJK company keys (no ASCII field-name crash)", async () => {

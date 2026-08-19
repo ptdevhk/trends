@@ -2035,4 +2035,37 @@ describe('SystemSettingsIndustryVerificationPage propagation runs', () => {
 
     expect(await screen.findByTestId('industry-coverage-propagation-empty')).toBeInTheDocument()
   })
+
+  it('shows an amber banner when the review queue skipped malformed proposals', async () => {
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [{ proposal, recommendation, sourceCount: 1 }],
+          maintenance: { latest: null, lastFailed: null },
+          skippedCount: 2,
+          skippedProposalIds: ['probe-1', 'probe-2'],
+        })
+      }
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      return Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/dev/system/settings/industry-verification')
+
+    const banner = await screen.findByTestId('industry-review-skipped-banner')
+    expect(banner).toHaveTextContent('2')
+  })
+
+  it('does not render the skipped banner when the queue is clean', async () => {
+    renderPageAtRoute('/dev/system/settings/industry-verification')
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('industry-review-skipped-banner')).not.toBeInTheDocument()
+    })
+  })
 })
