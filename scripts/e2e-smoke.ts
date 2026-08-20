@@ -130,11 +130,18 @@ async function loadDeterministicSearchResults(page: Page) {
     // flicker across the hook's internal retries defeated a loading-based
     // counter (see settle below).
 
+    // The empty-state heading also renders in the pre-search landing state
+    // and during the one-frame URL-update → loading-effect flash, so an
+    // "empty" verdict only counts once a search response has completed after
+    // the current search start (submit / reset / recovery navigation).
+    const searchState = { lastSearchStart: 0, lastResponseAt: 0 };
+
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
     } else {
         await keywordInput.press('Enter');
     }
+    searchState.lastSearchStart = Date.now();
 
     // The local backend can take 5–15s per search and the hook retries failed
     // fetches (ERR_FAILED under collection/analysis churn), so the results
@@ -147,14 +154,19 @@ async function loadDeterministicSearchResults(page: Page) {
         const NO_PROGRESS_MS = Number(process.env.E2E_RECOVERY_MS ?? 40000);
         const dbg = process.env.E2E_DEBUG === '1';
         const startedAt = Date.now();
-        // Progress = any completed API response. Failed/dropped requests emit
+        // Progress = a completed search response. Failed/dropped requests emit
         // no response event, so this distinguishes "slow but progressing"
         // searches (wait for them) from stuck ones (drops, missed submits,
-        // silent hangs — recover). The loading-flag flicker that defeated the
-        // old stuck-loading counter is irrelevant to this signal.
+        // silent hangs — recover). Other endpoints (auth/me, keywords, config)
+        // can stay healthy while the search fetch itself hangs, so only
+        // /api/resumes responses count as search progress. The loading-flag
+        // flicker that defeated the old stuck-loading counter is irrelevant.
         let lastApiResponseAt = Date.now();
         const onApiResponse = (resp: Response) => {
-            if (/\/api\//.test(resp.url())) lastApiResponseAt = Date.now();
+            if (/\/api\/resumes/.test(resp.url())) {
+                lastApiResponseAt = Date.now();
+                searchState.lastResponseAt = Date.now();
+            }
         };
         page.on('response', onApiResponse);
         // Recovery = fresh navigation to the query-param URL. The SPA
@@ -167,6 +179,7 @@ async function loadDeterministicSearchResults(page: Page) {
             await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl), { waitUntil: 'domcontentloaded' }).catch(() => {});
             await page.setViewportSize(SMOKE_VIEWPORT);
             lastApiResponseAt = Date.now();
+            searchState.lastSearchStart = Date.now();
         };
         try {
             // Test hook: exercise the recovery path on demand (E2E_FORCE_RECOVERY=1).
