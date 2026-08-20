@@ -18,6 +18,14 @@ import {
 import { CreateUserDialog } from './CreateUserDialog'
 import { MembershipsDrawer } from './MembershipsDrawer'
 import { UserAuditDrawer } from './UserAuditDrawer'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type Props = {
   operatorId: string | null
@@ -42,6 +50,10 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [membershipsUser, setMembershipsUser] = useState<AdminUserRecord | null>(null)
   const [auditUser, setAuditUser] = useState<AdminUserRecord | null>(null)
+  const [pendingAction, setPendingAction] = useState<{
+    type: 'resetPassword' | 'unlock'
+    username: string
+  } | null>(null)
 
   function publishTemporaryPassword(temporaryPassword: string | null) {
     onTemporaryPassword?.(temporaryPassword)
@@ -103,35 +115,34 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
     )
   }
 
-  async function handleResetPassword(username: string) {
-    const confirmed = window.confirm(
-      t('debugConfig.adminUsersResetPasswordConfirm', {
-        defaultValue: 'Reset the password for this user?',
-      }),
-    )
-    if (!confirmed) return
-    const result = await resetAdminUserPassword(username)
-    if (result.success === false) {
-      toast.error(result.error)
-      return
-    }
-    publishTemporaryPassword(result.temporaryPassword)
+  function requestResetPassword(username: string) {
+    setPendingAction({ type: 'resetPassword', username })
   }
 
-  async function handleUnlock(username: string) {
-    const confirmed = window.confirm(
-      t('debugConfig.adminUsersUnlockConfirm', {
-        defaultValue: 'Unlock this user account?',
-      }),
-    )
-    if (!confirmed) return
-    const result = await unlockAdminUser(username)
-    if (result.success === false) {
-      toast.error(result.error)
-      return
+  function requestUnlock(username: string) {
+    setPendingAction({ type: 'unlock', username })
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingAction) return
+    const { type, username } = pendingAction
+    setPendingAction(null)
+    if (type === 'resetPassword') {
+      const result = await resetAdminUserPassword(username)
+      if (result.success === false) {
+        toast.error(result.error)
+        return
+      }
+      publishTemporaryPassword(result.temporaryPassword)
+    } else {
+      const result = await unlockAdminUser(username)
+      if (result.success === false) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(t('debugConfig.adminUsersUnlocked', { defaultValue: 'User unlocked' }))
+      // No user-list change needed; unlock clears lockout state server-side.
     }
-    toast.success(t('debugConfig.adminUsersUnlocked', { defaultValue: 'User unlocked' }))
-    // No user-list change needed; unlock clears lockout state server-side.
   }
 
   function getLocalUsername(user: AdminUserRecord): string {
@@ -291,7 +302,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                             size="sm"
                             data-testid={`admin-reset-pw-${u.id}`}
                             onClick={() => {
-                              void handleResetPassword(getLocalUsername(u))
+                              requestResetPassword(getLocalUsername(u))
                             }}
                           >
                             <Key className="mr-1 h-3 w-3" />
@@ -302,7 +313,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                             size="sm"
                             data-testid={`admin-unlock-${u.id}`}
                             onClick={() => {
-                              void handleUnlock(getLocalUsername(u))
+                              requestUnlock(getLocalUsername(u))
                             }}
                           >
                             <Lock className="mr-1 h-3 w-3" />
@@ -410,7 +421,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         size="sm"
                         data-testid={`admin-reset-pw-${u.id}`}
                         onClick={() => {
-                          void handleResetPassword(getLocalUsername(u))
+                          requestResetPassword(getLocalUsername(u))
                         }}
                       >
                         <Key className="mr-1 h-3 w-3" />
@@ -421,7 +432,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         size="sm"
                         data-testid={`admin-unlock-${u.id}`}
                         onClick={() => {
-                          void handleUnlock(getLocalUsername(u))
+                          requestUnlock(getLocalUsername(u))
                         }}
                       >
                         <Lock className="mr-1 h-3 w-3" />
@@ -486,6 +497,58 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
         }}
         user={auditUser}
       />
+
+      <Dialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null)
+        }}
+      >
+        <DialogContent data-testid="admin-user-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPasswordTitle', {
+                    defaultValue: 'Reset User Password',
+                  })
+                : t('debugConfig.adminUsersUnlockTitle', {
+                    defaultValue: 'Unlock User Account',
+                  })}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPasswordConfirm', {
+                    defaultValue: 'Reset the password for this user?',
+                  })
+                : t('debugConfig.adminUsersUnlockConfirm', {
+                    defaultValue: 'Unlock this user account?',
+                  })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              data-testid="admin-user-confirm-cancel"
+              onClick={() => {
+                setPendingAction(null)
+              }}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant={pendingAction?.type === 'resetPassword' ? 'destructive' : 'default'}
+              data-testid="admin-user-confirm-button"
+              onClick={() => {
+                void confirmPendingAction()
+              }}
+            >
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPassword', { defaultValue: 'Reset password' })
+                : t('debugConfig.adminUsersUnlock', { defaultValue: 'Unlock' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

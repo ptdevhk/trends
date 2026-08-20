@@ -136,4 +136,61 @@ describe('UsersPanel', () => {
 
     expect(await screen.findByTestId('user-audit-drawer')).toBeInTheDocument()
   })
+
+  it('confirms password reset in a dialog before calling the API', async () => {
+    mockResetAdminUserPassword.mockResolvedValue({
+      success: true,
+      temporaryPassword: 'TempPass123',
+    })
+    const onTemporaryPassword = vi.fn()
+    const user = userEvent.setup()
+    render(<UsersPanel operatorId="admin-1" onTemporaryPassword={onTemporaryPassword} />)
+
+    await screen.findAllByText('Alice')
+
+    await user.click(screen.getAllByTestId('admin-reset-pw-user-1')[0]!)
+    expect(await screen.findByTestId('admin-user-confirm-dialog')).toBeInTheDocument()
+    expect(screen.getByText('Reset User Password')).toBeInTheDocument()
+    expect(mockResetAdminUserPassword).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('admin-user-confirm-button'))
+    await waitFor(() => {
+      expect(mockResetAdminUserPassword).toHaveBeenCalledWith('alice')
+    })
+    expect(onTemporaryPassword).toHaveBeenCalledWith('TempPass123')
+  })
+
+  it('cancelling the confirm dialog does not call the API', async () => {
+    const user = userEvent.setup()
+    render(<UsersPanel operatorId="admin-1" />)
+
+    await screen.findAllByText('Alice')
+
+    await user.click(screen.getAllByTestId('admin-reset-pw-user-1')[0]!)
+    await screen.findByTestId('admin-user-confirm-dialog')
+
+    await user.click(screen.getByTestId('admin-user-confirm-cancel'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('admin-user-confirm-dialog')).not.toBeInTheDocument()
+    })
+    expect(mockResetAdminUserPassword).not.toHaveBeenCalled()
+  })
+
+  it('confirms unlock in a dialog before calling the API', async () => {
+    mockUnlockAdminUser.mockResolvedValue({ success: true })
+    const user = userEvent.setup()
+    render(<UsersPanel operatorId="admin-1" />)
+
+    await screen.findAllByText('Alice')
+
+    await user.click(screen.getAllByTestId('admin-unlock-user-1')[0]!)
+    expect(await screen.findByTestId('admin-user-confirm-dialog')).toBeInTheDocument()
+    expect(screen.getByText('Unlock User Account')).toBeInTheDocument()
+    expect(mockUnlockAdminUser).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('admin-user-confirm-button'))
+    await waitFor(() => {
+      expect(mockUnlockAdminUser).toHaveBeenCalledWith('alice')
+    })
+  })
 })

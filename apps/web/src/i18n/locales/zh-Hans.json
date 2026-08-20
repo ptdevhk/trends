@@ -1034,8 +1034,10 @@
     "adminUsersDisabled": "用户已停用",
     "adminUsersEnabled": "用户已启用",
     "adminUsersResetPassword": "重置密码",
+    "adminUsersResetPasswordTitle": "重置用户密码",
     "adminUsersResetPasswordConfirm": "要重置此用户的密码吗？",
     "adminUsersUnlock": "解除锁定",
+    "adminUsersUnlockTitle": "解锁用户账户",
     "adminUsersUnlockConfirm": "要解除此用户账户的锁定吗？",
     "adminUsersUnlocked": "用户已解除锁定",
     "adminUsersViewAudit": "查看审计记录",
@@ -1743,13 +1745,25 @@
       "enabledSchedule": "{{schedule}}（已启用）",
       "lastRun": "上次运行：",
       "runStatus": "运行状态：",
-      "runNow": "立即运行"
+      "runNow": "立即运行",
+      "duplicate": "复制"
     },
     "schedule": {
       "enabled": "已启用",
       "disabled": "已停用"
     },
-    "roleFilterTypePlaceholder": "例如：销售"
+    "roleFilterTypePlaceholder": "例如：销售",
+    "searchPlaceholder": "按名称、地区或关键词搜索画像…",
+    "filterAll": "所有状态",
+    "filterStatus": {
+      "active": "启用",
+      "paused": "已暂停",
+      "archived": "已归档"
+    },
+    "filterResultCount": "显示 {{count}} / {{total}} 个",
+    "noMatches": "未找到匹配的搜索画像。",
+    "clearFilter": "清除筛选",
+    "copySuffix": "（副本）"
   },
   "debug": {
     "processTitle": "处理数据",
@@ -2090,6 +2104,7 @@
     "titleRequired": "职位标题不能为空",
     "contentRequired": "职位内容不能为空",
     "saveFailed": "保存职位描述失败",
+    "shortcutHint": "Ctrl/⌘ + Enter 保存",
     "post": "职位名称",
     "maxAge": "最高年龄",
     "simpleMode": "基本信息"
@@ -2481,6 +2496,7 @@
     "selectFiles": "选择文件",
     "selectFilesFirst": "请至少选择一个文件进行导入",
     "selectedFiles": "已选文件",
+    "selectedFilesSummary": "已选文件 ({{count}} 个 · {{size}})",
     "skipped": "已跳过",
     "submit": "导入简历",
     "title": "导入简历",
@@ -2789,6 +2805,8 @@
     "backToPolicies": "企业策略",
     "companyTitle": "企业研究",
     "empty": "No research signals for this company yet.",
+    "copySignal": "复制动态",
+    "signalCopied": "动态已复制到剪贴板",
     "evidenceLink": "原文",
     "evidenceSeed": "种子证据（非外链）",
     "goldenEmpty": "暂无金色展示企业。",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -9,6 +9,7 @@ import { ProfileCard, type SearchProfileRunStatus, type SearchProfileSummary } f
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchProfileEditorDialog, type SearchProfileDetails } from '@/components/SearchProfileEditorDialog'
 import {
@@ -51,6 +52,22 @@ type ProfileStatusResponse = {
 const TERMINAL_STATUSES: Array<SearchProfileRunStatus['taskStatus']> = ['completed', 'failed', 'cancelled', 'unknown']
 const DEFAULT_PROFILE_RUN_LIMIT = 120
 const DEFAULT_PROFILE_RUN_MAX_PAGES = 10
+
+type ProfileStatusFilter = 'all' | 'active' | 'paused' | 'archived'
+
+const PROFILE_STATUS_FILTERS: Array<{ value: ProfileStatusFilter; labelKey: string }> = [
+  { value: 'all', labelKey: 'searchProfiles.filterAll' },
+  { value: 'active', labelKey: 'searchProfiles.filterStatus.active' },
+  { value: 'paused', labelKey: 'searchProfiles.filterStatus.paused' },
+  { value: 'archived', labelKey: 'searchProfiles.filterStatus.archived' },
+]
+
+const PROFILE_STATUS_FILTER_DEFAULTS: Record<ProfileStatusFilter, string> = {
+  all: 'All statuses',
+  active: 'Active',
+  paused: 'Paused',
+  archived: 'Archived',
+}
 
 
 
@@ -128,7 +145,10 @@ export function SearchProfilesPage() {
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set())
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [duplicatingProfile, setDuplicatingProfile] = useState<SearchProfileDetails | null>(null)
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ProfileStatusFilter>('all')
 
   const pollTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const runNowLocksRef = useRef<Set<string>>(new Set())
@@ -300,6 +320,21 @@ export function SearchProfilesPage() {
     })
     setEditorOpen(true)
   }, [updateSearchParams])
+
+  const handleDuplicate = useCallback(async (profileId: string) => {
+    const detail = profileDetails[profileId] ?? await fetchProfileDetail(profileId)
+    if (!detail) {
+      toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
+      return
+    }
+
+    setEditingProfileId(null)
+    updateSearchParams((nextParams) => {
+      nextParams.delete('edit')
+    })
+    setDuplicatingProfile({ ...detail, id: '', name: `${detail.name}${t('searchProfiles.copySuffix', { defaultValue: ' (copy)' })}` })
+    setEditorOpen(true)
+  }, [fetchProfileDetail, profileDetails, t, updateSearchParams])
 
   const handleDelete = useCallback((profileId: string) => {
     setDeletingProfileId(profileId)
@@ -498,6 +533,7 @@ export function SearchProfilesPage() {
       return
     }
 
+    setDuplicatingProfile(null)
     const activeEditId = searchParams.get('edit')
     setEditingProfileId(activeEditId ? null : editingProfileId)
     if (activeEditId) {
@@ -519,6 +555,20 @@ export function SearchProfilesPage() {
     })
   }, [profileDetails, profiles, runStatuses, t])
 
+  const visibleCards = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return cards.filter(({ profile }) => {
+      if (statusFilter !== 'all' && profile.status !== statusFilter) {
+        return false
+      }
+      if (!query) {
+        return true
+      }
+      const haystack = [profile.name, profile.location, profile.keywords.join(' ')].join(' ').toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [cards, searchQuery, statusFilter])
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -538,6 +588,40 @@ export function SearchProfilesPage() {
         }
       />
 
+      {!loading && cards.length > 0 ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                data-testid="search-profiles-filter-input"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t('searchProfiles.searchPlaceholder', { defaultValue: 'Search profile by name, location, or keyword…' })}
+                className="w-64 pl-8"
+              />
+            </div>
+            {PROFILE_STATUS_FILTERS.map((filter) => (
+              <Button
+                key={filter.value}
+                size="sm"
+                variant={statusFilter === filter.value ? 'default' : 'outline'}
+                onClick={() => setStatusFilter(filter.value)}
+              >
+                {t(filter.labelKey, { defaultValue: PROFILE_STATUS_FILTER_DEFAULTS[filter.value] })}
+              </Button>
+            ))}
+          </div>
+          <span className="text-sm text-muted-foreground" data-testid="search-profiles-filter-count">
+            {t('searchProfiles.filterResultCount', {
+              count: visibleCards.length,
+              total: cards.length,
+              defaultValue: '{{count}} / {{total}} shown',
+            })}
+          </span>
+        </div>
+      ) : null}
+
       {loading ? (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
@@ -555,9 +639,26 @@ export function SearchProfilesPage() {
             {t('searchProfiles.emptyDescription', { defaultValue: 'Create your first profile to enable one-click and scheduled runs.' })}
           </CardContent>
         </Card>
+      ) : visibleCards.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 text-sm text-muted-foreground">
+            <p>{t('searchProfiles.noMatches', { defaultValue: 'No search profiles match your filter.' })}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setSearchQuery('')
+                setStatusFilter('all')
+              }}
+            >
+              {t('searchProfiles.clearFilter', { defaultValue: 'Clear filter' })}
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {cards.map(({ profile, scheduleLabel, runStatus }) => (
+          {visibleCards.map(({ profile, scheduleLabel, runStatus }) => (
             <ProfileCard
               key={profile.id}
               profile={profile}
@@ -567,6 +668,7 @@ export function SearchProfilesPage() {
               onRunNow={handleRunNow}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onDuplicate={handleDuplicate}
             />
           ))}
         </div>
@@ -576,6 +678,7 @@ export function SearchProfilesPage() {
         open={editorOpen}
         onOpenChange={handleEditorOpenChange}
         profileId={editingProfileId}
+        initialData={duplicatingProfile ?? undefined}
         onSaved={loadProfiles}
       />
 

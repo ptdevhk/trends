@@ -50,11 +50,13 @@ vi.mock('@/components/ProfileCard', () => ({
     onRunNow,
     onDelete,
     onEdit,
+    onDuplicate,
   }: {
     profile: { id: string; name: string }
     onRunNow: (profileId: string) => void
     onDelete: (profileId: string) => void
     onEdit: (profileId: string) => void
+    onDuplicate?: (profileId: string) => void
   }) => (
     <>
       <button type="button" onClick={() => onRunNow(profile.id)}>
@@ -66,6 +68,11 @@ vi.mock('@/components/ProfileCard', () => ({
       <button type="button" onClick={() => onDelete(profile.id)}>
         Delete {profile.name}
       </button>
+      {onDuplicate ? (
+        <button type="button" onClick={() => onDuplicate(profile.id)}>
+          Duplicate {profile.name}
+        </button>
+      ) : null}
     </>
   ),
 }))
@@ -760,7 +767,6 @@ describe('SearchProfilesPage run behavior', () => {
 
   it('keeps the legacy quick-start view URL on the unified page', async () => {
     routerState.search = 'view=quick-starts'
-
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/search-profiles') {
         return {
@@ -827,5 +833,258 @@ describe('SearchProfilesPage run behavior', () => {
 
     const [nextParams] = setSearchParamsMock.mock.calls[0]
     expect(nextParams.toString()).toBe('')
+  })
+
+  it('duplicates a profile into the editor as a copy with a fresh id', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Profile 1',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales Engineer', 'Sales Manager'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1') {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'profile-1',
+              name: 'Profile 1',
+              status: 'active',
+              location: 'Kuala Lumpur MY',
+              keywords: ['Sales Engineer', 'Sales Manager'],
+              filters: { minAge: 25, maxAge: 40 },
+              schedule: { enabled: true, cron: '0 9 * * 1-5', maxCandidates: 200 },
+              sources: [
+                {
+                  type: 'seek',
+                  enabled: true,
+                  priority: 1,
+                  jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+                },
+              ],
+            },
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1/status') {
+        return {
+          data: {
+            success: true,
+            status: null,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+        },
+      }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Duplicate Profile 1' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-editor-open')).toBeInTheDocument()
+    })
+
+    const latestProps = editorDialogMock.mock.calls[editorDialogMock.mock.calls.length - 1]?.[0] as {
+      profileId?: string | null
+      initialData?: { name?: string; id?: string }
+    }
+    expect(latestProps.profileId).toBeNull()
+    expect(latestProps.initialData).toEqual(expect.objectContaining({ name: 'Profile 1 (copy)', id: '' }))
+    const nextParams = setSearchParamsMock.mock.calls[setSearchParamsMock.mock.calls.length - 1]?.[0] as URLSearchParams
+    expect(nextParams.get('edit')).toBeNull()
+  })
+})
+
+describe('SearchProfilesPage search and status filter', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+    routerState.search = ''
+    vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 1 as never)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('filters profiles by search query text', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Profile 1',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales Engineer', 'Sales Manager'],
+              },
+              {
+                id: 'profile-2',
+                name: 'Profile 2',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Dongguan CN',
+                keywords: ['CNC', '车床'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path.endsWith('/status')) {
+        return { data: { success: true, status: null } }
+      }
+
+      return { data: { success: true, profile: { id: 'tmp', name: 'tmp', status: 'active', location: '', keywords: [] } } }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run Profile 1' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Run Profile 2' })).toBeInTheDocument()
+
+    const input = screen.getByTestId('search-profiles-filter-input')
+    await user.type(input, 'Kuala')
+
+    expect(screen.getByRole('button', { name: 'Run Profile 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run Profile 2' })).not.toBeInTheDocument()
+  })
+
+  it('filters profiles by status pill', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Profile 1',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales'],
+              },
+              {
+                id: 'profile-2',
+                name: 'Profile 2',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'paused',
+                location: 'Dongguan CN',
+                keywords: ['CNC'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path.endsWith('/status')) {
+        return { data: { success: true, status: null } }
+      }
+
+      return { data: { success: true, profile: { id: 'tmp', name: 'tmp', status: 'active', location: '', keywords: [] } } }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run Profile 1' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Run Profile 2' })).toBeInTheDocument()
+
+    const pausedPill = screen.getByText('Paused')
+    await user.click(pausedPill)
+
+    expect(screen.queryByRole('button', { name: 'Run Profile 1' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Profile 2' })).toBeInTheDocument()
+  })
+
+  it('shows no-matches empty state and Clear filter button restores all profiles', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Profile 1',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales'],
+              },
+              {
+                id: 'profile-2',
+                name: 'Profile 2',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Dongguan CN',
+                keywords: ['CNC'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path.endsWith('/status')) {
+        return { data: { success: true, status: null } }
+      }
+
+      return { data: { success: true, profile: { id: 'tmp', name: 'tmp', status: 'active', location: '', keywords: [] } } }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Run Profile 1' })).toBeInTheDocument()
+    })
+
+    const input = screen.getByTestId('search-profiles-filter-input')
+    await user.type(input, 'NonexistentXYZ')
+
+    expect(screen.getByText('No search profiles match your filter.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run Profile 1' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run Profile 2' })).not.toBeInTheDocument()
+
+    const clearButton = screen.getByText('Clear filter')
+    await user.click(clearButton)
+
+    expect(screen.getByRole('button', { name: 'Run Profile 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Profile 2' })).toBeInTheDocument()
   })
 })

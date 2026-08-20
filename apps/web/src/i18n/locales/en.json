@@ -750,7 +750,8 @@
     "customKeywordsPlaceholder": "e.g. 机床 车床",
     "titleRequired": "Job title is required",
     "contentRequired": "Job description content is required",
-    "saveFailed": "Failed to save job description"
+    "saveFailed": "Failed to save job description",
+    "shortcutHint": "Ctrl/⌘ + Enter to save"
   },
   "quickStart": {
     "quickFilters": "Filters",
@@ -933,13 +934,25 @@
       "enabledSchedule": "{{schedule}} (enabled)",
       "lastRun": "Last run:",
       "runStatus": "Run status:",
-      "runNow": "Run Now"
+      "runNow": "Run Now",
+      "duplicate": "Duplicate"
     },
     "schedule": {
       "enabled": "Enabled",
       "disabled": "Disabled"
     },
-    "roleFilterTypePlaceholder": "e.g. sales"
+    "roleFilterTypePlaceholder": "e.g. sales",
+    "searchPlaceholder": "Search profile by name, location, or keyword…",
+    "filterAll": "All Statuses",
+    "filterStatus": {
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "filterResultCount": "{{count}} / {{total}} shown",
+    "noMatches": "No search profiles match your filter.",
+    "clearFilter": "Clear filter",
+    "copySuffix": " (copy)"
   },
   "searchAnalytics": {
     "nav": "Search Analytics",
@@ -1529,8 +1542,10 @@
     "adminUsersDisabled": "User disabled",
     "adminUsersEnabled": "User enabled",
     "adminUsersResetPassword": "Reset password",
+    "adminUsersResetPasswordTitle": "Reset User Password",
     "adminUsersResetPasswordConfirm": "Reset the password for this user?",
     "adminUsersUnlock": "Unlock",
+    "adminUsersUnlockTitle": "Unlock User Account",
     "adminUsersUnlockConfirm": "Unlock this user account?",
     "adminUsersUnlocked": "User unlocked",
     "adminUsersViewAudit": "Auth events",
@@ -2454,6 +2469,7 @@
     "selectFiles": "Select files",
     "selectFilesFirst": "Select at least one file to import",
     "selectedFiles": "Selected files",
+    "selectedFilesSummary": "Selected files ({{count}} · {{size}})",
     "skipped": "Skipped",
     "submit": "Import resumes",
     "title": "Import resumes",
@@ -2762,6 +2778,8 @@
     "backToPolicies": "企业策略",
     "companyTitle": "企业研究",
     "empty": "No research signals for this company yet.",
+    "copySignal": "Copy signal",
+    "signalCopied": "Signal copied to clipboard",
     "evidenceLink": "原文",
     "evidenceSeed": "种子证据（非外链）",
     "goldenEmpty": "暂无金色展示企业。",

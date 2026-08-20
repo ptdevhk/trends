@@ -27,7 +27,7 @@ import {
 } from "@/lib/jd-editor-utils"
 import { reportUiError } from '@/lib/ui-error-reporting'
 import { toast } from 'sonner'
-import { isImeComposition } from '@/lib/utils'
+import { isImeComposition, isModEnterKey } from '@/lib/utils'
 
 const INDUSTRY_TAG_OPTIONS = CANONICAL_INDUSTRY_TAGS
 
@@ -239,6 +239,11 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     onKeyDown={(event) => {
                         if (event.key === 'Enter' && isImeComposition(event)) {
                             event.preventDefault()
+                            return
+                        }
+                        if (isModEnterKey(event)) {
+                            event.preventDefault()
+                            void handleSave()
                         }
                     }}
                 >
@@ -369,6 +374,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     )}
                 </div>
                 <DialogFooter>
+                    <span className="mr-auto self-center text-xs text-muted-foreground">{t("jdEditor.shortcutHint", { defaultValue: "Ctrl/⌘ + Enter to save" })}</span>
                     <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>{t("jdManagement.cancel", { defaultValue: "Cancel" })}</Button>
                     <Button type="submit" disabled={loading}>{loading ? t("searchProfiles.saving", { defaultValue: "Saving..." }) : t("searchProfiles.save", { defaultValue: "Save" })}</Button>
                 </DialogFooter>

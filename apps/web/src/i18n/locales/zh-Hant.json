@@ -750,7 +750,8 @@
     "customKeywordsPlaceholder": "例如：機床 車床",
     "titleRequired": "職位標題不能為空",
     "contentRequired": "職位內容不能為空",
-    "saveFailed": "儲存職位描述失敗"
+    "saveFailed": "儲存職位描述失敗",
+    "shortcutHint": "Ctrl/⌘ + Enter 儲存"
   },
   "quickStart": {
     "quickFilters": "篩選條件",
@@ -933,13 +934,25 @@
       "enabledSchedule": "{{schedule}}（已啟用）",
       "lastRun": "上次執行：",
       "runStatus": "執行狀態：",
-      "runNow": "立即執行"
+      "runNow": "立即執行",
+      "duplicate": "複製"
     },
     "schedule": {
       "enabled": "已啟用",
       "disabled": "已停用"
     },
-    "roleFilterTypePlaceholder": "例如：銷售"
+    "roleFilterTypePlaceholder": "例如：銷售",
+    "searchPlaceholder": "按名稱、地區或關鍵詞搜尋畫像…",
+    "filterAll": "所有狀態",
+    "filterStatus": {
+      "active": "啟用",
+      "paused": "已暫停",
+      "archived": "已歸檔"
+    },
+    "filterResultCount": "顯示 {{count}} / {{total}} 個",
+    "noMatches": "未找到符合篩選條件的搜尋畫像。",
+    "clearFilter": "清除篩選",
+    "copySuffix": "（副本）"
   },
   "searchAnalytics": {
     "nav": "搜尋分析",
@@ -1529,8 +1542,10 @@
     "adminUsersDisabled": "用戶已停用",
     "adminUsersEnabled": "用戶已啟用",
     "adminUsersResetPassword": "重置密碼",
+    "adminUsersResetPasswordTitle": "重設用戶密碼",
     "adminUsersResetPasswordConfirm": "要重置此用戶的密碼嗎？",
     "adminUsersUnlock": "解除鎖定",
+    "adminUsersUnlockTitle": "解鎖用戶帳戶",
     "adminUsersUnlockConfirm": "要解除此用戶帳戶的鎖定嗎？",
     "adminUsersUnlocked": "用戶已解除鎖定",
     "adminUsersViewAudit": "查看審計記錄",
@@ -2454,6 +2469,7 @@
     "selectFiles": "選擇檔案",
     "selectFilesFirst": "請至少選擇一個檔案進行匯入",
     "selectedFiles": "已選檔案",
+    "selectedFilesSummary": "已選檔案 ({{count}} 個 · {{size}})",
     "skipped": "已跳過",
     "submit": "匯入簡歷",
     "title": "匯入簡歷",
@@ -2762,6 +2778,8 @@
     "backToPolicies": "企业策略",
     "companyTitle": "企业研究",
     "empty": "No research signals for this company yet.",
+    "copySignal": "複製動態",
+    "signalCopied": "動態已複製至剪貼簿",
     "evidenceLink": "原文",
     "evidenceSeed": "种子证据（非外链）",
     "goldenEmpty": "暂无金色展示企业。",

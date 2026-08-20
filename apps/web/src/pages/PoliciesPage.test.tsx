@@ -253,4 +253,41 @@ describe('PoliciesPage', () => {
     expect(screen.queryByTestId('policy-scope-cn')).not.toBeInTheDocument()
     expect(screen.queryByTestId('policy-scope-my')).not.toBeInTheDocument()
   })
+
+  it('creates a company on form submit (Enter-to-create path)', () => {
+    const { upsertCompany } = mockUseCompanyPolicies()
+    upsertCompany.mockResolvedValue(true)
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.change(screen.getByTestId('company-new-key'), { target: { value: 'acme-cnc' } })
+    fireEvent.change(screen.getByTestId('company-new-display-name'), { target: { value: 'Acme CNC' } })
+    const form = screen.getByTestId('company-new-key').closest('form')
+    expect(form).not.toBeNull()
+    fireEvent.submit(form!)
+
+    expect(upsertCompany).toHaveBeenCalledWith(
+      expect.objectContaining({ companyKey: 'acme-cnc', displayName: 'Acme CNC' }),
+    )
+  })
+
+  it('adds an alias on Enter in the alias input', () => {
+    const { addAlias } = mockUseCompanyPolicies()
+    addAlias.mockResolvedValue(true)
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    fireEvent.change(screen.getByTestId('company-alias-input'), { target: { value: '宝力' } })
+    fireEvent.keyDown(screen.getByTestId('company-alias-input'), { key: 'Enter' })
+
+    expect(addAlias).toHaveBeenCalledWith('pro-technic-machinery', '宝力')
+  })
+
+  it('blocks implicit create submit while IME composition is in flight', () => {
+    renderPolicies('/hr/settings/policies?tab=companies')
+
+    const keyDownEvent = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true })
+    const preventDefaultSpy = vi.spyOn(keyDownEvent, 'preventDefault')
+    fireEvent(screen.getByTestId('company-new-key'), keyDownEvent)
+
+    expect(preventDefaultSpy).toHaveBeenCalled()
+  })
 })

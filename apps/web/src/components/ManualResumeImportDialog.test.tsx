@@ -17,7 +17,15 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
-const mockT = (_key: string, fallback?: string) => fallback ?? _key;
+const mockT = (_key: string, fallback?: string, options?: Record<string, unknown>) => {
+  let value = fallback ?? _key
+  if (options) {
+    for (const [name, replacement] of Object.entries(options)) {
+      value = value.replaceAll(`{{${name}}}`, String(replacement))
+    }
+  }
+  return value
+};
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -381,5 +389,17 @@ describe('ManualResumeImportDialog', () => {
     await user.upload(input, new File(['resume-content'], 'a.docx', { type: 'application/octet-stream' }))
     expect(screen.getByText('a.docx')).toBeInTheDocument()
     expect(screen.getAllByText('a.docx')).toHaveLength(1)
+  })
+
+  it('shows total size of selected files in the header', async () => {
+    const user = userEvent.setup()
+    render(<ManualResumeImportDialog open onOpenChange={vi.fn()} />)
+
+    const input = screen.getByTestId('manual-resume-import-input') as HTMLInputElement
+    const fileA = new File([new Uint8Array(1024 * 1024)], 'resume1.pdf', { type: 'application/pdf' })
+    const fileB = new File([new Uint8Array(4 * 1024 * 1024)], 'bundle.zip', { type: 'application/zip' })
+    await user.upload(input, [fileA, fileB])
+
+    expect(screen.getByText('Selected files (2 · 5.0 MB)')).toBeInTheDocument()
   })
 })

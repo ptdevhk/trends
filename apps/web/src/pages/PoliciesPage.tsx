@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import { hasWorkspaceAdminAccess } from '@/lib/workspace-access'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -385,6 +385,11 @@ function CompaniesTab() {
                                   [company.companyKey]: event.target.value,
                                 }))
                               }
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter' || isImeComposition(event)) return
+                                event.preventDefault()
+                                void handleAddAlias(company.companyKey)
+                              }}
                               placeholder={t('settings.policies.aliasPlaceholder', { defaultValue: 'Add alias' })}
                               className="h-8"
                               data-testid="company-alias-input"
@@ -480,6 +485,17 @@ function CompaniesTab() {
             })}
           </CardDescription>
         </CardHeader>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleCreate()
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && isImeComposition(event)) {
+              event.preventDefault()
+            }
+          }}
+        >
         <CardContent className="grid gap-3 md:grid-cols-2">
           <Input
             value={newKey}
@@ -504,11 +520,12 @@ function CompaniesTab() {
             placeholder={t('settings.policies.nameEnPlaceholder', { defaultValue: 'English name (optional)' })}
           />
           <div className="md:col-span-2">
-            <Button type="button" onClick={() => void handleCreate()} disabled={savingKey != null} data-testid="company-create-button">
+            <Button type="submit" disabled={savingKey != null} data-testid="company-create-button">
               {t('settings.policies.createCompany', { defaultValue: 'Save company' })}
             </Button>
           </div>
         </CardContent>
+        </form>
       </Card>
     </div>
   )

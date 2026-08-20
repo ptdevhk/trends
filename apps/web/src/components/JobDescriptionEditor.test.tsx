@@ -282,6 +282,24 @@ describe('JobDescriptionEditor', () => {
     expect(createJDMock.mock.calls[0][0].title).toBe('Enter Saved Role')
   })
 
+  it('saves on Ctrl+Enter (mod-enter shortcut)', async () => {
+    render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
+
+    await userEvent.type(screen.getByLabelText('Job Title'), 'Shortcut Role')
+    fireEvent.keyDown(screen.getByLabelText('Job Title'), { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => {
+      expect(createJDMock).toHaveBeenCalled()
+    })
+    expect(createJDMock.mock.calls[0][0].title).toBe('Shortcut Role')
+  })
+
+  it('shows mod-enter shortcut hint', () => {
+    render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
+
+    expect(screen.getByText('Ctrl/⌘ + Enter to save')).toBeInTheDocument()
+  })
+
   it('blocks form submission while IME composition is in flight', async () => {
     render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
 
