@@ -511,8 +511,9 @@
         "ageRange": "年齡範圍",
         "ageUnit": "歲",
         "custom": "自訂",
-        "rangeMin": "最小值",
+        "clearCustomRange": "清除自訂範圍",
         "rangeMax": "最大值",
+        "rangeMin": "最小值",
         "minRoleYearsInput": "相關經驗（年）",
         "idOrNamePlaceholder": "ID / 姓名 / 外部ID",
         "invalidValue": "請輸入有效數字",
@@ -597,7 +598,11 @@
         "description": "為目前載入的搜尋結果生成逐份簡歷的 AI 摘要與拆解。",
         "analyzing": "分析中...",
         "analyzeLoaded": "分析已載入的 {{count}} 份",
-        "analyzeLoadedResults": "分析已載入結果"
+        "analyzeLoadedResults": "分析已載入結果",
+        "disabledRulesOnly": "切換到 AI 模式以分析",
+        "disabledNoInput": "新增 JD 或關鍵詞以啟用分析",
+        "disabledNoPermission": "無權限分析候選人",
+        "disabledGeneric": "請選擇要分析的候選人"
       },
       "readOnly": {
         "loginRequired": "登入後可評分、更新狀態、加入備註、屏蔽、匯出或執行批量操作。"
@@ -1678,7 +1683,8 @@
     "requiresTarget": "請輸入要連結的公司鍵。",
     "linkSuccess": "已連結 {{count}} 個雇主鍵",
     "ignoreSuccess": "已忽略 {{count}} 個雇主鍵",
-    "resolveFailed": "更新雇主鍵失敗"
+    "resolveFailed": "更新雇主鍵失敗",
+    "unknownKeyHint": "不在公司註冊表中，請核對後再連結。"
   },
   "industryEvidence": {
     "actionFilter": "動作",
@@ -2054,7 +2060,10 @@
     "queueStatusNew": "新建",
     "queueStatusResearching": "調研中",
     "queueStatusNeedsEvidence": "需要更多證據",
-    "noLedgerRows": "沒有檯帳記錄。"
+    "noLedgerRows": "沒有檯帳記錄。",
+    "historyStatusApproved": "已批准",
+    "historyStatusRejected": "已拒絕",
+    "historyStatusSuperseded": "已取代"
   },
   "industryAudit": {
     "title": "行業稽核",
@@ -2528,7 +2537,10 @@
     "feedbackCardDescription": "上傳審閱後的電子試算表以更新追蹤執行的狀態、操作和備註。",
     "feedbackImportSuccess": "已匯入 {{count}} 行審閱資料",
     "summaryCardDescription": "生成 WeChat 摘要預覽，然後使用配置的模板和可選的 webhook 覆蓋發送。",
-    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
+    "resumeIdsParsed": "已解析 {{count}} 個 ID",
+    "exportInvalidIds": "{{count}} 個無效履歷 ID 阻擋了匯出",
+    "removeInvalidRetry": "移除無效 ID 並重試"
   },
   "auditCompliance": {
     "title": "稽核與合規",

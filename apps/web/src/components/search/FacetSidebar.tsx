@@ -5,7 +5,7 @@ import { FacetGroup } from '@/components/search/FacetGroup'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import type { FacetCounts } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import type { CandidateStatus } from '@/types/resume'
@@ -276,6 +276,11 @@ function RangeFilterGroup({
     setCustomError(null)
   }, [])
 
+  const customApplied = !activePreset && (valueMin != null || valueMax != null)
+  const customRangeLabel = `${valueMin != null ? String(valueMin) : ''}-${valueMax != null ? String(valueMax) : ''}`
+    .replace(/^-/, '≤')
+    .replace(/-$/, '+')
+
   const handleRangeBlur = useCallback(() => {
     requestAnimationFrame(() => {
       if (formRef.current && !formRef.current.contains(document.activeElement)) {
@@ -302,6 +307,7 @@ function RangeFilterGroup({
       return
     }
     if (parsedMin == null && parsedMax == null) {
+      onSetRange(undefined, undefined)
       closeCustomRange()
       return
     }
@@ -412,6 +418,18 @@ function RangeFilterGroup({
               {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
           </form>
+        ) : customApplied ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white">
+            {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })} {customRangeLabel}{unitSuffix}
+            <button
+              type="button"
+              aria-label={t('resumes.searchPage.facets.clearCustomRange', { defaultValue: 'Clear custom range' })}
+              className="inline-flex items-center text-white/80 hover:text-white"
+              onClick={() => { closeCustomRange(); onSetRange(undefined, undefined) }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
         ) : (
           <button
             type="button"

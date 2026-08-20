@@ -511,8 +511,9 @@
         "ageRange": "年龄范围",
         "ageUnit": "岁",
         "custom": "自定义",
-        "rangeMin": "最小值",
+        "clearCustomRange": "清除自定义范围",
         "rangeMax": "最大值",
+        "rangeMin": "最小值",
         "minRoleYearsInput": "相关经验（年）",
         "idOrNamePlaceholder": "ID / 姓名 / 外部ID",
         "invalidValue": "请输入有效数字",
@@ -597,7 +598,11 @@
         "description": "为当前加载的搜索结果生成逐份简历的 AI 摘要与拆解。",
         "analyzing": "分析中...",
         "analyzeLoaded": "分析已加载的 {{count}} 份",
-        "analyzeLoadedResults": "分析已加载结果"
+        "analyzeLoadedResults": "分析已加载结果",
+        "disabledRulesOnly": "切换到 AI 模式以分析",
+        "disabledNoInput": "添加 JD 或关键词以启用分析",
+        "disabledNoPermission": "无权限分析候选人",
+        "disabledGeneric": "请选择要分析的候选人"
       },
       "readOnly": {
         "loginRequired": "登录后可评分、更新状态、添加备注、屏蔽、导出或执行批量操作。"
@@ -1192,7 +1197,8 @@
     "requiresTarget": "请输入要链接的公司键。",
     "linkSuccess": "已链接 {{count}} 个雇主键",
     "ignoreSuccess": "已忽略 {{count}} 个雇主键",
-    "resolveFailed": "更新雇主键失败"
+    "resolveFailed": "更新雇主键失败",
+    "unknownKeyHint": "不在公司注册表中，请核对后再链接。"
   },
   "industryEvidence": {
     "actionFilter": "动作",
@@ -1568,7 +1574,10 @@
     "queueStatusNew": "新建",
     "queueStatusResearching": "调研中",
     "queueStatusNeedsEvidence": "需要更多证据",
-    "noLedgerRows": "没有台账记录。"
+    "noLedgerRows": "没有台账记录。",
+    "historyStatusApproved": "已批准",
+    "historyStatusRejected": "已拒绝",
+    "historyStatusSuperseded": "已取代"
   },
   "industryAudit": {
     "title": "行业审计",
@@ -2555,7 +2564,10 @@
     "feedbackCardDescription": "上传审阅后的电子表格以更新跟踪运行的状态、操作和备注。",
     "feedbackImportSuccess": "已导入 {{count}} 行审阅数据",
     "summaryCardDescription": "生成 WeChat 摘要预览，然后使用配置的模板和可选的 webhook 覆盖发送。",
-    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
+    "resumeIdsParsed": "已解析 {{count}} 个 ID",
+    "exportInvalidIds": "{{count}} 个无效简历 ID 阻止了导出",
+    "removeInvalidRetry": "移除无效 ID 并重试"
   },
   "auditCompliance": {
     "title": "审计与合规",

@@ -149,4 +149,31 @@ describe('BulkActionBar', () => {
         await user.click(screen.getByTestId('company-policy-show-hidden'))
         expect(onShow).toHaveBeenCalledWith(true)
     })
+
+    it('shows the review-packet action only when wired, and fires it with the selection', async () => {
+        const user = userEvent.setup()
+        const onOpenReviewPacket = vi.fn()
+        const { rerender } = render(
+            <MemoryRouter>
+                <BulkActionBar {...defaultProps} onOpenReviewPacket={onOpenReviewPacket} />
+            </MemoryRouter>,
+        )
+
+        const button = screen.getByTestId('bulk-review-packet')
+        expect(button).toBeInTheDocument()
+        await user.click(button)
+        expect(onOpenReviewPacket).toHaveBeenCalledTimes(1)
+
+        rerender(
+            <MemoryRouter>
+                <BulkActionBar {...defaultProps} selectedCount={0} onOpenReviewPacket={onOpenReviewPacket} />
+            </MemoryRouter>,
+        )
+        expect(screen.getByTestId('bulk-review-packet')).toBeDisabled()
+    })
+
+    it('hides the review-packet action when not wired', () => {
+        render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
+        expect(screen.queryByTestId('bulk-review-packet')).not.toBeInTheDocument()
+    })
 })

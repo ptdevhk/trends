@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
+import { CheckCircle, ClipboardList, XCircle, Download, Users, Ban } from 'lucide-react'
 import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -48,6 +48,8 @@ interface BulkActionBarProps {
     showCompanyPolicyHidden?: boolean
     /** Toggle recovery of company-policy-hidden resumes */
     onShowCompanyPolicyHiddenChange?: (show: boolean) => void
+    /** Open review-packets page with the selected IDs */
+    onOpenReviewPacket?: () => void
 }
 
 export function BulkActionBar({
@@ -71,6 +73,7 @@ export function BulkActionBar({
     companyPolicyHiddenCount = 0,
     showCompanyPolicyHidden = false,
     onShowCompanyPolicyHiddenChange,
+    onOpenReviewPacket,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
@@ -299,6 +302,19 @@ export function BulkActionBar({
                     <Ban className={cn('mr-1 h-4 w-4', loading === 'block' && 'animate-spin')} />
                     {t('bulkActions.block', { defaultValue: '批量屏蔽' })}
                 </Button>
+                {onOpenReviewPacket ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-review-packet"
+                        onClick={onOpenReviewPacket}
+                        disabled={disabled || selectedCount === 0 || loading !== null}
+                        className="text-sky-700 border-sky-200 hover:bg-sky-50"
+                    >
+                        <ClipboardList className="mr-1 h-4 w-4" />
+                        {t('bulkActions.reviewPacket', { defaultValue: 'Review packet' })}
+                    </Button>
+                ) : null}
                 <div className="flex items-center gap-1">
                     <Select
                         value={exportFormat}

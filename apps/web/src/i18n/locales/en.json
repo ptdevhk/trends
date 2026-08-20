@@ -512,8 +512,9 @@
         "ageRange": "Age Range",
         "ageUnit": "years old",
         "custom": "Custom",
-        "rangeMin": "Minimum",
+        "clearCustomRange": "Clear custom range",
         "rangeMax": "Maximum",
+        "rangeMin": "Minimum",
         "minRoleYearsInput": "Relevant experience (years)",
         "idOrNamePlaceholder": "ID / Name / External ID",
         "invalidValue": "Enter a valid number",
@@ -598,7 +599,11 @@
         "description": "Generate per-resume AI summaries and breakdowns for the loaded search results.",
         "analyzing": "Analyzing...",
         "analyzeLoaded": "Analyze loaded {{count}}",
-        "analyzeLoadedResults": "Analyze loaded results"
+        "analyzeLoadedResults": "Analyze loaded results",
+        "disabledRulesOnly": "Switch to AI Mode to analyze",
+        "disabledNoInput": "Add a JD or keywords to enable analysis",
+        "disabledNoPermission": "No permission to analyze candidates",
+        "disabledGeneric": "Select candidates to analyze"
       },
       "readOnly": {
         "loginRequired": "Sign in to rate, update status, add notes, block, export, or run bulk actions."
@@ -1678,7 +1683,8 @@
     "requiresTarget": "Enter a company key to link.",
     "linkSuccess": "Linked {{count}} employer key(s)",
     "ignoreSuccess": "Ignored {{count}} employer key(s)",
-    "resolveFailed": "Failed to update employer keys"
+    "resolveFailed": "Failed to update employer keys",
+    "unknownKeyHint": "Not in the company registry — verify the key before linking."
   },
   "industryEvidence": {
     "actionFilter": "Action",
@@ -2054,7 +2060,10 @@
     "queueStatusNew": "New",
     "queueStatusResearching": "Researching",
     "queueStatusNeedsEvidence": "Needs more evidence",
-    "noLedgerRows": "No ledger rows."
+    "noLedgerRows": "No ledger rows.",
+    "historyStatusApproved": "Approved",
+    "historyStatusRejected": "Rejected",
+    "historyStatusSuperseded": "Superseded"
   },
   "industryAudit": {
     "title": "Industry audit",
@@ -2528,7 +2537,10 @@
     "feedbackCardDescription": "Upload the reviewed spreadsheet to update statuses, actions, and notes on the tracked run.",
     "feedbackImportSuccess": "Imported {{count}} reviewed rows",
     "summaryCardDescription": "Generate the WeChat summary preview, then send it with the configured template and optional webhook override.",
-    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
+    "resumeIdsParsed": "{{count}} IDs parsed",
+    "exportInvalidIds": "{{count}} invalid resume ID(s) blocked the export",
+    "removeInvalidRetry": "Remove invalid IDs and retry"
   },
   "auditCompliance": {
     "title": "Audit & Compliance",

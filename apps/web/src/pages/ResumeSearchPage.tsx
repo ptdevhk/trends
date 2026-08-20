@@ -31,7 +31,8 @@ import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { rawApiClient } from '@/lib/api-helpers'
-import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled, isReviewPacketsEnabled } from '@/lib/feature-flags'
+import { writeReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
@@ -77,6 +78,7 @@ export function ResumeSearchPage() {
     activeQuery,
     activeSort,
     analysisCandidateCount,
+    analysisKeywords,
     analyzeResults,
     aiModeEnabled,
     aiModeStats,
@@ -481,6 +483,24 @@ export function ResumeSearchPage() {
   const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
     defaultValue: 'Analyze loaded results',
   })
+  const canManageCandidateData = isAuthenticated
+  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
+  const analyzeDisabledReason = useMemo(() => {
+    const isDisabled = disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData
+    if (!isDisabled) {
+      return undefined
+    }
+    if (!canManageCandidateData) {
+      return t('resumes.searchPage.analysis.disabledNoPermission', { defaultValue: 'No permission to analyze candidates' })
+    }
+    if (!aiModeEnabled) {
+      return t('resumes.searchPage.analysis.disabledRulesOnly', { defaultValue: 'Switch to AI Mode to analyze' })
+    }
+    if (!parsedState.jobDescriptionId && analysisKeywords.length === 0) {
+      return t('resumes.searchPage.analysis.disabledNoInput', { defaultValue: 'Add a JD or keywords to enable analysis' })
+    }
+    return t('resumes.searchPage.analysis.disabledGeneric', { defaultValue: 'Select candidates to analyze' })
+  }, [disableAnalyzeResults, aiModeEnabled, canManageCandidateData, parsedState.jobDescriptionId, analysisKeywords, t])
   const errorSearchBarLabel = t('resumes.searchPage.error.searchBar', {
     defaultValue: 'Search bar failed to load.',
   })
@@ -499,8 +519,6 @@ export function ResumeSearchPage() {
   const readOnlyLoginRequiredLabel = t('resumes.searchPage.readOnly.loginRequired', {
     defaultValue: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
   })
-  const canManageCandidateData = isAuthenticated
-  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
   const queueIndustryResearch = useCallback(async (resumeIds: string[]) => {
     if (!industryResearchQueueEnabled || resumeIds.length === 0) return
     const { data, error, response } = await rawApiClient.POST('/api/resumes/industry-research-requests', {
@@ -516,6 +534,11 @@ export function ResumeSearchPage() {
       toast.message(`${result.notLinked ?? 0} result(s) had no exact industry target; ${result.notEligible ?? 0} were not eligible`)
     }
   }, [industryResearchQueueEnabled])
+
+  const handleOpenReviewPacket = useCallback(() => {
+    writeReviewPacketHandoff(Array.from(selectedIds))
+    navigate(`/${workspaceSlug}/review-packets`)
+  }, [navigate, selectedIds, workspaceSlug])
 
   return (
     <div className="space-y-6">
@@ -675,6 +698,7 @@ export function ResumeSearchPage() {
                   companyPolicyHiddenCount={companyPolicyHiddenCount}
                   showCompanyPolicyHidden={showCompanyPolicyHidden}
                   onShowCompanyPolicyHiddenChange={setShowCompanyPolicyHidden}
+                  onOpenReviewPacket={isReviewPacketsEnabled() ? handleOpenReviewPacket : undefined}
                 />
               </div>
 

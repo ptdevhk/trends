@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
 import { downloadReviewPacket } from '@/lib/raw-endpoints'
+import { clearReviewPacketHandoff, readReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ReviewPacketRun = components['schemas']['ReviewPacketRun']
@@ -87,6 +88,16 @@ function parseResumeIds(value: string): string[] {
     .filter(Boolean)
 
   return Array.from(new Set(tokens))
+}
+
+const INVALID_RESUME_IDS_PATTERN = /Unable to resolve resumes[^:]*:\s*(.+)$/
+
+function extractInvalidResumeIds(message: string): string[] | null {
+  const match = message.match(INVALID_RESUME_IDS_PATTERN)
+  if (!match?.[1]) {
+    return null
+  }
+  return parseResumeIds(match[1])
 }
 
 function formatTimestamp(value: string | undefined): string {
@@ -267,6 +278,17 @@ export function ReviewPacketsPage() {
     setResumeIdsText(resumeIdsParam ? parseResumeIds(resumeIdsParam).join('\n') : '')
   }, [searchParams])
 
+  // Bulk-selection handoff takes precedence over the (usually absent) resumeIds param.
+  useEffect(() => {
+    const handedOffIds = readReviewPacketHandoff()
+    clearReviewPacketHandoff()
+    if (handedOffIds && handedOffIds.length > 0) {
+      setResumeIdsText(handedOffIds.join('\n'))
+    }
+  }, [])
+
+  const parsedResumeIdCount = parseResumeIds(resumeIdsText).length
+
   const loadRuns = useCallback(async (preferredRunId?: string) => {
     setRunsLoading(true)
     try {
@@ -363,25 +385,7 @@ export function ReviewPacketsPage() {
     void loadRunDetail(selectedRunId)
   }, [loadRunDetail, selectedRunId])
 
-  async function handleExportSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const resumeIds = parseResumeIds(resumeIdsText)
-    if (resumeIds.length === 0) {
-      toast.error(t('reviewPackets.resumeIdsRequired', { defaultValue: 'Enter at least one resume ID' }))
-      return
-    }
-
-    if (resumeIds.length > 2000) {
-      toast.error(t('reviewPackets.resumeIdsLimit', { defaultValue: 'Review packets support at most 2000 resume IDs per export' }))
-      return
-    }
-
-    if (source === 'sample' && !normalizeOptionalString(sampleName)) {
-      toast.error(t('reviewPackets.sampleRequired', { defaultValue: 'Sample name is required when source is sample' }))
-      return
-    }
-
+  async function runExport(resumeIds: string[]) {
     const payload: ReviewPacketExportRequest = {
       format,
       source,
@@ -434,10 +438,53 @@ export function ReviewPacketsPage() {
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.exportError', { defaultValue: 'Failed to create review packet export' })
+      const invalidIds = extractInvalidResumeIds(message)
+      if (invalidIds && invalidIds.length > 0) {
+        const invalidSet = new Set(invalidIds)
+        toast.error(
+          t('reviewPackets.exportInvalidIds', {
+            count: invalidIds.length,
+            defaultValue: '{{count}} invalid resume ID(s) blocked the export',
+          }),
+          {
+            action: {
+              label: t('reviewPackets.removeInvalidRetry', { defaultValue: 'Remove invalid IDs and retry' }),
+              onClick: () => {
+                const remaining = parseResumeIds(resumeIdsText).filter((id) => !invalidSet.has(id))
+                setResumeIdsText(remaining.join('\n'))
+                void runExport(remaining)
+              },
+            },
+          },
+        )
+        return
+      }
       toast.error(message)
     } finally {
       setExporting(false)
     }
+  }
+
+  async function handleExportSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const resumeIds = parseResumeIds(resumeIdsText)
+    if (resumeIds.length === 0) {
+      toast.error(t('reviewPackets.resumeIdsRequired', { defaultValue: 'Enter at least one resume ID' }))
+      return
+    }
+
+    if (resumeIds.length > 2000) {
+      toast.error(t('reviewPackets.resumeIdsLimit', { defaultValue: 'Review packets support at most 2000 resume IDs per export' }))
+      return
+    }
+
+    if (source === 'sample' && !normalizeOptionalString(sampleName)) {
+      toast.error(t('reviewPackets.sampleRequired', { defaultValue: 'Sample name is required when source is sample' }))
+      return
+    }
+
+    await runExport(resumeIds)
   }
 
   async function handleDownload(run: ReviewPacketRun) {
@@ -743,6 +790,14 @@ export function ReviewPacketsPage() {
                     defaultValue: 'Comma, space, and newline separators are all supported.',
                   })}
                 </p>
+                {parsedResumeIdCount > 0 ? (
+                  <p className="text-xs text-muted-foreground" data-testid="review-packets-parsed-count">
+                    {t('reviewPackets.resumeIdsParsed', {
+                      count: parsedResumeIdCount,
+                      defaultValue: '{{count}} IDs parsed',
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">

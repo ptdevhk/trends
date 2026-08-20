@@ -288,4 +288,24 @@ describe('ReviewPacketsPage', () => {
     expect(screen.getByLabelText('Reference note')).toHaveValue('Internal handoff')
     expect(screen.getByLabelText('Resume IDs')).toHaveValue('resume-1\nresume-2')
   })
+
+  it('prefills resume IDs from a stored bulk-selection handoff and shows the parsed count', async () => {
+    window.sessionStorage.setItem(
+      'reviewPacketHandoff',
+      JSON.stringify({ ids: ['resume-9', 'resume-10'], at: Date.now() }),
+    )
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/resumes/review-packets') {
+        return { data: { success: true, items: [] } }
+      }
+      return { data: { success: true } }
+    })
+
+    render(<ReviewPacketsPage />)
+
+    expect(await screen.findByLabelText('Resume IDs')).toHaveValue('resume-9\nresume-10')
+    expect(screen.getByTestId('review-packets-parsed-count')).toHaveTextContent('2 IDs parsed')
+    expect(window.sessionStorage.getItem('reviewPacketHandoff')).toBeNull()
+  })
 })

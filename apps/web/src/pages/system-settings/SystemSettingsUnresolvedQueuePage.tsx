@@ -38,6 +38,7 @@ export function SystemSettingsUnresolvedQueuePage() {
   const [linkTargets, setLinkTargets] = useState<Readonly<Record<string, string>>>({})
   const [bulkTarget, setBulkTarget] = useState('')
   const [resolving, setResolving] = useState(false)
+  const [companyKeys, setCompanyKeys] = useState<string[]>([])
 
   const load = useCallback(async () => {
     setLoadFailed(false)
@@ -61,6 +62,30 @@ export function SystemSettingsUnresolvedQueuePage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const payload = await requestJson('/api/companies')
+        if (cancelled || !isRecord(payload) || !Array.isArray(payload.items)) return
+        setCompanyKeys(
+          payload.items
+            .filter(
+              (item): item is { companyKey: string } =>
+                isRecord(item) && typeof item.companyKey === 'string' && item.status !== 'merged',
+            )
+            .map((item) => item.companyKey)
+            .sort((a, b) => a.localeCompare(b)),
+        )
+      } catch {
+        // The registry is optional; manual keys stay possible when it is degraded.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [requestJson])
 
   const applySearch = useCallback(() => {
     setSearch(searchInput.trim())
@@ -265,10 +290,17 @@ export function SystemSettingsUnresolvedQueuePage() {
                 <Input
                   value={bulkTarget}
                   onChange={(event) => setBulkTarget(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void resolveKeys([...selectedKeys], 'link', bulkTarget)
+                    }
+                  }}
                   placeholder={t('unresolvedQueue.bulkTargetPlaceholder', {
                     defaultValue: 'Company key for all selected…',
                   })}
                   className="max-w-xs"
+                  list="unresolved-queue-company-keys"
                   data-testid="unresolved-queue-bulk-target"
                 />
                 <Button
@@ -290,6 +322,16 @@ export function SystemSettingsUnresolvedQueuePage() {
                 >
                   {t('unresolvedQueue.bulkIgnore', { defaultValue: 'Ignore selected' })}
                 </Button>
+                {bulkTarget.trim() && companyKeys.length > 0 && !companyKeys.includes(bulkTarget.trim()) ? (
+                  <span
+                    className="w-full text-xs text-amber-600"
+                    data-testid="unresolved-queue-bulk-target-hint"
+                  >
+                    {t('unresolvedQueue.unknownKeyHint', {
+                      defaultValue: 'Not in the company registry — verify the key before linking.',
+                    })}
+                  </span>
+                ) : null}
               </div>
             ) : null}
 
@@ -317,6 +359,7 @@ export function SystemSettingsUnresolvedQueuePage() {
                     selected={selectedKeys.has(item.normalizedKey)}
                     resolving={resolving}
                     linkTarget={linkTargets[item.normalizedKey] ?? ''}
+                    companyKeys={companyKeys}
                     onToggle={(checked) => toggleSelected(item.normalizedKey, checked)}
                     onLinkTargetChange={(value) => setLinkTarget(item.normalizedKey, value)}
                     onLink={() => void resolveKeys([item.normalizedKey], 'link', linkTargets[item.normalizedKey])}
@@ -329,6 +372,12 @@ export function SystemSettingsUnresolvedQueuePage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <datalist id="unresolved-queue-company-keys">
+        {companyKeys.map((companyKey) => (
+          <option key={companyKey} value={companyKey} />
+        ))}
+      </datalist>
     </div>
   )
 }
@@ -338,6 +387,7 @@ type QueueRowProps = {
   selected: boolean
   resolving: boolean
   linkTarget: string
+  companyKeys: string[]
   onToggle: (checked: boolean) => void
   onLinkTargetChange: (value: string) => void
   onLink: () => void
@@ -350,6 +400,7 @@ function QueueRow({
   selected,
   resolving,
   linkTarget,
+  companyKeys,
   onToggle,
   onLinkTargetChange,
   onLink,
@@ -430,12 +481,29 @@ function QueueRow({
             <Input
               value={linkTarget}
               onChange={(event) => onLinkTargetChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  onLink()
+                }
+              }}
               placeholder={t('unresolvedQueue.linkTargetPlaceholder', {
                 defaultValue: 'Company key…',
               })}
               className="h-8 w-40"
+              list="unresolved-queue-company-keys"
               data-testid={`unresolved-queue-link-target-${key}`}
             />
+            {linkTarget.trim() && companyKeys.length > 0 && !companyKeys.includes(linkTarget.trim()) ? (
+              <span
+                className="w-full text-xs text-amber-600"
+                data-testid={`unresolved-queue-link-target-hint-${key}`}
+              >
+                {t('unresolvedQueue.unknownKeyHint', {
+                  defaultValue: 'Not in the company registry — verify the key before linking.',
+                })}
+              </span>
+            ) : null}
             <Button
               type="button"
               size="sm"

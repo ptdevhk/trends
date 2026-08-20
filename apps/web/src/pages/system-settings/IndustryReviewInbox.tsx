@@ -511,6 +511,24 @@ export function IndustryReviewInbox({
     [historyItems, registry],
   )
 
+  const historyStatusCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of visibleHistory) {
+      counts.set(item.status, (counts.get(item.status) ?? 0) + 1)
+    }
+    return TERMINAL_INDUSTRY_PROPOSAL_STATUSES
+      .map((status) => ({ status, count: counts.get(status) ?? 0 }))
+      .filter(({ count }) => count > 0)
+  }, [visibleHistory])
+
+  const historyStatusLabel = (status: string) => status === 'approved'
+    ? t('industryEvidence.historyStatusApproved', { defaultValue: 'Approved' })
+    : status === 'rejected'
+      ? t('industryEvidence.historyStatusRejected', { defaultValue: 'Rejected' })
+      : status === 'superseded'
+        ? t('industryEvidence.historyStatusSuperseded', { defaultValue: 'Superseded' })
+        : status
+
   const visibleRows = activeFilter === 'all'
     ? partition.all
     : activeFilter === 'approvable'
@@ -1054,6 +1072,15 @@ export function IndustryReviewInbox({
             <span className={`ml-1.5 tabular-nums text-xs ${activeFilter === filter ? 'text-emerald-50' : 'text-muted-foreground'}`}>
               {count}
             </span>
+            {filter === 'history' && historyStatusCounts.map(({ status, count: statusCount }) => (
+              <span
+                key={status}
+                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${activeFilter === filter ? 'bg-emerald-800/80 text-emerald-50' : 'bg-muted text-muted-foreground'}`}
+                data-testid={`industry-review-history-status-${status}`}
+              >
+                {historyStatusLabel(status)} {statusCount}
+              </span>
+            ))}
           </button>
         ))}
       </div>

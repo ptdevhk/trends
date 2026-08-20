@@ -75,6 +75,7 @@ const {
 const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
   industryEvidenceTargetedQueueEnabled: false,
+  reviewPacketsEnabled: false,
 }))
 
 const routeMock = vi.hoisted(() => ({
@@ -101,6 +102,7 @@ const authMock = vi.hoisted((): { value: AuthMockValue } => ({
 vi.mock('@/lib/feature-flags', () => ({
   isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
   isIndustryEvidenceTargetedQueueEnabled: () => featureFlagsMock.industryEvidenceTargetedQueueEnabled,
+  isReviewPacketsEnabled: () => featureFlagsMock.reviewPacketsEnabled,
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -590,6 +592,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     activeQuery: undefined,
     activeSort: 'score',
     analysisCandidateCount: 0,
+    analysisKeywords: [],
     analyzeResults: vi.fn(),
     aiModeEnabled: true,
     aiModeStats: undefined,
