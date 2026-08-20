@@ -476,6 +476,19 @@
         "clearSearch": "清除搜尋",
         "recentSearchCount": "{{count}} 個最近搜尋可用"
       },
+      "jdPaste": {
+        "title": "貼上職位描述以提取關鍵詞",
+        "description": "我們只提取搜尋關鍵詞，不會向職位描述寫入任何內容。",
+        "placeholder": "在此貼上職位描述文字，以提取職位、產品和領域關鍵詞。",
+        "tipPrefix": "提示：使用",
+        "tipSuffix": "提取。",
+        "extract": "提取關鍵詞",
+        "extracting": "提取中...",
+        "cancel": "取消",
+        "emptyError": "請先貼上職位描述",
+        "extractError": "從職位描述中提取關鍵詞失敗",
+        "noKeywordsError": "未提取到有用的關鍵詞"
+      },
       "header": {
         "results": "{{count}} 條結果",
         "resultsWithQuery": "{{count}} 條結果，查詢「{{query}}」",
@@ -499,6 +512,7 @@
       },
       "results": {
         "emptyTitle": "沒有符合的簡歷",
+        "clearFilters": "清除篩選",
         "failedTitle": "搜索失敗，請重試",
         "failedDescription": "搜索請求未完成。結果可能仍然存在，請重試或刷新頁面。",
         "emptyDescription": "可以嘗試更寬泛的關鍵詞，或移除部分篩選條件。",

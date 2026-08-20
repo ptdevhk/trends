@@ -140,7 +140,7 @@ export function CandidateExplanationPage() {
   const [searchParams] = useSearchParams()
   const workspaceSlug = searchParams.get('workspace') ?? ''
 
-  const { data, loading, error } = useExplanation(resumeId, workspaceSlug)
+  const { data, loading, error, reload } = useExplanation(resumeId, workspaceSlug)
 
   if (!resumeId || !workspaceSlug) {
     return (
@@ -184,7 +184,7 @@ export function CandidateExplanationPage() {
                 defaultValue: 'We could not load the explanation for this application. Please try again later.',
               })}
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+            <Button variant="outline" className="mt-4" onClick={reload}>
               {t('common.retry', { defaultValue: 'Retry' })}
             </Button>
           </CardContent>

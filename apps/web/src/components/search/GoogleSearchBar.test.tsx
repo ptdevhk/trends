@@ -260,4 +260,32 @@ describe('GoogleSearchBar', () => {
 
     expect(onClear).toHaveBeenCalledTimes(1)
   })
+
+  it('shows a keyboard shortcut hint badge for an empty query and hides it once the query is present', () => {
+    const { rerender } = render(
+      <GoogleSearchBar
+        recentSearches={[]}
+        value=""
+        onApplyRecentSearch={vi.fn()}
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Ctrl K')).toBeInTheDocument()
+
+    rerender(
+      <GoogleSearchBar
+        recentSearches={[]}
+        value="machine tools"
+        onApplyRecentSearch={vi.fn()}
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('Ctrl K')).not.toBeInTheDocument()
+  })
 })

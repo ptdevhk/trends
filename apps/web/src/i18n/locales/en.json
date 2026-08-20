@@ -477,6 +477,19 @@
         "clearSearch": "Clear search",
         "recentSearchCount": "{{count}} recent searches available"
       },
+      "jdPaste": {
+        "title": "Paste JD to extract keywords",
+        "description": "We only extract search terms. Nothing is written back to the job description.",
+        "placeholder": "Paste the job description text here to extract role, product, and domain keywords.",
+        "tipPrefix": "Tip: use",
+        "tipSuffix": "to extract.",
+        "extract": "Extract keywords",
+        "extracting": "Extracting...",
+        "cancel": "Cancel",
+        "emptyError": "Paste a job description first",
+        "extractError": "Failed to extract keywords from the job description",
+        "noKeywordsError": "No useful keywords were extracted"
+      },
       "header": {
         "results": "{{count}} results",
         "resultsWithQuery": "{{count}} results for \"{{query}}\"",
@@ -501,6 +514,7 @@
       "results": {
         "emptyTitle": "No resumes matched this search",
         "emptyDescription": "Try broader keywords or remove a few facet filters to widen the result set.",
+        "clearFilters": "Clear filters",
         "failedTitle": "Search failed, please retry",
         "failedDescription": "The search request did not complete. Results may still exist — please retry or refresh the page.",
         "loadingMore": "Loading more resumes...",

@@ -11,9 +11,42 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
+const zhHans: Record<string, string> = {
+  'resumes.searchPage.jdPaste.title': '粘贴职位描述以提取关键词',
+  'resumes.searchPage.jdPaste.placeholder': '在此粘贴职位描述文本，以提取岗位、产品和领域关键词。',
+  'resumes.searchPage.jdPaste.extract': '提取关键词',
+  'resumes.searchPage.jdPaste.cancel': '取消',
+}
+
+// Module-scope `t` (stable identity across renders) per repo convention.
+let mockLanguage = 'en'
+const mockT = (key: string, options?: string | Record<string, unknown>) => {
+  if (mockLanguage === 'zh-Hans' && zhHans[key]) {
+    return zhHans[key]
+  }
+  if (typeof options === 'string') {
+    return options
+  }
+  const defaultValue =
+    options && typeof options === 'object' && typeof options.defaultValue === 'string'
+      ? options.defaultValue
+      : key
+  return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+    const value = options && typeof options === 'object' ? options[token] : undefined
+    return value === undefined || value === null ? '' : String(value)
+  })
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: mockT,
+  }),
+}))
+
 describe('JdPastePopover', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLanguage = 'en'
   })
 
   it('extracts keywords and applies them to the parent flow', async () => {
@@ -95,5 +128,21 @@ describe('JdPastePopover', () => {
 
     expect(onClose).toHaveBeenCalled()
     expect(postMock).not.toHaveBeenCalled()
+  })
+
+  it('localizes the popover strings when the app language is zh-Hans', async () => {
+    mockLanguage = 'zh-Hans'
+
+    render(
+      <JdPastePopover
+        onApplyKeywords={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('粘贴职位描述以提取关键词')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('在此粘贴职位描述文本，以提取岗位、产品和领域关键词。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '提取关键词' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
   })
 })

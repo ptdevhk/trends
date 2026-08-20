@@ -179,6 +179,40 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
   })
 
+  it('renders empty-state quick reset actions that clear the query and filters', () => {
+    const onClearQuery = vi.fn()
+    const onClearFilters = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        onClearQuery={onClearQuery}
+        onClearFilters={onClearFilters}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /清除搜索|Clear search/i }))
+    expect(onClearQuery).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /清除筛选|Clear filters/i }))
+    expect(onClearFilters).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits the empty-state quick reset actions when no handlers are provided', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /清除搜索|Clear search/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /清除筛选|Clear filters/i })).not.toBeInTheDocument()
+  })
+
   it('renders an explicit search-failure panel with retry instead of the empty state', () => {
     const onRetrySearch = vi.fn()
     render(

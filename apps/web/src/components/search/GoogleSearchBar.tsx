@@ -46,6 +46,7 @@ export function GoogleSearchBar({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
+  const isMacLike = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.platform ?? '')
   useSearchPreload(trimmedValue, prefetchSearch)
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
@@ -208,6 +209,17 @@ export function GoogleSearchBar({
             }
           }}
         />
+        {!trimmedValue ? (
+          <kbd
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none mr-1 hidden select-none items-center rounded-md border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex',
+              compact ? 'h-5' : 'h-6'
+            )}
+          >
+            {isMacLike ? '⌘K' : 'Ctrl K'}
+          </kbd>
+        ) : null}
         {onApplyExtractedKeywords ? (
           <Button
             type="button"

@@ -476,6 +476,19 @@
         "clearSearch": "清除搜索",
         "recentSearchCount": "{{count}} 个最近搜索可用"
       },
+      "jdPaste": {
+        "title": "粘贴职位描述以提取关键词",
+        "description": "我们只提取搜索关键词，不会向职位描述写入任何内容。",
+        "placeholder": "在此粘贴职位描述文本，以提取岗位、产品和领域关键词。",
+        "tipPrefix": "提示：使用",
+        "tipSuffix": "提取。",
+        "extract": "提取关键词",
+        "extracting": "提取中...",
+        "cancel": "取消",
+        "emptyError": "请先粘贴职位描述",
+        "extractError": "从职位描述中提取关键词失败",
+        "noKeywordsError": "未提取到有用的关键词"
+      },
       "header": {
         "results": "{{count}} 条结果",
         "resultsWithQuery": "{{count}} 条结果，查询“{{query}}”",
@@ -500,6 +513,7 @@
       "results": {
         "emptyTitle": "没有匹配到简历",
         "emptyDescription": "可以尝试更宽泛的关键词，或者移除部分筛选条件。",
+        "clearFilters": "清除筛选",
         "failedTitle": "搜索失败，请重试",
         "failedDescription": "搜索请求没有完成。结果可能仍然存在，请重试或刷新页面。",
         "loadingMore": "正在加载更多简历...",

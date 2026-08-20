@@ -90,6 +90,10 @@ type SearchResultsListProps = {
    * reviewer); when set, the verified-only notice gains a review link.
    */
   verifiedOnlyReviewHref?: string
+  /** Show a quick-action button to clear the search query. */
+  onClearQuery?: () => void
+  /** Show a quick-action button to clear all facet filters. */
+  onClearFilters?: () => void
 }
 
 function SearchResultsSkeleton() {
@@ -141,6 +145,8 @@ export function SearchResultsList({
   industryResearchQueueEnabled = false,
   verifiedOnlyNotice,
   verifiedOnlyReviewHref,
+  onClearQuery,
+  onClearFilters,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -462,6 +468,19 @@ export function SearchResultsList({
   }
 
   if (items.length === 0) {
+    const resetActions = [
+      onClearQuery ? (
+        <Button key="clear-query" size="sm" variant="outline" onClick={onClearQuery}>
+          {t('resumes.searchPage.searchBar.clearSearch', { defaultValue: '清除搜索' })}
+        </Button>
+      ) : null,
+      onClearFilters ? (
+        <Button key="clear-filters" size="sm" variant="outline" onClick={onClearFilters}>
+          {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+        </Button>
+      ) : null,
+    ].filter(Boolean)
+
     return (
       <>
         <EmptyState
@@ -471,6 +490,11 @@ export function SearchResultsList({
           description={t('resumes.searchPage.results.emptyDescription', {
             defaultValue: '请尝试放宽搜索词或移除一些筛选项以扩大结果范围。',
           })}
+          action={resetActions.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {resetActions}
+            </div>
+          ) : undefined}
         />
         {detailDialog}
       </>

@@ -725,6 +725,8 @@ export function ResumeSearchPage() {
                       : undefined
                   }
                   verifiedOnlyReviewHref={verifiedOnlyReviewHref}
+                  onClearQuery={queryInput.trim() ? handleClearQuery : undefined}
+                  onClearFilters={filterCount > 0 ? clearFacetFilters : undefined}
                 />
               </ErrorBoundary>
             </div>
