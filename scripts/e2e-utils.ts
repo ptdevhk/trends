@@ -23,18 +23,28 @@ export interface WebVitals {
 
 /**
  * Inject PerformanceObserver scripts and collect Core Web Vitals.
- * Must be called BEFORE navigation (observers need `buffered: true` to catch early entries).
+ * Observers are installed via addInitScript so they survive page.goto
+ * navigations — evaluate-installed observers die with the old document,
+ * which made every CWV measurement return all nulls (the nightly UAT
+ * observation). The window flag keeps repeated measureWebVitals calls in
+ * one session from stacking duplicate observer sets per document.
  * Call `collect()` after the page has settled to retrieve measured values.
  */
 export async function measureWebVitals(page: Page): Promise<{ collect: () => Promise<WebVitals> }> {
-    // Set up observers before navigation so they capture all entries
-    await page.evaluate(() => {
+    // Runs before page scripts on every navigation; `buffered: true`
+    // catches entries emitted before the observer installs.
+    await page.addInitScript(() => {
         const w = window as typeof window & {
+            __cwv_installed?: boolean;
             __cwv_ttfb?: number | null;
             __cwv_lcp?: number | null;
             __cwv_cls?: number | null;
             __cwv_fcp?: number | null;
         };
+        if (w.__cwv_installed) {
+            return;
+        }
+        w.__cwv_installed = true;
         w.__cwv_ttfb = null;
         w.__cwv_lcp = null;
         w.__cwv_cls = null;
