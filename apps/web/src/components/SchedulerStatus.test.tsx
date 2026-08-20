@@ -52,6 +52,14 @@ describe('SchedulerStatus', () => {
     expect(screen.getByText('Loading from i18n')).toBeInTheDocument()
   })
 
+  it('reserves the loaded-card structure while loading (stable grid height)', () => {
+    getMock.mockReturnValue(new Promise(() => {}))
+    render(<SchedulerStatus />)
+    // The loading card keeps the loaded card's skeleton structure so the
+    // loading→loaded swap never shifts the ops-page grid row (CLS).
+    expect(screen.getByTestId('scheduler-status-loading')).toBeInTheDocument()
+  })
+
   it('shows error state when fetch fails', async () => {
     getMock.mockRejectedValueOnce(new Error('network error'))
     render(<SchedulerStatus />)

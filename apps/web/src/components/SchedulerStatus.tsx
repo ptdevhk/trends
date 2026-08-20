@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { useTranslation } from 'react-i18next'
@@ -85,19 +86,37 @@ export function SchedulerStatus() {
     }, [])
 
     if (loading) {
+        // Reserve the loaded card height (measured ~232px with an empty job
+        // table) so the loading→loaded swap never shifts the grid row (CLS).
         return (
-            <Card className="bg-muted/30 border-dashed">
+            <Card data-testid="scheduler-status-loading" className="bg-muted/30 border-dashed min-h-[232px]">
                 <CardHeader className="py-4">
                     <CardTitle className="text-lg">Scheduler Status</CardTitle>
                     <CardDescription>{t('common.loading', { defaultValue: 'Loading...' })}</CardDescription>
                 </CardHeader>
+                <CardContent className="pb-6">
+                    <div className="space-y-5" aria-hidden="true">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="space-y-1 border-l-2 border-primary/20 pl-3">
+                                    <Skeleton className="h-3 w-14" />
+                                    <Skeleton className="h-6 w-10" />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-3 w-28" />
+                            <Skeleton className="h-4 w-40" />
+                        </div>
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     if (error || !status) {
         return (
-            <Card className="bg-muted/30 border-dashed border-red-200">
+            <Card className="bg-muted/30 border-dashed border-red-200 min-h-[232px]">
                 <CardHeader className="py-4">
                     <CardTitle className="text-lg text-red-600">Scheduler Offline</CardTitle>
                     <CardDescription>{error || 'Unknown error'}</CardDescription>

@@ -50,6 +50,11 @@ let fetchSpy: ReturnType<typeof vi.spyOn>
 describe('SystemSettingsOperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // clearAllMocks only clears calls, not implementations: a resolved
+    // requestJson set by one test would otherwise leak into the next, where
+    // the research-queue effect's .finally(setLoading(false)) microtask fires
+    // outside act(). Reset the implementation so every test starts bare.
+    mockRequestJson.mockReset()
     fetchSpy = vi.spyOn(globalThis, 'fetch')
   })
 
@@ -77,6 +82,38 @@ describe('SystemSettingsOperationsPage', () => {
     fetchSpy.mockReturnValue(new Promise(() => {}))
     render(<SystemSettingsOperationsPage />)
     expect(screen.queryByText(/1\.2\.3/)).not.toBeInTheDocument()
+  })
+
+  it('reserves space for the extension download card before metadata loads', () => {
+    fetchSpy.mockReturnValue(new Promise(() => {}))
+    render(<SystemSettingsOperationsPage />)
+    // The reserve wrapper is always rendered so the card's appearance
+    // after the metadata fetch does not push content down (CLS).
+    expect(screen.getByTestId('extension-card-reserve')).toBeInTheDocument()
+  })
+
+  it('renders queue health placeholder stats while loading (stable height)', () => {
+    mockRequestJson.mockReturnValue(new Promise(() => {}))
+    fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }))
+    render(<SystemSettingsOperationsPage />)
+    const grid = screen.getByTestId('ops-research-queue-loading')
+    // Same 5-column stats grid as the loaded state, with placeholder values.
+    expect(grid.querySelectorAll('strong')).toHaveLength(5)
+  })
+
+  it('reserves height for the maintenance last-run info block', async () => {
+    mockRequestJson.mockResolvedValue({ success: true, items: [] })
+    fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }))
+    render(<SystemSettingsOperationsPage />)
+    // Present in both the no-history and loaded branches so the info block
+    // swap never shifts the card content below it (CLS).
+    expect(await screen.findByTestId('ops-maintenance-info-reserve')).toBeInTheDocument()
+  })
+
+  it('reserves height for the task monitor area', () => {
+    fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }))
+    render(<SystemSettingsOperationsPage />)
+    expect(screen.getByTestId('task-monitor-reserve')).toBeInTheDocument()
   })
 
   it('renders collection form inputs', () => {

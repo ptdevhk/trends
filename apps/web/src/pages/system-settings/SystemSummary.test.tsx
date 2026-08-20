@@ -18,10 +18,13 @@ describe('SystemSummary', () => {
     vi.clearAllMocks()
   })
 
-  it('returns null when summary query is undefined (loading)', () => {
+  it('renders a loading placeholder card while the summary query is undefined (stable grid cell)', () => {
     mockUseQuery.mockReturnValue(undefined)
     const { container } = render(<SystemSummary />)
-    expect(container).toBeEmptyDOMElement()
+    // Must not return null: the ops page 2-column grid depends on this card
+    // occupying its cell from first paint so the sibling card never reflows.
+    expect(container).not.toBeEmptyDOMElement()
+    expect(screen.getByTestId('system-summary-loading')).toBeInTheDocument()
   })
 
   it('renders summary card with stats from query', () => {

@@ -93,20 +93,24 @@ function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {lastRun ? (
-          <div className="text-sm space-y-1">
-            <p>
-              <span className="font-medium">{t('operations.industryMaintenanceLastRun', { defaultValue: 'Last run' })}:</span>{' '}
-              <span className="font-mono text-xs">{lastRun.status}</span>
-              {lastRun.triggerSource ? ` · ${lastRun.triggerSource}` : ''}
+        {/* Reserve the taller loaded info block so the no-history→loaded swap
+            does not push the run button down (CLS). */}
+        <div data-testid="ops-maintenance-info-reserve" className="min-h-16 space-y-1">
+          {lastRun ? (
+            <div className="text-sm space-y-1">
+              <p>
+                <span className="font-medium">{t('operations.industryMaintenanceLastRun', { defaultValue: 'Last run' })}:</span>{' '}
+                <span className="font-mono text-xs">{lastRun.status}</span>
+                {lastRun.triggerSource ? ` · ${lastRun.triggerSource}` : ''}
+              </p>
+              {lastRun.operatorSummary ? <p className="text-muted-foreground">{lastRun.operatorSummary}</p> : null}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t('operations.industryMaintenanceNoHistory', { defaultValue: 'No maintenance runs yet.' })}
             </p>
-            {lastRun.operatorSummary ? <p className="text-muted-foreground">{lastRun.operatorSummary}</p> : null}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {t('operations.industryMaintenanceNoHistory', { defaultValue: 'No maintenance runs yet.' })}
-          </p>
-        )}
+          )}
+        </div>
         <Button
           data-testid="ops-run-industry-maintenance"
           onClick={() => { handleRunNow().catch((error) => reportUiError('Unexpected handleRunNow failure', error)) }}
@@ -153,7 +157,17 @@ function IndustryResearchQueueCard({ requestJson }: { requestJson: (path: string
         <CardDescription>Exact user requests are leased and retried independently from broad maintenance sweeps.</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Loading queue health…</p> : queue ? (
+        {loading ? (
+          // Same 5-column stats grid as the loaded state so the loading→loaded
+          // swap never changes the card height (CLS).
+          <div data-testid="ops-research-queue-loading" className="grid gap-2 text-sm sm:grid-cols-5">
+            <span><strong>–</strong> active</span>
+            <span><strong>–</strong> queued</span>
+            <span><strong>–</strong> leased</span>
+            <span><strong>–</strong> identity review</span>
+            <span><strong>–</strong> failed</span>
+          </div>
+        ) : queue ? (
           <div className="grid gap-2 text-sm sm:grid-cols-5">
             <span><strong>{queue.active}</strong> active</span>
             <span><strong>{queue.queued}</strong> queued</span>
@@ -218,19 +232,21 @@ export function SystemSettingsOperationsPage() {
         <SchedulerStatus />
       </div>
 
-      {extensionVersion && (
-        <Card className="border-dashed">
-          <CardContent className="flex items-center gap-3 py-4">
-            <Download className="h-4 w-4 text-muted-foreground" />
-            <a
-              href={EXTENSION_ZIP_URL}
-              className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-            >
-              {t('quickStart.downloadExtension', { version: extensionVersion })}
-            </a>
-          </CardContent>
-        </Card>
-      )}
+      <div data-testid="extension-card-reserve" className="min-h-20">
+        {extensionVersion && (
+          <Card className="border-dashed">
+            <CardContent className="flex items-center gap-3 py-4">
+              <Download className="h-4 w-4 text-muted-foreground" />
+              <a
+                href={EXTENSION_ZIP_URL}
+                className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+              >
+                {t('quickStart.downloadExtension', { version: extensionVersion })}
+              </a>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <IndustryMaintenanceCard requestJson={requestJson} />
       <IndustryResearchQueueCard requestJson={requestJson} />
@@ -299,7 +315,9 @@ export function SystemSettingsOperationsPage() {
             {t('debugConfig.startCollection')}
           </Button>
 
-          <div className="mt-6">
+          {/* Reserve the "All tasks completed" card height so the TaskMonitor
+              null→card flip never pushes content below it (CLS). */}
+          <div data-testid="task-monitor-reserve" className="mt-6 min-h-14">
             <TaskMonitor />
           </div>
         </CardContent>
