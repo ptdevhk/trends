@@ -226,22 +226,32 @@ export function SearchResultsList({
     scrollMargin,
   })
 
+  const detailSourceIndexRef = useRef<number | null>(null)
+
   const handleViewDetails = useCallback((item: ResumeSearchResultItem) => {
+    detailSourceIndexRef.current = items.findIndex((candidate) => candidate.key === item.key)
     if (onOpenDetail) {
       onOpenDetail(item)
       return
     }
 
     setLocalDetailItem(item)
-  }, [onOpenDetail])
+  }, [items, onOpenDetail])
 
   const handleCloseDetails = useCallback(() => {
+    const restoreIndex = detailSourceIndexRef.current
     if (onCloseDetail) {
       onCloseDetail()
-      return
+    } else {
+      setLocalDetailItem(null)
     }
-
-    setLocalDetailItem(null)
+    // Restore focus to the card the dialog was opened from (after paint)
+    if (restoreIndex !== null) {
+      requestAnimationFrame(() => {
+        const card = document.querySelector<HTMLElement>(`[data-result-index="${restoreIndex}"]`)
+        card?.focus({ preventScroll: true })
+      })
+    }
   }, [onCloseDetail])
 
   const navigateToDetail = useCallback((index: number) => {
@@ -339,6 +349,8 @@ export function SearchResultsList({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
+      // Detail dialog is open: background keyboard shortcuts (S/A/O/J/K) must not act on the list behind it
+      if (detailItem) return
       if (items.length === 0) return
 
       switch (event.key) {
@@ -394,7 +406,7 @@ export function SearchResultsList({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [items, focusedIndex, onToggleExpanded, onAction, handleViewDetails])
+  }, [items, focusedIndex, onToggleExpanded, onAction, handleViewDetails, detailItem])
 
   // Deep-link support: `#resume-<id>` scrolls to the matching card and flashes
   // a highlight ring. Re-arms on hashchange (back/forward, manual hash edit).
@@ -654,6 +666,7 @@ export function SearchResultsList({
                 data-index={virtualRow.index}
                 data-result-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
+                tabIndex={-1}
                 className={`absolute left-0 top-0 w-full pb-4 ${focusedIndex === virtualRow.index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : ''}`}
                 style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
@@ -688,6 +701,7 @@ export function SearchResultsList({
             <div
               key={item.key}
               data-result-index={index}
+              tabIndex={-1}
               className={focusedIndex === index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : undefined}
             >
               <ErrorBoundary fallback={<CardErrorFallback />}>

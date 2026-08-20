@@ -514,7 +514,9 @@
         "rangeMin": "最小值",
         "rangeMax": "最大值",
         "minRoleYearsInput": "相關經驗（年）",
-        "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
+        "idOrNamePlaceholder": "ID / 姓名 / 外部ID",
+        "invalidValue": "請輸入有效數字",
+        "minExceedsMax": "最小值不能大於最大值"
       },
       "hero": {
         "quickStart": "快速開始",

@@ -96,29 +96,35 @@ function MinRoleYearsGroup({
   const isPreset = typeof minRoleYears === 'number' && (PRESET_ROLE_YEARS as readonly number[]).includes(minRoleYears)
   const [customOpen, setCustomOpen] = useState(typeof minRoleYears === 'number' && !isPreset)
   const [customText, setCustomText] = useState(isPreset || minRoleYears == null ? '' : String(minRoleYears))
+  const [customError, setCustomError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+
+  const closeCustom = useCallback(() => {
+    setCustomOpen(false)
+    setCustomText('')
+    setCustomError(null)
+  }, [])
 
   const submitCustomValue = useCallback((rawValue: string) => {
     const parsed = Number(rawValue)
     if (rawValue.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
-      setCustomOpen(false)
-      setCustomText('')
+      setCustomError(t('resumes.searchPage.facets.invalidValue', { defaultValue: 'Enter a valid number' }))
       return
     }
+    setCustomError(null)
     onSetMinRoleYears(parsed)
     setCustomOpen(false)
     setCustomText('')
-  }, [onSetMinRoleYears])
+  }, [onSetMinRoleYears, t])
 
   const handleBlur = useCallback(() => {
     requestAnimationFrame(() => {
       if (formRef.current && !formRef.current.contains(document.activeElement)) {
-        setCustomOpen(false)
-        setCustomText('')
+        closeCustom()
       }
     })
-  }, [])
+  }, [closeCustom])
 
   const handleMinRoleYearsKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (isImeComposition(event)) {
@@ -129,10 +135,9 @@ function MinRoleYearsGroup({
       submitCustomValue(inputRef.current?.value ?? customText)
     } else if (event.key === 'Escape') {
       event.preventDefault()
-      setCustomOpen(false)
-      setCustomText('')
+      closeCustom()
     }
-  }, [submitCustomValue, customText])
+  }, [submitCustomValue, customText, closeCustom])
 
   return (
     <div className="space-y-3">
@@ -151,8 +156,7 @@ function MinRoleYearsGroup({
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
                 : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
               onClick={() => {
-                setCustomOpen(false)
-                setCustomText('')
+                closeCustom()
                 onSetMinRoleYears(active ? undefined : value)
               }}
             >
@@ -174,9 +178,13 @@ function MinRoleYearsGroup({
               type="number"
               min={1}
               aria-label={t('resumes.searchPage.facets.minRoleYearsInput', { defaultValue: 'Relevant experience (years)' })}
+              aria-invalid={customError != null}
               className="h-7 w-14 px-2 text-sm"
               value={customText}
-              onChange={(event) => setCustomText(event.target.value)}
+              onChange={(event) => {
+                setCustomText(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleBlur}
               onKeyDown={handleMinRoleYearsKeyDown}
               autoFocus
@@ -194,10 +202,7 @@ function MinRoleYearsGroup({
             <button
               type="button"
               className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
-              onClick={() => {
-                setCustomOpen(false)
-                setCustomText('')
-              }}
+              onClick={closeCustom}
             >
               {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
@@ -212,6 +217,9 @@ function MinRoleYearsGroup({
           >
             {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
           </button>
+        )}
+        {customError != null && (
+          <span role="alert" className="w-full text-xs text-red-600">{customError}</span>
         )}
       </div>
     </div>
@@ -256,6 +264,7 @@ function RangeFilterGroup({
   const [customOpen, setCustomOpen] = useState(!activePreset && (valueMin != null || valueMax != null))
   const [customMin, setCustomMin] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMin === 'number' ? String(valueMin) : ''))
   const [customMax, setCustomMax] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMax === 'number' ? String(valueMax) : ''))
+  const [customError, setCustomError] = useState<string | null>(null)
   const minRef = useRef<HTMLInputElement>(null)
   const maxRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -264,6 +273,7 @@ function RangeFilterGroup({
     setCustomOpen(false)
     setCustomMin('')
     setCustomMax('')
+    setCustomError(null)
   }, [])
 
   const handleRangeBlur = useCallback(() => {
@@ -284,18 +294,21 @@ function RangeFilterGroup({
       (parsedMin != null && (!Number.isFinite(parsedMin) || parsedMin <= 0)) ||
       (parsedMax != null && (!Number.isFinite(parsedMax) || parsedMax <= 0))
     ) {
+      setCustomError(t('resumes.searchPage.facets.invalidValue', { defaultValue: 'Enter a valid number' }))
       return
     }
     if (parsedMin != null && parsedMax != null && parsedMin > parsedMax) {
+      setCustomError(t('resumes.searchPage.facets.minExceedsMax', { defaultValue: 'Minimum must not exceed maximum' }))
       return
     }
     if (parsedMin == null && parsedMax == null) {
-      setCustomOpen(false)
+      closeCustomRange()
       return
     }
+    setCustomError(null)
     onSetRange(parsedMin, parsedMax)
     setCustomOpen(false)
-  }, [customMin, customMax, onSetRange])
+  }, [customMin, customMax, onSetRange, t, closeCustomRange])
 
   const handleRangeInputKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -353,9 +366,13 @@ function RangeFilterGroup({
               min={1}
               placeholder="—"
               aria-label={t('resumes.searchPage.facets.rangeMin', { label, defaultValue: 'Minimum' })}
+              aria-invalid={customError != null}
               className="h-7 w-12 px-2 text-sm"
               value={customMin}
-              onChange={(event) => setCustomMin(event.target.value)}
+              onChange={(event) => {
+                setCustomMin(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleRangeBlur}
               onKeyDown={handleRangeInputKeyDown}
               autoFocus
@@ -367,9 +384,13 @@ function RangeFilterGroup({
               min={1}
               placeholder="—"
               aria-label={t('resumes.searchPage.facets.rangeMax', { label, defaultValue: 'Maximum' })}
+              aria-invalid={customError != null}
               className="h-7 w-12 px-2 text-sm"
               value={customMax}
-              onChange={(event) => setCustomMax(event.target.value)}
+              onChange={(event) => {
+                setCustomMax(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleRangeBlur}
               onKeyDown={handleRangeInputKeyDown}
             />

@@ -417,6 +417,18 @@ export function ResumeDetail({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           data-testid="resume-detail-content"
+          onKeyDown={(event) => {
+            if (isImeComposition(event)) return
+            const target = event.target as HTMLElement
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+            if (event.key === 'ArrowLeft' && onNavigatePrev) {
+              event.preventDefault()
+              onNavigatePrev()
+            } else if (event.key === 'ArrowRight' && onNavigateNext) {
+              event.preventDefault()
+              onNavigateNext()
+            }
+          }}
         lang={contentLocale}
         className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto p-4 sm:w-full sm:p-6 md:max-w-3xl lg:max-w-4xl"
       >

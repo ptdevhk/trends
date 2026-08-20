@@ -515,7 +515,9 @@
         "rangeMin": "Minimum",
         "rangeMax": "Maximum",
         "minRoleYearsInput": "Relevant experience (years)",
-        "idOrNamePlaceholder": "ID / Name / External ID"
+        "idOrNamePlaceholder": "ID / Name / External ID",
+        "invalidValue": "Enter a valid number",
+        "minExceedsMax": "Minimum must not exceed maximum"
       },
       "hero": {
         "quickStart": "Quick Start",
