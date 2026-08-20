@@ -1,13 +1,30 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
+export interface SelectOption {
+  value: string
+  label: string
+  group?: string
+}
+
 export interface SelectProps
   extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  options: { value: string; label: string }[]
+  options: SelectOption[]
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, options, ...props }, ref) => {
+    // Group consecutive options with the same `group` property into <optgroup> runs
+    const runs = options.reduce<{ group?: string; options: SelectOption[] }[]>((runs, option) => {
+      const last = runs[runs.length - 1]
+      if (last && last.group === option.group) {
+        last.options.push(option)
+      } else {
+        runs.push({ group: option.group, options: [option] })
+      }
+      return runs
+    }, [])
+
     return (
       <select
         className={cn(
@@ -17,11 +34,23 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         ref={ref}
         {...props}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {runs.map((run, runIndex) =>
+          run.group ? (
+            <optgroup key={`optgroup-${runIndex}`} label={run.group}>
+              {run.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            run.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))
+          )
+        )}
       </select>
     )
   }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
@@ -6,6 +6,11 @@ import { JobDescriptionEditor } from './JobDescriptionEditor'
 
 const createJDMock = vi.hoisted(() => vi.fn())
 const updateJDMock = vi.hoisted(() => vi.fn())
+const toastErrorMock = vi.hoisted(() => vi.fn())
+
+vi.mock('sonner', () => ({
+  toast: { error: toastErrorMock, success: vi.fn() },
+}))
 
 vi.mock('convex/react', () => ({
   useMutation: (ref: string) => {
@@ -175,13 +180,15 @@ describe('JobDescriptionEditor', () => {
     expect(callArgs.title).toBe('Updated JD')
   })
 
-  it('does not save when title is empty', async () => {
+  it('does not save when title is empty and shows inline error', async () => {
     render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
 
     await userEvent.click(screen.getByText('Save'))
 
     expect(createJDMock).not.toHaveBeenCalled()
     expect(updateJDMock).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Job title is required')
+    expect(screen.getByLabelText('Job Title')).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('calls onOpenChange(false) after successful save', async () => {
@@ -254,8 +261,37 @@ describe('JobDescriptionEditor', () => {
     await waitFor(() => {
       expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to save JD', expect.any(Error))
     })
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith('Network error')
+    })
 
     consoleErrorSpy.mockRestore()
+  })
+
+  it('saves on form submit (Enter-to-save path)', async () => {
+    render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
+
+    await userEvent.type(screen.getByLabelText('Job Title'), 'Enter Saved Role')
+    const form = screen.getByTestId('dialog').querySelector('form')
+    expect(form).not.toBeNull()
+    fireEvent.submit(form!)
+
+    await waitFor(() => {
+      expect(createJDMock).toHaveBeenCalled()
+    })
+    expect(createJDMock.mock.calls[0][0].title).toBe('Enter Saved Role')
+  })
+
+  it('blocks form submission while IME composition is in flight', async () => {
+    render(<JobDescriptionEditor open={true} onOpenChange={() => {}} />)
+
+    const titleInput = screen.getByLabelText('Job Title')
+    const keyDownEvent = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true })
+    const preventDefaultSpy = vi.spyOn(keyDownEvent, 'preventDefault')
+    fireEvent(titleInput, keyDownEvent)
+
+    expect(preventDefaultSpy).toHaveBeenCalled()
+    expect(createJDMock).not.toHaveBeenCalled()
   })
 
   it('closes dialog via onOpenChange when clicking cancel', async () => {

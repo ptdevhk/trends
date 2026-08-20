@@ -312,7 +312,9 @@
     },
     "jobDescription": {
       "placeholder": "Select job description",
-      "manage": "Manage JDs"
+      "manage": "Manage JDs",
+      "customLabel": "Custom",
+      "systemLabel": "System"
     },
     "selectJobDescriptionFirst": "Please select a Job Description first",
     "selectKeywordsOrJobDescription": "Please select keywords or a job description",
@@ -444,7 +446,9 @@
       "industryVerified": "Industry verified",
       "aiScoreLabel": "AI score",
       "aiSummaryLabel": "AI summary",
-      "promptVersion": "Prompt v{{version}}"
+      "promptVersion": "Prompt v{{version}}",
+      "previousResume": "Previous resume",
+      "nextResume": "Next resume"
     },
     "experienceLevel": {
       "senior": "Senior",
@@ -733,7 +737,10 @@
     "defaultExp": "Default: min 1 year",
     "ageNotSupportedBySource": "Age filters are not available for the selected sources",
     "contentPlaceholder": "Paste or edit JD markdown content",
-    "customKeywordsPlaceholder": "e.g. 机床 车床"
+    "customKeywordsPlaceholder": "e.g. 机床 车床",
+    "titleRequired": "Job title is required",
+    "contentRequired": "Job description content is required",
+    "saveFailed": "Failed to save job description"
   },
   "quickStart": {
     "quickFilters": "Filters",
@@ -2214,6 +2221,8 @@
     "profileCreating": "Creating…",
     "profileDelete": "Delete profile",
     "profileDeleting": "Deleting…",
+    "profileDeleteConfirm": "Delete this profile permanently?",
+    "profileDeleteConfirmYes": "Yes, delete",
     "profileFormChannel": "Profile channel",
     "profileFormCron": "Cron expression",
     "profileFormCronHint": "Uses the global worker timezone.",

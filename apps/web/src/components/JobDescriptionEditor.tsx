@@ -26,6 +26,8 @@ import {
     type StructuredSeedFields,
 } from "@/lib/jd-editor-utils"
 import { reportUiError } from '@/lib/ui-error-reporting'
+import { toast } from 'sonner'
+import { isImeComposition } from '@/lib/utils'
 
 const INDUSTRY_TAG_OPTIONS = CANONICAL_INDUSTRY_TAGS
 
@@ -59,6 +61,8 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [maxAge, setMaxAge] = useState("")
     const [content, setContent] = useState("")
     const [loading, setLoading] = useState(false)
+    const [titleError, setTitleError] = useState<string | null>(null)
+    const [contentError, setContentError] = useState<string | null>(null)
     const [advancedMode, setAdvancedMode] = useState(false)
     const [advancedContentTouched, setAdvancedContentTouched] = useState(false)
 
@@ -133,8 +137,12 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     }
 
     const handleSave = async () => {
+        setTitleError(null)
+        setContentError(null)
+
         const normalizedTitle = title.trim()
         if (!normalizedTitle) {
+            setTitleError(t('jdEditor.titleRequired', { defaultValue: 'Job title is required' }))
             return
         }
 
@@ -155,6 +163,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
         })
         const contentToSave = advancedMode ? content : generatedContent
         if (!contentToSave.trim()) {
+            setContentError(t('jdEditor.contentRequired', { defaultValue: 'Job description content is required' }))
             return
         }
 
@@ -210,6 +219,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             onOpenChange(false)
         } catch (error) {
             reportUiError("Failed to save JD", error)
+            toast.error(error instanceof Error ? error.message : t('jdEditor.saveFailed', { defaultValue: 'Failed to save job description' }))
         } finally {
             setLoading(false)
         }
@@ -224,10 +234,21 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                         {t("jdEditor.description", { defaultValue: "Define role requirements and matching criteria for better AI analysis." })}
                     </DialogDescription>
                 </DialogHeader>
+                <form
+                    onSubmit={(event) => { event.preventDefault(); void handleSave() }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' && isImeComposition(event)) {
+                            event.preventDefault()
+                        }
+                    }}
+                >
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                         <Label htmlFor="title">{t("jdEditor.post", { defaultValue: "Job Title" })}</Label>
-                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("jdEditor.postPlaceholder", { defaultValue: "e.g. Senior Backend Engineer" })} />
+                        <Input id="title" value={title} autoFocus onChange={(e) => { setTitle(e.target.value); setTitleError(null) }} placeholder={t("jdEditor.postPlaceholder", { defaultValue: "e.g. Senior Backend Engineer" })} aria-invalid={titleError ? true : undefined} aria-describedby={titleError ? "title-error" : undefined} />
+                        {titleError ? (
+                            <p id="title-error" role="alert" className="text-xs font-medium text-destructive">{titleError}</p>
+                        ) : null}
                     </div>
 
                     <div className="grid gap-2">
@@ -334,17 +355,24 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                                 onChange={(e) => {
                                     setContent(e.target.value)
                                     setAdvancedContentTouched(true)
+                                    setContentError(null)
                                 }}
                                 placeholder={t("jdEditor.contentPlaceholder", { defaultValue: "Paste the job description markdown here..." })}
                                 className="min-h-[280px] font-mono text-sm"
+                                aria-invalid={contentError ? true : undefined}
+                                aria-describedby={contentError ? "content-error" : undefined}
                             />
+                            {contentError ? (
+                                <p id="content-error" role="alert" className="text-xs font-medium text-destructive">{contentError}</p>
+                            ) : null}
                         </div>
                     )}
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t("jdManagement.cancel", { defaultValue: "Cancel" })}</Button>
-                    <Button onClick={handleSave} disabled={loading}>{loading ? t("searchProfiles.saving", { defaultValue: "Saving..." }) : t("searchProfiles.save", { defaultValue: "Save" })}</Button>
+                    <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>{t("jdManagement.cancel", { defaultValue: "Cancel" })}</Button>
+                    <Button type="submit" disabled={loading}>{loading ? t("searchProfiles.saving", { defaultValue: "Saving..." }) : t("searchProfiles.save", { defaultValue: "Save" })}</Button>
                 </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     )

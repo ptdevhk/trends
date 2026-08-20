@@ -55,6 +55,8 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
   const selectOptions = useMemo(() => {
     return buildJobDescriptionOptions({
       placeholderLabel: t('resumes.jobDescription.placeholder'),
+      customLabel: t('resumes.jobDescription.customLabel', { defaultValue: 'Custom' }),
+      systemLabel: t('resumes.jobDescription.systemLabel', { defaultValue: 'System' }),
       convexJobDescriptions: normalizedConvexJobDescriptions,
       systemJobDescriptions,
     })

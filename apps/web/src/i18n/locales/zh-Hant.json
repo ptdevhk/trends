@@ -311,7 +311,9 @@
     },
     "jobDescription": {
       "placeholder": "選擇職位",
-      "manage": "管理職位"
+      "manage": "管理職位",
+      "customLabel": "自定義",
+      "systemLabel": "系統"
     },
     "selectJobDescriptionFirst": "請先選擇職位描述",
     "selectKeywordsOrJobDescription": "請選擇關鍵詞或職位描述",
@@ -443,7 +445,9 @@
       "industryVerified": "產業驗證",
       "aiScoreLabel": "AI 分數",
       "aiSummaryLabel": "AI 摘要",
-      "promptVersion": "提示詞 v{{version}}"
+      "promptVersion": "提示詞 v{{version}}",
+      "previousResume": "上一份簡歷",
+      "nextResume": "下一份簡歷"
     },
     "experienceLevel": {
       "senior": "資深",
@@ -733,7 +737,10 @@
     "defaultExp": "預設最少 1 年",
     "ageNotSupportedBySource": "目前所選來源不支援年齡篩選",
     "contentPlaceholder": "可貼上或編輯職位 Markdown 內容",
-    "customKeywordsPlaceholder": "例如：機床 車床"
+    "customKeywordsPlaceholder": "例如：機床 車床",
+    "titleRequired": "職位標題不能為空",
+    "contentRequired": "職位內容不能為空",
+    "saveFailed": "儲存職位描述失敗"
   },
   "quickStart": {
     "quickFilters": "篩選條件",
@@ -2214,6 +2221,8 @@
     "profileCreating": "建立中...",
     "profileDelete": "刪除配置",
     "profileDeleting": "刪除中...",
+    "profileDeleteConfirm": "確定要永久刪除此配置嗎？",
+    "profileDeleteConfirmYes": "確定刪除",
     "profileFormChannel": "配置頻道",
     "profileFormCron": "Cron 表達式",
     "profileFormCronHint": "使用全域 worker 時區。",

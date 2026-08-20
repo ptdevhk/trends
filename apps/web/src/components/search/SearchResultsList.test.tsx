@@ -228,6 +228,42 @@ describe('SearchResultsList', () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1)
   })
 
+  it('renders active-filter chip row above results when onClearQuery/onClearFilters provided', () => {
+    const onClearQuery = vi.fn()
+    const onClearFilters = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        onClearQuery={onClearQuery}
+        onClearFilters={onClearFilters}
+      />
+    )
+    expect(screen.getByTestId('resume-active-filter-chips')).toBeInTheDocument()
+    expect(screen.getByTestId('resume-clear-query-chip')).toBeInTheDocument()
+    expect(screen.getByTestId('resume-clear-filters-chip')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('resume-clear-query-chip'))
+    expect(onClearQuery).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByTestId('resume-clear-filters-chip'))
+    expect(onClearFilters).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits active-filter chip row when no handlers provided', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+    expect(screen.queryByTestId('resume-active-filter-chips')).not.toBeInTheDocument()
+  })
+
   it('omits the empty-state quick reset actions when no handlers are provided', () => {
     render(
       <SearchResultsList

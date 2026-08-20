@@ -311,7 +311,9 @@
     },
     "jobDescription": {
       "placeholder": "选择职位",
-      "manage": "管理职位"
+      "manage": "管理职位",
+      "customLabel": "自定义",
+      "systemLabel": "系统"
     },
     "selectJobDescriptionFirst": "请先选择职位描述",
     "selectKeywordsOrJobDescription": "请选择关键词或职位描述",
@@ -443,7 +445,9 @@
       "industryVerified": "行业验证",
       "aiScoreLabel": "AI 分数",
       "aiSummaryLabel": "AI 摘要",
-      "promptVersion": "提示词 v{{version}}"
+      "promptVersion": "提示词 v{{version}}",
+      "previousResume": "上一份简历",
+      "nextResume": "下一份简历"
     },
     "experienceLevel": {
       "senior": "资深",
@@ -2058,6 +2062,9 @@
     "maxRelatedExp": "最高相关经验(年)",
     "contentPlaceholder": "可贴上或编辑职位 Markdown 内容",
     "customKeywordsPlaceholder": "例如：机床 车床",
+    "titleRequired": "职位标题不能为空",
+    "contentRequired": "职位内容不能为空",
+    "saveFailed": "保存职位描述失败",
     "post": "职位名称",
     "maxAge": "最高年龄",
     "simpleMode": "基本信息"
@@ -2242,6 +2249,8 @@
     "profileCreating": "创建中...",
     "profileDelete": "删除配置",
     "profileDeleting": "删除中...",
+    "profileDeleteConfirm": "确定要永久删除此配置吗？",
+    "profileDeleteConfirmYes": "确定删除",
     "profileFormChannel": "配置频道",
     "profileFormCron": "Cron 表达式",
     "profileFormCronHint": "使用全局 worker 时区。",

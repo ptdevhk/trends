@@ -729,6 +729,17 @@ describe('SummaryRunsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete profile' }))
 
+    // First click only arms the confirm row; DELETE must not fire yet
+    expect(deleteMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('delete-confirm-row')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('delete-confirm-no'))
+    expect(deleteMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('delete-confirm-row')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete profile' }))
+    await user.click(screen.getByTestId('delete-confirm-yes'))
+
     await waitFor(() => {
       expect(deleteMock).toHaveBeenCalledTimes(1)
     })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import {
   buildWorkHistoryDateRange,
   buildWorkHistoryDisplayDateLine,
@@ -72,6 +72,10 @@ interface ResumeDetailProps {
   resumeIdentity?: string
   onSetOverride?: (resumeId: string, resumeIdentity: string, companyKey: string, reason: string) => Promise<boolean>
   onRemoveOverride?: (resumeIdentity: string, companyKey: string) => Promise<boolean>
+  /** Optional prev/next position indicator + navigation (e.g. "3 / 27"). Absent = hidden. */
+  positionLabel?: string
+  onNavigatePrev?: () => void
+  onNavigateNext?: () => void
 }
 
 function normalizeEvidenceValue(value: string | undefined): string {
@@ -172,6 +176,9 @@ export function ResumeDetail({
   resumeIdentity,
   onSetOverride,
   onRemoveOverride,
+  positionLabel,
+  onNavigatePrev,
+  onNavigateNext,
 }: ResumeDetailProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -740,6 +747,33 @@ export function ResumeDetail({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+          {onNavigatePrev || onNavigateNext ? (
+            <div className="flex items-center gap-2 sm:mr-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNavigatePrev}
+                disabled={!onNavigatePrev}
+                aria-label={t('resumes.detail.previousResume', { defaultValue: 'Previous resume' })}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {positionLabel ? (
+                <span className="text-sm text-muted-foreground" data-testid="resume-detail-position">
+                  {positionLabel}
+                </span>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNavigateNext}
+                disabled={!onNavigateNext}
+                aria-label={t('resumes.detail.nextResume', { defaultValue: 'Next resume' })}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
           {hasProfileUrl ? (
             <a
               className={buttonVariants({ className: 'w-full sm:w-auto' })}

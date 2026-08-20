@@ -33,41 +33,49 @@ describe('buildJobDescriptionOptions', () => {
   it('returns placeholder option when no descriptions', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select a JD',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [],
       systemJobDescriptions: [],
     })
     expect(options).toEqual([{ value: '', label: 'Select a JD' }])
   })
 
-  it('includes custom convex JDs with ✨ prefix and (Custom) suffix', () => {
+  it('includes custom convex JDs with ✨ prefix and translated group label', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: '自定义',
+      systemLabel: 'System',
       convexJobDescriptions: [{ _id: 'jd-1', title: 'Frontend Dev', type: 'custom' }],
       systemJobDescriptions: [],
     })
-    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Frontend Dev (Custom)' })
+    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Frontend Dev', group: '自定义' })
   })
 
   it('filters out disabled custom convex JDs', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [
         { _id: 'jd-1', title: 'Active', type: 'custom', enabled: true },
         { _id: 'jd-2', title: 'Disabled', type: 'custom', enabled: false },
       ],
       systemJobDescriptions: [],
     })
-    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Active (Custom)' })
+    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Active', group: 'Custom' })
     expect(options).not.toContainEqual(expect.objectContaining({ value: 'jd-2' }))
   })
 
-  it('includes system JDs with (System) suffix', () => {
+  it('includes system JDs with translated group label', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: 'Custom',
+      systemLabel: '系统',
       convexJobDescriptions: [],
       systemJobDescriptions: [{ name: 'sys-jd', title: 'System JD' }],
     })
-    expect(options).toContainEqual({ value: 'sys-jd', label: 'System JD (System)' })
+    expect(options).toContainEqual({ value: 'sys-jd', label: 'System JD', group: '系统' })
   })
 })
 

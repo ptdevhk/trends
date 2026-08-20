@@ -349,6 +349,7 @@ export function SummaryRunsPage() {
   const [profiles, setProfiles] = useState<SummaryProfileItem[]>([])
   const [profileForm, setProfileForm] = useState<SummaryProfileFormState>(createEmptyProfileForm)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -491,6 +492,7 @@ export function SummaryRunsPage() {
   }
 
   function resetProfileForm(profile: SummaryProfileItem | null) {
+    setPendingDeleteConfirm(false)
     if (profile) {
       setEditingProfileId(profile.id)
       setProfileForm(toProfileFormState(profile))
@@ -1105,19 +1107,49 @@ export function SummaryRunsPage() {
                   {profileSubmitLabel}
                 </Button>
                 {editingExistingProfile ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => {
-                      void handleDeleteProfile()
-                    }}
-                    disabled={profileSubmitting}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {profileSubmittingDelete
-                      ? t('summaries.profileDeleting', { defaultValue: 'Deleting…' })
-                      : t('summaries.profileDelete', { defaultValue: 'Delete profile' })}
-                  </Button>
+                  pendingDeleteConfirm ? (
+                    <div
+                      className="flex w-full items-center justify-end gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+                      data-testid="delete-confirm-row"
+                    >
+                      <span className="text-sm text-destructive">
+                        {t('summaries.profileDeleteConfirm', { defaultValue: 'Delete this profile permanently?' })}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="delete-confirm-no"
+                        onClick={() => setPendingDeleteConfirm(false)}
+                        disabled={profileSubmitting}
+                      >
+                        {t('common.cancel', { defaultValue: '取消' })}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        data-testid="delete-confirm-yes"
+                        onClick={() => {
+                          setPendingDeleteConfirm(false)
+                          void handleDeleteProfile()
+                        }}
+                        disabled={profileSubmitting}
+                      >
+                        {t('summaries.profileDeleteConfirmYes', { defaultValue: 'Yes, delete' })}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setPendingDeleteConfirm(true)}
+                      disabled={profileSubmitting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {profileSubmittingDelete
+                        ? t('summaries.profileDeleting', { defaultValue: 'Deleting…' })
+                        : t('summaries.profileDelete', { defaultValue: 'Delete profile' })}
+                    </Button>
+                  )
                 ) : null}
               </div>
             </CardContent>

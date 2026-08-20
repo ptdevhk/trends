@@ -13,7 +13,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
-import { ExternalLink, SearchCheck } from 'lucide-react'
+import { ExternalLink, SearchCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import type { CandidatePolicyOverride } from '@trends/shared'
@@ -215,6 +215,7 @@ export function SearchResultsList({
     }
   }, [detailResumeFromConvex, detailResumeId, routeDetailItem])
   const detailItem = routeDetailItem ?? localDetailItem ?? directDetailItem
+  const detailIndex = detailItem ? items.findIndex((item) => item.key === detailItem.key) : -1
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
 
   const rowVirtualizer = useWindowVirtualizer({
@@ -243,6 +244,19 @@ export function SearchResultsList({
     setLocalDetailItem(null)
   }, [onCloseDetail])
 
+  const navigateToDetail = useCallback((index: number) => {
+    const nextItem = items[index]
+    if (!nextItem) {
+      return
+    }
+    handleViewDetails(nextItem)
+    if (shouldVirtualize) {
+      rowVirtualizer.scrollToIndex(index, { align: 'start' })
+    } else {
+      scrollCardIntoView(index)
+    }
+  }, [items, handleViewDetails, shouldVirtualize, rowVirtualizer])
+
   const detailDialog = detailItem ? (
     <Suspense fallback={null}>
       <ResumeDetail
@@ -257,6 +271,9 @@ export function SearchResultsList({
         loading={detailResumeLoading}
         policyOverrides={policyOverrides}
         resumeIdentity={detailItem.identityKey}
+        positionLabel={detailIndex >= 0 ? `${detailIndex + 1} / ${items.length}` : undefined}
+        onNavigatePrev={detailIndex > 0 ? () => navigateToDetail(detailIndex - 1) : undefined}
+        onNavigateNext={detailIndex >= 0 && detailIndex < items.length - 1 ? () => navigateToDetail(detailIndex + 1) : undefined}
         onSetOverride={onSetOverride}
         onRemoveOverride={onRemoveOverride}
         userRating={ratingsByResume?.[detailItem.resume.resumeId]}
@@ -536,6 +553,35 @@ export function SearchResultsList({
           {t('resumes.searchPage.results.keyboardHint', {
             defaultValue: 'J/K move · Enter expand · O detail · S star · A archive',
           })}
+        </div>
+      ) : null}
+      {onClearQuery || onClearFilters ? (
+        <div
+          className="flex flex-wrap items-center gap-2 px-1"
+          data-testid="resume-active-filter-chips"
+        >
+          {onClearQuery ? (
+            <button
+              type="button"
+              onClick={onClearQuery}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              data-testid="resume-clear-query-chip"
+            >
+              {t('resumes.searchPage.searchBar.clearSearch', { defaultValue: '清除搜索' })}
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
+          {onClearFilters ? (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              data-testid="resume-clear-filters-chip"
+            >
+              {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       ) : null}
       {onQueueIndustryResearch && industryResearchQueueEnabled ? (
