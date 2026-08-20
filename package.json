@@ -43,6 +43,7 @@
     "verify:industry-scores:round-trip": "tsx scripts/verify-industry-scores.ts --sample sample-job5156-detail-enriched --round-trip",
     "verify:industry-review-uat": "tsx scripts/industry-review/local-uat.ts",
     "setup:industry-review-uat": "tsx scripts/industry-review/setup-local-uat.ts --allow-local-write",
+    "setup:company-linked-resume-uat": "tsx scripts/industry-review/setup-company-linked-resume.ts --allow-local-write",
     "verify:industry-review-browser-uat": "tsx scripts/industry-review/browser-uat.ts",
     "verify:industry-review-browser-uat-clean": "tsx scripts/industry-review/browser-uat-clean.ts",
     "verify:industry-review-post-uat": "tsx scripts/industry-review/post-uat.ts",
