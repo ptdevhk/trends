@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Link } from 'lucide-react'
+import { Link, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ type SearchHeaderProps = {
   loading?: boolean
   location?: string
   queryInput: string
+  onClearJobDescription?: () => void
   prefetchSearch?: boolean
   recentSearches: ResumeSearchRecentItem[]
   sortValue: SearchSortValue
@@ -41,6 +42,7 @@ export function SearchHeader({
   jobDescriptionId,
   loading = false,
   location,
+  onClearJobDescription,
   queryInput,
   prefetchSearch = true,
   recentSearches,
@@ -108,7 +110,21 @@ export function SearchHeader({
           </div>
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}
-            {jobDescriptionId ? <Badge variant="outline">JD {jobDescriptionId}</Badge> : null}
+            {jobDescriptionId ? (
+              <Badge variant="outline" className="gap-1">
+                JD {jobDescriptionId}
+                {onClearJobDescription ? (
+                  <button
+                    type="button"
+                    aria-label={t('resumes.searchPage.header.clearJobDescription', { defaultValue: '清除职位描述' })}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={onClearJobDescription}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </Badge>
+            ) : null}
             {statusSummary && statusSummary.total > activeResultCount ? (
               <Badge variant="outline">
                 {t('resumes.searchPage.header.allStatuses', {

@@ -82,17 +82,28 @@ const DEFAULT_SUMMARY_PROFILE_FORM: SummaryProfileFormState = {
   subject: '',
 }
 
-const SUMMARY_PERIOD_OPTIONS: Array<{ value: SummaryPeriod; label: string }> = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-]
+const SUMMARY_PERIOD_VALUES: SummaryPeriod[] = ['daily', 'weekly']
+const SUMMARY_CHANNEL_VALUES: SummaryChannel[] = ['telegram', 'wechat_work', 'feishu', 'email']
 
-const SUMMARY_CHANNEL_OPTIONS: Array<{ value: SummaryChannel; label: string }> = [
-  { value: 'telegram', label: 'Telegram' },
-  { value: 'wechat_work', label: 'WeChat Work' },
-  { value: 'feishu', label: 'Feishu' },
-  { value: 'email', label: 'Email' },
-]
+function getSummaryPeriodOptions(
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): Array<{ value: SummaryPeriod; label: string }> {
+  return [
+    { value: 'daily', label: t('summaries.period.daily', { defaultValue: 'Daily' }) },
+    { value: 'weekly', label: t('summaries.period.weekly', { defaultValue: 'Weekly' }) },
+  ]
+}
+
+function getSummaryChannelOptions(
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): Array<{ value: SummaryChannel; label: string }> {
+  return [
+    { value: 'telegram', label: t('summaries.channel.telegram', { defaultValue: 'Telegram' }) },
+    { value: 'wechat_work', label: t('summaries.channel.wechatWork', { defaultValue: 'WeChat Work' }) },
+    { value: 'feishu', label: t('summaries.channel.feishu', { defaultValue: 'Feishu' }) },
+    { value: 'email', label: t('summaries.channel.email', { defaultValue: 'Email' }) },
+  ]
+}
 
 function isSummaryPeriod(value: string): value is SummaryPeriod {
   return value === 'daily' || value === 'weekly'
@@ -154,11 +165,14 @@ function formatTimestamp(value: string | undefined): string {
   }).format(parsed)
 }
 
-function formatPeriodLabel(period: SummaryRunItem['period'] | SummaryRunDetailItem['period'] | undefined): string {
+function formatPeriodLabel(
+  period: SummaryRunItem['period'] | SummaryRunDetailItem['period'] | undefined,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
   if (period === 'weekly') {
-    return 'Weekly'
+    return t('summaries.period.weekly', { defaultValue: 'Weekly' })
   }
-  return 'Daily'
+  return t('summaries.period.daily', { defaultValue: 'Daily' })
 }
 
 function formatDelta(value: number | undefined): string {
@@ -168,11 +182,19 @@ function formatDelta(value: number | undefined): string {
   return value > 0 ? `+${value}` : String(value)
 }
 
-function formatComparisonLabel(period: SummaryRunDetailItem['period'] | undefined): string {
-  return period === 'weekly' ? 'Compared with previous week' : 'Compared with previous day'
+function formatComparisonLabel(
+  period: SummaryRunDetailItem['period'] | undefined,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  return period === 'weekly'
+    ? t('summaries.comparison.weekly', { defaultValue: 'Compared with previous week' })
+    : t('summaries.comparison.daily', { defaultValue: 'Compared with previous day' })
 }
 
-function formatDeliverySummary(delivery: SummaryRunItem['delivery']): string {
+function formatDeliverySummary(
+  delivery: SummaryRunItem['delivery'],
+  t: (key: string, opts?: { defaultValue?: string; count?: number; sent?: number; total?: number }) => string,
+): string {
   if (!delivery) {
     return '—'
   }
@@ -188,14 +210,14 @@ function formatDeliverySummary(delivery: SummaryRunItem['delivery']): string {
   ) {
     const denominator = delivery.accountsAttempted || delivery.accountsSelected || delivery.accountsConfigured || 0
     const sent = delivery.accountsSent || 0
-    const parts = [`${sent}/${denominator} sent`]
+    const parts = [t('summaries.delivery.sentCount', { defaultValue: '{{sent}}/{{total}} sent', sent, total: denominator })]
 
     if (typeof delivery.totalBatches === 'number' && delivery.totalBatches > 0) {
-      parts.push(`${delivery.totalBatches} batches`)
+      parts.push(t('summaries.delivery.batches', { defaultValue: '{{count}} batches', count: delivery.totalBatches }))
     }
 
     if (delivery.usedOverrideBotToken || delivery.usedOverrideChatId) {
-      parts.push('override')
+      parts.push(t('summaries.delivery.override', { defaultValue: 'override' }))
     }
 
     return parts.join(' • ')
@@ -206,23 +228,29 @@ function formatDeliverySummary(delivery: SummaryRunItem['delivery']): string {
   }
 
   if (delivery.ok) {
-    return 'ok'
+    return t('summaries.delivery.ok', { defaultValue: 'ok' })
   }
 
-  return 'available'
+  return t('summaries.delivery.available', { defaultValue: 'available' })
 }
 
-function formatAccountStatus(account: SummaryDeliveryAccount): string {
+function formatAccountStatus(
+  account: SummaryDeliveryAccount,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
   if (account.sent) {
-    return 'sent'
+    return t('summaries.accountStatus.sent', { defaultValue: 'sent' })
   }
   if (account.attempted) {
-    return 'failed'
+    return t('summaries.accountStatus.failed', { defaultValue: 'failed' })
   }
-  return 'skipped'
+  return t('summaries.accountStatus.skipped', { defaultValue: 'skipped' })
 }
 
-function formatComparisonSummary(item: SummaryRunDetailItem | null): string {
+function formatComparisonSummary(
+  item: SummaryRunDetailItem | null,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
   const comparison = item?.report.comparison
   if (!comparison) {
     return '—'
@@ -231,9 +259,9 @@ function formatComparisonSummary(item: SummaryRunDetailItem | null): string {
   const shared = comparison.totalsDelta.sharedIngest
   const workspace = comparison.totalsDelta.workspaceActivity
   return [
-    `${formatComparisonLabel(item?.report.period)}`,
-    `shared ingest ${formatDelta(shared.newResumes)} resumes`,
-    `workspace ${formatDelta(workspace.candidateStatusUpdates)} status`,
+    formatComparisonLabel(item?.report.period, t),
+    t('summaries.comparison.sharedIngest', { defaultValue: 'shared ingest {{delta}} resumes', delta: formatDelta(shared.newResumes) }),
+    t('summaries.comparison.workspaceActivity', { defaultValue: 'workspace {{delta}} status', delta: formatDelta(workspace.candidateStatusUpdates) }),
   ].join(' • ')
 }
 
@@ -273,16 +301,23 @@ function toProfileFormState(profile: SummaryProfileItem): SummaryProfileFormStat
   }
 }
 
-function formatChannelLabel(channel: SummaryChannel): string {
-  return SUMMARY_CHANNEL_OPTIONS.find((option) => option.value === channel)?.label ?? channel
+function formatChannelLabel(
+  channel: SummaryChannel,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  const option = getSummaryChannelOptions(t).find((item) => item.value === channel)
+  return option?.label ?? channel
 }
 
-function formatProfileDelivery(profile: SummaryProfileItem): string {
+function formatProfileDelivery(
+  profile: SummaryProfileItem,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
   if (profile.request.channel === 'email') {
-    return profile.request.to ?? 'Email recipient required'
+    return profile.request.to ?? t('summaries.profile.emailRecipientRequired', { defaultValue: 'Email recipient required' })
   }
 
-  return `${formatChannelLabel(profile.request.channel)} env defaults`
+  return `${formatChannelLabel(profile.request.channel, t)} ${t('summaries.profile.envDefaults', { defaultValue: 'env defaults' })}`
 }
 
 function getProfileStatusVariant(enabled: boolean) {
@@ -423,8 +458,8 @@ export function SummaryRunsPage() {
     void loadProfiles()
   }, [loadProfiles])
 
-  const selectedRunSummary = formatDeliverySummary(selectedRun?.delivery)
-  const selectedRunComparisonSummary = formatComparisonSummary(selectedRun)
+  const selectedRunSummary = formatDeliverySummary(selectedRun?.delivery, t)
+  const selectedRunComparisonSummary = formatComparisonSummary(selectedRun, t)
   const submittingPreview = submittingMode === 'preview'
   const submittingSend = submittingMode === 'send'
   const submitting = submittingMode !== null
@@ -797,13 +832,13 @@ export function SummaryRunsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{formatPeriodLabel(run.period)}</Badge>
+                          <Badge variant="outline">{formatPeriodLabel(run.period, t)}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{formatTimestamp(run.startedAt)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{formatDeliverySummary(run.delivery)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{formatDeliverySummary(run.delivery, t)}</TableCell>
                       </TableRow>
                     )
                   })}
@@ -896,14 +931,18 @@ export function SummaryRunsPage() {
                               <div className="text-xs font-mono text-muted-foreground">{profile.id}</div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{profile.schedule.cron}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{formatProfileDelivery(profile)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatProfileDelivery(profile, t)}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-2">
                                 <Badge variant={getProfileStatusVariant(profile.enabled)}>
-                                  {profile.enabled ? 'enabled' : 'paused'}
+                                  {profile.enabled
+                                    ? t('summaries.profile.enabled', { defaultValue: 'enabled' })
+                                    : t('summaries.profile.paused', { defaultValue: 'paused' })}
                                 </Badge>
                                 <Badge variant={getProfileModeVariant(profile.request.dryRun)}>
-                                  {profile.request.dryRun ? 'dry run' : 'send'}
+                                  {profile.request.dryRun
+                                    ? t('summaries.profile.dryRun', { defaultValue: 'dry run' })
+                                    : t('summaries.profile.send', { defaultValue: 'send' })}
                                 </Badge>
                               </div>
                             </TableCell>
@@ -979,7 +1018,7 @@ export function SummaryRunsPage() {
                         updateProfileForm('period', event.target.value)
                       }
                     }}
-                    options={SUMMARY_PERIOD_OPTIONS}
+                    options={getSummaryPeriodOptions(t)}
                     disabled={profileSubmitting}
                   />
                 </div>
@@ -995,7 +1034,7 @@ export function SummaryRunsPage() {
                         updateProfileForm('channel', event.target.value)
                       }
                     }}
-                    options={SUMMARY_CHANNEL_OPTIONS}
+                    options={getSummaryChannelOptions(t)}
                     disabled={profileSubmitting}
                   />
                 </div>
@@ -1120,7 +1159,7 @@ export function SummaryRunsPage() {
                         updateRunForm('period', event.target.value)
                       }
                     }}
-                    options={SUMMARY_PERIOD_OPTIONS}
+                    options={getSummaryPeriodOptions(t)}
                     disabled={submitting}
                   />
                 </div>
@@ -1136,7 +1175,7 @@ export function SummaryRunsPage() {
                         updateRunForm('channel', event.target.value)
                       }
                     }}
-                    options={SUMMARY_CHANNEL_OPTIONS}
+                    options={getSummaryChannelOptions(t)}
                     disabled={submitting}
                   />
                 </div>
@@ -1292,7 +1331,7 @@ export function SummaryRunsPage() {
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailPeriod', { defaultValue: 'Period' })}</div>
-                      <div className="mt-1 text-sm">{formatPeriodLabel(selectedRun.period)}</div>
+                      <div className="mt-1 text-sm">{formatPeriodLabel(selectedRun.period, t)}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailWindow', { defaultValue: 'Window' })}</div>
@@ -1357,7 +1396,7 @@ export function SummaryRunsPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div className="font-medium">{account.chatIdHint}</div>
                               <Badge variant={account.sent ? 'default' : account.attempted ? 'destructive' : 'outline'}>
-                                {formatAccountStatus(account)}
+                                {formatAccountStatus(account, t)}
                               </Badge>
                             </div>
                             <div className="mt-2 text-sm text-muted-foreground">

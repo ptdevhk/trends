@@ -265,4 +265,30 @@ describe('SearchHeader', () => {
     expect(screen.queryByText('Malaysia')).not.toBeInTheDocument()
     expect(screen.queryByText(/JD /)).not.toBeInTheDocument()
   })
+
+  it('clears the job description via the badge clear button', async () => {
+    const user = userEvent.setup()
+    const onClearJobDescription = vi.fn()
+
+    render(
+      <SearchHeader
+        activeResultCount={7}
+        jobDescriptionId="lathe-sales"
+        onClearJobDescription={onClearJobDescription}
+        queryInput="machine tools"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('JD lathe-sales')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '清除职位描述' }))
+    expect(onClearJobDescription).toHaveBeenCalledTimes(1)
+  })
 })

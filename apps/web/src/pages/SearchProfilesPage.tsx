@@ -107,11 +107,14 @@ function isLikelyNetworkError(message: string | null): boolean {
     || normalized.includes('err_connection_refused')
 }
 
-function buildScheduleLabel(profile?: SearchProfileDetails): string {
+function buildScheduleLabel(
+  profile: SearchProfileDetails | undefined,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
   if (!profile?.schedule?.enabled) {
-    return 'disabled'
+    return t('searchProfiles.schedule.disabled', { defaultValue: 'Disabled' })
   }
-  return profile.schedule.cron || 'enabled'
+  return profile.schedule.cron || t('searchProfiles.schedule.enabled', { defaultValue: 'Enabled' })
 }
 
 export function SearchProfilesPage() {
@@ -510,11 +513,11 @@ export function SearchProfilesPage() {
       const detail = profileDetails[profile.id]
       return {
         profile,
-        scheduleLabel: buildScheduleLabel(detail),
+        scheduleLabel: buildScheduleLabel(detail, t),
         runStatus: runStatuses[profile.id],
       }
     })
-  }, [profileDetails, profiles, runStatuses])
+  }, [profileDetails, profiles, runStatuses, t])
 
   return (
     <div className="space-y-6">

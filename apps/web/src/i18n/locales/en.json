@@ -544,7 +544,8 @@
         "processedStatuses": "Processed {{count}}",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
-        "export": "Export {{count}}"
+        "export": "Export {{count}}",
+        "clearJobDescription": "Clear job description"
       },
       "results": {
         "emptyTitle": "No resumes matched this search",
@@ -884,6 +885,10 @@
       "lastRun": "Last run:",
       "runStatus": "Run status:",
       "runNow": "Run Now"
+    },
+    "schedule": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     }
   },
   "searchAnalytics": {
@@ -1541,7 +1546,41 @@
     "industryDataTitle": "Industry Data",
     "industryDataTrigger": "Research",
     "industryDataTriggerFailed": "Scoped trigger failed",
-    "industryDataTriggerOk": "Triggered research for {{companyKey}} (run {{runId}})"
+    "industryDataTriggerOk": "Triggered research for {{companyKey}} (run {{runId}})",
+    "loading": "Loading...",
+    "authPolicyPrincipalAnonymous": "Everyone / anonymous",
+    "authPolicyPrincipalUsers": "Workspace users",
+    "authPolicyPrincipalAdmins": "Workspace admins",
+    "authPolicyNotGranted": "not granted",
+    "authPolicyLoginRequired": "login required",
+    "authPolicyColumnPrincipal": "Principal",
+    "authPolicyColumnRole": "Role",
+    "authPolicyColumnSearch": "Search",
+    "authPolicyColumnOperational": "Operational HR data",
+    "authPolicyColumnWrites": "Writes",
+    "authPolicyEmpty": "No policy rows",
+    "authPolicyProviderSubject": "Provider subject",
+    "authPolicyTenant": "Tenant",
+    "authPolicyWorkspace": "Workspace",
+    "authPolicyGrant": "Grant",
+    "authPolicyRevoke": "Revoke",
+    "authPolicyRefresh": "Refresh",
+    "authRoleWorkspaceAdmin": "Workspace admin",
+    "authRoleWorkspaceUser": "Workspace user",
+    "authRoleNone": "No workspace role",
+    "authSignedOut": "Signed out",
+    "authColumnUser": "User",
+    "authColumnProvider": "Provider",
+    "authColumnSubject": "Subject",
+    "authColumnEmail": "Email",
+    "authColumnStatus": "Status",
+    "authColumnUserId": "User ID",
+    "authColumnCreated": "Created",
+    "authColumnType": "Type",
+    "authEmptyIdentities": "No provider identities",
+    "authEmptyPreapprovals": "No preapprovals",
+    "authEmptyGrants": "No provider-derived grants",
+    "authEmptyEvents": "No auth events"
   },
   "resumeDedup": {
     "title": "Resume dedup review",
@@ -2168,6 +2207,42 @@
       "saveProfileFailed": "Failed to save summary profile",
       "createProfileFailed": "Failed to create summary profile",
       "deleteProfileFailed": "Failed to delete summary profile"
+    },
+    "period": {
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "channel": {
+      "telegram": "Telegram",
+      "wechatWork": "WeChat Work",
+      "feishu": "Feishu",
+      "email": "Email"
+    },
+    "delivery": {
+      "sentCount": "{{sent}}/{{total}} sent",
+      "batches": "{{count}} batches",
+      "override": "override",
+      "ok": "ok",
+      "available": "available"
+    },
+    "accountStatus": {
+      "sent": "sent",
+      "failed": "failed",
+      "skipped": "skipped"
+    },
+    "comparison": {
+      "sharedIngest": "shared ingest {{delta}} resumes",
+      "workspaceActivity": "workspace {{delta}} status",
+      "weekly": "Compared with previous week",
+      "daily": "Compared with previous day"
+    },
+    "profile": {
+      "emailRecipientRequired": "Email recipient required",
+      "envDefaults": "env defaults",
+      "enabled": "enabled",
+      "paused": "paused",
+      "dryRun": "dry run",
+      "send": "send"
     }
   },
   "footer": {},

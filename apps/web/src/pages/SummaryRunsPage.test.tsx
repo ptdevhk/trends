@@ -11,7 +11,17 @@ const { getMock, postMock, putMock, deleteMock, toastErrorMock, toastSuccessMock
   deleteMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
-  tMock: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key),
+  tMock: vi.fn((key: string, options?: Record<string, unknown>) => {
+    if (typeof options === 'string') {
+      return options
+    }
+    const defaultValue =
+      options && typeof options.defaultValue === 'string' ? options.defaultValue : key
+    return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+      const value = options && typeof options === 'object' ? options[token] : undefined
+      return value === undefined || value === null ? '' : String(value)
+    })
+  }),
 }))
 
 vi.mock('react-i18next', () => ({

@@ -543,7 +543,8 @@
         "processedStatuses": "已处理 {{count}}",
         "linkCopied": "链接已复制",
         "copyFailed": "复制失败",
-        "copyLink": "复制链接"
+        "copyLink": "复制链接",
+        "clearJobDescription": "清除职位描述"
       },
       "results": {
         "emptyTitle": "没有匹配到简历",
@@ -1070,7 +1071,41 @@
     "industryDataTitle": "行业数据",
     "industryDataTrigger": "研究",
     "industryDataTriggerFailed": "指定触发失败",
-    "industryDataTriggerOk": "已触发 {{companyKey}} 的研究（运行 {{runId}}）"
+    "industryDataTriggerOk": "已触发 {{companyKey}} 的研究（运行 {{runId}}）",
+    "loading": "加载中...",
+    "authPolicyPrincipalAnonymous": "所有人/匿名",
+    "authPolicyPrincipalUsers": "工作区用户",
+    "authPolicyPrincipalAdmins": "工作区管理员",
+    "authPolicyNotGranted": "未授予",
+    "authPolicyLoginRequired": "需要登录",
+    "authPolicyColumnPrincipal": "主体",
+    "authPolicyColumnRole": "角色",
+    "authPolicyColumnSearch": "搜索",
+    "authPolicyColumnOperational": "运营 HR 数据",
+    "authPolicyColumnWrites": "写入",
+    "authPolicyEmpty": "无策略行",
+    "authPolicyProviderSubject": "提供方主体",
+    "authPolicyTenant": "租户",
+    "authPolicyWorkspace": "工作区",
+    "authPolicyGrant": "授予",
+    "authPolicyRevoke": "撤销",
+    "authPolicyRefresh": "刷新",
+    "authRoleWorkspaceAdmin": "工作区管理员",
+    "authRoleWorkspaceUser": "工作区用户",
+    "authRoleNone": "无工作区角色",
+    "authSignedOut": "已登出",
+    "authColumnUser": "用户",
+    "authColumnProvider": "提供方",
+    "authColumnSubject": "主体",
+    "authColumnEmail": "电子邮件",
+    "authColumnStatus": "状态",
+    "authColumnUserId": "用户 ID",
+    "authColumnCreated": "创建时间",
+    "authColumnType": "类型",
+    "authEmptyIdentities": "无提供方身份",
+    "authEmptyPreapprovals": "无预批准",
+    "authEmptyGrants": "无提供方派生授权",
+    "authEmptyEvents": "无认证事件"
   },
   "resumeDedup": {
     "title": "简历去重审查",
@@ -1643,6 +1678,10 @@
       "lastRun": "上次运行：",
       "runStatus": "运行状态：",
       "runNow": "立即运行"
+    },
+    "schedule": {
+      "enabled": "已启用",
+      "disabled": "已停用"
     }
   },
   "debug": {
@@ -2196,6 +2235,42 @@
       "saveProfileFailed": "保存摘要配置失败",
       "createProfileFailed": "创建摘要配置失败",
       "deleteProfileFailed": "删除摘要配置失败"
+    },
+    "period": {
+      "daily": "每日",
+      "weekly": "每周"
+    },
+    "channel": {
+      "telegram": "Telegram",
+      "wechatWork": "企业微信",
+      "feishu": "飞书",
+      "email": "邮件"
+    },
+    "delivery": {
+      "sentCount": "已发送 {{sent}}/{{total}}",
+      "batches": "{{count}} 批次",
+      "override": "覆盖",
+      "ok": "正常",
+      "available": "可用"
+    },
+    "accountStatus": {
+      "sent": "已发送",
+      "failed": "失败",
+      "skipped": "已跳过"
+    },
+    "comparison": {
+      "sharedIngest": "共享导入 {{delta}} 份简历",
+      "workspaceActivity": "工作区 {{delta}} 状态",
+      "weekly": "与上周相比",
+      "daily": "与前一天相比"
+    },
+    "profile": {
+      "emailRecipientRequired": "需要邮件接收人",
+      "envDefaults": "环境变量默认值",
+      "enabled": "已启用",
+      "paused": "已暂停",
+      "dryRun": "试运行",
+      "send": "发送"
     }
   },
   "analysisTasks": {

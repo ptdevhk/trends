@@ -142,6 +142,7 @@ export function ResumeSearchPage() {
     replaceSelection,
     pruneSelection,
     clearSelection,
+    clearJobDescription,
     toggleSelectItem,
     overridesByKey,
     setOverride,
@@ -551,6 +552,7 @@ export function ResumeSearchPage() {
               jobDescriptionId={parsedState.jobDescriptionId}
               loading={loading}
               location={parsedState.location}
+              onClearJobDescription={clearJobDescription}
               queryInput={queryInput}
               recentSearches={recentSearches}
               sortValue={activeSort}

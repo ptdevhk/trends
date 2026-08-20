@@ -183,12 +183,27 @@ function getStatusBadgeVariant(status: ReviewPacketRunStatus): BadgeProps['varia
   return 'outline'
 }
 
-function getStatusLabel(status: ReviewPacketRunStatus): string {
-  return status.replace(/_/g, ' ')
+const REVIEW_PACKET_STATUS_LABEL_KEYS: Record<ReviewPacketRunStatus, string> = {
+  exported: 'reviewPackets.status.exported',
+  feedback_imported: 'reviewPackets.status.feedbackImported',
+  summary_sent: 'reviewPackets.status.summarySent',
+  failed: 'reviewPackets.status.failed',
 }
 
-function getSourceLabel(source: ReviewPacketSource): string {
-  return source === 'convex' ? 'Convex' : 'Sample'
+function getStatusLabel(
+  status: ReviewPacketRunStatus,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  return t(REVIEW_PACKET_STATUS_LABEL_KEYS[status], { defaultValue: status.replace(/_/g, ' ') })
+}
+
+function getSourceLabel(
+  source: ReviewPacketSource,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  return source === 'convex'
+    ? t('reviewPackets.sourceConvex', { defaultValue: 'Convex' })
+    : t('reviewPackets.sourceSample', { defaultValue: 'Sample' })
 }
 
 function isReviewPacketSource(value: string): value is ReviewPacketSource {
@@ -813,11 +828,11 @@ export function ReviewPacketsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(run.status)}>
-                          {getStatusLabel(run.status)}
+                          {getStatusLabel(run.status, t)}
                         </Badge>
                       </TableCell>
                       <TableCell>{run.totalCount}</TableCell>
-                      <TableCell>{getSourceLabel(run.source)}</TableCell>
+                      <TableCell>{getSourceLabel(run.source, t)}</TableCell>
                       <TableCell>{formatTimestamp(run.exportedAt)}</TableCell>
                     </TableRow>
                   ))}
@@ -867,7 +882,7 @@ export function ReviewPacketsPage() {
                   </p>
                   <div className="mt-2">
                     <Badge variant={getStatusBadgeVariant(selectedRun.status)}>
-                      {getStatusLabel(selectedRun.status)}
+                      {getStatusLabel(selectedRun.status, t)}
                     </Badge>
                   </div>
                 </div>
@@ -875,7 +890,7 @@ export function ReviewPacketsPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     {t('reviewPackets.source', { defaultValue: 'Source' })}
                   </p>
-                  <p className="mt-2 font-medium">{getSourceLabel(selectedRun.source)}</p>
+                  <p className="mt-2 font-medium">{getSourceLabel(selectedRun.source, t)}</p>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">

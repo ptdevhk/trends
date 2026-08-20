@@ -1330,6 +1330,12 @@ export function useResumeSearchState() {
     )
   }, [parsedState, syncToUrl])
 
+  const clearJobDescription = useCallback(() => {
+    setPendingAutoAnalyzeContextSignature('')
+    pendingForceAnalyzeRef.current = false
+    syncToUrl(buildUrlState(parsedState, { jobDescriptionId: undefined }))
+  }, [parsedState, syncToUrl])
+
   const applyRecentSearch = useCallback(
     async (item: ResumeSearchRecentItem) => {
       await markSearchHistoryOpened({ id: item.id, workspaceSlug: slug })
@@ -2103,6 +2109,7 @@ export function useResumeSearchState() {
     applyRecentSearch,
     analyzingResults,
     clearFacetFilters,
+    clearJobDescription,
     clearSearch,
     disableAnalyzeResults,
     exportFormat,
