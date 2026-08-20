@@ -10,3 +10,8 @@ export function cn(...inputs: ClassValue[]) {
 export function isImeComposition(event: KeyboardEvent): boolean {
   return event.nativeEvent.isComposing || event.keyCode === 229
 }
+
+/** True when the event is Ctrl+Enter or ⌘+Enter (not during IME composition). */
+export function isModEnterKey(event: KeyboardEvent): boolean {
+  return (event.metaKey || event.ctrlKey) && event.key === 'Enter' && !isImeComposition(event)
+}

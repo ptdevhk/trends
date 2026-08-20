@@ -71,7 +71,10 @@
     "sending": "Sending...",
     "sendEmail": "Send Email",
     "draftFailed": "Draft generation failed",
-    "sendFailed": "Sending failed"
+    "sendFailed": "Sending failed",
+    "copyMessage": "Copy Message",
+    "copiedToClipboard": "Message copied to clipboard",
+    "shortcutHint": "Ctrl/⌘ + Enter to send"
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -846,7 +849,8 @@
     "collectJob51Hint": "Collecting up to {{effectiveLimit}} resumes across {{effectiveMaxPages}} page(s).",
     "shellDescription": "Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower.",
     "hideLocationKeywords": "Hide location keywords",
-    "showLocationKeywords": "Show location keywords"
+    "showLocationKeywords": "Show location keywords",
+    "clearLocations": "Clear locations"
   },
   "searchProfiles": {
     "nav": "Search Profiles",
@@ -960,7 +964,9 @@
     "table": {
       "query": "Query",
       "count": "Count",
-      "suggestion": "Suggestion"
+      "suggestion": "Suggestion",
+      "testSearch": "Test Search",
+      "filterPlaceholder": "Filter queries..."
     },
     "suggestSynonym": "Suggest Synonym",
     "savingSuggestion": "Saving...",
@@ -996,6 +1002,9 @@
       "emptySearch": "No blocked candidates match your search.",
       "noReason": "-",
       "bulkUnblock": "Unblock Selected ({{count}})",
+      "unblockConfirm": "Unblock this candidate?",
+      "unblockConfirmYes": "Yes, unblock",
+      "clearSearch": "Clear search",
       "columns": {
         "candidate": "Candidate",
         "reason": "Reason",
@@ -1004,7 +1013,8 @@
         "actions": "Actions"
       },
       "actions": {
-        "unblock": "Unblock"
+        "unblock": "Unblock",
+        "cancel": "Cancel"
       },
       "toasts": {
         "reasonUpdated": "Block reason updated",
@@ -1130,7 +1140,9 @@
       "currentPasswordIncorrect": "Current password is incorrect",
       "passwordTooShort": "Password must be at least 8 characters",
       "passwordsDoNotMatch": "Passwords do not match",
-      "changeFailed": "Failed to change password"
+      "changeFailed": "Failed to change password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
     }
   },
   "debug": {
@@ -1343,6 +1355,9 @@
     "customKeywordKeyword": "Keyword",
     "customKeywordEnglish": "English",
     "customKeywordCategory": "Category",
+    "customKeywordSearchPlaceholder": "Filter custom keywords...",
+    "categoryFilterAll": "All categories",
+    "customKeywordNoMatches": "No matching keywords",
     "configSources": "Config Sources",
     "configSourcesDescription": "Inspect allowlisted resume config files and prompt sources in read-only mode.",
     "resumeDisplayLimits": "Resume display limits",
@@ -2678,7 +2693,8 @@
       "submitting": "Submitting...",
       "success": "Your appeal has been submitted. A qualified person will review your application.",
       "nextSteps": "You will be notified of the review outcome.",
-      "error": "Failed to submit appeal. Please try again."
+      "error": "Failed to submit appeal. Please try again.",
+      "shortcutHint": "Ctrl/⌘ + Enter to submit"
     },
     "footer": {
       "compliance": "This explanation is provided in compliance with EU AI Act Article 13."

@@ -71,7 +71,10 @@
     "sending": "发送中...",
     "sendEmail": "发送邮件",
     "draftFailed": "草稿生成失败",
-    "sendFailed": "发送失败"
+    "sendFailed": "发送失败",
+    "copyMessage": "复制内容",
+    "copiedToClipboard": "已复制到剪贴板",
+    "shortcutHint": "Ctrl/⌘ + Enter 发送"
   },
   "jdManagement": {
     "title": "职位描述管理",
@@ -860,6 +863,9 @@
     "failed": "失败",
     "resumeDisplayLimitsDescription": "用于简历展示逻辑的只读限制。",
     "customKeywordCategory": "类别",
+    "customKeywordSearchPlaceholder": "筛选自定义关键词...",
+    "categoryFilterAll": "全部分类",
+    "customKeywordNoMatches": "没有匹配的关键词",
     "editPreset": "编辑",
     "latestWorkHistoryEntries": "最新工作经历条数",
     "keywordPlaceholder": "例如: 销售, 工程师",
@@ -1875,7 +1881,8 @@
     },
     "blocks": {
       "actions": {
-        "unblock": "解除屏蔽"
+        "unblock": "解除屏蔽",
+        "cancel": "取消"
       },
       "countBadge": "已屏蔽 {{count}}",
       "noReason": "-",
@@ -1898,6 +1905,9 @@
       },
       "title": "黑名单管理",
       "bulkUnblock": "批次解除屏蔽 ({{count}})",
+      "unblockConfirm": "确认解除屏蔽此候选人？",
+      "unblockConfirmYes": "确认解除",
+      "clearSearch": "清除搜索",
       "searchPlaceholder": "依候选人识别键或原因搜索...",
       "empty": "目前没有已屏蔽候选人。",
       "nav": "黑名单"
@@ -2017,7 +2027,9 @@
       "currentPasswordIncorrect": "当前密码不正确",
       "passwordTooShort": "密码至少需要 8 个字符",
       "passwordsDoNotMatch": "密码不匹配",
-      "changeFailed": "更改密码失败"
+      "changeFailed": "更改密码失败",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码"
     }
   },
   "searchAnalytics": {
@@ -2033,7 +2045,9 @@
     "table": {
       "query": "查询词",
       "count": "次数",
-      "suggestion": "建议"
+      "suggestion": "建议",
+      "testSearch": "测试搜索",
+      "filterPlaceholder": "筛选查询..."
     },
     "loadError": "加载搜索分析失败",
     "noTopQueries": "尚无查询数据。",
@@ -2177,7 +2191,8 @@
     "collectJob51Hint": "最多收集 {{effectiveLimit}} 份简历，跨 {{effectiveMaxPages}} 页。",
     "shellDescription": "保持顶层 shell 专注于搜索。历史记录、收集和维护操作位于下一层。",
     "hideLocationKeywords": "隐藏地点关键词",
-    "showLocationKeywords": "显示地点关键词"
+    "showLocationKeywords": "显示地点关键词",
+    "clearLocations": "清除地点"
   },
   "time": {
     "justNow": "刚刚",
@@ -2705,7 +2720,8 @@
       "submitting": "提交中...",
       "success": "您的申诉已提交。专业人员将审核您的申请。",
       "nextSteps": "您将收到审核结果通知。",
-      "error": "申诉提交失败，请重试。"
+      "error": "申诉提交失败，请重试。",
+      "shortcutHint": "Ctrl/⌘ + Enter 提交"
     },
     "footer": {
       "compliance": "此说明依据 EU AI Act 第13条提供。"

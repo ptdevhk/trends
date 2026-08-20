@@ -13,10 +13,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, Wand2 } from "lucide-react";
+import { Loader2, Send, Wand2, Copy } from "lucide-react";
 import type { ResumeItem } from "@/hooks/useResumes";
 import type { MatchingResult } from "@/types/resume";
 import { apiClient } from "@/lib/api-client";
+import { isModEnterKey } from "@/lib/utils";
+import { toast } from "sonner";
 import { useResumeFieldUsagePolicy } from "@/contexts/ResumeFieldUsagePolicyContext";
 
 interface OutreachModalProps {
@@ -107,6 +109,17 @@ export function OutreachModal({
         }
     }, [isOpen, analysis, subject, body, handleGenerateDraft]);
 
+    const handleCopy = useCallback(async () => {
+        const text = `${subject}\n\n${body}`.trim();
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success(t("outreach.copiedToClipboard", { defaultValue: "Message copied to clipboard" }));
+        } catch {
+            // Clipboard write can be rejected (permissions, insecure context); leave the draft in place.
+        }
+    }, [subject, body, t]);
+
     const handleSend = useCallback(async () => {
         setLoading(true);
         try {
@@ -186,12 +199,22 @@ export function OutreachModal({
                             onChange={(e) => setBody(e.target.value)}
                             placeholder={t("outreach.bodyPlaceholder", { defaultValue: "Write your message here..." })}
                             className="h-[300px]"
+                            onKeyDown={(e) => {
+                                if (isModEnterKey(e)) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
                         />
                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
                         {t("outreach.cancel", { defaultValue: "Cancel" })}
+                    </Button>
+                    <Button variant="outline" onClick={handleCopy} disabled={!subject && !body}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        {t("outreach.copyMessage", { defaultValue: "Copy Message" })}
                     </Button>
                     <Button onClick={handleSend} disabled={loading || generating || !subject || !body}>
                         {loading ? (

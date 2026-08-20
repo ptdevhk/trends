@@ -113,4 +113,26 @@ describe('LocationSelector', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('renders clear button when value is non-empty and clicking it clears value', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    const { unmount } = render(<LocationSelector {...defaultProps} value="Shanghai" onChange={onChange} />)
+    const clearButton = screen.getByTestId('location-clear-button')
+    await user.click(clearButton)
+    expect(onChange).toHaveBeenCalledWith('')
+
+    unmount()
+    render(<LocationSelector {...defaultProps} value="" />)
+    expect(screen.queryByTestId('location-clear-button')).not.toBeInTheDocument()
+  })
+
+  it('shows active location count badge when locations are selected', () => {
+    const { unmount } = render(<LocationSelector {...defaultProps} value="Shanghai,Beijing" />)
+    expect(screen.getByTestId('location-count-badge')).toHaveTextContent('2')
+
+    unmount()
+    render(<LocationSelector {...defaultProps} value="" />)
+    expect(screen.queryByTestId('location-count-badge')).not.toBeInTheDocument()
+  })
 })

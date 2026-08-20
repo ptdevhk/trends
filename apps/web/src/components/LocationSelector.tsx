@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronDown, ChevronUp, X } from "lucide-react"
 import { useIndustryKeywords } from "@/hooks/useIndustryKeywords"
 
 interface LocationSelectorProps {
@@ -49,7 +49,21 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
+                    className="pr-16"
                 />
+                {value.trim().length > 0 && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        data-testid="location-clear-button"
+                        className="absolute right-9 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
+                        onClick={() => onChange('')}
+                        aria-label={t('quickStart.clearLocations', { defaultValue: 'Clear locations' })}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                )}
                 {availableLocationKeywords.length > 0 && (
                     <Button
                         type="button"
@@ -64,6 +78,11 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                             : t('quickStart.showLocationKeywords', { defaultValue: 'Show location keywords' })}
                     >
                         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        {activeLocations.length > 0 && (
+                            <span data-testid="location-count-badge" className="ml-1 rounded-full bg-green-600 px-1.5 text-[10px] text-white leading-4">
+                                {activeLocations.length}
+                            </span>
+                        )}
                     </Button>
                 )}
             </div>

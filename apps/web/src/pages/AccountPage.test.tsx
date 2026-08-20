@@ -90,4 +90,28 @@ describe('AccountPage', () => {
     expect(await screen.findByText('Current password is incorrect')).toBeInTheDocument()
     expect(mockToast.error).not.toHaveBeenCalled()
   })
+
+  it('toggles password visibility with show/hide buttons per field', async () => {
+    const user = userEvent.setup()
+    render(<AccountPage />)
+
+    const currentPassword = screen.getByLabelText('Current password')
+    expect(currentPassword).toHaveAttribute('type', 'password')
+
+    const showButtons = screen.getAllByRole('button', { name: 'Show password' })
+    expect(showButtons).toHaveLength(3)
+
+    await user.click(showButtons[0])
+
+    expect(currentPassword).toHaveAttribute('type', 'text')
+    expect(screen.getByLabelText('New password')).toHaveAttribute('type', 'password')
+    expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('type', 'password')
+    expect(screen.getAllByRole('button', { name: 'Show password' })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Hide password' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Hide password' }))
+
+    expect(currentPassword).toHaveAttribute('type', 'password')
+    expect(screen.getAllByRole('button', { name: 'Show password' })).toHaveLength(3)
+  })
 })

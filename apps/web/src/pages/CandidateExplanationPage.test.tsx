@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { CandidateExplanationPage } from './CandidateExplanationPage'
 
@@ -165,5 +166,30 @@ describe('CandidateExplanationPage', () => {
     // Clicking reload triggers window.location.reload which jsdom can't fully execute,
     // but we verify the button exists and is clickable
     expect(retryBtn).toBeInTheDocument()
+  })
+
+  it('shows character counter and updates as user types in appeal form', async () => {
+    mockPost.mockResolvedValue({ data: { success: true, data: mockExplanation } })
+    renderPage()
+    await screen.findByTestId('appeal-reason')
+    expect(screen.getByTestId('appeal-character-count')).toHaveTextContent('0/2000')
+    const user = userEvent.setup()
+    await user.type(screen.getByTestId('appeal-reason'), 'abc')
+    expect(screen.getByTestId('appeal-character-count')).toHaveTextContent('3/2000')
+  })
+
+  it('submits appeal on Ctrl+Enter shortcut', async () => {
+    mockPost.mockResolvedValue({ data: { success: true, data: mockExplanation } })
+    renderPage()
+    await screen.findByTestId('appeal-reason')
+    const user = userEvent.setup()
+    await user.type(screen.getByTestId('appeal-reason'), 'please reconsider')
+    await user.keyboard('{Control>}{Enter}{/Control}')
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/candidate-appeal',
+      expect.objectContaining({
+        body: expect.objectContaining({ reason: 'please reconsider' }),
+      }),
+    )
   })
 })

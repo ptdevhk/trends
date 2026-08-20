@@ -290,4 +290,64 @@ describe('SearchAnalyticsPage', () => {
       expect(screen.getByText('No suggestion available')).toBeInTheDocument()
     })
   })
+
+  it('renders test-search links for zero-result queries', async () => {
+    getMock.mockImplementation(createGetMock())
+
+    render(
+      <BrowserRouter>
+        <SearchAnalyticsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('nonexistent')).toBeInTheDocument()
+    })
+
+    const links = screen.getAllByRole('link', { name: 'Test Search' })
+    expect(links).toHaveLength(2)
+    expect(links[0]).toHaveAttribute('href', '/?q=nonexistent')
+    expect(links[0]).toHaveAttribute('target', '_blank')
+    expect(links[1]).toHaveAttribute('href', '/?q=unknown_skill')
+  })
+
+  it('shows quick filter and filters zero-result queries when more than 5', async () => {
+    getMock.mockImplementation((url: string) => {
+      if (url.includes('/summary')) {
+        return { data: { success: true, summary: mockSummary } }
+      }
+      if (url.includes('/zero-results')) {
+        return {
+          data: {
+            success: true,
+            items: Array.from({ length: 6 }, (_, i) => ({
+              query: `q${i}`,
+              count: i + 1,
+              lastSeen: '2026-05-24',
+            })),
+          },
+        }
+      }
+      if (url.includes('/synonym-suggestions')) {
+        return { data: { success: true, suggestions: [] } }
+      }
+      return { data: { success: false } }
+    })
+
+    render(
+      <BrowserRouter>
+        <SearchAnalyticsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('q0')).toBeInTheDocument()
+    })
+
+    const filter = screen.getByPlaceholderText('Filter queries...')
+    await userEvent.type(filter, 'q3')
+
+    expect(screen.getByText('q3')).toBeInTheDocument()
+    expect(screen.queryByText('q0')).not.toBeInTheDocument()
+  })
 })

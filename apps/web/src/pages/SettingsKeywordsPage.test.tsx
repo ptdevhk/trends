@@ -225,6 +225,79 @@ describe('SettingsKeywordsPage', () => {
     expect(screen.queryByText('Dongguan')).not.toBeInTheDocument()
   })
 
+  it('filters custom keywords table by search query (case-insensitive)', async () => {
+    const user = userEvent.setup()
+    render(
+      <BrowserRouter>
+        <SettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('CNC')).toBeInTheDocument()
+    })
+
+    const searchInput = screen.getByPlaceholderText(/filter custom keywords/i)
+    await user.type(searchInput, 'lathe')
+
+    expect(screen.getByText('车床')).toBeInTheDocument()
+    expect(screen.queryByText('CNC')).not.toBeInTheDocument()
+
+    await user.clear(searchInput)
+    await user.type(searchInput, 'CNC MACHINING')
+
+    expect(screen.getByText('CNC')).toBeInTheDocument()
+    expect(screen.queryByText('车床')).not.toBeInTheDocument()
+
+    await user.clear(searchInput)
+    await user.type(searchInput, 'zzzz-no-match')
+    expect(screen.getByText('No matching keywords')).toBeInTheDocument()
+  })
+
+  it('filters custom keywords table by category', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockImplementation((url: string) => {
+      if (url === '/api/config/custom-keywords') {
+        return Promise.resolve({
+          ...mockCustomKeywords,
+          tags: [
+            ...mockCustomKeywords.tags,
+            { id: 'welding', keyword: '焊接', category: 'process', visible: true, source: 'workspace' },
+          ],
+          categories: [
+            { id: 'industry', name: 'Industry', icon: '🏭' },
+            { id: 'process', name: 'Process', icon: '⚙️' },
+          ],
+        })
+      }
+      if (url === '/api/industry/brands') return Promise.resolve(mockBrandKeywords)
+      return Promise.resolve({})
+    })
+
+    render(
+      <BrowserRouter>
+        <SettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('焊接')).toBeInTheDocument()
+    })
+
+    const categoryFilter = screen.getByTestId('custom-keyword-category-filter')
+    await user.selectOptions(categoryFilter, 'process')
+
+    expect(screen.getByText('焊接')).toBeInTheDocument()
+    expect(screen.queryByText('CNC')).not.toBeInTheDocument()
+    expect(screen.queryByText('车床')).not.toBeInTheDocument()
+
+    await user.selectOptions(categoryFilter, 'all')
+
+    expect(screen.getByText('CNC')).toBeInTheDocument()
+    expect(screen.getByText('车床')).toBeInTheDocument()
+    expect(screen.getByText('焊接')).toBeInTheDocument()
+  })
+
   it('toggles location visibility through the workspace search setup API', async () => {
     const user = userEvent.setup()
 

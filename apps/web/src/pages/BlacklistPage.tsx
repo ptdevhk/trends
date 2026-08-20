@@ -20,6 +20,7 @@ export function BlacklistPage({ embedded = false }: { embedded?: boolean } = {})
   const [savingReason, setSavingReason] = useState(false)
   const [bulkUnblocking, setBulkUnblocking] = useState(false)
   const [rowUnblockingIdentityKey, setRowUnblockingIdentityKey] = useState<string | null>(null)
+  const [pendingUnblockId, setPendingUnblockId] = useState<string | null>(null)
 
   useEffect(() => {
     const currentKeys = new Set(items.map((item) => item.identityKey))
@@ -111,6 +112,7 @@ export function BlacklistPage({ embedded = false }: { embedded?: boolean } = {})
 
   const handleUnblock = useCallback(
     async (identityKey: string) => {
+      setPendingUnblockId(null)
       setRowUnblockingIdentityKey(identityKey)
       const removed = await unblockCandidate(identityKey)
       setRowUnblockingIdentityKey(null)
@@ -213,8 +215,19 @@ export function BlacklistPage({ embedded = false }: { embedded?: boolean } = {})
             <div className="text-sm text-muted-foreground">{t('settings.blocks.empty', { defaultValue: 'No blocked candidates yet.' })}</div>
           ) : null}
           {!loading && !error && hasNoFilteredResults ? (
-            <div className="text-sm text-muted-foreground">
-              {t('settings.blocks.emptySearch', { defaultValue: 'No blocked candidates match your search.' })}
+            <div className="flex items-center gap-3 text-sm text-muted-foreground" data-testid="blacklist-empty-search">
+              <span>
+                {t('settings.blocks.emptySearch', { defaultValue: 'No blocked candidates match your search.' })}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSearch('')}
+                data-testid="blacklist-clear-search"
+              >
+                {t('settings.blocks.clearSearch', { defaultValue: 'Clear search' })}
+              </Button>
             </div>
           ) : null}
 
@@ -288,16 +301,47 @@ export function BlacklistPage({ embedded = false }: { embedded?: boolean } = {})
                       <TableCell className="text-sm">{new Date(item.blockedAt).toLocaleString()}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{item.blockedBy?.trim() || '-'}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={isRowUnblocking || bulkUnblocking}
-                          onClick={() => void handleUnblock(item.identityKey)}
-                          data-testid="blacklist-row-unblock"
-                        >
-                          {t('settings.blocks.actions.unblock', { defaultValue: 'Unblock' })}
-                        </Button>
+                        {pendingUnblockId === item.identityKey ? (
+                          <div
+                            className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1"
+                            data-testid="unblock-confirm-row"
+                          >
+                            <span className="text-xs">
+                              {t('settings.blocks.unblockConfirm', { defaultValue: 'Unblock this candidate?' })}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={isRowUnblocking || bulkUnblocking}
+                              onClick={() => void handleUnblock(item.identityKey)}
+                              data-testid="unblock-confirm-yes"
+                            >
+                              {t('settings.blocks.unblockConfirmYes', { defaultValue: 'Yes, unblock' })}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={isRowUnblocking}
+                              onClick={() => setPendingUnblockId(null)}
+                              data-testid="unblock-confirm-cancel"
+                            >
+                              {t('settings.blocks.actions.cancel', { defaultValue: 'Cancel' })}
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isRowUnblocking || bulkUnblocking}
+                            onClick={() => setPendingUnblockId(item.identityKey)}
+                            data-testid="blacklist-row-unblock"
+                          >
+                            {t('settings.blocks.actions.unblock', { defaultValue: 'Unblock' })}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   )

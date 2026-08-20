@@ -71,7 +71,10 @@
     "sending": "傳送中...",
     "sendEmail": "傳送郵件",
     "draftFailed": "草稿產生失敗",
-    "sendFailed": "傳送失敗"
+    "sendFailed": "傳送失敗",
+    "copyMessage": "複製內容",
+    "copiedToClipboard": "已複製到剪貼簿",
+    "shortcutHint": "Ctrl/⌘ + Enter 發送"
   },
   "jdManagement": {
     "title": "職位描述管理",
@@ -846,7 +849,8 @@
     "collectJob51Hint": "最多收集 {{effectiveLimit}} 份簡歷，跨 {{effectiveMaxPages}} 頁。",
     "shellDescription": "保持頂層 shell 專注於搜尋。歷史記錄、收集和維護操作位於下一層。",
     "hideLocationKeywords": "隱藏地點關鍵詞",
-    "showLocationKeywords": "顯示地點關鍵詞"
+    "showLocationKeywords": "顯示地點關鍵詞",
+    "clearLocations": "清除地點"
   },
   "searchProfiles": {
     "nav": "搜尋配置",
@@ -960,7 +964,9 @@
     "table": {
       "query": "查詢詞",
       "count": "次數",
-      "suggestion": "建議"
+      "suggestion": "建議",
+      "testSearch": "測試搜尋",
+      "filterPlaceholder": "篩選查詢..."
     },
     "suggestSynonym": "建議同義詞",
     "savingSuggestion": "儲存中...",
@@ -996,6 +1002,9 @@
       "emptySearch": "沒有符合搜尋條件的封鎖候選人。",
       "noReason": "-",
       "bulkUnblock": "批次解除封鎖 ({{count}})",
+      "unblockConfirm": "確認解除封鎖此候選人？",
+      "unblockConfirmYes": "確認解除",
+      "clearSearch": "清除搜尋",
       "columns": {
         "candidate": "候選人",
         "reason": "原因",
@@ -1004,7 +1013,8 @@
         "actions": "操作"
       },
       "actions": {
-        "unblock": "解除封鎖"
+        "unblock": "解除封鎖",
+        "cancel": "取消"
       },
       "toasts": {
         "reasonUpdated": "已更新封鎖原因",
@@ -1030,7 +1040,9 @@
       "currentPasswordIncorrect": "目前密碼不正確",
       "passwordTooShort": "密碼至少需要 8 個字元",
       "passwordsDoNotMatch": "密碼不相符",
-      "changeFailed": "變更密碼失敗"
+      "changeFailed": "變更密碼失敗",
+      "showPassword": "顯示密碼",
+      "hidePassword": "隱藏密碼"
     },
     "policies": {
       "nav": "策略",
@@ -1343,6 +1355,9 @@
     "customKeywordKeyword": "關鍵詞",
     "customKeywordEnglish": "English",
     "customKeywordCategory": "類別",
+    "customKeywordSearchPlaceholder": "篩選自訂關鍵字...",
+    "categoryFilterAll": "所有類別",
+    "customKeywordNoMatches": "沒有相符的關鍵字",
     "configSources": "配置來源",
     "configSourcesDescription": "以唯讀方式查看允許暴露的履歷配置檔與提示詞來源。",
     "resumeDisplayLimits": "履歷展示限制",
@@ -2678,7 +2693,8 @@
       "submitting": "提交中...",
       "success": "您的申訴已提交。專業人員將審核您的申請。",
       "nextSteps": "您將收到審核結果通知。",
-      "error": "申訴提交失敗，請重試。"
+      "error": "申訴提交失敗，請重試。",
+      "shortcutHint": "Ctrl/⌘ + Enter 提交"
     },
     "footer": {
       "compliance": "此說明依據 EU AI Act 第13條提供。"

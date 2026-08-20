@@ -131,7 +131,7 @@ describe('BlacklistPage', () => {
     expect(screen.queryByText('user-3')).not.toBeInTheDocument()
   })
 
-  it('unblocks a single item via row action', async () => {
+  it('requires confirmation before unblocking a candidate via row action', async () => {
     const user = userEvent.setup()
     render(<BlacklistPage />)
 
@@ -140,7 +140,42 @@ describe('BlacklistPage', () => {
     // Rows are sorted by blockedAt desc → first row is user-1 (blockedAt 3000)
     await user.click(rowUnblockButtons[0])
 
+    // First click only arms the confirmation — no API call yet
+    expect(mockUnblockCandidate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('unblock-confirm-row')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('unblock-confirm-yes'))
+
     expect(mockUnblockCandidate).toHaveBeenCalledWith('user-1')
+  })
+
+  it('cancelling row unblock dismisses confirmation', async () => {
+    const user = userEvent.setup()
+    render(<BlacklistPage />)
+
+    await user.click(screen.getAllByTestId('blacklist-row-unblock')[0])
+    expect(screen.getByTestId('unblock-confirm-row')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('unblock-confirm-cancel'))
+
+    expect(screen.queryByTestId('unblock-confirm-row')).not.toBeInTheDocument()
+    expect(mockUnblockCandidate).not.toHaveBeenCalled()
+  })
+
+  it('clears search query via empty state button', async () => {
+    const user = userEvent.setup()
+    render(<BlacklistPage />)
+
+    const searchInput = screen.getByPlaceholderText(/search/i)
+    await user.type(searchInput, 'no-such-candidate')
+
+    expect(screen.getByText('No blocked candidates match your search.')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('blacklist-clear-search'))
+
+    expect(searchInput).toHaveValue('')
+    expect(screen.getByText('user-1')).toBeInTheDocument()
+    expect(screen.queryByText('No blocked candidates match your search.')).not.toBeInTheDocument()
   })
 
   it('edits block reason inline by clicking the reason cell and committing on blur', async () => {
