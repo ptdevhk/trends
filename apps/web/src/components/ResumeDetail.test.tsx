@@ -35,9 +35,16 @@ const mockT = (key: string, fallback?: string | { defaultValue?: string; [name: 
       return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(fallback?.[name] ?? `{{${name}}}`))
 };
 
+const mockI18n = {
+  language: 'en',
+  languages: ['en', 'zh-Hans', 'zh-Hant'],
+  changeLanguage: () => Promise.resolve(),
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
+    i18n: mockI18n,
   }),
 }))
 

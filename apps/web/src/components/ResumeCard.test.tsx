@@ -21,9 +21,16 @@ const mockT = (key: string, options?: string | Record<string, unknown>) => {
   })
 };
 
+const mockI18n = {
+  language: 'en',
+  languages: ['en', 'zh-Hans', 'zh-Hant'],
+  changeLanguage: () => Promise.resolve(),
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
+    i18n: mockI18n,
   }),
 }))
 

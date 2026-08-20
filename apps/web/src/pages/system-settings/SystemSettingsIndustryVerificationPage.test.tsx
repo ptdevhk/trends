@@ -141,18 +141,24 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => useWorkspaceMock(),
 }))
 
-const { requestJsonMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
+const { requestJsonMock, toastSuccessMock, tMock, mockI18n } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   tMock: vi.fn((key: string, options?: { defaultValue?: string; [name: string]: unknown }) => {
     const template = options?.defaultValue ?? key
     return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? `{{${name}}}`))
   }),
+  mockI18n: {
+    language: 'en',
+    languages: ['en', 'zh-Hans', 'zh-Hant'],
+    changeLanguage: () => Promise.resolve(),
+  },
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: tMock,
+    i18n: mockI18n,
   }),
 }))
 
