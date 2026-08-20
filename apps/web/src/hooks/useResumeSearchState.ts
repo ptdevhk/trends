@@ -2111,6 +2111,7 @@ export function useResumeSearchState() {
     activeQuery,
     activeSort,
     analysisCandidateCount: analysisCandidates.length,
+    analysisKeywords,
     analyzeResults,
     aiModeEnabled,
     aiModeStats,

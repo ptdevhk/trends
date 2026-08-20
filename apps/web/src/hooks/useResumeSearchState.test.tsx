@@ -448,6 +448,12 @@ describe('useResumeSearchState', () => {
     expect(result.current.searchHistoryLoading).toBe(false)
   })
 
+  it('returns analysisKeywords in the hook state (regression: ResumeSearchPage destructures it)', () => {
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(Array.isArray(result.current.analysisKeywords)).toBe(true)
+  })
+
   it('defaults to score-first ordering for loaded search results', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
