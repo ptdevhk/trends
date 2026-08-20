@@ -1,9 +1,13 @@
 import { chromium, Page } from 'playwright';
 
+export type UatLocale = 'en' | 'zh-Hant' | 'zh-Hans';
+
 export interface E2EOptions {
     port: number;
     baseUrl: string;
     timeout: number;
+    /** Pin the app language via localStorage `i18nextLng` before each role walk. */
+    locale?: UatLocale;
 }
 
 export const COLLECTION_TASK_DISPATCHED_TOAST_PATTERN = /Collection task dispatched|采集任务已派发|採集任務已派發/i
@@ -19,6 +23,31 @@ export interface WebVitals {
     lcp: number | null;
     cls: number | null;
     fcp: number | null;
+}
+
+/**
+ * Pin the app language for the rest of a session by setting localStorage
+ * `i18nextLng` (the key `apps/web/src/i18n/index.ts` reads on init).
+ * Installed via addInitScript so it survives page.goto navigations, with an
+ * immediate evaluate for the already-loaded document; a subsequent reload or
+ * navigation applies the locale. The tri-lingual locators stay in place —
+ * this only makes the initial language deterministic per role run.
+ * Opaque origins (about:blank) throw on localStorage access and are ignored;
+ * the next same-origin load applies the pin.
+ */
+export async function pinLocale(page: Page, locale: UatLocale): Promise<void> {
+    await page.addInitScript((lng) => {
+        try {
+            localStorage.setItem('i18nextLng', lng);
+        } catch {
+            // Opaque origins such as about:blank; the next same-origin load applies it.
+        }
+    }, locale);
+    await page.evaluate((lng) => {
+        localStorage.setItem('i18nextLng', lng);
+    }, locale).catch(() => {
+        // Same opaque-origin guard as above.
+    });
 }
 
 /**
@@ -144,6 +173,16 @@ export async function connectToChrome(options: E2EOptions = DEFAULT_OPTIONS) {
                 // one that needs the storage cleared before the app initializes.
             }
         }, 'trends.resume.');
+
+        if (options.locale) {
+            await page.addInitScript((lng) => {
+                try {
+                    localStorage.setItem('i18nextLng', lng);
+                } catch {
+                    // Opaque origins such as about:blank; the next same-origin load applies it.
+                }
+            }, options.locale);
+        }
 
         await page.goto(options.baseUrl);
         return { browser, context, page };
