@@ -1,4 +1,5 @@
 import { Loader2, WandSparkles } from 'lucide-react'
+import { isImeComposition } from '@/lib/utils'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -81,6 +82,10 @@ export function JdPastePopover({
           placeholder={t('resumes.searchPage.jdPaste.placeholder', { defaultValue: 'Paste the job description text here to extract role, product, and domain keywords.' })}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
+            // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+            if (isImeComposition(event)) {
+              return
+            }
             if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
               event.preventDefault()
               void submit()

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isImeComposition } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -79,7 +80,7 @@ export function CandidateNotesDialog({
               data-testid="candidate-notes-input"
               autoFocus
               onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                if (isImeComposition(e)) {
                   return
                 }
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {

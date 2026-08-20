@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { isImeComposition } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { FacetGroup } from '@/components/search/FacetGroup'
 import { Card, CardContent } from '@/components/ui/card'
@@ -244,15 +245,19 @@ function RangeFilterGroup({
   const maxRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
+  const closeCustomRange = useCallback(() => {
+    setCustomOpen(false)
+    setCustomMin('')
+    setCustomMax('')
+  }, [])
+
   const handleRangeBlur = useCallback(() => {
     requestAnimationFrame(() => {
       if (formRef.current && !formRef.current.contains(document.activeElement)) {
-        setCustomOpen(false)
-        setCustomMin('')
-        setCustomMax('')
+        closeCustomRange()
       }
     })
-  }, [])
+  }, [closeCustomRange])
 
   const submitCustomValues = useCallback(() => {
     const rawMin = minRef.current?.value ?? String(customMin)
@@ -277,6 +282,20 @@ function RangeFilterGroup({
     setCustomOpen(false)
   }, [customMin, customMax, onSetRange])
 
+  const handleRangeInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (isImeComposition(event)) return
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        submitCustomValues()
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        closeCustomRange()
+      }
+    },
+    [submitCustomValues, closeCustomRange],
+  )
+
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -296,9 +315,7 @@ function RangeFilterGroup({
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
                 : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
               onClick={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
+                closeCustomRange()
                 onSetRange(active ? undefined : preset.min, active ? undefined : preset.max)
               }}
             >
@@ -325,7 +342,7 @@ function RangeFilterGroup({
               value={customMin}
               onChange={(event) => setCustomMin(event.target.value)}
               onBlur={handleRangeBlur}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+              onKeyDown={handleRangeInputKeyDown}
               autoFocus
             />
             <span className="text-sm text-slate-400">–</span>
@@ -339,7 +356,7 @@ function RangeFilterGroup({
               value={customMax}
               onChange={(event) => setCustomMax(event.target.value)}
               onBlur={handleRangeBlur}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+              onKeyDown={handleRangeInputKeyDown}
             />
             <span className="text-sm text-slate-500">{unitSuffix}</span>
             <Button
@@ -354,11 +371,7 @@ function RangeFilterGroup({
             <button
               type="button"
               className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
-              onClick={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
-              }}
+              onClick={closeCustomRange}
             >
               {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>

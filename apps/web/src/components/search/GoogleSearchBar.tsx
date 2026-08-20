@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { JdPastePopover } from '@/components/search/JdPastePopover'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import { useSearchPreload } from '@/hooks/useSearchPrefetch'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
@@ -43,6 +43,7 @@ export function GoogleSearchBar({
   const [focused, setFocused] = useState(false)
   const [jdPopoverOpen, setJdPopoverOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [isComposing, setIsComposing] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
@@ -125,6 +126,9 @@ export function GoogleSearchBar({
         )}
         onSubmit={(event) => {
           event.preventDefault()
+          if (isComposing) {
+            return
+          }
           setJdPopoverOpen(false)
           onSubmit(trimmedValue)
         }}
@@ -159,7 +163,13 @@ export function GoogleSearchBar({
             setActiveIndex(-1)
           }}
           onFocus={() => setFocused(true)}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           onKeyDown={(event) => {
+            // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+            if (isImeComposition(event)) {
+              return
+            }
             if (!isListboxOpen) {
               if (event.key === 'Escape') {
                 event.preventDefault()

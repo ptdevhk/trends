@@ -1,10 +1,12 @@
 import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, hasActiveOverride, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
 import {
   Check,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
   Link2,
   User,
+  XCircle,
 } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +29,8 @@ import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
+import { toast } from 'sonner'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { getScoreClassName } from '@/lib/score-classes'
@@ -147,10 +151,8 @@ export const SnippetCard = memo(function SnippetCard({
   onViewDetails,
   selected,
   onSelect,
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  actionType: _actionType,
-  onAction: _onAction,
-  /* eslint-enable @typescript-eslint/no-unused-vars */
+  actionType,
+  onAction,
   userRating,
   initialComment,
   onRating,
@@ -205,6 +207,27 @@ export const SnippetCard = memo(function SnippetCard({
       .filter((hit) => hasActiveOverride(policyOverrides, identity, hit.companyKey))
       .map((hit) => hit.companyKey)
   }, [companyPolicyHits, item.identityKey, policyOverrides, resumeIdentity])
+  const companyPolicyState = useMemo(
+    () =>
+      getResumeCompanyPolicyState(
+        {
+          workHistory: item.resume.workHistory,
+          companyHits: item.resume.ingestData?.companyHits,
+        },
+        matchResume,
+        policyOverrides,
+        resumeIdentity ?? item.identityKey,
+      ),
+    [item.identityKey, item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume, policyOverrides, resumeIdentity],
+  )
+  const workflowBlocked = companyPolicyState.workflowBlocked
+  const guardWorkflowAdvance = (fn: () => void) => {
+    if (!workflowBlocked) {
+      fn()
+      return
+    }
+    toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
+  }
   const score = item.score
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
@@ -490,16 +513,32 @@ export const SnippetCard = memo(function SnippetCard({
             {/* Action buttons - pushed to the right */}
             <div className="ml-auto flex items-center gap-1">
               <StarRating value={userRating} initialComment={initialComment} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} onRatingComment={onRatingComment ? (comment) => onRatingComment(item.resume.resumeId, comment) : undefined} size={14} />
-              {/* Star action button disabled — replaced by StarRating (5-star rating) */}
-              {/* <Button
-                variant={actionType === 'star' ? 'default' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'star') }}
-                aria-label={t('resumes.actions.star', { defaultValue: '收藏' })}
-              >
-                <Star className="h-4 w-4" />
-              </Button> */}
+              {onAction ? (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant={actionType === 'shortlist' ? 'default' : 'ghost'}
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={workflowBlocked}
+                    title={workflowBlocked ? t('settings.policies.runtime.workflowBlockedTitle', { defaultValue: 'Blocked by company policy' }) : undefined}
+                    onClick={(e) => { e.stopPropagation(); guardWorkflowAdvance(() => onAction(item.resume.resumeId, 'shortlist')) }}
+                    aria-label={t('resumes.actions.shortlist')}
+                    data-testid="snippet-card-shortlist"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={actionType === 'reject' ? 'destructive' : 'ghost'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'reject') }}
+                    aria-label={t('resumes.actions.reject')}
+                    data-testid="snippet-card-reject"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
               <Button variant="ghost" size="sm" className="h-8" onClick={() => onViewDetails?.(item)}>
                 {t('resumes.actions.view', { defaultValue: '查看详情' })}
               </Button>

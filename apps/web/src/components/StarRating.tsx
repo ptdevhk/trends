@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { isImeComposition } from '@/lib/utils'
 import { createPortal } from 'react-dom'
 import { Star, MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -133,11 +134,16 @@ export function StarRating({
                 data-testid="rating-comment-input"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+                  if (isImeComposition(e)) {
+                    return
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
                     e.preventDefault()
                     handleSaveComment()
                   }
                   if (e.key === 'Escape') {
+                    e.preventDefault()
                     handleDismissComment()
                   }
                 }}
@@ -152,6 +158,7 @@ export function StarRating({
             )}
 
             <div className="flex justify-end gap-2 mt-2">
+              <span className="text-[10px] text-muted-foreground mr-auto" data-testid="rating-comment-shortcut-hint">{t('resumes.card.notesSaveShortcut')}</span>
               <Button
                 variant="ghost"
                 size="sm"
