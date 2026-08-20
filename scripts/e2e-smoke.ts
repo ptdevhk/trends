@@ -214,11 +214,14 @@ async function loadDeterministicSearchResults(page: Page) {
 
     const settled = await settle(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
+        if (hasCheckbox) return true;
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
         // Deliberately NOT the reset button: it renders in the pre-search
         // state too, which would let the first settle pass before the search
-        // actually produced results or an empty verdict.
-        return hasCheckbox || hasEmptyState;
+        // actually produced results or an empty verdict. Same for the empty
+        // heading: gate it on a completed search response after this search
+        // started, so the landing state / one-frame flash can't settle.
+        return hasEmptyState && searchState.lastResponseAt >= searchState.lastSearchStart;
     }, 120000);
     expect(settled).toBe(true);
 
@@ -232,13 +235,15 @@ async function loadDeterministicSearchResults(page: Page) {
         const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
         if (hasResetBtn) {
             await resetBtn.click();
+            searchState.lastSearchStart = Date.now();
         }
     }
 
     const settledAfterReset = await settle(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
+        if (hasCheckbox) return true;
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        return hasCheckbox || hasEmptyState;
+        return hasEmptyState && searchState.lastResponseAt >= searchState.lastSearchStart;
     }, 120000);
     expect(settledAfterReset).toBe(true);
 
