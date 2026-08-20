@@ -109,14 +109,14 @@ describe("admin audit GET routes under /api/resumes/* (shadowing regression)", (
       headers: auth.headers,
     });
     expect(biasResponse.status).toBe(200);
-    const biasBody = await biasResponse.json();
+    const biasBody = (await biasResponse.json()) as { success: boolean };
     expect(biasBody.success).toBe(true);
 
     const alertsResponse = await app.request("/api/resumes/anomaly-alerts?workspaceSlug=dev", {
       headers: auth.headers,
     });
     expect(alertsResponse.status).toBe(200);
-    const alertsBody = await alertsResponse.json();
+    const alertsBody = (await alertsResponse.json()) as { success: boolean };
     expect(alertsBody.success).toBe(true);
   });
 });
