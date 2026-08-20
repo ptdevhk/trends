@@ -2,7 +2,10 @@
   "app": {
     "title": "趋势",
     "subtitle": "Trends",
-    "description": "多源数据聚合与AI智能筛选平台"
+    "description": "多源数据聚合与AI智能筛选平台",
+    "adminAccessRequired": "需要管理员权限",
+    "industryReviewAccessRequired": "行业审核需要 {{workspaceSlug}} 工作区的管理员或审核员账号。",
+    "industryOpsAccessRequired": "行业运维需要 {{workspaceSlug}} 工作区的管理员账号。"
   },
   "nav": {
     "home": "首页",
@@ -48,7 +51,13 @@
     "deleting": "删除中...",
     "submitting": "提交中…",
     "clearAll": "清除全部",
-    "removeFilter": "移除 {{filter}}"
+    "removeFilter": "移除 {{filter}}",
+    "toggleMenu": "切换菜单",
+    "workspaceSwitcherAria": "工作区切换器",
+    "userRatingAria": "用户评分",
+    "industryDataTabsAria": "行业数据标签页",
+    "potentialLegalIdentitiesAria": "潜在法定主体",
+    "existingCanonicalCompanyAria": "现有规范公司"
   },
   "outreach": {
     "contactTitle": "联系 {{name}}",
@@ -972,7 +981,9 @@
       "confidence": "置信度",
       "tagsHelp": "用逗号分隔标签。搜索筛选会把匹配的简历标签归入此聚类。",
       "saveChanges": "保存更改",
-      "createClusterButton": "创建聚类"
+      "createClusterButton": "创建聚类",
+      "namePlaceholder": "后端语言",
+      "tagsPlaceholder": "Go, Java, Rust"
     },
     "adminUsersTitle": "用户管理",
     "adminUsersDescription": "管理本地用户账户、工作区成员资格及验证状态。",
@@ -1105,7 +1116,8 @@
     "authEmptyIdentities": "无提供方身份",
     "authEmptyPreapprovals": "无预批准",
     "authEmptyGrants": "无提供方派生授权",
-    "authEmptyEvents": "无认证事件"
+    "authEmptyEvents": "无认证事件",
+    "industryDataFilterPlaceholder": "按公司Key筛选"
   },
   "resumeDedup": {
     "title": "简历去重审查",
@@ -1517,7 +1529,25 @@
     "detailRevisionId": "版本 ID",
     "approvedSourcesTitle": "已批准来源",
     "sourcePreviewsUnavailable": "此实体化投影中不提供来源预览。",
-    "additionalApprovedSources": "另有 {{count}} 个已批准来源"
+    "additionalApprovedSources": "另有 {{count}} 个已批准来源",
+    "detailNoSourcesOnProfile": "此档案没有来源。",
+    "coverageTargetedQueue": "定向研究队列",
+    "coveragePartialResult": "部分结果 — 重试前请检查失败/超时的目标。",
+    "coveragePriorityLanes": "优先通道：{{lanes}}。",
+    "coverageNone": "无",
+    "queueActive": "进行中",
+    "queueQueued": "排队中",
+    "queueResearching": "调研中",
+    "queueIdentityReview": "身份审核",
+    "queueFailed": "失败",
+    "queueLeased": "已租用",
+    "queueHealthUnavailable": "队列健康状态不可用。",
+    "opsQueueDescription": "精确的用户请求独立于大规模维护扫描进行租用和重试。",
+    "queueStatusReadyReview": "可审核",
+    "queueStatusNew": "新建",
+    "queueStatusResearching": "调研中",
+    "queueStatusNeedsEvidence": "需要更多证据",
+    "noLedgerRows": "没有台账记录。"
   },
   "industryAudit": {
     "title": "行业审计",
@@ -1682,7 +1712,8 @@
     "schedule": {
       "enabled": "已启用",
       "disabled": "已停用"
-    }
+    },
+    "roleFilterTypePlaceholder": "例如：销售"
   },
   "debug": {
     "processTitle": "处理数据",
@@ -2788,5 +2819,16 @@
     "openHotlistTab": "查看综合热榜",
     "tabBrand": "品牌动态",
     "tabHotlist": "综合热榜"
+  },
+  "publicShare": {
+    "queryAria": "共享快照查询",
+    "queryDefault": "共享快照",
+    "inThisSnapshot": " 在此公开快照中",
+    "snapshotBadge": "快照",
+    "unavailableTitle": "公开分享不可用",
+    "expiredDescription": "此快照链接已过期或被撤销。",
+    "notFoundTitle": "找不到公开分享",
+    "notFoundDescription": "快照链接不存在。",
+    "errorDescription": "无法加载快照。"
   }
 }

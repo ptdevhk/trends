@@ -833,7 +833,7 @@ export function SearchProfileEditorDialog({
                                 <Input
                                     id="profile-roleFilterType"
                                     type="text"
-                                    placeholder="e.g. sales"
+                                    placeholder={t('searchProfiles.roleFilterTypePlaceholder', { defaultValue: 'e.g. sales' })}
                                     value={form.roleFilterType}
                                     onChange={(event) => setForm((previous) => ({ ...previous, roleFilterType: event.target.value }))}
                                 />

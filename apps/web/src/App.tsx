@@ -9,6 +9,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { Toaster } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LongTaskObserver } from '@/hooks/useLongTaskObserver'
@@ -179,9 +180,14 @@ function MainShell({ children }: { children?: ReactNode }) {
   )
 }
 
+function LoadingFallback() {
+  const { t } = useTranslation()
+  return <div className="py-6 text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</div>
+}
+
 function RouteSuspense({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<div className="py-6 text-sm text-muted-foreground">Loading...</div>}>
+    <Suspense fallback={<LoadingFallback />}>
       {children}
     </Suspense>
   )
@@ -304,7 +310,7 @@ function WorkspaceMembershipGate({ children }: { children: ReactNode }) {
   const { slug } = useWorkspace()
   const location = useLocation()
   if (auth.isLoading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <LoadingFallback />
   }
   if (!auth.isAuthenticated && slug !== PUBLIC_RESUME_WORKSPACE && location.pathname !== `/${slug}/login`) {
     const redirectTo = `${location.pathname}${location.search}`
@@ -322,7 +328,7 @@ function SystemAccessGate({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const location = useLocation()
   if (auth.isLoading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <LoadingFallback />
   }
   if (!auth.isAuthenticated) {
     const redirectTo = `${location.pathname}${location.search}`
@@ -388,13 +394,14 @@ function WorkspaceSystemDeniedPage() {
  * the active workspace keep the denial page.
  */
 function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
   const auth = useAuth()
   const { teamSlug } = useParams()
   const location = useLocation()
   const workspaceSlug = teamSlug ?? SYSTEM_AUTH_WORKSPACE
 
   if (auth.isLoading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <LoadingFallback />
   }
   if (!auth.isAuthenticated) {
     const redirectTo = `${location.pathname}${location.search}`
@@ -406,9 +413,9 @@ function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
       <MainShell>
         <section className="mx-auto max-w-xl py-12">
           <div className="rounded-md border border-destructive/30 p-6">
-            <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{t('app.adminAccessRequired', { defaultValue: 'Admin access required' })}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Industry review requires a {workspaceSlug} workspace admin or reviewer account.
+              {t('app.industryReviewAccessRequired', { defaultValue: 'Industry review requires a {{workspaceSlug}} workspace admin or reviewer account.', workspaceSlug })}
             </p>
           </div>
         </section>
@@ -425,13 +432,14 @@ function WorkspaceIndustryAccessGate({ children }: { children: ReactNode }) {
  * routes behind requireAdmin.
  */
 function WorkspaceIndustryOpsGate({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
   const auth = useAuth()
   const { teamSlug } = useParams()
   const location = useLocation()
   const workspaceSlug = teamSlug ?? SYSTEM_AUTH_WORKSPACE
 
   if (auth.isLoading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <LoadingFallback />
   }
   if (!auth.isAuthenticated) {
     const redirectTo = `${location.pathname}${location.search}`
@@ -443,9 +451,9 @@ function WorkspaceIndustryOpsGate({ children }: { children: ReactNode }) {
       <MainShell>
         <section className="mx-auto max-w-xl py-12">
           <div className="rounded-md border border-destructive/30 p-6">
-            <h1 className="text-xl font-semibold tracking-tight">Admin access required</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{t('app.adminAccessRequired', { defaultValue: 'Admin access required' })}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Industry operations require a {workspaceSlug} workspace admin account.
+              {t('app.industryOpsAccessRequired', { defaultValue: 'Industry operations require a {{workspaceSlug}} workspace admin account.', workspaceSlug })}
             </p>
           </div>
         </section>
@@ -472,7 +480,7 @@ function LoginRoute() {
   const redirectTo = new URLSearchParams(location.search).get('redirectTo')
 
   if (auth.isLoading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <LoadingFallback />
   }
 
   if (auth.isAuthenticated) {

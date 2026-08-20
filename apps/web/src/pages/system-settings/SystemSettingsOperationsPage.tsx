@@ -128,6 +128,7 @@ function IndustryMaintenanceCard({ requestJson }: { requestJson: (path: string, 
 }
 
 function IndustryResearchQueueCard({ requestJson }: { requestJson: (path: string, init?: RequestInit) => Promise<unknown> }) {
+  const { t } = useTranslation()
   const [queue, setQueue] = useState<{ active: number; queued: number; leased: number; needsIdentityReview: number; failed: number } | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -153,29 +154,29 @@ function IndustryResearchQueueCard({ requestJson }: { requestJson: (path: string
   return (
     <Card data-testid="ops-industry-research-queue-card">
       <CardHeader>
-        <CardTitle>Targeted research queue</CardTitle>
-        <CardDescription>Exact user requests are leased and retried independently from broad maintenance sweeps.</CardDescription>
+        <CardTitle>{t('industryEvidence.coverageTargetedQueue', { defaultValue: 'Targeted research queue' })}</CardTitle>
+        <CardDescription>{t('industryEvidence.opsQueueDescription', { defaultValue: 'Exact user requests are leased and retried independently from broad maintenance sweeps.' })}</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
           // Same 5-column stats grid as the loaded state so the loading→loaded
           // swap never changes the card height (CLS).
           <div data-testid="ops-research-queue-loading" className="grid gap-2 text-sm sm:grid-cols-5">
-            <span><strong>–</strong> active</span>
-            <span><strong>–</strong> queued</span>
-            <span><strong>–</strong> leased</span>
-            <span><strong>–</strong> identity review</span>
-            <span><strong>–</strong> failed</span>
+            <span><strong>–</strong> {t('industryEvidence.queueActive', { defaultValue: 'active' })}</span>
+            <span><strong>–</strong> {t('industryEvidence.queueQueued', { defaultValue: 'queued' })}</span>
+            <span><strong>–</strong> {t('industryEvidence.queueLeased', { defaultValue: 'leased' })}</span>
+            <span><strong>–</strong> {t('industryEvidence.queueIdentityReview', { defaultValue: 'identity review' })}</span>
+            <span><strong>–</strong> {t('industryEvidence.queueFailed', { defaultValue: 'failed' })}</span>
           </div>
         ) : queue ? (
           <div className="grid gap-2 text-sm sm:grid-cols-5">
-            <span><strong>{queue.active}</strong> active</span>
-            <span><strong>{queue.queued}</strong> queued</span>
-            <span><strong>{queue.leased}</strong> leased</span>
-            <span><strong>{queue.needsIdentityReview}</strong> identity review</span>
-            <span><strong>{queue.failed}</strong> failed</span>
+            <span><strong>{queue.active}</strong> {t('industryEvidence.queueActive', { defaultValue: 'active' })}</span>
+            <span><strong>{queue.queued}</strong> {t('industryEvidence.queueQueued', { defaultValue: 'queued' })}</span>
+            <span><strong>{queue.leased}</strong> {t('industryEvidence.queueLeased', { defaultValue: 'leased' })}</span>
+            <span><strong>{queue.needsIdentityReview}</strong> {t('industryEvidence.queueIdentityReview', { defaultValue: 'identity review' })}</span>
+            <span><strong>{queue.failed}</strong> {t('industryEvidence.queueFailed', { defaultValue: 'failed' })}</span>
           </div>
-        ) : <p className="text-sm text-muted-foreground">Queue health is unavailable.</p>}
+        ) : <p className="text-sm text-muted-foreground">{t('industryEvidence.queueHealthUnavailable', { defaultValue: 'Queue health is unavailable.' })}</p>}
       </CardContent>
     </Card>
   )

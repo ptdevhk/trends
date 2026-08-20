@@ -79,7 +79,7 @@ export function IndustryMaintenanceHistory({ requestJson }: { requestJson: (path
             {expandedRunId === run.runId && (
               <div className="border-t p-3 space-y-1">
                 {ledger.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No ledger rows.</p>
+                  <p className="text-xs text-muted-foreground">{t('industryEvidence.noLedgerRows', { defaultValue: 'No ledger rows.' })}</p>
                 ) : ledger.map((row, idx) => (
                   <div key={`${row.proposalId}-${idx}`} className="flex items-start gap-2 text-xs">
                     <span className={`inline-block rounded px-1.5 py-0.5 font-mono ${LEDGER_ACTION_TONES[row.action] ?? 'bg-gray-100 text-gray-800'}`}>

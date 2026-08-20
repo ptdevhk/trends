@@ -205,7 +205,7 @@ export function StarRating({
       : null
 
   return (
-    <div ref={wrapperRef} className="relative flex items-center gap-0.5" role="group" aria-label="User rating">
+    <div ref={wrapperRef} className="relative flex items-center gap-0.5" role="group" aria-label={t('common.userRatingAria', { defaultValue: 'User rating' })}>
       {[1, 2, 3, 4, 5].map((star) => {
         const filled = typeof value === 'number' && star <= value
         return (

@@ -1089,10 +1089,10 @@ export function IndustryReviewInbox({
                   onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
-                  <option value="ready_for_review">Ready for review</option>
-                  <option value="new">New</option>
-                  <option value="researching">Researching</option>
-                  <option value="needs_more_evidence">Needs more evidence</option>
+                  <option value="ready_for_review">{t('industryEvidence.queueStatusReadyReview', { defaultValue: 'Ready for review' })}</option>
+                  <option value="new">{t('industryEvidence.queueStatusNew', { defaultValue: 'New' })}</option>
+                  <option value="researching">{t('industryEvidence.queueStatusResearching', { defaultValue: 'Researching' })}</option>
+                  <option value="needs_more_evidence">{t('industryEvidence.queueStatusNeedsEvidence', { defaultValue: 'Needs more evidence' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">

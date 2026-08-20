@@ -2,7 +2,10 @@
   "app": {
     "title": "Trends",
     "subtitle": "Trends",
-    "description": "Multi-source data aggregation & AI screening platform"
+    "description": "Multi-source data aggregation & AI screening platform",
+    "adminAccessRequired": "Admin access required",
+    "industryReviewAccessRequired": "Industry review requires a {{workspaceSlug}} workspace admin or reviewer account.",
+    "industryOpsAccessRequired": "Industry operations require a {{workspaceSlug}} workspace admin account."
   },
   "nav": {
     "home": "Home",
@@ -48,7 +51,13 @@
     "deleting": "Deleting...",
     "submitting": "Submitting…",
     "clearAll": "Clear All",
-    "removeFilter": "Remove {{filter}}"
+    "removeFilter": "Remove {{filter}}",
+    "toggleMenu": "Toggle menu",
+    "workspaceSwitcherAria": "Workspace switcher",
+    "userRatingAria": "User rating",
+    "industryDataTabsAria": "Industry Data tabs",
+    "potentialLegalIdentitiesAria": "Potential legal identities",
+    "existingCanonicalCompanyAria": "Existing canonical company"
   },
   "outreach": {
     "contactTitle": "Contact {{name}}",
@@ -889,7 +898,8 @@
     "schedule": {
       "enabled": "Enabled",
       "disabled": "Disabled"
-    }
+    },
+    "roleFilterTypePlaceholder": "e.g. sales"
   },
   "searchAnalytics": {
     "nav": "Search Analytics",
@@ -1447,7 +1457,9 @@
       "confidence": "Confidence",
       "tagsHelp": "Separate tags with commas. Search facets will group any matching resume tag into this cluster.",
       "saveChanges": "Save Changes",
-      "createClusterButton": "Create Cluster"
+      "createClusterButton": "Create Cluster",
+      "namePlaceholder": "Backend Languages",
+      "tagsPlaceholder": "Go, Java, Rust"
     },
     "adminUsersTitle": "Users",
     "adminUsersDescription": "Manage local user accounts, memberships, and authentication state.",
@@ -1580,7 +1592,8 @@
     "authEmptyIdentities": "No provider identities",
     "authEmptyPreapprovals": "No preapprovals",
     "authEmptyGrants": "No provider-derived grants",
-    "authEmptyEvents": "No auth events"
+    "authEmptyEvents": "No auth events",
+    "industryDataFilterPlaceholder": "Filter companyKey"
   },
   "resumeDedup": {
     "title": "Resume dedup review",
@@ -1992,7 +2005,25 @@
     "detailRevisionId": "Revision ID",
     "approvedSourcesTitle": "Approved sources",
     "sourcePreviewsUnavailable": "Source previews are not available in this materialized projection.",
-    "additionalApprovedSources": "{{count}} additional approved {{sources}}"
+    "additionalApprovedSources": "{{count}} additional approved {{sources}}",
+    "detailNoSourcesOnProfile": "No sources on this profile.",
+    "coverageTargetedQueue": "Targeted research queue",
+    "coveragePartialResult": "Partial result — review failed/timeout targets before retrying.",
+    "coveragePriorityLanes": "Priority lanes: {{lanes}}.",
+    "coverageNone": "none",
+    "queueActive": "active",
+    "queueQueued": "queued",
+    "queueResearching": "researching",
+    "queueIdentityReview": "identity review",
+    "queueFailed": "failed",
+    "queueLeased": "leased",
+    "queueHealthUnavailable": "Queue health is unavailable.",
+    "opsQueueDescription": "Exact user requests are leased and retried independently from broad maintenance sweeps.",
+    "queueStatusReadyReview": "Ready for review",
+    "queueStatusNew": "New",
+    "queueStatusResearching": "Researching",
+    "queueStatusNeedsEvidence": "Needs more evidence",
+    "noLedgerRows": "No ledger rows."
   },
   "industryAudit": {
     "title": "Industry audit",
@@ -2761,5 +2792,16 @@
     "openHotlistTab": "View hotlist",
     "tabBrand": "Brand pulse",
     "tabHotlist": "Hotlist"
+  },
+  "publicShare": {
+    "queryAria": "Shared snapshot query",
+    "queryDefault": "Shared snapshot",
+    "inThisSnapshot": " in this public snapshot",
+    "snapshotBadge": "Snapshot",
+    "unavailableTitle": "Public share unavailable",
+    "expiredDescription": "This snapshot link has expired or was revoked.",
+    "notFoundTitle": "Public share not found",
+    "notFoundDescription": "The snapshot link does not exist.",
+    "errorDescription": "The snapshot could not be loaded."
   }
 }

@@ -840,7 +840,7 @@ export function ResearchIndexPage() {
         ) : null}
 
         {pulseLoading ? (
-          <p className="text-sm text-muted-foreground">加载中…</p>
+          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
         ) : displayPulseItems.length === 0 && !softEmpty ? (
           <p className="text-sm text-muted-foreground" data-testid="research-pulse-empty">
             {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
@@ -964,7 +964,7 @@ export function ResearchIndexPage() {
             {t('research.sectionGolden', { defaultValue: '从这里开始（展示）' })}
           </h2>
           {showcaseLoading ? (
-            <p className="text-sm text-muted-foreground">加载中…</p>
+            <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
           ) : (
             <CompanyCardGrid
               cards={golden}
@@ -981,7 +981,7 @@ export function ResearchIndexPage() {
             {t('research.sectionResumeDesk', { defaultValue: '数控品牌台（展示）' })}
           </h2>
           {showcaseLoading ? (
-            <p className="text-sm text-muted-foreground">加载中…</p>
+            <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
           ) : (
             <CompanyCardGrid
               cards={fromDesk}
@@ -1029,7 +1029,7 @@ export function ResearchIndexPage() {
           </p>
         ) : null}
         {industryLoading ? (
-          <p className="text-sm text-muted-foreground">加载中…</p>
+          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
         ) : industry.length === 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="research-industry-empty">
             {t('research.industryEmpty', { defaultValue: '暂无行业目录项。' })}

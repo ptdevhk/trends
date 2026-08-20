@@ -345,7 +345,7 @@ export function SystemSettingsIndustryDataPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Industry Data tabs">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('common.industryDataTabsAria', { defaultValue: 'Industry Data tabs' })}>
         {tabs.map((tab) => (
           <Button
             key={tab.id}

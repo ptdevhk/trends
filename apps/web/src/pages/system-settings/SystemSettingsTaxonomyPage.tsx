@@ -393,7 +393,7 @@ export function SystemSettingsTaxonomyPage() {
                       : current.slug,
                   }))
                 }}
-                placeholder="Backend Languages"
+                placeholder={t('debugConfig.taxonomy.namePlaceholder', { defaultValue: 'Backend Languages' })}
               />
             </div>
 
@@ -460,7 +460,7 @@ export function SystemSettingsTaxonomyPage() {
                 onChange={(event) => {
                   setForm((current) => ({ ...current, tags: event.target.value }))
                 }}
-                placeholder="Go, Java, Rust"
+                placeholder={t('debugConfig.taxonomy.tagsPlaceholder', { defaultValue: 'Go, Java, Rust' })}
               />
               <p className="text-xs text-muted-foreground">
                 {t('debugConfig.taxonomy.tagsHelp', {

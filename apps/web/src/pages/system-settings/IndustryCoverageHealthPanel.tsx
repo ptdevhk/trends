@@ -410,7 +410,7 @@ export function IndustryCoverageHealthPanel({
                 <p className="mt-1 font-mono text-xs">
                   {formatRunLine(summary.maintenance.latest)}
                 </p>
-                {summary.maintenance.latest?.partial ? <p className="mt-1 text-xs font-medium text-amber-800">Partial result — review failed/timeout targets before retrying.</p> : null}
+                {summary.maintenance.latest?.partial ? <p className="mt-1 text-xs font-medium text-amber-800">{t('industryEvidence.coveragePartialResult', { defaultValue: 'Partial result — review failed/timeout targets before retrying.' })}</p> : null}
                 {summary.maintenance.latest?.operatorSummary ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     {summary.maintenance.latest.operatorSummary}
@@ -421,19 +421,19 @@ export function IndustryCoverageHealthPanel({
 
             <div className="rounded-lg border p-3" data-testid="industry-coverage-research-queue">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Targeted research queue</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('industryEvidence.coverageTargetedQueue', { defaultValue: 'Targeted research queue' })}</p>
                 <Badge variant={summary.researchQueue.needsIdentityReview > 0 ? 'secondary' : 'outline'}>
-                  {summary.researchQueue.active} active
+                  {summary.researchQueue.active} {t('industryEvidence.queueActive', { defaultValue: 'active' })}
                 </Badge>
               </div>
               <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
-                <span><strong>{summary.researchQueue.queued}</strong> queued</span>
-                <span><strong>{summary.researchQueue.leased}</strong> researching</span>
-                <span><strong>{summary.researchQueue.needsIdentityReview}</strong> identity review</span>
-                <span><strong>{summary.researchQueue.failed}</strong> failed</span>
+                <span><strong>{summary.researchQueue.queued}</strong> {t('industryEvidence.queueQueued', { defaultValue: 'queued' })}</span>
+                <span><strong>{summary.researchQueue.leased}</strong> {t('industryEvidence.queueResearching', { defaultValue: 'researching' })}</span>
+                <span><strong>{summary.researchQueue.needsIdentityReview}</strong> {t('industryEvidence.queueIdentityReview', { defaultValue: 'identity review' })}</span>
+                <span><strong>{summary.researchQueue.failed}</strong> {t('industryEvidence.queueFailed', { defaultValue: 'failed' })}</span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Priority lanes: {Object.entries(summary.researchQueue.byOrigin).map(([origin, count]) => `${origin.replace(/_/g, ' ')} ${count}`).join(' · ') || 'none'}.
+                {t('industryEvidence.coveragePriorityLanes', { defaultValue: 'Priority lanes: {{lanes}}.', lanes: Object.entries(summary.researchQueue.byOrigin).map(([origin, count]) => `${origin.replace(/_/g, ' ')} ${count}`).join(' · ') || t('industryEvidence.coverageNone', { defaultValue: 'none' }) })}
               </p>
               {(summary.researchQueue.alerts.highRetryRate || summary.researchQueue.alerts.providerLimitedBacklog > 0 || summary.researchQueue.alerts.workerUnreachableRuns > 0) ? (
                 <p className="mt-2 text-xs font-medium text-amber-800">

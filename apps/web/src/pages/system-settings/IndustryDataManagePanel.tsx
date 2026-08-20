@@ -79,7 +79,7 @@ export function IndustryDataManagePanel({
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading…' })}</p>
         ) : (
           <div className="overflow-x-auto rounded-md border" data-testid="industry-data-entries-table">
             <table className="w-full text-sm">

@@ -2,7 +2,10 @@
   "app": {
     "title": "趨勢",
     "subtitle": "Trends",
-    "description": "多源數據聚合與AI智能篩選平台"
+    "description": "多源數據聚合與AI智能篩選平台",
+    "adminAccessRequired": "需要管理員權限",
+    "industryReviewAccessRequired": "行業審核需要 {{workspaceSlug}} 工作區的管理員或審核員帳號。",
+    "industryOpsAccessRequired": "行業營運需要 {{workspaceSlug}} 工作區的管理員帳號。"
   },
   "nav": {
     "home": "首頁",
@@ -48,7 +51,13 @@
     "deleting": "刪除中...",
     "submitting": "提交中…",
     "clearAll": "清除全部",
-    "removeFilter": "移除 {{filter}}"
+    "removeFilter": "移除 {{filter}}",
+    "toggleMenu": "切換選單",
+    "workspaceSwitcherAria": "工作區切換器",
+    "userRatingAria": "用戶評分",
+    "industryDataTabsAria": "行業資料標籤頁",
+    "potentialLegalIdentitiesAria": "潛在法定主體",
+    "existingCanonicalCompanyAria": "現有規範公司"
   },
   "outreach": {
     "contactTitle": "聯繫 {{name}}",
@@ -889,7 +898,8 @@
     "schedule": {
       "enabled": "已啟用",
       "disabled": "已停用"
-    }
+    },
+    "roleFilterTypePlaceholder": "例如：銷售"
   },
   "searchAnalytics": {
     "nav": "搜尋分析",
@@ -1447,7 +1457,9 @@
       "confidence": "信心度",
       "tagsHelp": "用逗號分隔標籤。搜尋篩選會把匹配的履歷標籤歸入此聚類。",
       "saveChanges": "儲存變更",
-      "createClusterButton": "建立聚類"
+      "createClusterButton": "建立聚類",
+      "namePlaceholder": "後端語言",
+      "tagsPlaceholder": "Go, Java, Rust"
     },
     "adminUsersTitle": "用戶管理",
     "adminUsersDescription": "管理本地用戶帳戶、工作區成員資格及驗證狀態。",
@@ -1580,7 +1592,8 @@
     "authEmptyIdentities": "無提供方身分",
     "authEmptyPreapprovals": "無預先核准",
     "authEmptyGrants": "無提供方衍生授權",
-    "authEmptyEvents": "無認證事件"
+    "authEmptyEvents": "無認證事件",
+    "industryDataFilterPlaceholder": "按公司Key篩選"
   },
   "resumeDedup": {
     "title": "履歷去重審查",
@@ -1992,7 +2005,25 @@
     "detailRevisionId": "版本 ID",
     "approvedSourcesTitle": "已核准來源",
     "sourcePreviewsUnavailable": "此實體化投影中不提供來源預覽。",
-    "additionalApprovedSources": "另有 {{count}} 個已核准來源"
+    "additionalApprovedSources": "另有 {{count}} 個已核准來源",
+    "detailNoSourcesOnProfile": "此檔案沒有來源。",
+    "coverageTargetedQueue": "定向研究佇列",
+    "coveragePartialResult": "部分結果 — 重試前請檢查失敗/逾時的目標。",
+    "coveragePriorityLanes": "優先通道：{{lanes}}。",
+    "coverageNone": "無",
+    "queueActive": "進行中",
+    "queueQueued": "排隊中",
+    "queueResearching": "調研中",
+    "queueIdentityReview": "身份審核",
+    "queueFailed": "失敗",
+    "queueLeased": "已租用",
+    "queueHealthUnavailable": "佇列健康狀態不可用。",
+    "opsQueueDescription": "精確的使用者請求獨立於大規模維護掃描進行租用和重試。",
+    "queueStatusReadyReview": "可審核",
+    "queueStatusNew": "新建",
+    "queueStatusResearching": "調研中",
+    "queueStatusNeedsEvidence": "需要更多證據",
+    "noLedgerRows": "沒有檯帳記錄。"
   },
   "industryAudit": {
     "title": "行業稽核",
@@ -2761,5 +2792,16 @@
     "openHotlistTab": "查看综合热榜",
     "tabBrand": "品牌动态",
     "tabHotlist": "综合热榜"
+  },
+  "publicShare": {
+    "queryAria": "共享快照查詢",
+    "queryDefault": "共享快照",
+    "inThisSnapshot": " 在此公開快照中",
+    "snapshotBadge": "快照",
+    "unavailableTitle": "公開分享不可用",
+    "expiredDescription": "此快照連結已過期或已被撤銷。",
+    "notFoundTitle": "找不到公開分享",
+    "notFoundDescription": "快照連結不存在。",
+    "errorDescription": "無法載入快照。"
   }
 }

@@ -250,7 +250,7 @@ export function EvidenceRecoveryPanel({
               <p className="font-medium">{t('industryEvidence.recoveryIdentityTitle', { defaultValue: 'Potential legal identity — human review required' })}</p>
               <p className="mt-1 text-xs text-muted-foreground">{t('industryEvidence.recoveryIdentityDescription', { defaultValue: 'These names came from fetched proposal evidence. Select a candidate, then map it to an existing registry row or create a provisional row. This does not approve the industry claim.' })}</p>
             </div>
-            <div role="group" aria-label="Potential legal identities" className="space-y-2">
+            <div role="group" aria-label={t('common.potentialLegalIdentitiesAria', { defaultValue: 'Potential legal identities' })} className="space-y-2">
             {identityCandidates.map((item) => (
               <button
                 key={item.candidateFingerprint}
@@ -276,7 +276,7 @@ export function EvidenceRecoveryPanel({
                     onChange={(event) => setExistingCompanyKey(event.target.value)}
                     disabled={mapping || registryCompanies.length === 0}
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                    aria-label="Existing canonical company"
+                    aria-label={t('common.existingCanonicalCompanyAria', { defaultValue: 'Existing canonical company' })}
                   >
                     <option value="">{t('industryEvidence.recoveryRegistryPlaceholder', { defaultValue: 'Choose a registry company' })}</option>
                     {registryCompanies.map((item) => (
