@@ -66,6 +66,17 @@ const exportedRun = {
   exportedAt: '2026-03-25T11:00:00.000Z',
 }
 
+const failedRun = {
+  id: 'run-3',
+  workspaceSlug: 'dev',
+  source: 'convex' as const,
+  format: 'csv' as const,
+  status: 'failed' as const,
+  totalCount: 0,
+  packetFilename: 'packet-run-3.csv',
+  exportedAt: '2026-03-25T12:00:00.000Z',
+}
+
 describe('ReviewPacketsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -307,5 +318,99 @@ describe('ReviewPacketsPage', () => {
     expect(await screen.findByLabelText('Resume IDs')).toHaveValue('resume-9\nresume-10')
     expect(screen.getByTestId('review-packets-parsed-count')).toHaveTextContent('2 IDs parsed')
     expect(window.sessionStorage.getItem('reviewPacketHandoff')).toBeNull()
+  })
+
+  it('filters runs by status', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/resumes/review-packets') {
+        return {
+          data: {
+            success: true,
+            items: [failedRun, existingRun],
+          },
+        }
+      }
+      if (path === '/api/resumes/review-packets/run-1') {
+        return { data: { success: true, run: existingRun } }
+      }
+      if (path === '/api/resumes/review-packets/run-3') {
+        return { data: { success: true, run: failedRun } }
+      }
+      return { data: { success: true } }
+    })
+
+    render(<ReviewPacketsPage />)
+
+    expect(await screen.findByRole('button', { name: 'run-1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'run-3' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByTestId('review-packets-status-filter'), 'failed')
+
+    expect(screen.getByRole('button', { name: 'run-3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'run-1' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('review-packets-no-matching-runs')).not.toBeInTheDocument()
+  })
+
+  it('shows the no-matching-runs state when the filter excludes every run', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/resumes/review-packets') {
+        return {
+          data: {
+            success: true,
+            items: [existingRun],
+          },
+        }
+      }
+      if (path === '/api/resumes/review-packets/run-1') {
+        return { data: { success: true, run: existingRun } }
+      }
+      return { data: { success: true } }
+    })
+
+    render(<ReviewPacketsPage />)
+
+    await screen.findByRole('button', { name: 'run-1' })
+    await user.selectOptions(screen.getByTestId('review-packets-status-filter'), 'failed')
+
+    expect(screen.getByTestId('review-packets-no-matching-runs')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'run-1' })).not.toBeInTheDocument()
+  })
+
+  it('copies a run ID to the clipboard with a success toast', async () => {
+    const user = userEvent.setup()
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextMock },
+      configurable: true,
+    })
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/resumes/review-packets') {
+        return {
+          data: {
+            success: true,
+            items: [existingRun],
+          },
+        }
+      }
+      if (path === '/api/resumes/review-packets/run-1') {
+        return { data: { success: true, run: existingRun } }
+      }
+      return { data: { success: true } }
+    })
+
+    render(<ReviewPacketsPage />)
+
+    await screen.findByRole('button', { name: 'run-1' })
+    await user.click(screen.getByTestId('copy-run-id-run-1'))
+
+    expect(writeTextMock).toHaveBeenCalledWith('run-1')
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith('Run ID copied to clipboard')
+    })
   })
 })

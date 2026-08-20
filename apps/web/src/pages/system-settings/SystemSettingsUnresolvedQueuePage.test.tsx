@@ -36,7 +36,25 @@ vi.mock('@/lib/ui-error-reporting', () => ({
 
 import { SystemSettingsUnresolvedQueuePage } from './SystemSettingsUnresolvedQueuePage'
 
-const unresolvedItem = {
+type QueueResolution = {
+  action: 'link' | 'ignore'
+  targetCompanyKey?: string
+  resolvedAt: string
+  resolvedBy: string
+}
+
+type QueueItem = {
+  normalizedKey: string
+  count: number
+  examples: string[]
+  maxNearbyScore: number
+  reasons: string[]
+  priority: boolean
+  priorityReasons: string[]
+  resolution?: QueueResolution
+}
+
+const unresolvedItem: QueueItem = {
   normalizedKey: 'unknownoema',
   count: 2,
   examples: ['UnknownOEM-A'],
@@ -46,7 +64,7 @@ const unresolvedItem = {
   priorityReasons: ['score>=70'],
 }
 
-const linkedItem = {
+const linkedItem: QueueItem = {
   normalizedKey: 'freqbrandx',
   count: 3,
   examples: ['FreqBrandX'],
@@ -62,7 +80,7 @@ const linkedItem = {
   },
 }
 
-const ignoredItem = {
+const ignoredItem: QueueItem = {
   normalizedKey: 'otherb',
   count: 1,
   examples: ['Other-B'],
@@ -77,7 +95,7 @@ const ignoredItem = {
   },
 }
 
-const allItems = [unresolvedItem, linkedItem, ignoredItem]
+const allItems: QueueItem[] = [unresolvedItem, linkedItem, ignoredItem]
 
 function mockListResponse(path: string): unknown {
   const url = new URL(path, 'http://localhost')
@@ -254,6 +272,27 @@ describe('SystemSettingsUnresolvedQueuePage', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('unresolved-queue-bulk-bar')).not.toBeInTheDocument()
     })
+  })
+
+  it('selects and deselects all visible rows via the master checkbox', async () => {
+    const user = userEvent.setup()
+    render(<SystemSettingsUnresolvedQueuePage />)
+    await screen.findByTestId('unresolved-queue-row-unknownoema')
+
+    await user.click(screen.getByTestId('unresolved-queue-tab-all'))
+    await screen.findByTestId('unresolved-queue-row-otherb')
+
+    await user.click(screen.getByTestId('unresolved-queue-select-all'))
+    expect(screen.getByTestId('unresolved-queue-bulk-bar')).toHaveTextContent('{{count}} selected')
+    expect(screen.getByTestId('unresolved-queue-select-unknownoema')).toBeChecked()
+    expect(screen.getByTestId('unresolved-queue-select-otherb')).toBeChecked()
+
+    await user.click(screen.getByTestId('unresolved-queue-select-all'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('unresolved-queue-bulk-bar')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId('unresolved-queue-select-unknownoema')).not.toBeChecked()
+    expect(screen.getByTestId('unresolved-queue-select-otherb')).not.toBeChecked()
   })
 
   it('shows an error panel on load failure and recovers via retry', async () => {

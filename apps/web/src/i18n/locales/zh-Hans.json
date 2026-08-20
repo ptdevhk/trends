@@ -288,6 +288,8 @@
       "title": "导入 HR 反馈",
       "description": "粘贴 id、姓名、备注列，创建候选人备注。",
       "parse": "解析",
+      "clear": "清空",
+      "shortcutHint": "Ctrl/⌘ + Enter 确认导入",
       "confirm": "确认导入",
       "importing": "导入中...",
       "noRows": "未找到反馈行",
@@ -819,6 +821,9 @@
     "exportFieldsAvailableTitle": "可用列",
     "exportFieldsAvailableDescription": "点击 + 将列加入导出顺序。",
     "exportFieldsAdd": "加入",
+    "exportFieldsFilterPlaceholder": "筛选可用列...",
+    "exportFieldsNoMatches": "没有符合筛选条件的列。",
+    "exportFieldsClearFilter": "清除筛选",
     "deletePreset": "删除",
     "location": "位置",
     "configSourceFallbackEnabled": "已回退到 zh-Hans",
@@ -1164,7 +1169,13 @@
     "score": "得分",
     "evidence": "证据",
     "leftResume": "简历 A",
-    "rightResume": "简历 B"
+    "rightResume": "简历 B",
+    "searchPlaceholder": "按姓名、联系方式或证据搜索候选人...",
+    "allScores": "所有分数",
+    "minScoreLabel": "分数 ≥ {{score}}",
+    "noMatches": "未找到符合筛选条件的重复建议。",
+    "clearFilter": "清除筛选",
+    "showingCount": "显示 {{shown}} / {{total}} 对候选"
   },
   "unresolvedQueue": {
     "title": "未解析雇主队列",
@@ -1187,6 +1198,8 @@
     "bulkTargetPlaceholder": "所有选中项的公司键…",
     "bulkLink": "批量链接",
     "bulkIgnore": "批量忽略",
+    "selectAll": "全选所有雇主",
+    "deselectAll": "取消全选雇主",
     "column": {
       "select": "选择",
       "employer": "雇主",
@@ -2075,6 +2088,8 @@
     "dailyTrend": "每日趋势",
     "noSuggestion": "暂无可用建议",
     "noZeroResults": "尚无零结果查询纪录。",
+    "testQuery": "测试搜索",
+    "clearFilter": "清除筛选",
     "suggestSynonym": "建议同义词",
     "nav": "搜索分析",
     "savingSuggestion": "保存中..."
@@ -2124,7 +2139,10 @@
       "lastOpened": "上次开启",
       "description": "显式开启已保存的搜索，而不是在页面加载时静默恢复。",
       "createdAt": "建立时间",
-      "saveError": "保存搜索历史失败"
+      "saveError": "保存搜索历史失败",
+      "searchPlaceholder": "按标题、关键词、地点搜索历史...",
+      "noMatches": "没有符合筛选条件的已保存搜索。",
+      "clearSearch": "清除搜索"
     },
     "collectResumes": "采集",
     "autoMatchTitle": "智能匹配",
@@ -2598,7 +2616,11 @@
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
     "resumeIdsParsed": "已解析 {{count}} 个 ID",
     "exportInvalidIds": "{{count}} 个无效简历 ID 阻止了导出",
-    "removeInvalidRetry": "移除无效 ID 并重试"
+    "removeInvalidRetry": "移除无效 ID 并重试",
+    "filterAll": "所有状态",
+    "copyRunId": "复制批次 ID",
+    "runIdCopied": "批次 ID 已复制到剪贴板",
+    "noMatchingRuns": "未找到符合筛选条件的审查批次。"
   },
   "auditCompliance": {
     "title": "审计与合规",

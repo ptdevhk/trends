@@ -21,7 +21,7 @@ const mockT = (_key: string, fallback?: string, options?: Record<string, unknown
   let value = fallback ?? _key
   if (options) {
     for (const [name, replacement] of Object.entries(options)) {
-      value = value.replaceAll(`{{${name}}}`, String(replacement))
+      value = value.split(`{{${name}}}`).join(String(replacement))
     }
   }
   return value

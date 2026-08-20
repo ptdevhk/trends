@@ -19,10 +19,11 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import {
@@ -147,8 +148,25 @@ export function SystemSettingsExportFieldsPage() {
   const [hasConfig, setHasConfig] = useState(false)
   const [saving, setSaving] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [fieldSearchQuery, setFieldSearchQuery] = useState('')
 
   const selectedSet = useMemo(() => new Set(selectedFields), [selectedFields])
+
+  const filteredGroups = useMemo(() => {
+    const query = fieldSearchQuery.trim().toLowerCase()
+    if (!query) {
+      return FIELD_GROUPS
+    }
+    return FIELD_GROUPS.map((group) => {
+      if (group.label.toLowerCase().includes(query)) {
+        return group
+      }
+      const matchingFields = group.fields.filter((field) =>
+        FIELD_LABELS[field].toLowerCase().includes(query),
+      )
+      return matchingFields.length > 0 ? { ...group, fields: matchingFields } : null
+    }).filter((group): group is (typeof FIELD_GROUPS)[number] => group !== null)
+  }, [fieldSearchQuery])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -448,12 +466,46 @@ export function SystemSettingsExportFieldsPage() {
                     defaultValue: 'Click + to add a field to the export order.',
                   })}
                 </p>
-                {FIELD_GROUPS.map((group) => {
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={fieldSearchQuery}
+                    onChange={(event) => setFieldSearchQuery(event.target.value)}
+                    placeholder={t('debugConfig.exportFieldsFilterPlaceholder', {
+                      defaultValue: 'Filter available fields...',
+                    })}
+                    className="pl-8 pr-8"
+                    data-testid="export-fields-search-input"
+                  />
+                  {fieldSearchQuery ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2"
+                      onClick={() => setFieldSearchQuery('')}
+                      aria-label={t('debugConfig.exportFieldsClearFilter', { defaultValue: 'Clear filter' })}
+                      data-testid="export-fields-clear-filter"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+                {filteredGroups.length === 0 ? (
+                  <div
+                    className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground"
+                    data-testid="export-fields-no-matches"
+                  >
+                    {t('debugConfig.exportFieldsNoMatches', { defaultValue: 'No fields match your filter.' })}
+                  </div>
+                ) : (
+                filteredGroups.map((group) => {
                   const allSelected = group.fields.every((f) => selectedSet.has(f))
                   const someSelected = group.fields.some((f) => selectedSet.has(f))
                   const groupCount = group.fields.length
                   const selectedCount = group.fields.filter((f) => selectedSet.has(f)).length
                   const isCollapsed = collapsedGroups.has(group.label)
+                  const isFiltering = fieldSearchQuery.trim() !== ''
 
                   return (
                     <div key={group.label} className="space-y-1">
@@ -484,7 +536,7 @@ export function SystemSettingsExportFieldsPage() {
                           </span>
                         </button>
                       </div>
-                      {!isCollapsed && (
+                      {(!isCollapsed || isFiltering) && (
                         <div className="ml-6 space-y-1">
                           {group.fields.map((field) => {
                             const isSelected = selectedSet.has(field)
@@ -524,7 +576,7 @@ export function SystemSettingsExportFieldsPage() {
                       )}
                     </div>
                   )
-                })}
+                }))}
               </div>
 
               <div className="flex items-center gap-2 pt-2 border-t">

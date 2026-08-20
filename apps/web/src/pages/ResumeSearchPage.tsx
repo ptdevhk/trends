@@ -629,6 +629,7 @@ export function ResumeSearchPage() {
                     data-testid="resume-analyze-button"
                     className="h-10 gap-2 rounded-full px-4"
                     disabled={disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData}
+                    title={analyzeDisabledReason}
                     onClick={() => {
                       void analyzeResults()
                     }}

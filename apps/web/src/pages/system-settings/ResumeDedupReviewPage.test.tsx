@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const queryMock = vi.hoisted(() => vi.fn())
@@ -25,7 +25,8 @@ vi.mock('lucide-react', () => ({
 const mockT = (key: string, opts?: string | Record<string, unknown>): string => {
   if (typeof opts === 'string') return opts
   if (opts && typeof opts === 'object' && 'defaultValue' in opts) {
-    return opts.defaultValue as string
+    const { defaultValue, ...rest } = opts as Record<string, unknown>
+    return String(defaultValue).replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(rest[name] ?? ''))
   }
   return key
 }
@@ -39,6 +40,27 @@ vi.mock('react-i18next', () => ({
 import SystemSettingsResumeDedupReviewPage from './ResumeDedupReviewPage'
 
 const emptyResult = { candidates: [], scannedBlocks: 0 }
+
+const graceCandidate = {
+  score: 2.5,
+  evidence: ['shared email: grace@example.com'],
+  left: {
+    resumeId: 'resume-c',
+    name: 'Grace Hopper',
+    source: '51job',
+    externalId: 'ext-3',
+    identityKey: 'externalId:ext-3',
+    contactSignals: { email: 'grace@example.com' },
+  },
+  right: {
+    resumeId: 'resume-d',
+    name: 'Grace Hopper',
+    source: 'seek',
+    externalId: 'ext-4',
+    identityKey: 'externalId:ext-4',
+    contactSignals: { email: 'grace@example.com' },
+  },
+}
 
 const candidateResult = {
   scannedBlocks: 4,
@@ -64,6 +86,11 @@ const candidateResult = {
       },
     },
   ],
+}
+
+const twoCandidateResult = {
+  scannedBlocks: 4,
+  candidates: [...candidateResult.candidates, graceCandidate],
 }
 
 describe('SystemSettingsResumeDedupReviewPage', () => {
@@ -138,5 +165,46 @@ describe('SystemSettingsResumeDedupReviewPage', () => {
     const row = screen.getByTestId('resume-dedup-candidate-row')
     expect(row).toHaveTextContent('grace@example.com')
     expect(row).not.toHaveTextContent('null')
+  })
+
+  it('filters candidate pairs by minimum score threshold', () => {
+    queryMock.mockReturnValue(twoCandidateResult)
+    render(<SystemSettingsResumeDedupReviewPage />)
+    expect(screen.getAllByTestId('resume-dedup-candidate-row')).toHaveLength(2)
+
+    fireEvent.change(screen.getByTestId('resume-dedup-min-score'), { target: { value: '4' } })
+
+    const rows = screen.getAllByTestId('resume-dedup-candidate-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Ada Lovelace')
+    expect(rows[0]).not.toHaveTextContent('Grace Hopper')
+    expect(screen.getByTestId('resume-dedup-count')).toHaveTextContent('Showing 1 of 2 candidate pairs')
+  })
+
+  it('searches candidate pairs by name or contact signal', () => {
+    queryMock.mockReturnValue(twoCandidateResult)
+    render(<SystemSettingsResumeDedupReviewPage />)
+
+    fireEvent.change(screen.getByTestId('resume-dedup-search-input'), { target: { value: 'hopper' } })
+
+    const rows = screen.getAllByTestId('resume-dedup-candidate-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Grace Hopper')
+    expect(rows[0]).not.toHaveTextContent('Ada Lovelace')
+  })
+
+  it('shows the filter empty state with a clear action when nothing matches', () => {
+    queryMock.mockReturnValue(twoCandidateResult)
+    render(<SystemSettingsResumeDedupReviewPage />)
+
+    fireEvent.change(screen.getByTestId('resume-dedup-search-input'), { target: { value: 'nobody' } })
+
+    expect(screen.getByTestId('resume-dedup-no-matches')).toBeInTheDocument()
+    expect(screen.queryByTestId('resume-dedup-candidate-row')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('resume-dedup-clear-filter'))
+
+    expect(screen.queryByTestId('resume-dedup-no-matches')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('resume-dedup-candidate-row')).toHaveLength(2)
   })
 })

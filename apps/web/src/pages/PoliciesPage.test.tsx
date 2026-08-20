@@ -25,7 +25,7 @@ const mockT = (key: string, options?: Record<string, unknown>) => {
   let value = (options?.defaultValue as string | undefined) ?? key
   if (options) {
     for (const [name, replacement] of Object.entries(options)) {
-      value = value.replaceAll(`{{${name}}}`, String(replacement))
+      value = value.split(`{{${name}}}`).join(String(replacement))
     }
   }
   return value

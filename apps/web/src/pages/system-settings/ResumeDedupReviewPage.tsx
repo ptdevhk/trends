@@ -1,9 +1,13 @@
+import { useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../../packages/convex/convex/_generated/api'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface ResumeSummaryView {
@@ -36,6 +40,42 @@ export default function SystemSettingsResumeDedupReviewPage() {
   const { t } = useTranslation()
   const result = useQuery(api.resume_dedup.suggestMergeCandidates, {})
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [minScoreFilter, setMinScoreFilter] = useState<number | 'all'>('all')
+
+  const candidates: CandidateView[] = result?.candidates ?? []
+
+  const filteredCandidates = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return candidates.filter((candidate) => {
+      if (minScoreFilter !== 'all' && candidate.score < minScoreFilter) {
+        return false
+      }
+      if (!query) {
+        return true
+      }
+      const haystack = [
+        candidate.left.name,
+        candidate.right.name,
+        candidate.left.externalId,
+        candidate.right.externalId,
+        candidate.left.identityKey,
+        candidate.right.identityKey,
+        candidate.left.contactSignals?.email,
+        candidate.right.contactSignals?.email,
+        candidate.left.contactSignals?.phone,
+        candidate.right.contactSignals?.phone,
+        candidate.left.contactSignals?.linkedin,
+        candidate.right.contactSignals?.linkedin,
+        ...candidate.evidence,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [candidates, minScoreFilter, searchQuery])
+
   if (result === undefined) {
     return (
       <div
@@ -48,7 +88,10 @@ export default function SystemSettingsResumeDedupReviewPage() {
     )
   }
 
-  const candidates: CandidateView[] = result.candidates
+  const clearFilters = () => {
+    setSearchQuery('')
+    setMinScoreFilter('all')
+  }
 
   const signalLine = (resume: ResumeSummaryView): string => {
     const parts: string[] = []
@@ -127,39 +170,97 @@ export default function SystemSettingsResumeDedupReviewPage() {
             </div>
           ) : (
             <>
-              <p className="mb-4 text-xs text-muted-foreground">
-                {t('resumeDedup.scanned', { defaultValue: 'Blocking keys scanned' })}: {result.scannedBlocks}
-              </p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('resumeDedup.score', { defaultValue: 'Score' })}</TableHead>
-                    <TableHead>{t('resumeDedup.evidence', { defaultValue: 'Evidence' })}</TableHead>
-                    <TableHead>{t('resumeDedup.leftResume', { defaultValue: 'Resume A' })}</TableHead>
-                    <TableHead>{t('resumeDedup.rightResume', { defaultValue: 'Resume B' })}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {candidates.map((candidate) => (
-                    <TableRow key={`${candidate.left.resumeId}|${candidate.right.resumeId}`} data-testid="resume-dedup-candidate-row">
-                      <TableCell>
-                        <span className="font-mono text-sm font-semibold">{candidate.score.toFixed(1)}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex max-w-xs flex-wrap gap-1">
-                          {candidate.evidence.map((piece) => (
-                            <Badge key={piece} variant="outline" className="text-[10px]">
-                              {piece}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>{resumeCell(candidate.left)}</TableCell>
-                      <TableCell>{resumeCell(candidate.right)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Input
+                  type="search"
+                  data-testid="resume-dedup-search-input"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={t('resumeDedup.searchPlaceholder', {
+                    defaultValue: 'Search candidates by name, contact, or evidence...',
+                  })}
+                  className="sm:max-w-xs"
+                />
+                <Select
+                  data-testid="resume-dedup-min-score"
+                  value={String(minScoreFilter)}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setMinScoreFilter(value === 'all' ? 'all' : Number(value))
+                  }}
+                  options={[
+                    { value: 'all', label: t('resumeDedup.allScores', { defaultValue: 'All Scores' }) },
+                    { value: '2', label: t('resumeDedup.minScoreLabel', { score: '2.0', defaultValue: 'Score ≥ 2.0' }) },
+                    { value: '4', label: t('resumeDedup.minScoreLabel', { score: '4.0', defaultValue: 'Score ≥ 4.0' }) },
+                    { value: '6', label: t('resumeDedup.minScoreLabel', { score: '6.0', defaultValue: 'Score ≥ 6.0' }) },
+                  ]}
+                  className="sm:w-44"
+                />
+              </div>
+              {filteredCandidates.length === 0 ? (
+                <div
+                  className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
+                  data-testid="resume-dedup-no-matches"
+                >
+                  <p className="mb-3">
+                    {t('resumeDedup.noMatches', {
+                      defaultValue: 'No duplicate suggestions match your filter.',
+                    })}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="resume-dedup-clear-filter"
+                    onClick={clearFilters}
+                  >
+                    {t('resumeDedup.clearFilter', { defaultValue: 'Clear filter' })}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    {t('resumeDedup.scanned', { defaultValue: 'Blocking keys scanned' })}: {result.scannedBlocks}
+                  </p>
+                  <p className="mb-2 text-xs text-muted-foreground" data-testid="resume-dedup-count">
+                    {t('resumeDedup.showingCount', {
+                      shown: filteredCandidates.length,
+                      total: candidates.length,
+                      defaultValue: 'Showing {{shown}} of {{total}} candidate pairs',
+                    })}
+                  </p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('resumeDedup.score', { defaultValue: 'Score' })}</TableHead>
+                        <TableHead>{t('resumeDedup.evidence', { defaultValue: 'Evidence' })}</TableHead>
+                        <TableHead>{t('resumeDedup.leftResume', { defaultValue: 'Resume A' })}</TableHead>
+                        <TableHead>{t('resumeDedup.rightResume', { defaultValue: 'Resume B' })}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCandidates.map((candidate) => (
+                        <TableRow key={`${candidate.left.resumeId}|${candidate.right.resumeId}`} data-testid="resume-dedup-candidate-row">
+                          <TableCell>
+                            <span className="font-mono text-sm font-semibold">{candidate.score.toFixed(1)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex max-w-xs flex-wrap gap-1">
+                              {candidate.evidence.map((piece) => (
+                                <Badge key={piece} variant="outline" className="text-[10px]">
+                                  {piece}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell>{resumeCell(candidate.left)}</TableCell>
+                          <TableCell>{resumeCell(candidate.right)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
+              )}
             </>
           )}
         </CardContent>

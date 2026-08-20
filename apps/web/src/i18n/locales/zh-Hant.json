@@ -288,6 +288,8 @@
       "title": "匯入 HR 回饋",
       "description": "貼上 id、姓名、備註列，建立候選人備註。",
       "parse": "解析",
+      "clear": "清空",
+      "shortcutHint": "Ctrl/⌘ + Enter 確認匯入",
       "confirm": "確認匯入",
       "importing": "匯入中...",
       "noRows": "未找到回饋列",
@@ -803,7 +805,10 @@
       "noLocation": "未設定位置",
       "saveSuccess": "已保存到搜尋歷史",
       "saveError": "保存搜尋歷史失敗",
-      "applySuccess": "已套用已保存搜尋"
+      "applySuccess": "已套用已保存搜尋",
+      "searchPlaceholder": "按標題、關鍵詞、地點搜尋歷史...",
+      "noMatches": "沒有符合篩選條件的已保存搜尋。",
+      "clearSearch": "清除搜尋"
     },
     "activeSession": "當前工作階段",
     "activeSessionNote": "上下文備註",
@@ -974,6 +979,8 @@
     "noTrend": "尚無趨勢資料。",
     "zeroResults": "零結果查詢",
     "noZeroResults": "尚無零結果查詢紀錄。",
+    "testQuery": "測試搜尋",
+    "clearFilter": "清除篩選",
     "table": {
       "query": "查詢詞",
       "count": "次數",
@@ -1359,6 +1366,9 @@
     "exportFieldsAvailableTitle": "可用欄位",
     "exportFieldsAvailableDescription": "點擊 + 將欄位加入匯出順序。",
     "exportFieldsAdd": "加入",
+    "exportFieldsFilterPlaceholder": "篩選可用欄位...",
+    "exportFieldsNoMatches": "沒有符合篩選條件的欄位。",
+    "exportFieldsClearFilter": "清除篩選",
     "customKeywords": "自定義關鍵詞",
     "customKeywordsDescription": "管理可在簡歷頁面關鍵詞晶片中使用的自定義標籤",
     "addCustomKeyword": "新增關鍵詞",
@@ -1672,7 +1682,13 @@
     "score": "分數",
     "evidence": "證據",
     "leftResume": "履歷 A",
-    "rightResume": "履歷 B"
+    "rightResume": "履歷 B",
+    "searchPlaceholder": "按姓名、聯絡方式或證據搜尋候選人...",
+    "allScores": "所有分數",
+    "minScoreLabel": "分數 ≥ {{score}}",
+    "noMatches": "未找到符合篩選條件的重複建議。",
+    "clearFilter": "清除篩選",
+    "showingCount": "顯示 {{shown}} / {{total}} 對候選"
   },
   "unresolvedQueue": {
     "title": "未解析雇主佇列",
@@ -1695,6 +1711,8 @@
     "bulkTargetPlaceholder": "所有選取項的公司鍵…",
     "bulkLink": "批次連結",
     "bulkIgnore": "批次忽略",
+    "selectAll": "全選所有雇主",
+    "deselectAll": "取消全選雇主",
     "column": {
       "select": "選取",
       "employer": "雇主",
@@ -2571,7 +2589,11 @@
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
     "resumeIdsParsed": "已解析 {{count}} 個 ID",
     "exportInvalidIds": "{{count}} 個無效履歷 ID 阻擋了匯出",
-    "removeInvalidRetry": "移除無效 ID 並重試"
+    "removeInvalidRetry": "移除無效 ID 並重試",
+    "filterAll": "所有狀態",
+    "copyRunId": "複製批次 ID",
+    "runIdCopied": "批次 ID 已複製至剪貼簿",
+    "noMatchingRuns": "未找到符合篩選條件的審查批次。"
   },
   "auditCompliance": {
     "title": "稽核與合規",

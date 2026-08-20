@@ -82,11 +82,8 @@ const DEFAULT_SUMMARY_PROFILE_FORM: SummaryProfileFormState = {
   subject: '',
 }
 
-const SUMMARY_PERIOD_VALUES: SummaryPeriod[] = ['daily', 'weekly']
-const SUMMARY_CHANNEL_VALUES: SummaryChannel[] = ['telegram', 'wechat_work', 'feishu', 'email']
-
 function getSummaryPeriodOptions(
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): Array<{ value: SummaryPeriod; label: string }> {
   return [
     { value: 'daily', label: t('summaries.period.daily', { defaultValue: 'Daily' }) },
@@ -95,7 +92,7 @@ function getSummaryPeriodOptions(
 }
 
 function getSummaryChannelOptions(
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): Array<{ value: SummaryChannel; label: string }> {
   return [
     { value: 'telegram', label: t('summaries.channel.telegram', { defaultValue: 'Telegram' }) },
@@ -167,7 +164,7 @@ function formatTimestamp(value: string | undefined): string {
 
 function formatPeriodLabel(
   period: SummaryRunItem['period'] | SummaryRunDetailItem['period'] | undefined,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   if (period === 'weekly') {
     return t('summaries.period.weekly', { defaultValue: 'Weekly' })
@@ -184,7 +181,7 @@ function formatDelta(value: number | undefined): string {
 
 function formatComparisonLabel(
   period: SummaryRunDetailItem['period'] | undefined,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   return period === 'weekly'
     ? t('summaries.comparison.weekly', { defaultValue: 'Compared with previous week' })
@@ -236,7 +233,7 @@ function formatDeliverySummary(
 
 function formatAccountStatus(
   account: SummaryDeliveryAccount,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   if (account.sent) {
     return t('summaries.accountStatus.sent', { defaultValue: 'sent' })
@@ -249,7 +246,7 @@ function formatAccountStatus(
 
 function formatComparisonSummary(
   item: SummaryRunDetailItem | null,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   const comparison = item?.report.comparison
   if (!comparison) {
@@ -303,7 +300,7 @@ function toProfileFormState(profile: SummaryProfileItem): SummaryProfileFormStat
 
 function formatChannelLabel(
   channel: SummaryChannel,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   const option = getSummaryChannelOptions(t).find((item) => item.value === channel)
   return option?.label ?? channel
@@ -311,7 +308,7 @@ function formatChannelLabel(
 
 function formatProfileDelivery(
   profile: SummaryProfileItem,
-  t: (key: string, opts?: { defaultValue?: string }) => string,
+  t: (key: string, opts?: { defaultValue?: string } & Record<string, unknown>) => string,
 ): string {
   if (profile.request.channel === 'email') {
     return profile.request.to ?? t('summaries.profile.emailRecipientRequired', { defaultValue: 'Email recipient required' })

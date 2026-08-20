@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Lightbulb, Search } from 'lucide-react'
+import { RefreshCw, Lightbulb, Search, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -219,7 +219,15 @@ export default function SearchAnalyticsPage() {
               <div className="text-muted-foreground">{t('searchAnalytics.noTopQueries', { defaultValue: 'No query data yet.' })}</div>
             ) : summary.topQueries.map((item) => (
               <div key={item.query} className="flex items-center justify-between border-b border-dashed pb-1 last:border-b-0">
-                <span className="truncate pr-4">{item.query}</span>
+                <Link
+                  to={`/?q=${encodeURIComponent(item.query)}`}
+                  target="_blank"
+                  className="inline-flex min-w-0 items-center gap-1.5 truncate pr-4 text-primary hover:underline"
+                  title={t('searchAnalytics.testQuery', { defaultValue: 'Test Search' })}
+                >
+                  <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.query}</span>
+                </Link>
                 <span className="font-medium">{item.count}</span>
               </div>
             ))}
@@ -260,12 +268,27 @@ export default function SearchAnalyticsPage() {
         <CardContent>
           {zeroResults.length > 5 && (
             <div className="mb-3">
-              <Input
-                placeholder={t('searchAnalytics.table.filterPlaceholder', { defaultValue: 'Filter queries...' })}
-                value={zeroResultQuery}
-                onChange={(e) => setZeroResultQuery(e.target.value)}
-                className="sm:max-w-xs"
-              />
+              <div className="relative sm:max-w-xs">
+                <Input
+                  placeholder={t('searchAnalytics.table.filterPlaceholder', { defaultValue: 'Filter queries...' })}
+                  value={zeroResultQuery}
+                  onChange={(e) => setZeroResultQuery(e.target.value)}
+                  className="pr-9"
+                />
+                {zeroResultQuery.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    data-testid="zero-result-clear-filter"
+                    aria-label={t('searchAnalytics.clearFilter', { defaultValue: 'Clear filter' })}
+                    onClick={() => setZeroResultQuery('')}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             </div>
           )}
           <Table>

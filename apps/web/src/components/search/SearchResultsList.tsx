@@ -254,6 +254,13 @@ export function SearchResultsList({
     }
   }, [onCloseDetail])
 
+  function scrollCardIntoView(index: number) {
+    const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+
   const navigateToDetail = useCallback((index: number) => {
     const nextItem = items[index]
     if (!nextItem) {
@@ -453,13 +460,6 @@ export function SearchResultsList({
     const clearTimer = window.setTimeout(() => setHighlightedResumeId(null), 3500)
     return () => window.clearTimeout(clearTimer)
   }, [highlightedResumeId])
-
-  function scrollCardIntoView(index: number) {
-    const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
-    if (card) {
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-  }
 
   const virtualItems = rowVirtualizer.getVirtualItems()
 

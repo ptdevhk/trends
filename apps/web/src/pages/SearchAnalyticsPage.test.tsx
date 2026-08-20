@@ -350,4 +350,71 @@ describe('SearchAnalyticsPage', () => {
     expect(screen.getByText('q3')).toBeInTheDocument()
     expect(screen.queryByText('q0')).not.toBeInTheDocument()
   })
+
+  it('renders top queries as test-search links', async () => {
+    getMock.mockImplementation(createGetMock())
+
+    render(
+      <BrowserRouter>
+        <SearchAnalyticsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'CNC' })).toBeInTheDocument()
+    })
+
+    const cncLink = screen.getByRole('link', { name: 'CNC' })
+    expect(cncLink).toHaveAttribute('href', '/?q=CNC')
+    expect(cncLink).toHaveAttribute('target', '_blank')
+
+    const millLink = screen.getByRole('link', { name: '铣工' })
+    expect(millLink).toHaveAttribute('href', '/?q=%E9%93%A3%E5%B7%A5')
+  })
+
+  it('clears the zero-result filter with the clear button', async () => {
+    getMock.mockImplementation((url: string) => {
+      if (url.includes('/summary')) {
+        return { data: { success: true, summary: mockSummary } }
+      }
+      if (url.includes('/zero-results')) {
+        return {
+          data: {
+            success: true,
+            items: Array.from({ length: 6 }, (_, i) => ({
+              query: `q${i}`,
+              count: i + 1,
+              lastSeen: '2026-05-24',
+            })),
+          },
+        }
+      }
+      if (url.includes('/synonym-suggestions')) {
+        return { data: { success: true, suggestions: [] } }
+      }
+      return { data: { success: false } }
+    })
+
+    render(
+      <BrowserRouter>
+        <SearchAnalyticsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('q0')).toBeInTheDocument()
+    })
+
+    const filter = screen.getByPlaceholderText('Filter queries...')
+    await userEvent.type(filter, 'q3')
+
+    expect(screen.getByText('q3')).toBeInTheDocument()
+    expect(screen.queryByText('q0')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('zero-result-clear-filter'))
+
+    expect(filter).toHaveValue('')
+    expect(screen.getByText('q0')).toBeInTheDocument()
+    expect(screen.getByText('q5')).toBeInTheDocument()
+  })
 })

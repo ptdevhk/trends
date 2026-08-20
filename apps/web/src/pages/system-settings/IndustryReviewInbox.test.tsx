@@ -72,7 +72,7 @@ function historyItem(proposalId: string, status: string, reviewedAt = 100) {
 function inboxProps() {
   return {
     requestJson,
-    initialStatus: 'active' as const,
+    initialStatus: 'ready_for_review' as const,
     onQueueStatusChange: vi.fn(),
     onSelectProposal: vi.fn(),
   }

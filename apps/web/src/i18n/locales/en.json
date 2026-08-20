@@ -289,6 +289,8 @@
       "title": "Import HR feedback",
       "description": "Paste id, name, comments rows to create candidate notes.",
       "parse": "Parse",
+      "clear": "Clear",
+      "shortcutHint": "Ctrl/⌘ + Enter to confirm import",
       "confirm": "Confirm import",
       "importing": "Importing...",
       "noRows": "No feedback rows found",
@@ -803,7 +805,10 @@
       "noLocation": "No location",
       "saveSuccess": "Saved to search history",
       "saveError": "Failed to save search history",
-      "applySuccess": "Applied saved search"
+      "applySuccess": "Applied saved search",
+      "searchPlaceholder": "Search history by title, keyword, location...",
+      "noMatches": "No saved searches match your filter.",
+      "clearSearch": "Clear search"
     },
     "activeSession": "Current session",
     "activeSessionNote": "Context note",
@@ -974,6 +979,8 @@
     "noTrend": "No trend data yet.",
     "zeroResults": "Zero-result Queries",
     "noZeroResults": "No zero-result queries recorded.",
+    "testQuery": "Test Search",
+    "clearFilter": "Clear filter",
     "table": {
       "query": "Query",
       "count": "Count",
@@ -1359,6 +1366,9 @@
     "exportFieldsAvailableTitle": "Available fields",
     "exportFieldsAvailableDescription": "Click + to add a field to the export order.",
     "exportFieldsAdd": "Add",
+    "exportFieldsFilterPlaceholder": "Filter available fields...",
+    "exportFieldsNoMatches": "No fields match your filter.",
+    "exportFieldsClearFilter": "Clear filter",
     "customKeywords": "Custom Keywords",
     "customKeywordsDescription": "Manage custom tags available in resume keyword chips",
     "addCustomKeyword": "Add Keyword",
@@ -1672,7 +1682,13 @@
     "score": "Score",
     "evidence": "Evidence",
     "leftResume": "Resume A",
-    "rightResume": "Resume B"
+    "rightResume": "Resume B",
+    "searchPlaceholder": "Search candidates by name, contact, or evidence...",
+    "allScores": "All Scores",
+    "minScoreLabel": "Score ≥ {{score}}",
+    "noMatches": "No duplicate suggestions match your filter.",
+    "clearFilter": "Clear filter",
+    "showingCount": "Showing {{shown}} of {{total}} candidate pairs"
   },
   "unresolvedQueue": {
     "title": "Unresolved employer queue",
@@ -1695,6 +1711,8 @@
     "bulkTargetPlaceholder": "Company key for all selected…",
     "bulkLink": "Link selected",
     "bulkIgnore": "Ignore selected",
+    "selectAll": "Select all employers",
+    "deselectAll": "Deselect all employers",
     "column": {
       "select": "Select",
       "employer": "Employer",
@@ -2571,7 +2589,11 @@
     "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
     "resumeIdsParsed": "{{count}} IDs parsed",
     "exportInvalidIds": "{{count}} invalid resume ID(s) blocked the export",
-    "removeInvalidRetry": "Remove invalid IDs and retry"
+    "removeInvalidRetry": "Remove invalid IDs and retry",
+    "filterAll": "All Statuses",
+    "copyRunId": "Copy Run ID",
+    "runIdCopied": "Run ID copied to clipboard",
+    "noMatchingRuns": "No review packet runs match this filter."
   },
   "auditCompliance": {
     "title": "Audit & Compliance",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Download, FileUp, RefreshCw, Send, Sparkles } from 'lucide-react'
+import { Copy, Download, FileUp, RefreshCw, Send, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -232,6 +232,7 @@ export function ReviewPacketsPage() {
   const selectedRunIdRef = useRef<string | null>(null)
 
   const [runs, setRuns] = useState<ReviewPacketRun[]>([])
+  const [statusFilter, setStatusFilter] = useState<ReviewPacketRunStatus | 'all'>('all')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<ReviewPacketRun | null>(null)
   const [summaryPreview, setSummaryPreview] = useState<ReviewPacketSummaryPreviewResponse | null>(null)
@@ -858,41 +859,80 @@ export function ReviewPacketsPage() {
                 {t('reviewPackets.noRuns', { defaultValue: 'No tracked review packet runs yet.' })}
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('reviewPackets.runId', { defaultValue: 'Run' })}</TableHead>
-                    <TableHead>{t('reviewPackets.status', { defaultValue: 'Status' })}</TableHead>
-                    <TableHead>{t('reviewPackets.total', { defaultValue: 'Total' })}</TableHead>
-                    <TableHead>{t('reviewPackets.source', { defaultValue: 'Source' })}</TableHead>
-                    <TableHead>{t('reviewPackets.exportedAt', { defaultValue: 'Exported' })}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant={selectedRunId === run.id ? 'secondary' : 'ghost'}
-                          size="sm"
-                          onClick={() => setSelectedRunId(run.id)}
-                        >
-                          {run.id}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(run.status)}>
-                          {getStatusLabel(run.status, t)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{run.totalCount}</TableCell>
-                      <TableCell>{getSourceLabel(run.source, t)}</TableCell>
-                      <TableCell>{formatTimestamp(run.exportedAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <>
+                <div className="flex items-center gap-2">
+                  <Select
+                    data-testid="review-packets-status-filter"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as ReviewPacketRunStatus | 'all')}
+                    options={[
+                      { value: 'all', label: t('reviewPackets.filterAll', { defaultValue: 'All Statuses' }) },
+                      ...(['exported', 'feedback_imported', 'summary_sent', 'failed'] as const).map((status) => ({
+                        value: status,
+                        label: getStatusLabel(status, t),
+                      })),
+                    ]}
+                    className="w-48"
+                  />
+                </div>
+                {(statusFilter === 'all' ? runs : runs.filter((run) => run.status === statusFilter)).length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="review-packets-no-matching-runs">
+                    {t('reviewPackets.noMatchingRuns', { defaultValue: 'No review packet runs match this filter.' })}
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('reviewPackets.runId', { defaultValue: 'Run' })}</TableHead>
+                        <TableHead>{t('reviewPackets.status', { defaultValue: 'Status' })}</TableHead>
+                        <TableHead>{t('reviewPackets.total', { defaultValue: 'Total' })}</TableHead>
+                        <TableHead>{t('reviewPackets.source', { defaultValue: 'Source' })}</TableHead>
+                        <TableHead>{t('reviewPackets.exportedAt', { defaultValue: 'Exported' })}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(statusFilter === 'all' ? runs : runs.filter((run) => run.status === statusFilter)).map((run) => (
+                        <TableRow key={run.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant={selectedRunId === run.id ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setSelectedRunId(run.id)}
+                              >
+                                {run.id}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`copy-run-id-${run.id}`}
+                                aria-label={t('reviewPackets.copyRunId', { defaultValue: 'Copy Run ID' })}
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(run.id).then(() => {
+                                    toast.success(t('reviewPackets.runIdCopied', { defaultValue: 'Run ID copied to clipboard' }))
+                                  })
+                                }}
+                              >
+                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(run.status)}>
+                              {getStatusLabel(run.status, t)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{run.totalCount}</TableCell>
+                          <TableCell>{getSourceLabel(run.source, t)}</TableCell>
+                          <TableCell>{formatTimestamp(run.exportedAt)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

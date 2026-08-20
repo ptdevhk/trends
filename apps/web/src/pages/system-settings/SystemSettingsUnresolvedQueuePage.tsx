@@ -111,6 +111,24 @@ export function SystemSettingsUnresolvedQueuePage() {
     setSelectedKeys(new Set())
   }, [])
 
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => {
+      const visibleKeys = view?.items.map((item) => item.normalizedKey) ?? []
+      setSelectedKeys((prev) => {
+        const next = new Set(prev)
+        for (const key of visibleKeys) {
+          if (checked) {
+            next.add(key)
+          } else {
+            next.delete(key)
+          }
+        }
+        return next
+      })
+    },
+    [view],
+  )
+
   const resolveKeys = useCallback(
     async (keys: string[], action: 'link' | 'ignore', targetCompanyKey?: string) => {
       const target = targetCompanyKey?.trim()
@@ -169,6 +187,9 @@ export function SystemSettingsUnresolvedQueuePage() {
 
   const counts = useMemo(() => view?.counts ?? null, [view])
   const selectedCount = selectedKeys.size
+  const visibleKeys = view?.items.map((item) => item.normalizedKey) ?? []
+  const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedKeys.has(key))
+  const someVisibleSelected = visibleKeys.some((key) => selectedKeys.has(key))
   const loading = view === null && !loadFailed
 
   return (
@@ -339,9 +360,16 @@ export function SystemSettingsUnresolvedQueuePage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
-                    <span className="sr-only">
-                      {t('unresolvedQueue.column.select', { defaultValue: 'Select' })}
-                    </span>
+                    <Checkbox
+                      checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                      onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                      aria-label={
+                        allVisibleSelected
+                          ? t('unresolvedQueue.deselectAll', { defaultValue: 'Deselect all employers' })
+                          : t('unresolvedQueue.selectAll', { defaultValue: 'Select all employers' })
+                      }
+                      data-testid="unresolved-queue-select-all"
+                    />
                   </TableHead>
                   <TableHead>{t('unresolvedQueue.column.employer', { defaultValue: 'Employer' })}</TableHead>
                   <TableHead>{t('unresolvedQueue.column.count', { defaultValue: 'Count' })}</TableHead>
@@ -392,7 +420,7 @@ type QueueRowProps = {
   onLinkTargetChange: (value: string) => void
   onLink: () => void
   onIgnore: () => void
-  t: (key: string, opts?: { defaultValue?: string; count?: number }) => string
+  t: (key: string, opts?: { defaultValue?: string; count?: number } & Record<string, unknown>) => string
 }
 
 function QueueRow({

@@ -6,7 +6,7 @@ import { SnippetCard } from '@/components/search/SnippetCard'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
-const { matchResumeMock } = vi.hoisted(() => ({ matchResumeMock: vi.fn(() => [] as any[]) }))
+const { matchResumeMock } = vi.hoisted(() => ({ matchResumeMock: vi.fn(() => [] as unknown[]) }))
 
 const mockT = (key: string, options?: string | Record<string, string | number | undefined>) => {
   if (typeof options === 'string') {
