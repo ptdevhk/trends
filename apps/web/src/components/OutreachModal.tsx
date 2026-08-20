@@ -1,5 +1,6 @@
 import { sanitizeResumeRecordForSurface, selectLatestWorkHistory } from "@trends/shared";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -40,6 +41,7 @@ export function OutreachModal({
     analysis,
     onSuccess,
 }: OutreachModalProps) {
+    const { t } = useTranslation();
     const fieldUsagePolicy = useResumeFieldUsagePolicy();
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
@@ -92,11 +94,11 @@ export function OutreachModal({
                 throw new Error(data?.error);
             }
         } catch (error) {
-            setError(error instanceof Error ? error.message : "Draft generation failed");
+            setError(error instanceof Error ? error.message : t("outreach.draftFailed", { defaultValue: "Draft generation failed" }));
         } finally {
             setGenerating(false);
         }
-    }, [analysis, jobDescription, outreachResume, resume]);
+    }, [analysis, jobDescription, outreachResume, resume, t]);
 
     // Auto-generate draft when modal opens
     useEffect(() => {
@@ -133,19 +135,19 @@ export function OutreachModal({
                 throw new Error(data?.error);
             }
         } catch (error) {
-            setError(error instanceof Error ? error.message : "Sending failed");
+            setError(error instanceof Error ? error.message : t("outreach.sendFailed", { defaultValue: "Sending failed" }));
         } finally {
             setLoading(false);
         }
-    }, [outreachResume.selfIntro, subject, body, onSuccess, onClose]);
+    }, [outreachResume.selfIntro, subject, body, onSuccess, onClose, t]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px]" aria-busy={loading || generating}>
                 <DialogHeader>
-                    <DialogTitle>Contact {resume.name}</DialogTitle>
+                    <DialogTitle>{t("outreach.contactTitle", { name: resume.name, defaultValue: "Contact {{name}}" })}</DialogTitle>
                     <DialogDescription>
-                        Draft an outreach email for {jobDescription.title}.
+                        {t("outreach.draftDescription", { title: jobDescription.title, defaultValue: "Draft an outreach email for {{title}}." })}
                     </DialogDescription>
                     {error && (
                         <div className="mt-2 text-sm text-destructive bg-destructive/10 p-2 rounded">
@@ -155,13 +157,13 @@ export function OutreachModal({
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="subject">Subject</Label>
+                        <Label htmlFor="subject">{t("outreach.subjectLabel", { defaultValue: "Subject" })}</Label>
                         <div className="flex gap-2">
                             <Input
                                 id="subject"
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
-                                placeholder="Email subject..."
+                                placeholder={t("outreach.subjectPlaceholder", { defaultValue: "Email subject..." })}
                                 className="flex-1"
                             />
                             <Button
@@ -169,37 +171,38 @@ export function OutreachModal({
                                 size="icon"
                                 onClick={handleGenerateDraft}
                                 disabled={generating}
-                                title="Regenerate Draft"
+                                title={t("outreach.regenerateDraft", { defaultValue: "Regenerate Draft" })}
+                                aria-label={t("outreach.regenerateDraft", { defaultValue: "Regenerate Draft" })}
                             >
                                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                             </Button>
                         </div>
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="body">Message Body</Label>
+                        <Label htmlFor="body">{t("outreach.bodyLabel", { defaultValue: "Message Body" })}</Label>
                         <Textarea
                             id="body"
                             value={body}
                             onChange={(e) => setBody(e.target.value)}
-                            placeholder="Write your message here..."
+                            placeholder={t("outreach.bodyPlaceholder", { defaultValue: "Write your message here..." })}
                             className="h-[300px]"
                         />
                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
-                        Cancel
+                        {t("outreach.cancel", { defaultValue: "Cancel" })}
                     </Button>
                     <Button onClick={handleSend} disabled={loading || generating || !subject || !body}>
                         {loading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Sending...
+                                {t("outreach.sending", { defaultValue: "Sending..." })}
                             </>
                         ) : (
                             <>
                                 <Send className="mr-2 h-4 w-4" />
-                                Send Email
+                                {t("outreach.sendEmail", { defaultValue: "Send Email" })}
                             </>
                         )}
                     </Button>

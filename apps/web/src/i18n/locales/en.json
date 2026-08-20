@@ -38,6 +38,7 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "reset": "Reset",
+    "clear": "Clear",
     "apply": "Apply",
     "archive": "Archive",
     "delete": "Delete",
@@ -46,6 +47,20 @@
     "saving": "Saving...",
     "deleting": "Deleting...",
     "submitting": "Submitting…"
+  },
+  "outreach": {
+    "contactTitle": "Contact {{name}}",
+    "draftDescription": "Draft an outreach email for {{title}}.",
+    "subjectLabel": "Subject",
+    "subjectPlaceholder": "Email subject...",
+    "regenerateDraft": "Regenerate Draft",
+    "bodyLabel": "Message Body",
+    "bodyPlaceholder": "Write your message here...",
+    "cancel": "Cancel",
+    "sending": "Sending...",
+    "sendEmail": "Send Email",
+    "draftFailed": "Draft generation failed",
+    "sendFailed": "Sending failed"
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -425,6 +440,7 @@
       "notesTitle": "Notes",
       "notesViewTitle": "User Comment",
       "notesDescription": "Add a note for {{name}}.",
+      "notesSaveShortcut": "Ctrl/⌘ + Enter to save",
       "currentPosition": "Current Position",
       "pipelineActions": "Pipeline Actions"
     },
@@ -457,6 +473,9 @@
         "ageRange": "Age Range",
         "ageUnit": "years old",
         "custom": "Custom",
+        "rangeMin": "Minimum",
+        "rangeMax": "Maximum",
+        "minRoleYearsInput": "Relevant experience (years)",
         "idOrNamePlaceholder": "ID / Name / External ID"
       },
       "hero": {

@@ -429,35 +429,36 @@ describe('FacetSidebar', () => {
   })
 })
 
-describe('idOrNameSearch filter input', () => {
-  function buildProps() {
-    return {
-      facetCounts: buildFacetCounts(),
-      selectedBrands: [],
-      selectedClusters: [],
-      selectedCompanies: [],
-      selectedEducation: [],
-      selectedExperienceLevel: undefined as undefined,
-      selectedSources: [],
-      selectedStatuses: [] as CandidateStatus[],
-      selectedTags: [],
-      onClearAll: vi.fn(),
-      onSetAgeRange: vi.fn(),
-      onSetExperienceLevel: vi.fn(),
-      onSetMinRoleYears: vi.fn(),
-      onSetMinScore: vi.fn(),
-      onSetSalaryRange: vi.fn(),
-      onToggleBrand: vi.fn(),
-      onToggleCluster: vi.fn(),
-      onToggleCompany: vi.fn(),
-      onToggleEducation: vi.fn(),
-      onToggleSource: vi.fn(),
-      onToggleStatus: vi.fn(),
-      onToggleTag: vi.fn(),
-      idOrNameSearch: undefined as string | undefined,
-      onSetIdOrNameSearch: vi.fn(),
-    }
+function buildProps() {
+  return {
+    facetCounts: buildFacetCounts(),
+    selectedBrands: [],
+    selectedClusters: [],
+    selectedCompanies: [],
+    selectedEducation: [],
+    selectedExperienceLevel: undefined as undefined,
+    selectedSources: [],
+    selectedStatuses: [] as CandidateStatus[],
+    selectedTags: [],
+    onClearAll: vi.fn(),
+    onSetAgeRange: vi.fn(),
+    onSetExperienceLevel: vi.fn(),
+    onSetMinRoleYears: vi.fn(),
+    onSetMinScore: vi.fn(),
+    onSetSalaryRange: vi.fn(),
+    onToggleBrand: vi.fn(),
+    onToggleCluster: vi.fn(),
+    onToggleCompany: vi.fn(),
+    onToggleEducation: vi.fn(),
+    onToggleSource: vi.fn(),
+    onToggleStatus: vi.fn(),
+    onToggleTag: vi.fn(),
+    idOrNameSearch: undefined as string | undefined,
+    onSetIdOrNameSearch: vi.fn(),
   }
+}
+
+describe('idOrNameSearch filter input', () => {
 
   it('renders the id/name search input placeholder', () => {
     render(<FacetSidebar {...buildProps()} embedded />)
@@ -492,5 +493,27 @@ describe('idOrNameSearch filter input', () => {
     render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" onSetIdOrNameSearch={onSetIdOrNameSearch} />)
     await user.click(screen.getByRole('button', { name: /clear/i }))
     expect(onSetIdOrNameSearch).toHaveBeenCalledWith(undefined)
+  })
+})
+
+describe('FacetSidebar a11y', () => {
+  it('clear button has accessible name "Clear"', () => {
+    render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" />)
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+  })
+
+  it('custom range min/max inputs have aria-labels', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} embedded />)
+    // Open a custom range filter (age range is the first RangeFilterGroup "Custom" button;
+    // index 0 is the minRoleYears custom input)
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    await user.click(customButtons[1])
+    const spinbuttons = screen.getAllByRole('spinbutton')
+    expect(spinbuttons).toHaveLength(2)
+    for (const input of spinbuttons) {
+      const label = input.getAttribute('aria-label')
+      expect(label).toBeTruthy()
+    }
   })
 })

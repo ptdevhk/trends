@@ -70,20 +70,28 @@ export function CandidateNotesDialog({
         </DialogHeader>
 
         {editing ? (
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={t('resumes.card.notePlaceholderInput', { defaultValue: '输入备注...' })}
-            className="min-h-[96px]"
-            data-testid="candidate-notes-input"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSave()
-              }
-            }}
-          />
+          <div className="space-y-2">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={t('resumes.card.notePlaceholderInput', { defaultValue: '输入备注...' })}
+              className="min-h-[96px]"
+              data-testid="candidate-notes-input"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                  return
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault()
+                  handleSave()
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground" data-testid="candidate-notes-shortcut-hint">
+              {t('resumes.card.notesSaveShortcut', { defaultValue: 'Ctrl/⌘ + Enter to save' })}
+            </p>
+          </div>
         ) : (
           <p
             className="min-h-[96px] whitespace-pre-wrap break-words rounded-md border bg-muted/40 px-3 py-2 text-sm"

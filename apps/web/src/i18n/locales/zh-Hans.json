@@ -38,6 +38,7 @@
     "collapse": "收起",
     "expand": "展开",
     "reset": "重置",
+    "clear": "清除",
     "apply": "应用",
     "archive": "归档",
     "delete": "删除",
@@ -46,6 +47,20 @@
     "saving": "保存中...",
     "deleting": "删除中...",
     "submitting": "提交中…"
+  },
+  "outreach": {
+    "contactTitle": "联系 {{name}}",
+    "draftDescription": "为 {{title}} 起草一封招聘沟通邮件。",
+    "subjectLabel": "主题",
+    "subjectPlaceholder": "邮件主题...",
+    "regenerateDraft": "重新生成草稿",
+    "bodyLabel": "邮件正文",
+    "bodyPlaceholder": "在此输入邮件内容...",
+    "cancel": "取消",
+    "sending": "发送中...",
+    "sendEmail": "发送邮件",
+    "draftFailed": "草稿生成失败",
+    "sendFailed": "发送失败"
   },
   "jdManagement": {
     "title": "职位描述管理",
@@ -424,6 +439,7 @@
       "notesTitle": "备注",
       "notesViewTitle": "用户备注",
       "notesDescription": "为 {{name}} 添加备注。",
+      "notesSaveShortcut": "Ctrl/⌘ + Enter 保存",
       "currentPosition": "当前职位",
       "pipelineActions": "流程操作"
     },
@@ -456,6 +472,9 @@
         "ageRange": "年龄范围",
         "ageUnit": "岁",
         "custom": "自定义",
+        "rangeMin": "最小值",
+        "rangeMax": "最大值",
+        "minRoleYearsInput": "相关经验（年）",
         "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
       },
       "hero": {

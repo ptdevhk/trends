@@ -158,6 +158,7 @@ function MinRoleYearsGroup({
               ref={inputRef}
               type="number"
               min={1}
+              aria-label={t('resumes.searchPage.facets.minRoleYearsInput', { defaultValue: 'Relevant experience (years)' })}
               className="h-7 w-14 px-2 text-sm"
               value={customText}
               onChange={(event) => setCustomText(event.target.value)}
@@ -319,6 +320,7 @@ function RangeFilterGroup({
               type="number"
               min={1}
               placeholder="—"
+              aria-label={t('resumes.searchPage.facets.rangeMin', { label, defaultValue: 'Minimum' })}
               className="h-7 w-12 px-2 text-sm"
               value={customMin}
               onChange={(event) => setCustomMin(event.target.value)}
@@ -332,6 +334,7 @@ function RangeFilterGroup({
               type="number"
               min={1}
               placeholder="—"
+              aria-label={t('resumes.searchPage.facets.rangeMax', { label, defaultValue: 'Maximum' })}
               className="h-7 w-12 px-2 text-sm"
               value={customMax}
               onChange={(event) => setCustomMax(event.target.value)}
@@ -444,7 +447,7 @@ export function FacetSidebar({
         {idOrNameSearch && (
           <button
             type="button"
-            aria-label="clear"
+            aria-label={t('common.clear', { defaultValue: 'Clear' })}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             onClick={() => onSetIdOrNameSearch(undefined)}
           >

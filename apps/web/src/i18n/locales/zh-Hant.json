@@ -38,6 +38,7 @@
     "collapse": "收起",
     "expand": "展開",
     "reset": "重置",
+    "clear": "清除",
     "apply": "應用",
     "archive": "歸檔",
     "delete": "刪除",
@@ -46,6 +47,20 @@
     "saving": "儲存中...",
     "deleting": "刪除中...",
     "submitting": "提交中…"
+  },
+  "outreach": {
+    "contactTitle": "聯繫 {{name}}",
+    "draftDescription": "為 {{title}} 起草一封招聘溝通郵件。",
+    "subjectLabel": "主旨",
+    "subjectPlaceholder": "郵件主旨...",
+    "regenerateDraft": "重新產生草稿",
+    "bodyLabel": "郵件內文",
+    "bodyPlaceholder": "請在此輸入郵件內容...",
+    "cancel": "取消",
+    "sending": "傳送中...",
+    "sendEmail": "傳送郵件",
+    "draftFailed": "草稿產生失敗",
+    "sendFailed": "傳送失敗"
   },
   "jdManagement": {
     "title": "職位描述管理",
@@ -424,6 +439,7 @@
       "notesTitle": "備註",
       "notesViewTitle": "用戶備註",
       "notesDescription": "為 {{name}} 新增備註。",
+      "notesSaveShortcut": "Ctrl/⌘ + Enter 儲存",
       "currentPosition": "目前職位",
       "pipelineActions": "流程操作"
     },
@@ -456,6 +472,9 @@
         "ageRange": "年齡範圍",
         "ageUnit": "歲",
         "custom": "自訂",
+        "rangeMin": "最小值",
+        "rangeMax": "最大值",
+        "minRoleYearsInput": "相關經驗（年）",
         "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
       },
       "hero": {
