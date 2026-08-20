@@ -57,7 +57,7 @@ type SummaryProfileFormState = {
   subject: string
 }
 
-const SUMMARY_RUN_LIST_LIMIT = 20
+const SUMMARY_RUN_LIST_LIMIT = 100
 const DEFAULT_SUMMARY_RUN_FORM: SummaryRunFormState = {
   period: 'daily',
   channel: 'telegram',

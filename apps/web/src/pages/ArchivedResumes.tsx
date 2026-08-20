@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { sanitizeResumeRecordForSurface } from '@trends/shared'
 import { useMutation, usePaginatedQuery } from 'convex/react'
 import { useSourceFacets } from '@/hooks/useSourceFacets'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SourceFacetSelect } from '@/components/SourceFacetSelect'
@@ -43,6 +44,7 @@ function formatTimestamp(value: number | undefined): string {
 }
 
 const PAGE_SIZE = 100
+const MAX_AUTO_LOAD_PAGES = 5
 
 export default function ArchivedResumes() {
   const { t } = useTranslation()
@@ -65,6 +67,22 @@ export default function ArchivedResumes() {
   const [search, setSearch] = useState('')
   const [selectedResumeIds, setSelectedResumeIds] = useState<Set<string>>(new Set())
   const [unarchiving, setUnarchiving] = useState(false)
+  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const autoLoadPagesRef = useRef(0)
+
+  // While a search is active, keep loading pages so the client-side filter
+  // sees the whole archive, not just the first page (bounded to avoid an
+  // unbounded fetch loop on very large archives).
+  useEffect(() => {
+    const searching = search.trim() !== ''
+    if (searching && status === 'CanLoadMore' && autoLoadPagesRef.current < MAX_AUTO_LOAD_PAGES) {
+      autoLoadPagesRef.current += 1
+      loadMore(PAGE_SIZE)
+    } else if (!searching) {
+      autoLoadPagesRef.current = 0
+    }
+  }, [search, status, loadMore])
 
   const resumes = useMemo(
     () => paginatedResumes.map((resume) => sanitizeResumeRecordForSurface(resume, 'debug', fieldUsagePolicy)),
@@ -158,9 +176,40 @@ export default function ArchivedResumes() {
           value={selectedSourceKeys}
           onChange={setSelectedSourceKeys}
         />
+        <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {t('archivedResumes.restoreSelectedConfirmTitle', { defaultValue: 'Restore selected resumes?' })}
+              </DialogTitle>
+              <DialogDescription>
+                {t('archivedResumes.restoreSelectedConfirmBody', {
+                  count: selectedResumeIds.size,
+                  defaultValue: `Restore ${selectedResumeIds.size} archived resume(s)? They will re-enter the active pool.`,
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRestoreDialogOpen(false)} disabled={unarchiving}>
+                {t('common.cancel', { defaultValue: 'Cancel' })}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={unarchiving}
+                onClick={() => {
+                  setRestoreDialogOpen(false)
+                  void unarchiveResumes([...selectedResumeIds])
+                }}
+              >
+                <ArchiveRestore className="mr-2 h-4 w-4" />
+                {t('archivedResumes.restoreConfirmYes', { defaultValue: 'Yes, restore' })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Button
           variant="outline"
-          onClick={() => void unarchiveResumes([...selectedResumeIds])}
+          onClick={() => setRestoreDialogOpen(true)}
           disabled={selectedResumeIds.size === 0 || unarchiving}
         >
           <ArchiveRestore className={`mr-2 h-4 w-4 ${unarchiving ? 'animate-spin' : ''}`} />
@@ -202,7 +251,27 @@ export default function ArchivedResumes() {
             ) : filteredResumes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-muted-foreground">
-                  {t('archivedResumes.noResults', { defaultValue: 'No archived resumes found' })}
+                  {search.trim() !== '' || selectedSourceKeys.length > 0 ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <span>
+                        {t('archivedResumes.noResultsForSearch', {
+                          defaultValue: 'No archived resumes match your search',
+                        })}
+                      </span>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => {
+                          setSearch('')
+                          setSelectedSourceKeys([])
+                        }}
+                      >
+                        {t('archivedResumes.clearSearch', { defaultValue: 'Clear search' })}
+                      </Button>
+                    </div>
+                  ) : (
+                    t('archivedResumes.noResults', { defaultValue: 'No archived resumes found' })
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
@@ -231,17 +300,51 @@ export default function ArchivedResumes() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="hover:text-emerald-600 hover:bg-emerald-50"
-                        onClick={() => void unarchiveResumes([resumeId])}
-                        disabled={unarchiving}
-                      >
-                        <ArchiveRestore className="mr-2 h-4 w-4" />
-                        {t('archivedResumes.restore', { defaultValue: 'Restore' })}
-                      </Button>
+                      {pendingRestoreId === resumeId ? (
+                        <div
+                          className="flex items-center justify-end gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1"
+                          data-testid={`restore-confirm-row-${resumeId}`}
+                        >
+                          <span className="text-sm text-destructive">
+                            {t('archivedResumes.restoreConfirm', { defaultValue: 'Restore this resume?' })}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-testid="restore-confirm-no"
+                            onClick={() => setPendingRestoreId(null)}
+                            disabled={unarchiving}
+                          >
+                            {t('common.cancel', { defaultValue: 'Cancel' })}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            data-testid="restore-confirm-yes"
+                            onClick={() => {
+                              setPendingRestoreId(null)
+                              void unarchiveResumes([resumeId])
+                            }}
+                            disabled={unarchiving}
+                          >
+                            {t('archivedResumes.restoreConfirmYes', { defaultValue: 'Yes, restore' })}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="hover:text-emerald-600 hover:bg-emerald-50"
+                          onClick={() => setPendingRestoreId(resumeId)}
+                          disabled={unarchiving}
+                        >
+                          <ArchiveRestore className="mr-2 h-4 w-4" />
+                          {t('archivedResumes.restore', { defaultValue: 'Restore' })}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

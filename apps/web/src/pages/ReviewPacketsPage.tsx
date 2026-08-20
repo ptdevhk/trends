@@ -34,7 +34,7 @@ type ReviewPacketRunDetailResponse = {
   run: ReviewPacketRun
 }
 
-const REVIEW_PACKET_LIST_LIMIT = 20
+const REVIEW_PACKET_LIST_LIMIT = 100
 const DEFAULT_TEMPLATE_ID = 'review-packet-wechat'
 
 function buildRunApiPath(runId: string, suffix?: string): string {
