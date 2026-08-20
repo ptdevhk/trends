@@ -34,7 +34,7 @@ import { toast } from 'sonner'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { getScoreClassName } from '@/lib/score-classes'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
@@ -692,6 +692,7 @@ export const SnippetCard = memo(function SnippetCard({
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder={t('resumes.status.notes')}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 if (pendingStatus) {
@@ -735,6 +736,7 @@ export const SnippetCard = memo(function SnippetCard({
             onChange={(e) => setBlockNoteInput(e.target.value)}
             placeholder={t('resumes.card.notePlaceholder', { defaultValue: '备注' })}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 onToggleBlock?.(item.identityKey, false, blockNoteInput.trim() || undefined)

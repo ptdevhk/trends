@@ -20,7 +20,7 @@ import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, Candid
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import {
   formatRoleYears,
   getResumeContentLocale,
@@ -908,6 +908,7 @@ export const ResumeCard = memo(function ResumeCard({
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder={t('resumes.status.notes')}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 if (pendingStatus) {
@@ -950,6 +951,7 @@ export const ResumeCard = memo(function ResumeCard({
             onChange={(e) => setBlockNoteInput(e.target.value)}
             placeholder={t('resumes.card.notePlaceholder', { defaultValue: 'Note' })}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 onToggleBlock?.(blockNoteInput.trim() || undefined)

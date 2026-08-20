@@ -191,6 +191,7 @@ describe('SearchResultsList', () => {
     )
 
     expect(screen.getByTestId('resume-keyboard-hint')).toHaveTextContent(/J\/K|J\/K move/i)
+    expect(screen.getByTestId('resume-keyboard-hint')).toHaveTextContent(/O detail/i)
   })
 
   it('omits the keyboard hint when there are no results', () => {
@@ -532,6 +533,55 @@ describe('SearchResultsList', () => {
     await waitFor(() => {
       expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
     })
+  })
+
+  it('opens the detail pane with the O key after focusing a result', async () => {
+    const item = createItem(0)
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'o' })
+    await waitFor(() => {
+      expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
+    })
+  })
+
+  it('does not open the detail pane when O is pressed while typing in an input', async () => {
+    const item = createItem(0)
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <div>
+        <input data-testid="typing-input" />
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[item]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+        />
+      </div>,
+    )
+
+    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(screen.getByTestId('typing-input'), { key: 'o' })
+    expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
   })
 
   it('opens a URL-selected result and delegates close back to the parent route', async () => {

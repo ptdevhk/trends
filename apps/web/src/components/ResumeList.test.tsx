@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResumeList } from './ResumeList'
@@ -180,8 +180,8 @@ const baseMockState = {
   shareTitle: '',
   shareState: {},
   selectedExperienceLevel: undefined as string | undefined,
-  activeTagFilters: [] as string[],
-  activeCompanyFilters: [] as string[],
+  activeTagFilters: new Set<string>(),
+  activeCompanyFilters: new Set<string>(),
   highScoreCount: 0,
   blockedCount: 0,
   bulkExportFormat: 'csv' as const,
@@ -248,6 +248,20 @@ describe('ResumeList', () => {
     render(<ResumeList />)
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(screen.getByText('No resumes found')).toBeInTheDocument()
+  })
+
+  it('omits the clear-filters action from the empty state when no filters are active', () => {
+    render(<ResumeList />)
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+    expect(screen.queryByText('清除筛选')).not.toBeInTheDocument()
+  })
+
+  it('renders and fires the clear-filters action when tag filters are active', () => {
+    mockResumeListState.activeTagFilters = new Set(['cnc'])
+    render(<ResumeList />)
+    expect(screen.getByText('No resumes found')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('清除筛选'))
+    expect(mockResumeListState.handleResetAll).toHaveBeenCalledTimes(1)
   })
 
   it('renders error state when error is present', () => {

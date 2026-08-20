@@ -368,6 +368,9 @@
       "reject": "淘汰",
       "contact": "联系"
     },
+    "rating": {
+      "starValue": "{{count}} 星"
+    },
     "ratingComment": {
       "title": "添加评价备注",
       "viewTitle": "用户备注",
@@ -489,7 +492,8 @@
         "loadingRecentSearches": "正在加载最近搜索...",
         "noSavedSearches": "暂无已保存搜索。开始浏览后，最近搜索会显示在这里。",
         "collect": "采集",
-        "editProfile": "编辑"
+        "editProfile": "编辑",
+        "searchKeyword": "搜索 {{keyword}}"
       },
       "searchBar": {
         "placeholder": "按关键词、品牌、岗位或地区搜索简历",
@@ -543,7 +547,7 @@
         "loadingMore": "正在加载更多简历...",
         "scrollForMore": "向下滚动查看更多",
         "endOfResults": "已到底部",
-        "keyboardHint": "J/K 移动 · Enter 展开 · S 标星 · A 归档"
+        "keyboardHint": "J/K 移动 · Enter 展开 · O 查看详情 · S 标星 · A 归档"
       },
       "analysis": {
         "title": "简历 AI 分析",

@@ -360,8 +360,14 @@ describe('ResumeDetail work history', () => {
     expect(content.className).toContain('md:max-w-3xl')
     expect(content.className).toContain('lg:max-w-4xl')
 
-    await user.click(screen.getByRole('button', { name: 'Expand' }))
+    const expandButton = screen.getByRole('button', { name: 'Expand' })
+    expect(expandButton).toHaveAttribute('aria-expanded', 'false')
+    expect(expandButton).toHaveAttribute('aria-controls', 'resume-detail-expanded-grid')
 
+    await user.click(expandButton)
+
+    expect(expandButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('resume-detail-expanded-grid')).toHaveAttribute('id', 'resume-detail-expanded-grid')
     expect(screen.getByTestId('resume-detail-primary-grid').className).toContain('sm:grid-cols-2')
     expect(screen.getByTestId('resume-detail-expanded-grid').className).toContain('sm:grid-cols-2')
     expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('grid-cols-2')

@@ -189,6 +189,16 @@ export function ResumeList() {
     () => displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length,
     [displayedResumes],
   )
+  const hasActiveFilters = useMemo(() => {
+    if (activeTagFilters.size > 0) return true
+    if (activeCompanyFilters.size > 0) return true
+    if (selectedExperienceLevel) return true
+    return Object.entries(filters).some(([key, value]) => {
+      if (key === 'sortBy' || key === 'sortOrder' || key === 'showBlocked') return false
+      if (Array.isArray(value)) return value.length > 0
+      return value !== undefined && value !== null
+    })
+  }, [activeTagFilters, activeCompanyFilters, selectedExperienceLevel, filters])
   const handleSelectAllVisible = useCallback(() => {
     replaceSelection(displayedResumes.map((entry) => entry.key))
   }, [displayedResumes, replaceSelection])
@@ -614,6 +624,12 @@ export function ResumeList() {
             icon={FileText}
             title={t('resumes.noResumes', 'No resumes found')}
             description={t('resumes.noResumesDesc', 'Try adjusting your filters or search keywords.')}
+            action={hasActiveFilters ? (
+              <Button variant="outline" size="sm" onClick={handleResetAll} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+              </Button>
+            ) : undefined}
           />
         ) : (
           <>

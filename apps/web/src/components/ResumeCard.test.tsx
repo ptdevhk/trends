@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeCard } from './ResumeCard'
@@ -550,5 +550,29 @@ describe('ResumeCard brand-hit badges', () => {
     )
 
     expect(screen.queryByText('Legacy rules signal')).not.toBeInTheDocument()
+  })
+
+  it('ignores Enter during IME composition in the block dialog note input', () => {
+    const onToggleBlock = vi.fn()
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        blocked={false}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const input = screen.getByPlaceholderText('Note')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onToggleBlock).not.toHaveBeenCalled()
+
+    // Plain Enter submits the block action with no reason
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onToggleBlock).toHaveBeenCalledWith(undefined)
   })
 })

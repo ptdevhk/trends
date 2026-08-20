@@ -1,5 +1,5 @@
 import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
-import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
+import { Ban, BriefcaseBusiness, Bug, CheckCircle, ChevronDown, Copy, ExternalLink, MapPin, MessageSquare, School, Sparkles, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -499,8 +499,9 @@ export function SnippetCardExpanded({
                       guardWorkflowAdvance(() => onCandidateStatusChange(item.identityKey, 'shortlisted'))
                     }
                     data-testid="snippet-shortlist"
+                    aria-label={t('resumes.actions.shortlist', { defaultValue: '入选' })}
                   >
-                    <BriefcaseBusiness className="h-3.5 w-3.5" />
+                    <CheckCircle className="h-3.5 w-3.5" />
                     {t('resumes.actions.shortlist', { defaultValue: '入选' })}
                   </Button>
                   <Button
@@ -508,8 +509,9 @@ export function SnippetCardExpanded({
                     size="sm"
                     className="justify-start gap-2"
                     onClick={() => onCandidateStatusChange(item.identityKey, 'rejected')}
+                    aria-label={t('resumes.actions.reject', { defaultValue: '淘汰' })}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <XCircle className="h-3.5 w-3.5" />
                     {t('resumes.actions.reject', { defaultValue: '淘汰' })}
                   </Button>
                   <Button
@@ -536,15 +538,15 @@ export function SnippetCardExpanded({
               ) : null}
 
               {onNoteTrigger ? (
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger}>
-                  <School className="h-3.5 w-3.5" />
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger} aria-label={t('resumes.status.notes', { defaultValue: '备注' })}>
+                  <MessageSquare className="h-3.5 w-3.5" />
                   {t('resumes.status.notes', { defaultValue: '备注' })}
                 </Button>
               ) : null}
 
               {onBlockTrigger ? (
-                <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2" onClick={onBlockTrigger}>
-                  <MapPin className="h-3.5 w-3.5" />
+                <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2" onClick={onBlockTrigger} aria-label={item.blocked ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' }) : t('resumes.card.block', { defaultValue: '屏蔽' })}>
+                  <Ban className="h-3.5 w-3.5" />
                   {item.blocked
                     ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' })
                     : t('resumes.card.block', { defaultValue: '屏蔽' })}

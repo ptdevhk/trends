@@ -212,7 +212,7 @@ export function StarRating({
           <button
             key={star}
             type="button"
-            className="p-0 leading-none disabled:cursor-not-allowed disabled:opacity-70"
+            className="p-0 leading-none disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
             disabled={readOnly}
             onClick={(e) => {
               e.stopPropagation()
@@ -225,7 +225,7 @@ export function StarRating({
                 handleDismissComment()
               }
             }}
-            aria-label={`${star} star${star > 1 ? 's' : ''}`}
+            aria-label={t('resumes.rating.starValue', { count: star, defaultValue: '{{count}} star' })}
           >
             <Star
               size={size}

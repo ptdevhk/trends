@@ -315,7 +315,7 @@ export function SearchResultsList({
     return () => observer.disconnect()
   }, [hasMore, items.length, loading, loadingMore, onLoadMore])
 
-  // Keyboard navigation: J/K to move, Enter to expand, S to star, A to archive
+  // Keyboard navigation: J/K to move, Enter to expand, O to open detail, S to star, A to archive
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
@@ -349,6 +349,13 @@ export function SearchResultsList({
             onToggleExpanded(items[focusedIndex].key)
           }
           break
+        case 'o':
+        case 'O':
+          if (focusedIndex !== null && items[focusedIndex]) {
+            event.preventDefault()
+            handleViewDetails(items[focusedIndex])
+          }
+          break
         case 's':
         case 'S':
           if (focusedIndex !== null && items[focusedIndex] && onAction) {
@@ -370,7 +377,7 @@ export function SearchResultsList({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [items, focusedIndex, onToggleExpanded, onAction])
+  }, [items, focusedIndex, onToggleExpanded, onAction, handleViewDetails])
 
   // Deep-link support: `#resume-<id>` scrolls to the matching card and flashes
   // a highlight ring. Re-arms on hashchange (back/forward, manual hash edit).
@@ -527,7 +534,7 @@ export function SearchResultsList({
           data-testid="resume-keyboard-hint"
         >
           {t('resumes.searchPage.results.keyboardHint', {
-            defaultValue: 'J/K move · Enter expand · S star · A archive',
+            defaultValue: 'J/K move · Enter expand · O detail · S star · A archive',
           })}
         </div>
       ) : null}

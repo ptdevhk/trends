@@ -368,6 +368,9 @@
       "reject": "淘汰",
       "contact": "聯絡"
     },
+    "rating": {
+      "starValue": "{{count}} 星"
+    },
     "ratingComment": {
       "title": "新增評價備註",
       "viewTitle": "用戶備註",
@@ -489,7 +492,8 @@
         "loadingRecentSearches": "正在載入最近搜尋...",
         "noSavedSearches": "目前尚無已保存搜尋。開始瀏覽後，最近搜尋會顯示在這裡。",
         "collect": "採集",
-        "editProfile": "編輯"
+        "editProfile": "編輯",
+        "searchKeyword": "搜尋 {{keyword}}"
       },
       "searchBar": {
         "placeholder": "按關鍵詞、品牌、職位或地區搜尋簡歷",
@@ -543,7 +547,7 @@
         "loadingMore": "正在載入更多簡歷...",
         "scrollForMore": "向下捲動查看更多",
         "endOfResults": "已到底部",
-        "keyboardHint": "J/K 移動 · Enter 展開 · S 標星 · A 歸檔"
+        "keyboardHint": "J/K 移動 · Enter 展開 · O 查看詳情 · S 標星 · A 歸檔"
       },
       "analysis": {
         "title": "簡歷 AI 分析",

@@ -369,6 +369,9 @@
       "reject": "Reject",
       "contact": "Contact"
     },
+    "rating": {
+      "starValue": "{{count}} star"
+    },
     "ratingComment": {
       "title": "Add Rating Note",
       "viewTitle": "User Comment",
@@ -490,7 +493,8 @@
         "loadingRecentSearches": "Loading recent searches...",
         "noSavedSearches": "No saved searches yet. Recent searches will appear here after you start exploring.",
         "collect": "Collect",
-        "editProfile": "Edit"
+        "editProfile": "Edit",
+        "searchKeyword": "Search for {{keyword}}"
       },
       "searchBar": {
         "placeholder": "Search resumes by keywords, brands, roles, or locations",
@@ -544,7 +548,7 @@
         "loadingMore": "Loading more resumes...",
         "scrollForMore": "Scroll for more",
         "endOfResults": "End of results",
-        "keyboardHint": "J/K move · Enter expand · S star · A archive"
+        "keyboardHint": "J/K move · Enter expand · O detail · S star · A archive"
       },
       "analysis": {
         "title": "Resume AI analysis",

@@ -502,6 +502,8 @@ export function ResumeDetail({
               size="sm"
               className="absolute right-0 top-0 h-9 px-2 text-muted-foreground hover:text-foreground"
               onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+              aria-expanded={isInfoExpanded}
+              aria-controls="resume-detail-expanded-grid"
             >
               {isInfoExpanded ? t('common.collapse', 'Collapse') : t('common.expand', 'Expand')}
               {isInfoExpanded ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
@@ -510,6 +512,7 @@ export function ResumeDetail({
 
           {isInfoExpanded && (
             <div
+              id="resume-detail-expanded-grid"
               data-testid="resume-detail-expanded-grid"
               className="grid grid-cols-1 gap-3 border-t pt-2 text-sm sm:grid-cols-2 sm:gap-4"
             >

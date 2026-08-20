@@ -492,7 +492,7 @@ describe('SnippetCard', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: '4 stars' }))
+    await user.click(screen.getByRole('button', { name: '4 star' }))
     const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
     await user.type(input, 'great fit')
     await user.click(screen.getByTestId('rating-comment-save'))
@@ -1082,5 +1082,57 @@ describe('SnippetCard', () => {
     // Reject stays usable when the workflow is blocked
     await user.click(screen.getByTestId('snippet-card-reject'))
     expect(onAction).toHaveBeenCalledWith('resume-1', 'reject')
+  })
+
+  it('ignores Enter during IME composition in the block dialog note input', async () => {
+    const user = userEvent.setup()
+    const onToggleBlock = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+    const input = screen.getByPlaceholderText('备注')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onToggleBlock).not.toHaveBeenCalled()
+
+    // Plain Enter submits the block action
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onToggleBlock).toHaveBeenCalledWith('identity-1', false, undefined)
+  })
+
+  it('ignores Enter during IME composition in the status note prompt input', async () => {
+    const user = userEvent.setup()
+    const onCandidateStatusChange = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onCandidateStatusChange={onCandidateStatusChange}
+      />
+    )
+
+    await user.click(screen.getByTestId('status-reject'))
+    const input = screen.getByPlaceholderText('resumes.status.notes')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onCandidateStatusChange).not.toHaveBeenCalled()
+
+    // Plain Enter submits the status change with no notes
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'interviewed_reject', undefined)
   })
 })
