@@ -22,7 +22,7 @@ interface JobDescriptionSelectProps {
 
 export function JobDescriptionSelect({ value, onChange, disabled }: JobDescriptionSelectProps) {
   const { t } = useTranslation()
-  const { slug } = useWorkspace()
+  const { slug, isSystemSurface } = useWorkspace()
   const [systemJobDescriptions, setSystemJobDescriptions] = useState<SystemJobDescriptionItem[]>([])
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
@@ -71,7 +71,7 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
       />
       {value && (
         <Link
-          to={`${SYSTEM_ROUTE_PREFIX}/jds`}
+          to={isSystemSurface ? `${SYSTEM_ROUTE_PREFIX}/jds` : `/${slug}/jds`}
           className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           title={t('resumes.jobDescription.manage')}
           aria-label={t('resumes.jobDescription.manage')}

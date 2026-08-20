@@ -152,7 +152,13 @@ export function ManualResumeImportDialog({
 
   const removeFile = (fileToRemove: File) => {
     const fingerprint = getFileFingerprint(fileToRemove)
-    setSelectedFiles((current) => current.filter((file) => getFileFingerprint(file) !== fingerprint))
+    setSelectedFiles((current) => {
+      const remaining = current.filter((file) => getFileFingerprint(file) !== fingerprint)
+      if (remaining.length === 0 && inputRef.current) {
+        inputRef.current.value = ''
+      }
+      return remaining
+    })
     setResult(null)
   }
 
@@ -321,6 +327,9 @@ export function ManualResumeImportDialog({
                   size="sm"
                   onClick={() => {
                     setSelectedFiles([])
+                    if (inputRef.current) {
+                      inputRef.current.value = ''
+                    }
                     setResult(null)
                   }}
                 >

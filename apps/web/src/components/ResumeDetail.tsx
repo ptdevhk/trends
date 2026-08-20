@@ -23,7 +23,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -818,6 +818,15 @@ export function ResumeDetail({
                               [companyKey]: event.target.value,
                             }))
                           }
+                          onKeyDown={(event) => {
+                            if (isImeComposition(event)) {
+                              return
+                            }
+                            if (event.key === 'Enter' && !overrideBusy && reason.trim().length > 0) {
+                              event.preventDefault()
+                              void handleGrantOverride(companyKey)
+                            }
+                          }}
                           placeholder={t('settings.policies.runtime.overrideReasonPlaceholder')}
                           className="h-9 text-xs"
                         />

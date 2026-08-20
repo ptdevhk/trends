@@ -46,7 +46,9 @@
     "save": "Save",
     "saving": "Saving...",
     "deleting": "Deleting...",
-    "submitting": "Submitting…"
+    "submitting": "Submitting…",
+    "clearAll": "Clear All",
+    "removeFilter": "Remove {{filter}}"
   },
   "outreach": {
     "contactTitle": "Contact {{name}}",
@@ -347,6 +349,11 @@
         "ageRange": "{{min}}-{{max}} years old",
         "minAge": "≥{{value}} years old",
         "maxAge": "≤{{value}} years old"
+      },
+      "experienceLevels": {
+        "senior": "Senior",
+        "mid": "Mid-level",
+        "junior": "Junior"
       }
     },
     "columns": {

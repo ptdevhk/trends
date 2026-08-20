@@ -46,7 +46,9 @@
     "save": "保存",
     "saving": "保存中...",
     "deleting": "删除中...",
-    "submitting": "提交中…"
+    "submitting": "提交中…",
+    "clearAll": "清除全部",
+    "removeFilter": "移除 {{filter}}"
   },
   "outreach": {
     "contactTitle": "联系 {{name}}",
@@ -346,6 +348,11 @@
         "ageRange": "{{min}}-{{max}} 岁",
         "minAge": "≥{{value}} 岁",
         "maxAge": "≤{{value}} 岁"
+      },
+      "experienceLevels": {
+        "senior": "资深",
+        "mid": "中级",
+        "junior": "初级"
       }
     },
     "columns": {

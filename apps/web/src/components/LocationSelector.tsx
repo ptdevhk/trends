@@ -55,6 +55,9 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                         size="icon"
                         className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
                         onClick={() => setExpanded(!expanded)}
+                        aria-expanded={expanded}
+                        aria-controls="location-keywords-tray"
+                        aria-label={expanded ? "Hide location keywords" : "Show location keywords"}
                     >
                         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
@@ -62,6 +65,7 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
             </div>
             {availableLocationKeywords.length > 0 && (
                 <div
+                    id="location-keywords-tray"
                     className={`flex flex-wrap gap-2 mt-1 relative overflow-hidden transition-[max-height] duration-200 ease-in-out ${expanded ? "max-h-[500px]" : "max-h-[30px]"}`}
                 >
                     {availableLocationKeywords.map((tagObj) => {
@@ -72,6 +76,7 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                                 key={tag}
                                 type="button"
                                 onClick={() => toggleLocation(tag)}
+                                aria-pressed={selected}
                                 className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-green-700 bg-green-600 text-white" : "border-green-300 text-green-700 hover:bg-green-50"}`}
                             >
                                 {tag}

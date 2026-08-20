@@ -33,6 +33,7 @@ export function AiFeedbackButtons({
           onSelect('like')
         }}
         aria-label={`Like ${label}`}
+        aria-pressed={feedback === 'like'}
       >
         <ThumbsUp className="h-3 w-3" />
       </Button>
@@ -47,6 +48,7 @@ export function AiFeedbackButtons({
           onSelect('unlike')
         }}
         aria-label={`Unlike ${label}`}
+        aria-pressed={feedback === 'unlike'}
       >
         <ThumbsDown className="h-3 w-3" />
       </Button>

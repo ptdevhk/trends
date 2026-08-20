@@ -39,7 +39,7 @@ describe('ActiveTagFilters', () => {
     expect(screen.getByText('React')).toBeInTheDocument()
     expect(screen.getByText('TypeScript')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'React' }))
+    await user.click(screen.getByRole('button', { name: 'Remove React' }))
     expect(onRemoveTag).toHaveBeenCalledWith('React')
   })
 
@@ -71,7 +71,7 @@ describe('ActiveTagFilters', () => {
         selectedExperienceLevel={'senior' as const}
       />
     )
-    expect(screen.getByText('资深')).toBeInTheDocument()
+    expect(screen.getByText('Senior')).toBeInTheDocument()
 
     rerender(
       <ActiveTagFilters
@@ -79,7 +79,7 @@ describe('ActiveTagFilters', () => {
         selectedExperienceLevel={'mid' as const}
       />
     )
-    expect(screen.getByText('中级')).toBeInTheDocument()
+    expect(screen.getByText('Mid-level')).toBeInTheDocument()
 
     rerender(
       <ActiveTagFilters
@@ -87,7 +87,7 @@ describe('ActiveTagFilters', () => {
         selectedExperienceLevel={'junior' as const}
       />
     )
-    expect(screen.getByText('初级')).toBeInTheDocument()
+    expect(screen.getByText('Junior')).toBeInTheDocument()
   })
 
   it('renders location chip when provided', () => {

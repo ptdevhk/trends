@@ -332,4 +332,54 @@ describe('ManualResumeImportDialog', () => {
       expect(screen.getByText('Unsupported file type')).toBeInTheDocument()
     })
   })
+
+  it('resets the hidden file input when Clear is clicked', async () => {
+    const user = userEvent.setup()
+    render(
+      <ManualResumeImportDialog
+        open
+        onOpenChange={vi.fn()}
+        location="东莞"
+        keywords={['销售工程师']}
+        onImported={vi.fn()}
+      />
+    )
+
+    const input = screen.getByTestId('manual-resume-import-input') as HTMLInputElement
+    await user.upload(input, new File(['resume-content'], 'a.docx', { type: 'application/octet-stream' }))
+    expect(screen.getByText('a.docx')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(screen.getByText('No files selected yet.')).toBeInTheDocument()
+    // re-uploading the same file still registers (input value was reset)
+    await user.upload(input, new File(['resume-content'], 'a.docx', { type: 'application/octet-stream' }))
+    expect(screen.getByText('a.docx')).toBeInTheDocument()
+    expect(screen.getAllByText('a.docx')).toHaveLength(1)
+  })
+
+  it('resets the hidden file input when the last file is removed individually', async () => {
+    const user = userEvent.setup()
+    render(
+      <ManualResumeImportDialog
+        open
+        onOpenChange={vi.fn()}
+        location="东莞"
+        keywords={['销售工程师']}
+        onImported={vi.fn()}
+      />
+    )
+
+    const input = screen.getByTestId('manual-resume-import-input') as HTMLInputElement
+    await user.upload(input, new File(['resume-content'], 'a.docx', { type: 'application/octet-stream' }))
+    expect(screen.getByText('a.docx')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove file' }))
+
+    expect(screen.getByText('No files selected yet.')).toBeInTheDocument()
+    // re-uploading the same file still registers (input value was reset)
+    await user.upload(input, new File(['resume-content'], 'a.docx', { type: 'application/octet-stream' }))
+    expect(screen.getByText('a.docx')).toBeInTheDocument()
+    expect(screen.getAllByText('a.docx')).toHaveLength(1)
+  })
 })

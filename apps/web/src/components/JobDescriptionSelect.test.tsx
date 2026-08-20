@@ -17,13 +17,9 @@ vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: { GET: mockGet },
 }))
 
+const mockUseWorkspace = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({
-    slug: 'dev',
-    name: 'Development',
-    isAdmin: false,
-    isSystemSurface: true,
-  }),
+  useWorkspace: (...args: unknown[]) => mockUseWorkspace(...args),
 }))
 
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
@@ -83,6 +79,12 @@ describe('JobDescriptionSelect', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseWorkspace.mockReturnValue({
+      slug: 'dev',
+      name: 'Development',
+      isAdmin: false,
+      isSystemSurface: true,
+    })
   })
 
   it('renders select element', () => {
@@ -99,6 +101,20 @@ describe('JobDescriptionSelect', () => {
 
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', '/admin/system/jds')
+  })
+
+  it('links to the workspace jds page on a workspace surface', async () => {
+    mockUseWorkspace.mockReturnValue({
+      slug: 'dev',
+      name: 'Development',
+      isAdmin: false,
+      isSystemSurface: false,
+    })
+    useQueryMock.mockReturnValue([])
+    mockGet.mockResolvedValue({ data: { success: true, items: [] } })
+    renderWithRouter(<JobDescriptionSelect {...defaultProps} value="jd-1" />)
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/dev/jds')
   })
 
   it('does not show external link when no value', () => {

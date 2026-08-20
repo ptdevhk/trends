@@ -54,6 +54,26 @@ describe('LocationSelector', () => {
     expect(buttons.length).toBe(3) // toggle + 2 chips
   })
 
+  it('toggles aria-expanded on the expand button', async () => {
+    const user = userEvent.setup()
+    render(<LocationSelector {...defaultProps} />)
+    const toggle = screen.getByRole('button', { name: 'Show location keywords' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveAttribute('aria-controls', 'location-keywords-tray')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Hide location keywords' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('sets aria-pressed on location chips', () => {
+    render(<LocationSelector {...defaultProps} value="Shanghai" />)
+    expect(screen.getByRole('button', { name: /Shanghai/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Beijing/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('highlights active location chip', () => {
     render(<LocationSelector {...defaultProps} value="Shanghai" />)
     const shanghaiChip = screen.getByRole('button', { name: /Shanghai/ })
