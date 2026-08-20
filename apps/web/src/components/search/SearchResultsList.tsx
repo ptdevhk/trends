@@ -541,13 +541,16 @@ export function SearchResultsList({
       {onQueueIndustryResearch && industryResearchQueueEnabled ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="resume-industry-research-bulk-control">
           <div>
-            <p className="font-medium">Verify employer evidence for these results</p>
+            <p className="font-medium">{t('resumes.searchPage.results.industryQueue.title', { defaultValue: 'Verify employer evidence for these results' })}</p>
             <p className="text-xs text-muted-foreground">
-              Queues exact resume identity targets only; {items.length > MAX_INDUSTRY_RESEARCH_BATCH
-                ? `the first ${MAX_INDUSTRY_RESEARCH_BATCH} loaded results are queued per batch limit.`
-                : hasMore
-                  ? 'more results are still loading.'
-                  : 'all loaded results are visible.'}
+              {t('resumes.searchPage.results.industryQueue.description', {
+                defaultValue: 'Queues exact resume identity targets only; {{detail}}',
+                detail: items.length > MAX_INDUSTRY_RESEARCH_BATCH
+                  ? t('resumes.searchPage.results.industryQueue.batchedDetail', { defaultValue: 'the first {{count}} loaded results are queued per batch limit.', count: MAX_INDUSTRY_RESEARCH_BATCH })
+                  : hasMore
+                    ? t('resumes.searchPage.results.industryQueue.loadingDetail', { defaultValue: 'more results are still loading.' })
+                    : t('resumes.searchPage.results.industryQueue.allVisibleDetail', { defaultValue: 'all loaded results are visible.' }),
+              })}
             </p>
           </div>
           <Button
@@ -557,7 +560,9 @@ export function SearchResultsList({
             disabled={loading || loadingMore || queueingIndustryResearch || queueableIndustryResearchItems.length === 0}
           >
             <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-            {queueingIndustryResearch ? 'Queueing…' : `Queue ${queueableIndustryResearchItems.length} exact targets`}
+            {queueingIndustryResearch
+              ? t('resumes.searchPage.results.industryQueue.queueing', { defaultValue: 'Queueing…' })
+              : t('resumes.searchPage.results.industryQueue.queueButton', { defaultValue: 'Queue {{count}} exact targets', count: queueableIndustryResearchItems.length })}
           </Button>
         </div>
       ) : null}

@@ -547,7 +547,16 @@
         "loadingMore": "正在加载更多简历...",
         "scrollForMore": "向下滚动查看更多",
         "endOfResults": "已到底部",
-        "keyboardHint": "J/K 移动 · Enter 展开 · O 查看详情 · S 标星 · A 归档"
+        "keyboardHint": "J/K 移动 · Enter 展开 · O 查看详情 · S 标星 · A 归档",
+        "industryQueue": {
+          "title": "核实这些结果的雇主证据",
+          "description": "仅将精确匹配的简历身份目标加入队列；{{detail}}",
+          "batchedDetail": "每批限制内，最先加载的 {{count}} 条结果将被加入队列。",
+          "loadingDetail": "更多结果仍在加载中。",
+          "allVisibleDetail": "所有已加载结果均可见。",
+          "queueButton": "将 {{count}} 个精确目标加入队列",
+          "queueing": "加入队列中…"
+        }
       },
       "analysis": {
         "title": "简历 AI 分析",
@@ -686,6 +695,12 @@
     "resumeWorkHistoryLimitSave": "保存条数",
     "presetId": "ID",
     "trigger": "触发条件",
+    "scheduleCron": "Cron: {{value}}",
+    "scheduleEvery": "每 {{value}}",
+    "schedulerLoadFailed": "加载调度器状态失败",
+    "schedulerOffline": "调度器离线",
+    "schedulerStatus": "调度器状态",
+    "unknownError": "未知错误",
     "customKeywordId": "ID",
     "processing": "处理中",
     "stopped": "已停止",
@@ -2174,6 +2189,17 @@
       "createProfileFailed": "创建摘要配置失败",
       "deleteProfileFailed": "删除摘要配置失败"
     }
+  },
+  "analysisTasks": {
+    "status": {
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "pending": "等待中"
+    },
+    "keywords": "关键词：{{keywords}}",
+    "unknownTitle": "未知"
   },
   "aiTagging": {
     "candidateLimit": "候选人上限",

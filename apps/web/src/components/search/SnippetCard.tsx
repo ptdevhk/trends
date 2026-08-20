@@ -496,7 +496,7 @@ export const SnippetCard = memo(function SnippetCard({
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
-                title={isSeekUuidUrl ? 'Requires active Seek session' : undefined}
+                title={isSeekUuidUrl ? t('resumes.searchPage.card.seekSessionRequired', { defaultValue: 'Requires active Seek session' }) : undefined}
               >
                 {highlightTerms(item.resume.name || unnamedResumeLabel, searchTerms)}
               </a>

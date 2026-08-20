@@ -46,12 +46,12 @@ function formatAbsoluteTime(value: string | null): string {
     return date.toLocaleString()
 }
 
-function formatScheduleConfig(status: WorkerStatus, t: (key: string) => string): string {
+function formatScheduleConfig(status: WorkerStatus, t: ReturnType<typeof useTranslation>['t']): string {
     if (status.schedule_type === 'interval' && status.schedule_value) {
-        return `Every ${status.schedule_value}`
+        return t('debugConfig.scheduleEvery', { defaultValue: 'Every {{value}}', value: status.schedule_value })
     }
     if (status.schedule_type === 'cron' && status.schedule_value) {
-        return `Cron: ${status.schedule_value}`
+        return t('debugConfig.scheduleCron', { defaultValue: 'Cron: {{value}}', value: status.schedule_value })
     }
     if (status.schedule_value) {
         return status.schedule_value
@@ -74,7 +74,7 @@ export function SchedulerStatus() {
                 setError(null)
             } catch (err) {
                 reportUiError('Failed to fetch scheduler status', err)
-                setError('Failed to load scheduler status')
+                setError(t('debugConfig.schedulerLoadFailed', { defaultValue: 'Failed to load scheduler status' }))
             } finally {
                 setLoading(false)
             }
@@ -91,7 +91,7 @@ export function SchedulerStatus() {
         return (
             <Card data-testid="scheduler-status-loading" className="bg-muted/30 border-dashed min-h-[232px]">
                 <CardHeader className="py-4">
-                    <CardTitle className="text-lg">Scheduler Status</CardTitle>
+                    <CardTitle className="text-lg">{t('debugConfig.schedulerStatus', { defaultValue: 'Scheduler Status' })}</CardTitle>
                     <CardDescription>{t('common.loading', { defaultValue: 'Loading...' })}</CardDescription>
                 </CardHeader>
                 <CardContent className="pb-6">
@@ -118,8 +118,8 @@ export function SchedulerStatus() {
         return (
             <Card className="bg-muted/30 border-dashed border-red-200 min-h-[232px]">
                 <CardHeader className="py-4">
-                    <CardTitle className="text-lg text-red-600">Scheduler Offline</CardTitle>
-                    <CardDescription>{error || 'Unknown error'}</CardDescription>
+                    <CardTitle className="text-lg text-red-600">{t('debugConfig.schedulerOffline', { defaultValue: 'Scheduler Offline' })}</CardTitle>
+                    <CardDescription>{error || t('debugConfig.unknownError', { defaultValue: 'Unknown error' })}</CardDescription>
                 </CardHeader>
             </Card>
         )

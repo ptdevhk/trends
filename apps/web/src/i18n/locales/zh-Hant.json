@@ -547,7 +547,16 @@
         "loadingMore": "正在載入更多簡歷...",
         "scrollForMore": "向下捲動查看更多",
         "endOfResults": "已到底部",
-        "keyboardHint": "J/K 移動 · Enter 展開 · O 查看詳情 · S 標星 · A 歸檔"
+        "keyboardHint": "J/K 移動 · Enter 展開 · O 查看詳情 · S 標星 · A 歸檔",
+        "industryQueue": {
+          "title": "核實這些結果的僱主證據",
+          "description": "僅將精確比對的履歷身分目標加入佇列；{{detail}}",
+          "batchedDetail": "每批限制內，最先載入的 {{count}} 筆結果將被加入佇列。",
+          "loadingDetail": "更多結果仍在載入中。",
+          "allVisibleDetail": "所有已載入結果均可見。",
+          "queueButton": "將 {{count}} 個精確目標加入佇列",
+          "queueing": "加入佇列中…"
+        }
       },
       "analysis": {
         "title": "簡歷 AI 分析",
@@ -1352,6 +1361,12 @@
     "scheduledJobs": "已排程任務",
     "job": "任務",
     "trigger": "觸發條件",
+    "scheduleCron": "Cron: {{value}}",
+    "scheduleEvery": "每 {{value}}",
+    "schedulerLoadFailed": "載入排程器狀態失敗",
+    "schedulerOffline": "排程器離線",
+    "schedulerStatus": "排程器狀態",
+    "unknownError": "未知錯誤",
     "resumeDataCollection": "履歷資料採集",
     "resumeDataCollectionDescription": "觸發代理任務以從外部平台抓取履歷錄入。",
     "keyword": "關鍵字",
@@ -2148,6 +2163,17 @@
     }
   },
   "footer": {},
+  "analysisTasks": {
+    "status": {
+      "processing": "處理中",
+      "completed": "已完成",
+      "failed": "失敗",
+      "cancelled": "已取消",
+      "pending": "等待中"
+    },
+    "keywords": "關鍵字：{{keywords}}",
+    "unknownTitle": "未知"
+  },
   "aiTagging": {
     "candidateLimit": "候選人上限",
     "configDesc": "控制冪等鍵（profileKey + evidenceHash + promptVersion + model）。",

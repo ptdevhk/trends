@@ -548,7 +548,16 @@
         "loadingMore": "Loading more resumes...",
         "scrollForMore": "Scroll for more",
         "endOfResults": "End of results",
-        "keyboardHint": "J/K move · Enter expand · O detail · S star · A archive"
+        "keyboardHint": "J/K move · Enter expand · O detail · S star · A archive",
+        "industryQueue": {
+          "title": "Verify employer evidence for these results",
+          "description": "Queues exact resume identity targets only; {{detail}}",
+          "batchedDetail": "the first {{count}} loaded results are queued per batch limit.",
+          "loadingDetail": "more results are still loading.",
+          "allVisibleDetail": "all loaded results are visible.",
+          "queueButton": "Queue {{count}} exact targets",
+          "queueing": "Queueing…"
+        }
       },
       "analysis": {
         "title": "Resume AI analysis",
@@ -1339,6 +1348,8 @@
     "cronScheduler": "Cron Scheduler",
     "cronSchedulerDescription": "Automated crawling and analysis tasks.",
     "schedule": "Schedule",
+    "scheduleCron": "Cron: {{value}}",
+    "scheduleEvery": "Every {{value}}",
     "nextRun": "Next Run",
     "executed": "Executed",
     "lastSuccess": "Last Success",
@@ -1352,6 +1363,10 @@
     "scheduledJobs": "Scheduled Jobs",
     "job": "Job",
     "trigger": "Trigger",
+    "schedulerLoadFailed": "Failed to load scheduler status",
+    "schedulerOffline": "Scheduler Offline",
+    "schedulerStatus": "Scheduler Status",
+    "unknownError": "Unknown error",
     "resumeDataCollection": "Resume Data Collection",
     "resumeDataCollectionDescription": "Trigger heavy-lifting agent tasks to scrape resumes from external platforms.",
     "keyword": "Keyword",
@@ -2148,6 +2163,17 @@
     }
   },
   "footer": {},
+  "analysisTasks": {
+    "status": {
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "pending": "Pending"
+    },
+    "keywords": "Keywords: {{keywords}}",
+    "unknownTitle": "Unknown"
+  },
   "aiTagging": {
     "candidateLimit": "Candidate Limit",
     "configDesc": "Controls idempotencyKey (profileKey + evidenceHash + promptVersion + model).",
