@@ -120,15 +120,24 @@ Gates: `verify:critical-path` EXIT 0 · `npm run e2e` EXIT 0 (97.73s, run 6) · 
 ## Closeout
 
 **Done by:** the receiving session (this handoff's follow-up session)
-**Branch:** `preview-v0.4.23` — all commits local, **NO-PUSH**
+**Branch:** `preview-v0.4.23` — all commits local, **NO-PUSH** (ahead 64 of origin)
 
 | Commit | Change |
 |---|---|
-| _(fill in)_ | |
-| _(fill in)_ | |
+| `0adadbb0` | R3: SettingsSidebar admin gate derived from memberships — dead `isAdmin` branch removed, TDD guard test |
+| `be1c6e29` | R4: `measureWebVitals` observers via `addInitScript` + fresh-context CWV runner, real values vs baselines |
+| `0683c296` | R2: company-linked UAT fixture resume (`setup-company-linked-resume.ts` + `setup:company-linked-resume-uat` npm script) |
+| `c1b168ba` | R6: `pinLocale` + `E2EOptions.locale` in e2e-utils, 2 unit tests |
+| `8fd0a71c` | R5: runbook Known Gotchas note — BFF manual restart must source `.env` first |
 
-**Verification (evidence):** _(fill in — per-recommendation verdicts, gates run, test counts)_
+**Verification (evidence):**
+- R2: browser UAT 4/4 combos (zh-TW desktop, en desktop, en mobile, zh-TW mobile) — `q=polywell` renders `IndustryEvidenceSummary` + badge, 0 console errors; screenshots `/tmp/uat-evidence/r2/`; fixture rerun idempotent (`unchanged:1, inserted:0`).
+- R3: `requiresAdmin` scan → no items set it; gate now `hasWorkspaceAdminAccess(memberships, slug)` (pattern from `7d4acdac`); guard test GREEN; no user-visible change.
+- R4: fresh-context CWV run produced non-null ttfb/lcp/cls/fcp on search + settings vs `scripts/benchmarks/cwv-baselines.json`.
+- R5: note added to `docs/agent-runbook.md` Known Gotchas (F32 root cause: `bun run` does not propagate `.env` to tsx children).
+- R6: unit tests 4/4 (e2e-utils suite); live walk — `pinLocale('zh-Hans')` → "1 条结果" visible, `pinLocale('zh-Hant')` → "1 條結果" visible, tri-lingual placeholder locator still matches both times.
+- Gates: `make ci-local` GREEN (exit 0: node check / i18n / agent policy / check-build / test-coverage). Tmp probe scripts deleted; `artifacts/` untouched (untracked).
 
-**Wiki:** _(fill in — work item path, index entry, push state)_
+**Wiki:** work item `/root/wiki/projects/trends/work/2026-08-20-uat-recommendations/log.md` (created, completed). Vault push not run this session.
 
-**Out of scope (unchanged):** prod untouched; GitHub push withheld; human-only vault items never auto-claimed.
+**Out of scope (unchanged):** prod untouched; GitHub push withheld; human-only vault items never auto-claimed. R1 dropped per this handoff (verified resolved — do not re-open).
