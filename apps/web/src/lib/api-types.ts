@@ -4411,775 +4411,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/resumes/candidate-actions/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset candidate actions for a workspace */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        workspaceSlug?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Reset result */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            deleted: number;
-                        };
-                    };
-                };
-                /** @description Admin access required */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Reset failed */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/matches/rescore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Re-score resumes with rule engine */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        sessionId?: string;
-                        sample?: string;
-                        /**
-                         * @default sample
-                         * @enum {string}
-                         */
-                        source?: "sample" | "convex";
-                        /** @default true */
-                        persist?: boolean;
-                        jobDescriptionId?: string;
-                        keywords?: string[];
-                        location?: string;
-                        resumeIds?: string[];
-                        limit?: number;
-                    };
-                };
-            };
-            responses: {
-                /** @description Re-scored results */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["MatchResponse"];
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Session or data not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/{resumeId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get one resume with detailed work experience
-         * @description Returns one resume including structured work history for UI or CLI inspection
-         */
-        get: {
-            parameters: {
-                query?: {
-                    sample?: string;
-                    source?: "sample" | "convex";
-                    includeHidden?: "true" | "false";
-                };
-                header?: never;
-                path: {
-                    resumeId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Resume detail */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ResumeDetailResponse"];
-                    };
-                };
-                /** @description Resume not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/{resumeId}/industry-review-targets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Resolve exact industry-evidence review targets for one resume
-         * @description System-admin-only resolver for opaque legacy work-entry fingerprints. It never matches employer display names.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    resumeId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Exact review targets, if any */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ResumeIndustryReviewTargetsResponse"];
-                    };
-                };
-                /** @description Dev system admin access required */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Resume not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/industry-research-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Queue exact industry-evidence research for a resume result set
-         * @description Admin-only batch orchestration. Resume IDs are resolved by exact workspace/fingerprint identity; employer names are never accepted as selectors.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        resumeIds: string[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Exact research requests queued for eligible resume targets */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            queued: number;
-                            alreadyQueued: number;
-                            notLinked: number;
-                            notEligible: number;
-                            requestIds: string[];
-                            proposalIds: string[];
-                            dispatch: {
-                                runId: string | null;
-                                coalesced: boolean;
-                            };
-                        };
-                    };
-                };
-                /** @description Targeted queue disabled or batch rejected */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            code: string;
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/trigger-reingest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Schedule re-ingest for stale resumes (skillsVersion and/or ingestComputeEpoch). Default mode=any. */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        limit?: number;
-                        cursor?: string;
-                        /** @enum {string} */
-                        mode?: "skills" | "compute" | "any";
-                        dryRun?: boolean;
-                    };
-                };
-            };
-            responses: {
-                /** @description Reingest triggered */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            scheduled?: number;
-                            batches?: number;
-                            currentVersion?: number;
-                            currentIngestComputeEpoch?: number;
-                            hasMore: boolean;
-                            cursor: string | null;
-                            mode?: string;
-                            dryRun?: boolean;
-                            skillsStaleCount?: number;
-                            computeStaleCount?: number;
-                            matchedCount?: number;
-                            processed?: number;
-                            skipped?: number;
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Internal error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/analyze": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Analyze resumes matching search criteria */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        /** @example CNC 销售 */
-                        query?: string;
-                        /** @example lathe-sales */
-                        jobDescriptionId?: string;
-                        /** @example 东莞 */
-                        location?: string;
-                        /** @example 3 */
-                        minExperience?: number;
-                        /** @example 10 */
-                        maxExperience?: number;
-                        /**
-                         * @example [
-                         *       "bachelor",
-                         *       "master"
-                         *     ]
-                         */
-                        education?: string[];
-                        /**
-                         * @example [
-                         *       "CNC",
-                         *       "FANUC"
-                         *     ]
-                         */
-                        skills?: string[];
-                        /**
-                         * @example [
-                         *       "machine tools"
-                         *     ]
-                         */
-                        requiredKeywords?: string[];
-                        /**
-                         * @example [
-                         *       "东莞",
-                         *       "深圳"
-                         *     ]
-                         */
-                        locations?: string[];
-                        /** @example 5000 */
-                        minSalary?: number;
-                        /** @example 15000 */
-                        maxSalary?: number;
-                        /**
-                         * @default 50
-                         * @example 50
-                         */
-                        limit?: number;
-                        /**
-                         * @default false
-                         * @example false
-                         */
-                        dryRun?: boolean;
-                        /**
-                         * @description Role type required: sales | technical | any
-                         * @example sales
-                         */
-                        roleFilterType?: string;
-                        /**
-                         * @description Minimum domain-role years required
-                         * @example 1
-                         */
-                        minRoleYears?: number;
-                        /**
-                         * @description Market context: CN | MY
-                         * @example CN
-                         */
-                        market?: string;
-                        targets?: {
-                            referenceResumeId?: string;
-                            currentResumeId?: string;
-                            profileResumeId?: string;
-                            profileUrl?: string;
-                            externalId?: string;
-                            identityKey?: string;
-                            source?: string;
-                        }[];
-                        resumeIds?: string[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Analysis result */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnalyzeResponse"];
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Internal error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Analysis dispatch unavailable during maintenance */
-                503: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/explanation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get AI decision explanation for a candidate (EU AI Act Art. 13) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        resumeId: string;
-                        workspaceSlug: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Explanation retrieved */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            data: {
-                                identityKey: string;
-                                summary: string;
-                                keyFactors: {
-                                    factor: string;
-                                    value: string;
-                                }[];
-                                decidedAt: number;
-                                decisionType: string;
-                                scrubbedFields?: string[];
-                                protectedAttributesExcluded: boolean;
-                            } | null;
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Internal error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/audit-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get audit logs for a workspace (EU AI Act Art. 14) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        workspaceSlug: string;
-                        /** @enum {string} */
-                        decisionType?: "score" | "tag" | "rank" | "filter" | "confirm";
-                        /** @enum {string} */
-                        outcome?: "pending" | "accepted" | "overridden" | "appealed";
-                    };
-                };
-            };
-            responses: {
-                /** @description Audit logs retrieved */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            data: {
-                                _id: string;
-                                _creationTime: number;
-                                workspaceSlug: string;
-                                resumeId: string;
-                                identityKey?: string;
-                                decidedAt: number;
-                                /** @enum {string} */
-                                decisionType: "score" | "tag" | "rank" | "filter" | "confirm";
-                                /** @enum {string} */
-                                outcome?: "pending" | "accepted" | "overridden" | "appealed";
-                                setBy?: string;
-                                setAt?: number;
-                            }[];
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Internal error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/resumes/audit-outcome": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Set audit outcome for a decision log (EU AI Act Art. 14) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        auditLogId: string;
-                        /** @enum {string} */
-                        outcome: "accepted" | "overridden" | "appealed";
-                        setBy?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Outcome set */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                        };
-                    };
-                };
-                /** @description Invalid request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-                /** @description Internal error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SimpleError"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/resumes/hard-reset-reingest": {
         parameters: {
             query?: never;
@@ -6026,6 +5257,775 @@ export interface paths {
                             success: false;
                             error: string;
                         };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/candidate-actions/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset candidate actions for a workspace */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        workspaceSlug?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reset result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Reset failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/matches/rescore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-score resumes with rule engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        sessionId?: string;
+                        sample?: string;
+                        /**
+                         * @default sample
+                         * @enum {string}
+                         */
+                        source?: "sample" | "convex";
+                        /** @default true */
+                        persist?: boolean;
+                        jobDescriptionId?: string;
+                        keywords?: string[];
+                        location?: string;
+                        resumeIds?: string[];
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Re-scored results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Session or data not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/{resumeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one resume with detailed work experience
+         * @description Returns one resume including structured work history for UI or CLI inspection
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sample?: string;
+                    source?: "sample" | "convex";
+                    includeHidden?: "true" | "false";
+                };
+                header?: never;
+                path: {
+                    resumeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resume detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeDetailResponse"];
+                    };
+                };
+                /** @description Resume not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/{resumeId}/industry-review-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve exact industry-evidence review targets for one resume
+         * @description System-admin-only resolver for opaque legacy work-entry fingerprints. It never matches employer display names.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resumeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Exact review targets, if any */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeIndustryReviewTargetsResponse"];
+                    };
+                };
+                /** @description Dev system admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Resume not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/industry-research-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue exact industry-evidence research for a resume result set
+         * @description Admin-only batch orchestration. Resume IDs are resolved by exact workspace/fingerprint identity; employer names are never accepted as selectors.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeIds: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Exact research requests queued for eligible resume targets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            queued: number;
+                            alreadyQueued: number;
+                            notLinked: number;
+                            notEligible: number;
+                            requestIds: string[];
+                            proposalIds: string[];
+                            dispatch: {
+                                runId: string | null;
+                                coalesced: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Targeted queue disabled or batch rejected */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            code: string;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/trigger-reingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Schedule re-ingest for stale resumes (skillsVersion and/or ingestComputeEpoch). Default mode=any. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        limit?: number;
+                        cursor?: string;
+                        /** @enum {string} */
+                        mode?: "skills" | "compute" | "any";
+                        dryRun?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reingest triggered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            scheduled?: number;
+                            batches?: number;
+                            currentVersion?: number;
+                            currentIngestComputeEpoch?: number;
+                            hasMore: boolean;
+                            cursor: string | null;
+                            mode?: string;
+                            dryRun?: boolean;
+                            skillsStaleCount?: number;
+                            computeStaleCount?: number;
+                            matchedCount?: number;
+                            processed?: number;
+                            skipped?: number;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze resumes matching search criteria */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @example CNC 销售 */
+                        query?: string;
+                        /** @example lathe-sales */
+                        jobDescriptionId?: string;
+                        /** @example 东莞 */
+                        location?: string;
+                        /** @example 3 */
+                        minExperience?: number;
+                        /** @example 10 */
+                        maxExperience?: number;
+                        /**
+                         * @example [
+                         *       "bachelor",
+                         *       "master"
+                         *     ]
+                         */
+                        education?: string[];
+                        /**
+                         * @example [
+                         *       "CNC",
+                         *       "FANUC"
+                         *     ]
+                         */
+                        skills?: string[];
+                        /**
+                         * @example [
+                         *       "machine tools"
+                         *     ]
+                         */
+                        requiredKeywords?: string[];
+                        /**
+                         * @example [
+                         *       "东莞",
+                         *       "深圳"
+                         *     ]
+                         */
+                        locations?: string[];
+                        /** @example 5000 */
+                        minSalary?: number;
+                        /** @example 15000 */
+                        maxSalary?: number;
+                        /**
+                         * @default 50
+                         * @example 50
+                         */
+                        limit?: number;
+                        /**
+                         * @default false
+                         * @example false
+                         */
+                        dryRun?: boolean;
+                        /**
+                         * @description Role type required: sales | technical | any
+                         * @example sales
+                         */
+                        roleFilterType?: string;
+                        /**
+                         * @description Minimum domain-role years required
+                         * @example 1
+                         */
+                        minRoleYears?: number;
+                        /**
+                         * @description Market context: CN | MY
+                         * @example CN
+                         */
+                        market?: string;
+                        targets?: {
+                            referenceResumeId?: string;
+                            currentResumeId?: string;
+                            profileResumeId?: string;
+                            profileUrl?: string;
+                            externalId?: string;
+                            identityKey?: string;
+                            source?: string;
+                        }[];
+                        resumeIds?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Analysis result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnalyzeResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Analysis dispatch unavailable during maintenance */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get AI decision explanation for a candidate (EU AI Act Art. 13) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        resumeId: string;
+                        workspaceSlug: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Explanation retrieved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data: {
+                                identityKey: string;
+                                summary: string;
+                                keyFactors: {
+                                    factor: string;
+                                    value: string;
+                                }[];
+                                decidedAt: number;
+                                decisionType: string;
+                                scrubbedFields?: string[];
+                                protectedAttributesExcluded: boolean;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get audit logs for a workspace (EU AI Act Art. 14) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        workspaceSlug: string;
+                        /** @enum {string} */
+                        decisionType?: "score" | "tag" | "rank" | "filter" | "confirm";
+                        /** @enum {string} */
+                        outcome?: "pending" | "accepted" | "overridden" | "appealed";
+                    };
+                };
+            };
+            responses: {
+                /** @description Audit logs retrieved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            data: {
+                                _id: string;
+                                _creationTime: number;
+                                workspaceSlug: string;
+                                resumeId: string;
+                                identityKey?: string;
+                                decidedAt: number;
+                                /** @enum {string} */
+                                decisionType: "score" | "tag" | "rank" | "filter" | "confirm";
+                                /** @enum {string} */
+                                outcome?: "pending" | "accepted" | "overridden" | "appealed";
+                                setBy?: string;
+                                setAt?: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/audit-outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set audit outcome for a decision log (EU AI Act Art. 14) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        auditLogId: string;
+                        /** @enum {string} */
+                        outcome: "accepted" | "overridden" | "appealed";
+                        setBy?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Outcome set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SimpleError"];
                     };
                 };
             };
