@@ -124,7 +124,12 @@
     "manageBlocked": "Manage",
     "statusAll": "All statuses",
     "exportFormat": "Export format",
-    "export": "Export"
+    "export": "Export",
+    "confirmReject": "Reject {{count}} selected resume(s)?",
+    "confirmBlock": "Block {{count}} selected resume(s)?",
+    "successShortlist": "Shortlisted {{count}} resume(s)",
+    "successReject": "Rejected {{count}} resume(s)",
+    "successBlock": "Blocked {{count}} resume(s)"
   },
   "debugAi": {
     "title": "AI Debug",
@@ -538,7 +543,8 @@
         "failedDescription": "The search request did not complete. Results may still exist — please retry or refresh the page.",
         "loadingMore": "Loading more resumes...",
         "scrollForMore": "Scroll for more",
-        "endOfResults": "End of results"
+        "endOfResults": "End of results",
+        "keyboardHint": "J/K move · Enter expand · S star · A archive"
       },
       "analysis": {
         "title": "Resume AI analysis",

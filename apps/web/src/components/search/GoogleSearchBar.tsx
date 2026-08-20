@@ -177,7 +177,10 @@ export function GoogleSearchBar({
                   setJdPopoverOpen(false)
                   return
                 }
-                onClear()
+                if (trimmedValue) {
+                  onChange('')
+                  inputRef.current?.blur()
+                }
               }
               return
             }
@@ -208,11 +211,11 @@ export function GoogleSearchBar({
               }
               case 'Escape': {
                 event.preventDefault()
+                setFocused(false)
                 setActiveIndex(-1)
-                if (jdPopoverOpen) {
-                  setJdPopoverOpen(false)
-                } else {
-                  onClear()
+                if (trimmedValue) {
+                  onChange('')
+                  inputRef.current?.blur()
                 }
                 break
               }

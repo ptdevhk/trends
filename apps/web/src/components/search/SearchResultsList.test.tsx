@@ -179,6 +179,34 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
   })
 
+  it('shows the keyboard hint when results exist', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resume-keyboard-hint')).toHaveTextContent(/J\/K|J\/K move/i)
+  })
+
+  it('omits the keyboard hint when there are no results', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('resume-keyboard-hint')).not.toBeInTheDocument()
+  })
+
   it('renders empty-state quick reset actions that clear the query and filters', () => {
     const onClearQuery = vi.fn()
     const onClearFilters = vi.fn()

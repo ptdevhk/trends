@@ -521,6 +521,16 @@ export function SearchResultsList({
 
   return (
     <div ref={listRef} className="space-y-4">
+      {items.length > 0 ? (
+        <div
+          className="flex items-center justify-end px-1 text-xs text-muted-foreground"
+          data-testid="resume-keyboard-hint"
+        >
+          {t('resumes.searchPage.results.keyboardHint', {
+            defaultValue: 'J/K move · Enter expand · S star · A archive',
+          })}
+        </div>
+      ) : null}
       {onQueueIndustryResearch && industryResearchQueueEnabled ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="resume-industry-research-bulk-control">
           <div>

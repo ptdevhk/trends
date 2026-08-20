@@ -63,7 +63,37 @@ describe('BulkActionBar', () => {
         expect(onBulkAction).toHaveBeenCalledWith('shortlist')
 
         await user.click(screen.getByText('批量拒绝'))
+        expect(onBulkAction).not.toHaveBeenCalledWith('reject')
+        await user.click(screen.getByTestId('bulk-confirm-yes'))
         expect(onBulkAction).toHaveBeenCalledWith('reject')
+    })
+
+    it('requires confirmation for reject and block; cancel keeps the selection', async () => {
+        const user = userEvent.setup()
+        onBulkAction.mockResolvedValue(undefined)
+        render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
+
+        await user.click(screen.getByText('批量拒绝'))
+        expect(screen.getByTestId('bulk-confirm-row')).toHaveTextContent('Reject 5 selected resume(s)?')
+        await user.click(screen.getByTestId('bulk-confirm-no'))
+        expect(screen.queryByTestId('bulk-confirm-row')).not.toBeInTheDocument()
+        expect(onBulkAction).not.toHaveBeenCalled()
+
+        await user.click(screen.getByText('批量屏蔽'))
+        expect(screen.getByTestId('bulk-confirm-row')).toHaveTextContent('Block 5 selected resume(s)?')
+        await user.click(screen.getByTestId('bulk-confirm-yes'))
+        expect(onBulkAction).toHaveBeenCalledWith('block')
+    })
+
+    it('resets the pending confirmation when the selection empties', async () => {
+        const user = userEvent.setup()
+        const { rerender } = render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
+
+        await user.click(screen.getByText('批量拒绝'))
+        expect(screen.getByTestId('bulk-confirm-row')).toBeInTheDocument()
+
+        rerender(<MemoryRouter><BulkActionBar {...defaultProps} selectedCount={0} /></MemoryRouter>)
+        expect(screen.queryByTestId('bulk-confirm-row')).not.toBeInTheDocument()
     })
 
     it('disables bulk action buttons when nothing is selected', () => {

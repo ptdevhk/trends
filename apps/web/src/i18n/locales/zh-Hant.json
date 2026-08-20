@@ -124,7 +124,12 @@
     "manageBlocked": "管理",
     "statusAll": "全部狀態",
     "exportFormat": "匯出格式",
-    "export": "匯出"
+    "export": "匯出",
+    "confirmReject": "確認批量拒絕 {{count}} 份簡歷？",
+    "confirmBlock": "確認批量封鎖 {{count}} 份簡歷？",
+    "successShortlist": "已入圍 {{count}} 份簡歷",
+    "successReject": "已拒絕 {{count}} 份簡歷",
+    "successBlock": "已封鎖 {{count}} 份簡歷"
   },
   "debugAi": {
     "title": "AI 調試",
@@ -537,7 +542,8 @@
         "emptyDescription": "可以嘗試更寬泛的關鍵詞，或移除部分篩選條件。",
         "loadingMore": "正在載入更多簡歷...",
         "scrollForMore": "向下捲動查看更多",
-        "endOfResults": "已到底部"
+        "endOfResults": "已到底部",
+        "keyboardHint": "J/K 移動 · Enter 展開 · S 標星 · A 歸檔"
       },
       "analysis": {
         "title": "簡歷 AI 分析",

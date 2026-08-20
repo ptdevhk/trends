@@ -1,4 +1,5 @@
-import { Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -38,6 +39,9 @@ function formatGeneratedAt(
 
 export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSummaryPanelProps) {
   const { t } = useTranslation()
+  const [collapsed, setCollapsed] = useState(true)
+  const isLong = (summary?.length ?? 0) > 200
+  const showCollapsed = isLong && collapsed
   const generatedAtLabel = formatGeneratedAt(generatedAt, t)
   const titleLabel = t('resumes.searchPage.aiSummary.title', {
     defaultValue: 'AI result summary',
@@ -45,13 +49,30 @@ export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSumm
   const summaryLabel = summary || t('resumes.searchPage.aiSummary.noSummary', {
     defaultValue: 'No summary is available for the current search yet.',
   })
+  const collapseLabel = t(showCollapsed ? 'common.expand' : 'common.collapse', {
+    defaultValue: showCollapsed ? 'Expand' : 'Collapse',
+  })
 
   return (
     <Card className="hidden rounded-[1.75rem] border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-[0_28px_70px_-46px_rgba(15,23,42,0.9)] md:block">
       <CardContent className="space-y-4 p-6">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-300">
-          <Sparkles className="h-4 w-4" />
-          {titleLabel}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-300">
+            <Sparkles className="h-4 w-4" />
+            {titleLabel}
+          </div>
+          {isLong ? (
+            <button
+              type="button"
+              aria-expanded={!showCollapsed}
+              aria-label={collapseLabel}
+              onClick={() => setCollapsed((value) => !value)}
+              className="flex items-center gap-1 text-xs text-slate-300 transition-colors hover:text-white"
+            >
+              {showCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              {collapseLabel}
+            </button>
+          ) : null}
         </div>
 
         {loading ? (
@@ -61,7 +82,10 @@ export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSumm
             <Skeleton className="h-4 w-4/6 bg-white/15" />
           </div>
         ) : (
-          <p aria-live="polite" className="text-sm leading-7 text-slate-100">
+          <p
+            aria-live="polite"
+            className={`text-sm leading-7 text-slate-100 ${showCollapsed ? 'line-clamp-2' : ''}`}
+          >
             {summaryLabel}
           </p>
         )}

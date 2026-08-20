@@ -120,6 +120,20 @@ function MinRoleYearsGroup({
     })
   }, [])
 
+  const handleMinRoleYearsKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposition(event)) {
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      submitCustomValue(inputRef.current?.value ?? customText)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setCustomOpen(false)
+      setCustomText('')
+    }
+  }, [submitCustomValue, customText])
+
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -164,6 +178,7 @@ function MinRoleYearsGroup({
               value={customText}
               onChange={(event) => setCustomText(event.target.value)}
               onBlur={handleBlur}
+              onKeyDown={handleMinRoleYearsKeyDown}
               autoFocus
             />
             <span className="text-sm text-slate-500">+</span>

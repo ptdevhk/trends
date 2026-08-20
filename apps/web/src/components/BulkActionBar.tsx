@@ -4,7 +4,7 @@
  * Enables quick bulk actions on filtered/scored resumes
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
@@ -74,6 +74,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
+    const [pendingConfirmAction, setPendingConfirmAction] = useState<'reject' | 'block' | null>(null)
     const showCompanyPolicyControl =
         typeof onShowCompanyPolicyHiddenChange === 'function' &&
         (companyPolicyHiddenCount > 0 || showCompanyPolicyHidden)
@@ -93,7 +94,7 @@ export function BulkActionBar({
         }),
     ]
 
-    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
+    const runAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
         try {
             if (action === 'export') {
@@ -105,6 +106,21 @@ export function BulkActionBar({
             setLoading(null)
         }
     }, [onBulkAction, exportFormat])
+
+    const handleAction = useCallback((action: 'shortlist' | 'reject' | 'block' | 'export') => {
+        if (action === 'reject' || action === 'block') {
+            setPendingConfirmAction(action)
+            return
+        }
+        setPendingConfirmAction(null)
+        void runAction(action)
+    }, [runAction])
+
+    useEffect(() => {
+        if (selectedCount === 0) {
+            setPendingConfirmAction(null)
+        }
+    }, [selectedCount])
 
     return (
         <div
@@ -312,6 +328,48 @@ export function BulkActionBar({
                     </Button>
                 </div>
             </div>
+            {pendingConfirmAction ? (
+                <div
+                    className="flex w-full items-center justify-end gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+                    data-testid="bulk-confirm-row"
+                >
+                    <span className="text-sm text-destructive">
+                        {t(
+                            pendingConfirmAction === 'reject'
+                                ? 'bulkActions.confirmReject'
+                                : 'bulkActions.confirmBlock',
+                            {
+                                count: selectedCount,
+                                defaultValue: pendingConfirmAction === 'reject'
+                                    ? 'Reject {{count}} selected resume(s)?'
+                                    : 'Block {{count}} selected resume(s)?',
+                            }
+                        )}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-confirm-no"
+                        onClick={() => setPendingConfirmAction(null)}
+                        disabled={loading !== null}
+                    >
+                        {t('common.cancel', '取消')}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-confirm-yes"
+                        disabled={loading !== null}
+                        onClick={() => {
+                            const action = pendingConfirmAction
+                            setPendingConfirmAction(null)
+                            void runAction(action)
+                        }}
+                    >
+                        {t('common.confirm', '确认')}
+                    </Button>
+                </div>
+            ) : null}
             </div>
         </div>
     )

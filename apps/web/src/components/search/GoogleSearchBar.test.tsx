@@ -237,17 +237,30 @@ describe('GoogleSearchBar', () => {
     expect(onApplyRecentSearch).toHaveBeenCalledWith(recentItem)
   })
 
-  it('clears the query on escape when the JD popover is closed', async () => {
+  it('clears only the draft on escape, preserving the committed query', async () => {
     const user = userEvent.setup()
-    const { onClear } = renderSearchBar({
+    const { onClear, onChange } = renderSearchBar({
       value: 'machine tools',
+      recentSearches: [],
       onApplyExtractedKeywords: vi.fn(),
     })
 
     await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
     await user.keyboard('{Escape}')
 
-    expect(onClear).toHaveBeenCalledTimes(1)
+    expect(onClear).not.toHaveBeenCalled()
+    expect(onChange).toHaveBeenCalledWith('')
+  })
+
+  it('does nothing on escape when the draft is empty', async () => {
+    const user = userEvent.setup()
+    const { onClear, onChange } = renderSearchBar({})
+
+    await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
+    await user.keyboard('{Escape}')
+
+    expect(onClear).not.toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('forwards the clear button click when the query is present', async () => {

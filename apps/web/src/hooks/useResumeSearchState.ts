@@ -2064,7 +2064,22 @@ export function useResumeSearchState() {
         }
       }
 
+      const processedCount = selectedItems.length
       clearSelection()
+
+      if (action === 'shortlist' || action === 'reject' || action === 'block') {
+        const successKey = action === 'shortlist'
+          ? 'bulkActions.successShortlist'
+          : action === 'reject'
+            ? 'bulkActions.successReject'
+            : 'bulkActions.successBlock'
+        const defaultValue = action === 'shortlist'
+          ? 'Shortlisted {{count}} resume(s)'
+          : action === 'reject'
+            ? 'Rejected {{count}} resume(s)'
+            : 'Blocked {{count}} resume(s)'
+        toast.success(t(successKey, { count: processedCount, defaultValue }))
+      }
     },
     [
       blockCandidates,

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
@@ -339,6 +339,86 @@ describe('FacetSidebar', () => {
     await user.keyboard('{Enter}')
 
     expect(onSetMinRoleYears).toHaveBeenCalledWith(10)
+  })
+
+  it('closes custom minRoleYears input on Escape', async () => {
+    const user = userEvent.setup()
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onSetSalaryRange={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
+      />
+    )
+
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    await user.click(customButtons[0])
+    expect(screen.getAllByRole('spinbutton').length).toBeGreaterThan(0)
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryAllByRole('spinbutton').length).toBe(0)
+    expect(onSetMinRoleYears).not.toHaveBeenCalled()
+  })
+
+  it('ignores Enter keydown during IME composition in minRoleYears input', () => {
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onSetSalaryRange={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
+      />
+    )
+
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    fireEvent.click(customButtons[0])
+    const input = screen.getAllByRole('spinbutton')[0]
+
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+
+    expect(onSetMinRoleYears).not.toHaveBeenCalled()
   })
 
   it('toggles age range filter pills', async () => {

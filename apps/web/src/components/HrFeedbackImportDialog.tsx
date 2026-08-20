@@ -88,9 +88,17 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
   const handleRawTextChange = (value: string) => {
     stateVersionRef.current += 1
     setRawText(value)
-    setRows([])
     setResults([])
     setImportCompleted(false)
+    try {
+      const parsedRows = parseHrFeedbackRows(value)
+      const validRows = parsedRows.filter((row) => row.resumeId.trim().length > 0)
+      setRows(validRows)
+    } catch (error) {
+      console.error('Failed to parse HR feedback rows', error)
+      setRows([])
+      toast.error(t('resumes.hrFeedbackImport.parseFailed', { defaultValue: 'Failed to parse feedback rows' }))
+    }
   }
 
   const handleParse = () => {
@@ -122,7 +130,7 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
     }
 
     if (rows.length === 0) {
-      handleParse()
+      toast.error(t('resumes.hrFeedbackImport.noRows', { defaultValue: 'No feedback rows found' }))
       return
     }
 

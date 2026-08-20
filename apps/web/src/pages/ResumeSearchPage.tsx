@@ -394,14 +394,6 @@ export function ResumeSearchPage() {
     setQueryInput(nextQuery)
   }
 
-  const handleBulkActionWithScroll = useCallback(
-    (...args: Parameters<typeof handleBulkAction>) => {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return handleBulkAction(...args)
-    },
-    [handleBulkAction],
-  )
-
   const mobileFilterProps = useMemo(
     () => ({
       facetCounts,
@@ -673,7 +665,7 @@ export function ResumeSearchPage() {
                   onSelectAll={selectAllVisible}
                   onSelectHighScore={selectHighScoreVisible}
                   onClearSelection={clearSelection}
-                  onBulkAction={handleBulkActionWithScroll}
+                  onBulkAction={handleBulkAction}
                   statusFilter={parsedState.filters.status}
                   onStatusFilterChange={setStatusFilters}
                   onStatusToggle={toggleStatus}
