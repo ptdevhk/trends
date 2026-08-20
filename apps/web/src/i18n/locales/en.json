@@ -702,7 +702,8 @@
     "defaultSalary": "Unit: k (thousands)",
     "defaultExp": "Default: min 1 year",
     "ageNotSupportedBySource": "Age filters are not available for the selected sources",
-    "contentPlaceholder": "Paste or edit JD markdown content"
+    "contentPlaceholder": "Paste or edit JD markdown content",
+    "customKeywordsPlaceholder": "e.g. 机床 车床"
   },
   "quickStart": {
     "quickFilters": "Filters",
@@ -2180,6 +2181,28 @@
     },
     "keywords": "Keywords: {{keywords}}",
     "unknownTitle": "Unknown"
+  },
+  "taskMonitor": {
+    "allCompleted": "All tasks completed ({{count}})",
+    "hideHistory": "Hide History",
+    "showHistory": "Show History",
+    "viewHistory": "View History",
+    "activeTitle": "Active Collections",
+    "historyTitle": "Collection History",
+    "workerWarning": "Pending tasks detected but no healthy scraper worker heartbeat is visible.",
+    "noActiveTasks": "No active tasks.",
+    "cancelling": "Cancelling...",
+    "cancel": "Cancel",
+    "progress": "Progress: {{current}} / {{limit}}",
+    "page": "Page {{page}}",
+    "worker": "Worker:",
+    "status": {
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "pending": "Pending"
+    }
   },
   "aiTagging": {
     "candidateLimit": "Candidate Limit",

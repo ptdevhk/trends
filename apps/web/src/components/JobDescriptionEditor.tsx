@@ -264,7 +264,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                         <KeywordInput
                             value={customKeywordsText}
                             onChange={setCustomKeywordsText}
-                            placeholder="e.g. 机床 车床"
+                            placeholder={t("jdEditor.customKeywordsPlaceholder", "e.g. 机床 车床")}
                         />
                     </div>
 

@@ -702,7 +702,8 @@
     "defaultSalary": "單位: k (千)",
     "defaultExp": "預設最少 1 年",
     "ageNotSupportedBySource": "目前所選來源不支援年齡篩選",
-    "contentPlaceholder": "可貼上或編輯職位 Markdown 內容"
+    "contentPlaceholder": "可貼上或編輯職位 Markdown 內容",
+    "customKeywordsPlaceholder": "例如：機床 車床"
   },
   "quickStart": {
     "quickFilters": "篩選條件",
@@ -2180,6 +2181,28 @@
     },
     "keywords": "關鍵字：{{keywords}}",
     "unknownTitle": "未知"
+  },
+  "taskMonitor": {
+    "allCompleted": "所有任務已完成（{{count}}）",
+    "hideHistory": "隱藏歷史",
+    "showHistory": "顯示歷史",
+    "viewHistory": "查看歷史",
+    "activeTitle": "正在採集",
+    "historyTitle": "採集歷史",
+    "workerWarning": "偵測到待處理任務，但未看到正常的採集 Worker 心跳。",
+    "noActiveTasks": "暫無進行中的任務。",
+    "cancelling": "正在取消...",
+    "cancel": "取消",
+    "progress": "進度：{{current}} / {{limit}}",
+    "page": "第 {{page}} 頁",
+    "worker": "Worker：",
+    "status": {
+      "processing": "處理中",
+      "completed": "已完成",
+      "failed": "失敗",
+      "cancelled": "已取消",
+      "pending": "等待中"
+    }
   },
   "aiTagging": {
     "candidateLimit": "候選人上限",

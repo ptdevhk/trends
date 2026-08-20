@@ -1967,6 +1967,7 @@
     "locationPlaceholder": "例如：东莞",
     "maxRelatedExp": "最高相关经验(年)",
     "contentPlaceholder": "可贴上或编辑职位 Markdown 内容",
+    "customKeywordsPlaceholder": "例如：机床 车床",
     "post": "职位名称",
     "maxAge": "最高年龄",
     "simpleMode": "基本信息"
@@ -2207,6 +2208,28 @@
     },
     "keywords": "关键词：{{keywords}}",
     "unknownTitle": "未知"
+  },
+  "taskMonitor": {
+    "allCompleted": "所有任务已完成（{{count}}）",
+    "hideHistory": "隐藏历史",
+    "showHistory": "显示历史",
+    "viewHistory": "查看历史",
+    "activeTitle": "正在采集",
+    "historyTitle": "采集历史",
+    "workerWarning": "检测到待处理任务，但未看到正常的采集 Worker 心跳。",
+    "noActiveTasks": "暂无进行中的任务。",
+    "cancelling": "正在取消...",
+    "cancel": "取消",
+    "progress": "进度：{{current}} / {{limit}}",
+    "page": "第 {{page}} 页",
+    "worker": "Worker：",
+    "status": {
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "pending": "等待中"
+    }
   },
   "aiTagging": {
     "candidateLimit": "候选人上限",

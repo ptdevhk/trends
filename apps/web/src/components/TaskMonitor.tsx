@@ -7,8 +7,10 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import type { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { formatInAppTimezone } from '@/lib/timezone'
+import { useTranslation } from 'react-i18next'
 
 export function TaskMonitor() {
+    const { t } = useTranslation()
     const tasks = useQuery(api.resume_tasks.list)
     const workerHealth = useQuery(api.resume_tasks.getWorkerHealth, { freshnessMs: 15_000 })
     const [showHistory, setShowHistory] = useState(false)
@@ -38,10 +40,10 @@ export function TaskMonitor() {
                 <CardContent className="py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <span>All tasks completed ({finishedTasks.length})</span>
+                        <span>{t('taskMonitor.allCompleted', { defaultValue: 'All tasks completed ({{count}})', count: finishedTasks.length })}</span>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)} className="h-8 text-xs">
-                        {showHistory ? "Hide History" : "Show History"}
+                        {showHistory ? t('taskMonitor.hideHistory', { defaultValue: 'Hide History' }) : t('taskMonitor.showHistory', { defaultValue: 'Show History' })}
                     </Button>
                 </CardContent>
             </Card>
@@ -58,7 +60,7 @@ export function TaskMonitor() {
                         ) : (
                             <Clock className="h-5 w-5 text-muted-foreground" />
                         )}
-                        {hasActive ? "Active Collections" : "Collection History"}
+                        {hasActive ? t('taskMonitor.activeTitle', { defaultValue: 'Active Collections' }) : t('taskMonitor.historyTitle', { defaultValue: 'Collection History' })}
                     </CardTitle>
                     {finishedTasks.length > 0 && (
                         <Button
@@ -68,7 +70,7 @@ export function TaskMonitor() {
                             className="text-xs h-8"
                         >
                             {showHistory ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
-                            {showHistory ? "Hide History" : "View History"}
+                            {showHistory ? t('taskMonitor.hideHistory', { defaultValue: 'Hide History' }) : t('taskMonitor.viewHistory', { defaultValue: 'View History' })}
                         </Button>
                     )}
                 </div>
@@ -76,7 +78,7 @@ export function TaskMonitor() {
             <CardContent className="pt-4 space-y-4">
                 {showWorkerWarning && (
                     <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                        Pending tasks detected but no healthy scraper worker heartbeat is visible.
+                        {t('taskMonitor.workerWarning', { defaultValue: 'Pending tasks detected but no healthy scraper worker heartbeat is visible.' })}
                     </div>
                 )}
 
@@ -89,7 +91,7 @@ export function TaskMonitor() {
                 ))}
 
                 {!hasActive && !showHistory && (
-                    <p className="text-sm text-muted-foreground text-center py-2">No active tasks.</p>
+                    <p className="text-sm text-muted-foreground text-center py-2">{t('taskMonitor.noActiveTasks', { defaultValue: 'No active tasks.' })}</p>
                 )}
             </CardContent>
         </Card>
@@ -97,6 +99,7 @@ export function TaskMonitor() {
 }
 
 function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?: (args: { taskId: Id<"collection_tasks"> }) => Promise<void | null> }) {
+    const { t } = useTranslation()
     const isActive = task.status === 'pending' || task.status === 'processing'
 
     return (
@@ -111,10 +114,10 @@ function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?
                                 task.status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
                                     'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                         }`}>
-                        {task.status === 'processing' ? 'Processing' :
-                            task.status === 'completed' ? 'Completed' :
-                                task.status === 'failed' ? 'Failed' :
-                                    task.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                        {task.status === 'processing' ? t('taskMonitor.status.processing', { defaultValue: 'Processing' }) :
+                            task.status === 'completed' ? t('taskMonitor.status.completed', { defaultValue: 'Completed' }) :
+                                task.status === 'failed' ? t('taskMonitor.status.failed', { defaultValue: 'Failed' }) :
+                                    task.status === 'cancelled' ? t('taskMonitor.status.cancelled', { defaultValue: 'Cancelled' }) : t('taskMonitor.status.pending', { defaultValue: 'Pending' })}
                     </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -129,11 +132,11 @@ function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?
                             onClick={async (e) => {
                                 const btn = e.currentTarget;
                                 btn.disabled = true;
-                                btn.innerText = 'Cancelling...';
+                                btn.innerText = t('taskMonitor.cancelling', { defaultValue: 'Cancelling...' });
                                 await onCancel({ taskId: task._id });
                             }}
                         >
-                            Cancel
+                            {t('taskMonitor.cancel', { defaultValue: 'Cancel' })}
                         </Button>
                     )}
                 </div>
@@ -142,9 +145,9 @@ function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?
             <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
-                        <span>Progress: {task.progress.current} / {task.config.limit}</span>
+                        <span>{t('taskMonitor.progress', { defaultValue: 'Progress: {{current}} / {{limit}}', current: task.progress.current, limit: task.config.limit })}</span>
                         {task.status === 'processing' && task.progress.page > 0 && (
-                            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">Page {task.progress.page}</span>
+                            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{t('taskMonitor.page', { defaultValue: 'Page {{page}}', page: task.progress.page })}</span>
                         )}
                     </div>
                     <span>{Math.round((task.progress.current / task.config.limit) * 100)}%</span>
@@ -159,7 +162,7 @@ function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?
 
                 {task.workerId && (
                     <p className="text-[9px] text-muted-foreground/60 mt-1">
-                        Worker: <span className="font-mono">{task.workerId.split('-').pop()}</span>
+                        {t('taskMonitor.worker', { defaultValue: 'Worker:' })} <span className="font-mono">{task.workerId.split('-').pop()}</span>
                     </p>
                 )}
             </div>
