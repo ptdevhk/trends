@@ -812,7 +812,10 @@ export const ResumeCard = memo(function ResumeCard({
                 variant="outline"
                 size="icon"
                 onClick={() => setShowOutreach(true)}
-                aria-label={t('resumes.actions.contact', 'Contact')}
+                aria-label={t('resumes.actions.contact', { defaultValue: 'Contact' })}
+                title={!matchResult
+                  ? t('resumes.actions.contactDisabledHint', { defaultValue: 'Requires AI analysis to draft outreach' })
+                  : t('resumes.actions.contact', { defaultValue: 'Contact' })}
                 disabled={!matchResult}
               >
                 <Phone className="h-3.5 w-3.5" />

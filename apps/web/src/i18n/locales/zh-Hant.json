@@ -382,10 +382,21 @@
       "star": "收藏",
       "shortlist": "入選",
       "reject": "淘汰",
-      "contact": "聯絡"
+      "contact": "聯絡",
+      "actionSaved": "{{action}} 已儲存",
+      "actionFailed": "操作失敗，請重試",
+      "unblocked": "已取消封鎖",
+      "unblockFailed": "取消封鎖失敗，請重試",
+      "blocked": "已封鎖候選人",
+      "blockFailed": "封鎖失敗，請重試",
+      "statusUpdateFailed": "更新候選人狀態失敗，請重試",
+      "contactDisabledHint": "需要先完成 AI 分析才能起草聯繫文案"
     },
     "rating": {
-      "starValue": "{{count}} 星"
+      "starValue": "{{count}} 星",
+      "cleared": "評分已清除",
+      "saved": "評分已儲存: {{count}}星",
+      "saveFailed": "評分儲存失敗"
     },
     "ratingComment": {
       "title": "新增評價備註",
@@ -657,7 +668,11 @@
     "loadingMore": "載入更多...",
     "noResumes": "未找到簡歷",
     "noResumesDesc": "請嘗試調整篩選條件或搜尋關鍵詞。",
-    "loadedCount": "目前已載入 {{loaded}} 份簡歷"
+    "loadedCount": "目前已載入 {{loaded}} 份簡歷",
+    "notes": {
+      "saveSuccess": "備註已儲存",
+      "saveFailed": "備註儲存失敗"
+    }
   },
   "aiTasks": {
     "dispatched": "分析任務已建立",
@@ -683,7 +698,12 @@
     },
     "noNewCandidates": "匹配結果中沒有新的候選人需要分析。",
     "dispatchedTop": "正在分析前 {{count}} 位候選人...",
-    "lowKeywordMatch": "關鍵詞可能與顯示的簡歷不匹配。建議先收集新簡歷。"
+    "lowKeywordMatch": "關鍵詞可能與顯示的簡歷不匹配。建議先收集新簡歷。",
+    "unavailableForAccount": "當前帳號無法使用 AI 分析。",
+    "noNewCandidatesLoaded": "載入的結果中沒有可分析的新候選人。",
+    "analyzingCount": "正在分析 {{count}} 份履歷...",
+    "analyzingBatch": "正在分析 {{count}} 份履歷（還有 {{remaining}} 份待處理）...",
+    "dispatchFailedFull": "AI 分析啟動失敗，請重試。"
   },
   "syncNotifications": {
     "success": "已同步 {{submitted}} 份簡歷 ({{inserted}} 新增, {{updated}} 更新)",
@@ -700,7 +720,7 @@
     "location": "工作地點",
     "locationPlaceholder": "例如：東莞",
     "industryTags": "行業標籤",
-    "customKeywords": "自定義:",
+    "customKeywords": "自定義",
     "relatedExp": "相關經驗",
     "minRelatedExp": "最低相關經驗(年)",
     "maxRelatedExp": "最高相關經驗(年)",
@@ -810,7 +830,9 @@
     "shortcutsTitle": "快捷方式",
     "workflows": "工作流",
     "collectJob51Hint": "最多收集 {{effectiveLimit}} 份簡歷，跨 {{effectiveMaxPages}} 頁。",
-    "shellDescription": "保持頂層 shell 專注於搜尋。歷史記錄、收集和維護操作位於下一層。"
+    "shellDescription": "保持頂層 shell 專注於搜尋。歷史記錄、收集和維護操作位於下一層。",
+    "hideLocationKeywords": "隱藏地點關鍵詞",
+    "showLocationKeywords": "顯示地點關鍵詞"
   },
   "searchProfiles": {
     "nav": "搜尋配置",
@@ -2365,7 +2387,9 @@
   },
   "feedback": {
     "failed": "保存反饋失敗",
-    "saved": "反饋已保存"
+    "saved": "反饋已保存",
+    "likeAria": "點讚 {{label}}",
+    "unlikeAria": "取消點讚 {{label}}"
   },
   "manualResumeImport": {
     "clearFiles": "清除",
@@ -2791,7 +2815,9 @@
     "hotlistLoading": "加载中…",
     "openHotlistTab": "查看综合热榜",
     "tabBrand": "品牌动态",
-    "tabHotlist": "综合热榜"
+    "tabHotlist": "综合热榜",
+    "signalCountBadge": "{{count}} 條訊號",
+    "seedMeta": "種子 id: {{id}}"
   },
   "publicShare": {
     "queryAria": "共享快照查詢",

@@ -219,29 +219,29 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{initialData?.type === "custom" ? t("jdEditor.editTitle", "Edit Job Description") : t("jdEditor.createTitle", "Create Custom Job Description")}</DialogTitle>
+                    <DialogTitle>{initialData?.type === "custom" ? t("jdEditor.editTitle", { defaultValue: "Edit Job Description" }) : t("jdEditor.createTitle", { defaultValue: "Create Custom Job Description" })}</DialogTitle>
                     <DialogDescription>
-                        {t("jdEditor.description", "Define role requirements and matching criteria for better AI analysis.")}
+                        {t("jdEditor.description", { defaultValue: "Define role requirements and matching criteria for better AI analysis." })}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="title">{t("jdEditor.post", "Job Title")}</Label>
-                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("jdEditor.postPlaceholder", "e.g. Senior Backend Engineer")} />
+                        <Label htmlFor="title">{t("jdEditor.post", { defaultValue: "Job Title" })}</Label>
+                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("jdEditor.postPlaceholder", { defaultValue: "e.g. Senior Backend Engineer" })} />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="location">{t("jdEditor.location", "地区:")}</Label>
+                        <Label htmlFor="location">{t("jdEditor.location", { defaultValue: "地区" })}</Label>
                         <LocationSelector
                             id="location"
                             value={location}
                             onChange={setLocation}
-                            placeholder={t("jdEditor.locationPlaceholder", "e.g. Dongguan")}
+                            placeholder={t("jdEditor.locationPlaceholder", { defaultValue: "e.g. Dongguan" })}
                         />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label>{t("jdEditor.industryTags", "Industry Tags")}</Label>
+                        <Label>{t("jdEditor.industryTags", { defaultValue: "Industry Tags" })}</Label>
                         <div className="flex flex-wrap gap-2">
                             {INDUSTRY_TAG_OPTIONS.map((tag) => {
                                 const selected = industryTags.includes(tag)
@@ -260,18 +260,18 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     </div>
 
                     <div className="grid gap-2">
-                        <Label>{t("jdEditor.customKeywords", "关键词:")}</Label>
+                        <Label>{t("jdEditor.customKeywords", { defaultValue: "关键词" })}</Label>
                         <KeywordInput
                             value={customKeywordsText}
                             onChange={setCustomKeywordsText}
-                            placeholder={t("jdEditor.customKeywordsPlaceholder", "e.g. 机床 车床")}
+                            placeholder={t("jdEditor.customKeywordsPlaceholder", { defaultValue: "e.g. 机床 车床" })}
                         />
                     </div>
 
                     <div className="grid gap-2">
                         <div className="grid grid-cols-2 gap-3">
                             <div className="grid gap-2">
-                                <Label htmlFor="minExperience">{t("jdEditor.minRelatedExp", "最低相关经验(年)")}</Label>
+                                <Label htmlFor="minExperience">{t("jdEditor.minRelatedExp", { defaultValue: "最低相关经验(年)" })}</Label>
                                 <Input
                                     id="minExperience"
                                     type="number"
@@ -281,7 +281,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="maxExperience">{t("jdEditor.maxRelatedExp", "最高相关经验(年)")}</Label>
+                                <Label htmlFor="maxExperience">{t("jdEditor.maxRelatedExp", { defaultValue: "最高相关经验(年)" })}</Label>
                                 <Input
                                     id="maxExperience"
                                     type="number"
@@ -291,13 +291,13 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                                 />
                             </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{t("jdEditor.defaultExp", "Default: min 1 year")}</span>
+                        <span className="text-xs text-muted-foreground">{t("jdEditor.defaultExp", { defaultValue: "Default: min 1 year" })}</span>
                     </div>
 
                     <div className="grid gap-2">
                         <div className="grid grid-cols-2 gap-3">
                             <div className="grid gap-2">
-                                <Label htmlFor="minAge">{t("jdEditor.minAge", "Min Age")}</Label>
+                                <Label htmlFor="minAge">{t("jdEditor.minAge", { defaultValue: "Min Age" })}</Label>
                                 <Input
                                     id="minAge"
                                     type="number"
@@ -307,7 +307,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="maxAge">{t("jdEditor.maxAge", "Max Age")}</Label>
+                                <Label htmlFor="maxAge">{t("jdEditor.maxAge", { defaultValue: "Max Age" })}</Label>
                                 <Input
                                     id="maxAge"
                                     type="number"
@@ -321,13 +321,13 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
 
                     <div className="pt-1">
                         <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={toggleAdvancedMode}>
-                            {advancedMode ? t("jdEditor.simpleMode", "Basic Info") : t("jdEditor.advancedMode", "Advanced")}
+                            {advancedMode ? t("jdEditor.simpleMode", { defaultValue: "Basic Info" }) : t("jdEditor.advancedMode", { defaultValue: "Advanced" })}
                         </Button>
                     </div>
 
                     {advancedMode && (
                         <div className="grid gap-2">
-                            <Label htmlFor="content">{t("jdEditor.advancedMode", "Advanced")}</Label>
+                            <Label htmlFor="content">{t("jdEditor.advancedMode", { defaultValue: "Advanced" })}</Label>
                             <Textarea
                                 id="content"
                                 value={content}
@@ -335,15 +335,15 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                                     setContent(e.target.value)
                                     setAdvancedContentTouched(true)
                                 }}
-                                placeholder={t("jdEditor.contentPlaceholder", "Paste the job description markdown here...")}
+                                placeholder={t("jdEditor.contentPlaceholder", { defaultValue: "Paste the job description markdown here..." })}
                                 className="min-h-[280px] font-mono text-sm"
                             />
                         </div>
                     )}
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t("jdManagement.cancel", "Cancel")}</Button>
-                    <Button onClick={handleSave} disabled={loading}>{loading ? t("searchProfiles.saving", "Saving...") : t("searchProfiles.save", "Save")}</Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t("jdManagement.cancel", { defaultValue: "Cancel" })}</Button>
+                    <Button onClick={handleSave} disabled={loading}>{loading ? t("searchProfiles.saving", { defaultValue: "Saving..." }) : t("searchProfiles.save", { defaultValue: "Save" })}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

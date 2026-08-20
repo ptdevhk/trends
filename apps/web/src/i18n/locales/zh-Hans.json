@@ -382,10 +382,21 @@
       "star": "收藏",
       "shortlist": "入选",
       "reject": "淘汰",
-      "contact": "联系"
+      "contact": "联系",
+      "actionSaved": "{{action}} 已保存",
+      "actionFailed": "操作失败，请重试",
+      "unblocked": "已取消屏蔽",
+      "unblockFailed": "取消屏蔽失败，请重试",
+      "blocked": "已屏蔽候选人",
+      "blockFailed": "屏蔽失败，请重试",
+      "statusUpdateFailed": "更新候选人状态失败，请重试",
+      "contactDisabledHint": "需要先完成 AI 分析才能起草联系文案"
     },
     "rating": {
-      "starValue": "{{count}} 星"
+      "starValue": "{{count}} 星",
+      "cleared": "评分已清除",
+      "saved": "评分已保存: {{count}}星",
+      "saveFailed": "评分保存失败"
     },
     "ratingComment": {
       "title": "添加评价备注",
@@ -685,7 +696,11 @@
     "loadingMore": "加载更多...",
     "noResumes": "未找到简历",
     "noResumesDesc": "请尝试调整筛选条件或搜索关键词。",
-    "loadedCount": "目前已加载 {{loaded}} 份简历"
+    "loadedCount": "目前已加载 {{loaded}} 份简历",
+    "notes": {
+      "saveSuccess": "备注已保存",
+      "saveFailed": "备注保存失败"
+    }
   },
   "platforms": {
     "baidu": "百度热搜",
@@ -1818,7 +1833,12 @@
     "analyzing": "分析中...",
     "noNewCandidates": "匹配结果中没有新的候选人需要分析。",
     "dispatchedTop": "正在分析前 {{count}} 位候选人...",
-    "lowKeywordMatch": "关键词可能与显示的简历不匹配。建议先收集新简历。"
+    "lowKeywordMatch": "关键词可能与显示的简历不匹配。建议先收集新简历。",
+    "unavailableForAccount": "当前账号无法使用 AI 分析。",
+    "noNewCandidatesLoaded": "加载的结果中没有可分析的新候选人。",
+    "analyzingCount": "正在分析 {{count}} 份简历...",
+    "analyzingBatch": "正在分析 {{count}} 份简历（还有 {{remaining}} 份待处理）...",
+    "dispatchFailedFull": "AI 分析启动失败，请重试。"
   },
   "settings": {
     "searchSetup": {
@@ -2032,7 +2052,7 @@
     "minSalary": "最低期望薪资",
     "maxSalary": "最高期望薪资",
     "defaultSalary": "单位: k (千)",
-    "customKeywords": "自定义:",
+    "customKeywords": "自定义",
     "minRelatedExp": "最低相关经验(年)",
     "locationPlaceholder": "例如：东莞",
     "maxRelatedExp": "最高相关经验(年)",
@@ -2137,7 +2157,9 @@
     "shortcutsTitle": "快捷方式",
     "workflows": "工作流",
     "collectJob51Hint": "最多收集 {{effectiveLimit}} 份简历，跨 {{effectiveMaxPages}} 页。",
-    "shellDescription": "保持顶层 shell 专注于搜索。历史记录、收集和维护操作位于下一层。"
+    "shellDescription": "保持顶层 shell 专注于搜索。历史记录、收集和维护操作位于下一层。",
+    "hideLocationKeywords": "隐藏地点关键词",
+    "showLocationKeywords": "显示地点关键词"
   },
   "time": {
     "justNow": "刚刚",
@@ -2392,7 +2414,9 @@
   },
   "feedback": {
     "failed": "保存反馈失败",
-    "saved": "反馈已保存"
+    "saved": "反馈已保存",
+    "likeAria": "点赞 {{label}}",
+    "unlikeAria": "取消点赞 {{label}}"
   },
   "manualResumeImport": {
     "clearFiles": "清除",
@@ -2818,7 +2842,9 @@
     "hotlistLoading": "加载中…",
     "openHotlistTab": "查看综合热榜",
     "tabBrand": "品牌动态",
-    "tabHotlist": "综合热榜"
+    "tabHotlist": "综合热榜",
+    "signalCountBadge": "{{count}} 条信号",
+    "seedMeta": "种子 id: {{id}}"
   },
   "publicShare": {
     "queryAria": "共享快照查询",

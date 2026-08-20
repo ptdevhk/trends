@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -12,6 +13,7 @@ interface LocationSelectorProps {
 }
 
 export function LocationSelector({ value, onChange, placeholder, id }: LocationSelectorProps) {
+    const { t } = useTranslation()
     const { grouped } = useIndustryKeywords()
     const availableLocationKeywords = grouped.location || []
     const [expanded, setExpanded] = useState(false)
@@ -57,7 +59,9 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                         onClick={() => setExpanded(!expanded)}
                         aria-expanded={expanded}
                         aria-controls="location-keywords-tray"
-                        aria-label={expanded ? "Hide location keywords" : "Show location keywords"}
+                        aria-label={expanded
+                            ? t('quickStart.hideLocationKeywords', { defaultValue: 'Hide location keywords' })
+                            : t('quickStart.showLocationKeywords', { defaultValue: 'Show location keywords' })}
                     >
                         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>

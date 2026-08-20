@@ -383,10 +383,21 @@
       "star": "Star",
       "shortlist": "Shortlist",
       "reject": "Reject",
-      "contact": "Contact"
+      "contact": "Contact",
+      "actionSaved": "{{action}} saved",
+      "actionFailed": "Action failed. Please try again.",
+      "unblocked": "Unblocked",
+      "unblockFailed": "Failed to unblock. Please try again.",
+      "blocked": "Candidate blocked",
+      "blockFailed": "Failed to block. Please try again.",
+      "statusUpdateFailed": "Failed to update candidate status. Please try again.",
+      "contactDisabledHint": "Requires AI analysis to draft outreach"
     },
     "rating": {
-      "starValue": "{{count}} star"
+      "starValue": "{{count}} star",
+      "cleared": "Rating cleared",
+      "saved": "Rating saved: {{count}} stars",
+      "saveFailed": "Failed to save rating"
     },
     "ratingComment": {
       "title": "Add Rating Note",
@@ -657,7 +668,11 @@
     "loadingMore": "Loading more...",
     "noResumes": "No resumes found",
     "noResumesDesc": "Try adjusting your filters or search keywords.",
-    "loadedCount": "Loaded {{loaded}} resumes so far"
+    "loadedCount": "Loaded {{loaded}} resumes so far",
+    "notes": {
+      "saveSuccess": "Note saved",
+      "saveFailed": "Failed to save note"
+    }
   },
   "aiTasks": {
     "dispatched": "Analysis task dispatched",
@@ -683,7 +698,12 @@
     },
     "noNewCandidates": "No new candidates to analyze among top matches.",
     "dispatchedTop": "Analyzing top {{count}} candidates...",
-    "lowKeywordMatch": "Keywords may not match displayed resumes. Consider collecting new resumes first."
+    "lowKeywordMatch": "Keywords may not match displayed resumes. Consider collecting new resumes first.",
+    "unavailableForAccount": "AI analysis is unavailable for this account.",
+    "noNewCandidatesLoaded": "No new candidates to analyze among loaded results.",
+    "analyzingCount": "Analyzing {{count}} resumes...",
+    "analyzingBatch": "Analyzing batch of {{count}} resumes ({{remaining}} more pending)...",
+    "dispatchFailedFull": "Failed to start AI analysis. Please try again."
   },
   "syncNotifications": {
     "success": "Synced {{submitted}} resumes ({{inserted}} new, {{updated}} updated)",
@@ -700,7 +720,7 @@
     "location": "Location",
     "locationPlaceholder": "e.g. Dongguan",
     "industryTags": "Industry Tags",
-    "customKeywords": "Custom Keywords:",
+    "customKeywords": "Custom Keywords",
     "relatedExp": "Related Experience",
     "minRelatedExp": "Min Exp (yrs)",
     "maxRelatedExp": "Max Exp (yrs)",
@@ -810,7 +830,9 @@
     "shortcutsTitle": "Shortcuts",
     "workflows": "Landing quick starts",
     "collectJob51Hint": "Collecting up to {{effectiveLimit}} resumes across {{effectiveMaxPages}} page(s).",
-    "shellDescription": "Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower."
+    "shellDescription": "Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower.",
+    "hideLocationKeywords": "Hide location keywords",
+    "showLocationKeywords": "Show location keywords"
   },
   "searchProfiles": {
     "nav": "Search Profiles",
@@ -2365,7 +2387,9 @@
   },
   "feedback": {
     "failed": "Failed to save feedback",
-    "saved": "Feedback saved"
+    "saved": "Feedback saved",
+    "likeAria": "Like {{label}}",
+    "unlikeAria": "Unlike {{label}}"
   },
   "manualResumeImport": {
     "clearFiles": "Clear",
@@ -2791,7 +2815,9 @@
     "hotlistLoading": "Loading…",
     "openHotlistTab": "View hotlist",
     "tabBrand": "Brand pulse",
-    "tabHotlist": "Hotlist"
+    "tabHotlist": "Hotlist",
+    "signalCountBadge": "{{count}} signals",
+    "seedMeta": "Seed id: {{id}}"
   },
   "publicShare": {
     "queryAria": "Shared snapshot query",

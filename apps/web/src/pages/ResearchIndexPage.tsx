@@ -154,6 +154,7 @@ function CompanyCardGrid({
   emptyLabel: string
   teamSlug: string
 }) {
+  const { t } = useTranslation()
   if (cards.length === 0) {
     return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
   }
@@ -178,13 +179,13 @@ function CompanyCardGrid({
               ) : null}
               {card.showcase ? (
                 <Badge variant="secondary" data-testid="showcase-data-badge">
-                  展示数据
+                  {t('research.showcaseBadge', { defaultValue: '展示数据' })}
                 </Badge>
               ) : null}
             </div>
             <div className="mt-1 font-mono text-xs text-muted-foreground">{card.companyKey}</div>
             <div className="mt-2 flex flex-wrap gap-1">
-              <Badge variant="outline">{card.signalCount} 条信号</Badge>
+              <Badge variant="outline">{t('research.signalCountBadge', { count: card.signalCount, defaultValue: '{{count}} 条信号' })}</Badge>
               {Object.entries(card.kindCounts).map(([kind, count]) => (
                 <Badge key={kind} variant="outline" className="text-[10px]">
                   {researchSignalKindLabel(kind)}:{count}
@@ -578,7 +579,7 @@ export function ResearchIndexPage() {
         ) : null}
         {showcase?.meta?.seedIngestRunId ? (
           <span className="text-xs text-muted-foreground" data-testid="research-seed-meta">
-            种子 id: {showcase.meta.seedIngestRunId}
+            {t('research.seedMeta', { id: showcase.meta.seedIngestRunId, defaultValue: '种子 id: {{id}}' })}
           </span>
         ) : null}
       </div>

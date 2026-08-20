@@ -1726,7 +1726,7 @@ export function useResumeSearchState() {
       }
 
       await submitResumeExportDownload(apiBaseUrl, exportRequest)
-      toast.info(`Started export for ${exportCandidates.length} resumes`)
+      toast.info(t('bulk.exportStarted', { count: exportCandidates.length, defaultValue: 'Started export for {{count}} resumes' }))
     } catch (error) {
       console.error('Failed to export search results', error)
       const message =
@@ -1737,21 +1737,21 @@ export function useResumeSearchState() {
     } finally {
       setExportingResults(false)
     }
-  }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey]) // selectedIds excluded on purpose — export uses snapshot at call time
+  }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey, t]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
     if (!dispatchAnalysis) {
-      toast.error('AI analysis is unavailable for this account.')
+      toast.error(t('aiTasks.unavailableForAccount', { defaultValue: 'AI analysis is unavailable for this account.' }))
       return
     }
 
     if (analysisDispatchBatchIds.length === 0) {
-      toast.info('No new candidates to analyze among loaded results.')
+      toast.info(t('aiTasks.noNewCandidatesLoaded', { defaultValue: 'No new candidates to analyze among loaded results.' }))
       return
     }
 
     if (hasActiveAnalysisTask) {
-      toast.info('Please wait for current analysis to complete.')
+      toast.info(t('aiTasks.waitForCompletion', { defaultValue: 'Please wait for current analysis to complete.' }))
       return
     }
 
@@ -1794,12 +1794,19 @@ export function useResumeSearchState() {
       const remaining = analysisCandidateResumeIds.length - analysisDispatchBatchIds.length
       toast.success(
         remaining > 0
-          ? `Analyzing batch of ${analysisDispatchBatchIds.length} resumes (${remaining} more pending)...`
-          : `Analyzing ${analysisDispatchBatchIds.length} resumes...`,
+          ? t('aiTasks.analyzingBatch', {
+              count: analysisDispatchBatchIds.length,
+              remaining,
+              defaultValue: 'Analyzing batch of {{count}} resumes ({{remaining}} more pending)...',
+            })
+          : t('aiTasks.analyzingCount', {
+              count: analysisDispatchBatchIds.length,
+              defaultValue: 'Analyzing {{count}} resumes...',
+            }),
       )
     } catch (error) {
       console.error('Failed to dispatch search analysis task', error)
-      toast.error('Failed to start AI analysis. Please try again.')
+      toast.error(t('aiTasks.dispatchFailedFull', { defaultValue: 'Failed to start AI analysis. Please try again.' }))
     } finally {
       setAnalyzingResults(false)
     }
@@ -1812,6 +1819,7 @@ export function useResumeSearchState() {
     hasActiveAnalysisTask,
     parsedState,
     recentSearches,
+    t,
   ])
 
   useEffect(() => {
@@ -1968,7 +1976,7 @@ export function useResumeSearchState() {
         (item) => item.resume.resumeId === resumeId || item.key === resumeId,
       )
       if (!targetItem?.identityKey) {
-        toast.error('备注保存失败')
+        toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         return
       }
 
@@ -1980,17 +1988,17 @@ export function useResumeSearchState() {
       void updateCandidateStatus(targetItem.identityKey, currentStatus, trimmed)
         .then((success) => {
           if (success) {
-            toast.success('备注已保存')
+            toast.success(t('resumes.notes.saveSuccess', { defaultValue: '备注已保存' }))
             return
           }
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
         .catch((error: unknown) => {
           console.error('Rating comment save failed', error)
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
     },
-    [filteredResults, statusByIdentity, updateCandidateStatus],
+    [filteredResults, statusByIdentity, t, updateCandidateStatus],
   )
 
   const handleCandidateStatusChange = useCallback(

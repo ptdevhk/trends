@@ -705,7 +705,7 @@ export const SnippetCard = memo(function SnippetCard({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+              {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               onClick={() => {
@@ -716,7 +716,7 @@ export const SnippetCard = memo(function SnippetCard({
                 }
               }}
             >
-              {t('common.confirm', 'Confirm')}
+              {t('common.confirm', { defaultValue: 'Confirm' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -746,7 +746,7 @@ export const SnippetCard = memo(function SnippetCard({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setBlockDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+              {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               onClick={() => {
@@ -754,7 +754,7 @@ export const SnippetCard = memo(function SnippetCard({
                 setBlockDialogOpen(false)
               }}
             >
-              {t('common.confirm', 'Confirm')}
+              {t('common.confirm', { defaultValue: 'Confirm' })}
             </Button>
           </DialogFooter>
         </DialogContent>

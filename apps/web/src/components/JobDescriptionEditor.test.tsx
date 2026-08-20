@@ -31,7 +31,8 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
 }))
 
-const mockT = (_key: string, fallback?: string) => fallback ?? _key;
+const mockT = (_key: string, opts?: string | { defaultValue?: string }) =>
+  typeof opts === 'string' ? opts : (opts?.defaultValue ?? _key);
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
