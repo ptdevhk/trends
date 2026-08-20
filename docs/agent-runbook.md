@@ -143,6 +143,7 @@ make check-project-skills
 - `AUTH_BOOTSTRAP_PASSWORD` / `AUTH_HR_DEMO_PASSWORD` are **seed-time only**: read by `scripts/auth/manage-user.ts` and `deploy/preview-seed-auth.sh`, never by the login endpoint (`apps/api/src/routes/auth.ts` verifies against the stored scrypt hash in SQLite). Editing the env file does NOT change the stored password — re-run the seed to apply (idempotent upsert).
 - Local dev credentials are independent of preview: `hr-demo`'s local password is whatever the local seed used, not the preview bootstrap password. If in doubt, re-run the seed and restart the API.
 - Login lockout: 5 failed attempts per username+IP within 15 min → 15-min in-memory lock (`429 Account temporarily locked`, see `apps/api/src/middleware/login-rate-limit.ts`). Cleared by API restart or `POST /api/admin/auth/unlock`.
+- **BFF manual restart must source `.env` first.** `bun run <pkg-script>` does not propagate `.env` to `tsx` children (F32 root cause). Restart the BFF with `set -a; source .env; set +a; nohup <command> &` — otherwise `/api/resumes/:id/analysis-tasks` returns 500s with Convex "Unauthorized Convex read" because the child process has no `CONVEX_WRITE_SECRET`.
 - After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too.
 - After changing shared generated search-profile templates or YAML profiles, rebuild `@trends/shared`.
 - `make clear-resumes` may hit `OptimisticConcurrencyControlFailure`; rerun until `partial:false`.
