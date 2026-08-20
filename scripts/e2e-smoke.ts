@@ -117,7 +117,7 @@ async function loadDeterministicSearchResults(page: Page) {
     await keywordInput.fill(DETERMINISTIC_SEARCH_QUERY);
 
     const resetBtn = page.getByRole('button', { name: /重置|Reset/i }).first();
-    const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
+    const firstCheckbox = page.getByRole('checkbox', { name: /选择|選擇|Select/i }).first();
     const emptyState = page.getByRole('heading', { name: SEARCH_EMPTY_STATE_PATTERN }).first();
     const searchSubmitBtn = page.getByTestId('resume-search-submit');
     // The search surfaces an explicit failure panel (with retry) instead of a
@@ -407,7 +407,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     const hasLegacyCollectLimit = await collectPageLimitInput.isVisible({ timeout: 1500 }).catch(() => false);
     if (hasLegacyCollectLimit) {
         await collectPageLimitInput.fill('3');
-        await page.getByRole('button', { name: /采集|Collect/i }).click();
+        await page.getByRole('button', { name: /采集|採集|Collect/i }).click();
 
         const openedUrl = await getFirstOpenedUrl();
         expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://my.employer.seek.com/candidates/recommended');
@@ -425,7 +425,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     await installOpenSpy();
     const collectButton = await preferVisibleLocator(
         page.getByTestId('search-hero-collect').first(),
-        page.getByRole('button', { name: /^(Collect|采集)$/ }).first(),
+        page.getByRole('button', { name: /^(Collect|采集|採集)$/ }).first(),
     );
     await collectButton.waitFor({ state: 'visible' });
     await collectButton.click();
@@ -641,20 +641,20 @@ async function runBulkActionsTest(page: Page) {
 
     const selectAllBtn = await preferVisibleLocator(
         page.getByTestId('bulk-select-all').first(),
-        page.getByRole('button', { name: /全选|Select All/i }),
+        page.getByRole('button', { name: /全选|全選|Select All/i }),
     );
     await selectAllBtn.waitFor({ state: 'visible' });
     await selectAllBtn.click();
 
     const clearSelectionBtn = await preferVisibleLocator(
         page.getByTestId('bulk-clear-selection').first(),
-        page.getByRole('button', { name: /取消选择|Clear Selection/i }).first(),
+        page.getByRole('button', { name: /取消选择|取消選擇|Clear Selection/i }).first(),
     );
     await expect(clearSelectionBtn).toBeVisible();
 
     const shortlistBtn = await preferVisibleLocator(
         page.getByTestId('bulk-shortlist').first(),
-        page.getByRole('button', { name: /批量入围|Shortlist/i }).first(),
+        page.getByRole('button', { name: /批量入围|批量入圍|Shortlist/i }).first(),
     );
     await shortlistBtn.click();
     await expect(clearSelectionBtn).toBeHidden({ timeout: 15000 });
@@ -686,8 +686,8 @@ async function runErrorStateTest(page: Page) {
 
     // 3. Verify the failure surfaces, either as the legacy retry UI or the
     // current empty-state fallback.
-    const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
-    const retryBtn = page.getByRole('button', { name: /Retry|重试|common\.retry/i });
+    const firstCheckbox = page.getByRole('checkbox', { name: /选择|選擇|Select/i }).first();
+    const retryBtn = page.getByRole('button', { name: /Retry|重试|重試|common\.retry/i });
     const emptyState = page.getByRole('heading', { name: SEARCH_EMPTY_STATE_PATTERN }).first();
     await expect.poll(async () => {
         const hasRetry = await retryBtn.isVisible().catch(() => false);
@@ -771,9 +771,9 @@ async function ensureDevAdminSession(page: Page) {
         });
     });
     await page.goto(`${baseUrl}/login`);
-    await page.getByLabel(/用户名|Username/i).fill('demo-admin');
-    await page.getByLabel(/密码|Password/i).fill(password);
-    await page.getByRole('button', { name: /登录|Sign in|Log in/i }).click();
+    await page.getByLabel(/用户名|使用者名稱|Username/i).fill('demo-admin');
+    await page.getByLabel(/密码|密碼|Password/i).fill(password);
+    await page.getByRole('button', { name: /登录|登入|Sign in|Log in/i }).click();
     await page.getByTestId('resume-search-input').waitFor({ state: 'visible', timeout: 15000 });
     console.log('✅ Logged in as demo-admin.');
 }
