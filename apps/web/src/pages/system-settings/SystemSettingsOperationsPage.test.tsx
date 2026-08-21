@@ -146,6 +146,25 @@ describe('SystemSettingsOperationsPage', () => {
     expect(mockToast.success).toHaveBeenCalledWith('Collection task dispatched')
   })
 
+  it('dispatches collection when pressing Enter in the keyword field', async () => {
+    const mockDispatch = vi.fn()
+    mockUseMutation.mockReturnValue(mockDispatch)
+    fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }))
+
+    const user = userEvent.setup()
+    render(<SystemSettingsOperationsPage />)
+
+    await user.type(screen.getByTestId('ops-collection-keyword'), 'Engineer{Enter}')
+
+    expect(mockDispatch).toHaveBeenCalledWith({
+      keyword: 'Engineer',
+      location: '广东',
+      limit: 200,
+      maxPages: 10,
+    })
+    expect(mockToast.success).toHaveBeenCalledWith('Collection task dispatched')
+  })
+
   it('shows toast error when keyword is empty', async () => {
     fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }))
     const user = userEvent.setup()

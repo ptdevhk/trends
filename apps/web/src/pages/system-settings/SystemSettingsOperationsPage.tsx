@@ -258,63 +258,68 @@ export function SystemSettingsOperationsPage() {
           <CardDescription>{t('debugConfig.resumeDataCollectionDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
-              <Input
-                id="col-keyword"
-                data-testid="ops-collection-keyword"
-                placeholder={t('debugConfig.keywordPlaceholder')}
-                value={collectionKeyword}
-                onChange={(event) => setCollectionKeyword(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
-              <Input
-                id="col-location"
-                data-testid="ops-collection-location"
-                placeholder={t('debugConfig.locationPlaceholder')}
-                value={collectionLocation}
-                onChange={(event) => setCollectionLocation(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
-              <Input
-                id="col-limit"
-                data-testid="ops-collection-limit"
-                type="number"
-                placeholder="200"
-                value={collectionLimit}
-                onChange={(event) => setCollectionLimit(event.target.value)}
-                onFocus={(event) => event.target.select()}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
-              <Input
-                id="col-max-pages"
-                data-testid="ops-collection-max-pages"
-                type="number"
-                placeholder="10"
-                value={collectionMaxPages}
-                onChange={(event) => setCollectionMaxPages(event.target.value)}
-                onFocus={(event) => event.target.select()}
-              />
-            </div>
-          </div>
-          <Button
-            data-testid="ops-start-collection"
-            onClick={() => {
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
               handleStartCollection().catch((error) => {
                 reportUiError('Unexpected handleStartCollection failure', error)
               })
             }}
-            className="w-full sm:w-auto"
           >
-            {t('debugConfig.startCollection')}
-          </Button>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
+                <Input
+                  id="col-keyword"
+                  data-testid="ops-collection-keyword"
+                  placeholder={t('debugConfig.keywordPlaceholder')}
+                  value={collectionKeyword}
+                  onChange={(event) => setCollectionKeyword(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
+                <Input
+                  id="col-location"
+                  data-testid="ops-collection-location"
+                  placeholder={t('debugConfig.locationPlaceholder')}
+                  value={collectionLocation}
+                  onChange={(event) => setCollectionLocation(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
+                <Input
+                  id="col-limit"
+                  data-testid="ops-collection-limit"
+                  type="number"
+                  placeholder="200"
+                  value={collectionLimit}
+                  onChange={(event) => setCollectionLimit(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
+                <Input
+                  id="col-max-pages"
+                  data-testid="ops-collection-max-pages"
+                  type="number"
+                  placeholder="10"
+                  value={collectionMaxPages}
+                  onChange={(event) => setCollectionMaxPages(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              data-testid="ops-start-collection"
+              className="w-full sm:w-auto"
+            >
+              {t('debugConfig.startCollection')}
+            </Button>
+          </form>
 
           {/* Reserve the "All tasks completed" card height so the TaskMonitor
               null→card flip never pushes content below it (CLS). */}

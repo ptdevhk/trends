@@ -1,7 +1,16 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { entryLabel, type EntryType, type IndustryDataEntry } from './industry-data-model'
 
 export function IndustryDataManagePanel({
@@ -32,6 +41,10 @@ export function IndustryDataManagePanel({
   onImport: () => void
 }) {
   const { t } = useTranslation()
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const pendingDeleteEntry = pendingDeleteId
+    ? entries.find((entry) => entry.entryId === pendingDeleteId)
+    : undefined
   return (
     <Card data-testid="industry-data-manage">
       <CardHeader>
@@ -102,7 +115,7 @@ export function IndustryDataManagePanel({
                         type="button"
                         size="sm"
                         variant="destructive"
-                        onClick={() => onDelete(entry.entryId)}
+                        onClick={() => setPendingDeleteId(entry.entryId)}
                       >
                         {t('debugConfig.industryDataDelete', { defaultValue: 'Delete' })}
                       </Button>
@@ -140,6 +153,54 @@ export function IndustryDataManagePanel({
           </Button>
         </div>
       </CardContent>
+
+      <Dialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setPendingDeleteId(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t('debugConfig.industryDataDeleteConfirmTitle', {
+                defaultValue: 'Delete industry data entry?',
+              })}
+            </DialogTitle>
+            <DialogDescription>
+              {t('debugConfig.industryDataDeleteConfirmBody', {
+                defaultValue: 'This permanently removes entry {{entryId}}.',
+                entryId: pendingDeleteEntry?.entryId ?? pendingDeleteId ?? '',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="industry-data-delete-cancel"
+              onClick={() => setPendingDeleteId(null)}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-testid="industry-data-delete-confirm"
+              onClick={() => {
+                if (pendingDeleteId !== null) {
+                  onDelete(pendingDeleteId)
+                }
+                setPendingDeleteId(null)
+              }}
+            >
+              {t('common.delete', { defaultValue: 'Delete' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

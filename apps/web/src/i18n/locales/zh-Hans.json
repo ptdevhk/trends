@@ -521,6 +521,8 @@
         "rangeMin": "最小值",
         "minRoleYearsInput": "相关经验（年）",
         "idOrNamePlaceholder": "ID / 姓名 / 外部ID",
+        "filterPlaceholder": "筛选选项…",
+        "noFilterMatches": "没有匹配的选项",
         "invalidValue": "请输入有效数字",
         "minExceedsMax": "最小值不能大于最大值"
       },
@@ -969,6 +971,8 @@
     "brandKeywordNameEn": "English",
     "missed": "已错过",
     "brandKeywordOrigin": "来源",
+    "brandKeywordSearchPlaceholder": "按中/英文名称搜索…",
+    "brandKeywordNoMatches": "没有匹配的条目",
     "presetName": "名称",
     "agents": "AI 审核阶段",
     "runtimePageMeta": "审核阶段：{{count}} 个",
@@ -1036,7 +1040,9 @@
       "saveChanges": "保存更改",
       "createClusterButton": "创建聚类",
       "namePlaceholder": "后端语言",
-      "tagsPlaceholder": "Go, Java, Rust"
+      "tagsPlaceholder": "Go, Java, Rust",
+      "deleteConfirmTitle": "删除分类聚类？",
+      "deleteConfirmBody": "此操作将永久移除聚类 {{name}}（{{slug}}）。"
     },
     "adminUsersTitle": "用户管理",
     "adminUsersDescription": "管理本地用户账户、工作区成员资格及验证状态。",
@@ -1104,6 +1110,8 @@
     "industryDataControlTitle": "控制中心",
     "industryDataDelete": "删除",
     "industryDataDeleteFailed": "删除条目失败",
+    "industryDataDeleteConfirmTitle": "删除行业数据条目？",
+    "industryDataDeleteConfirmBody": "此操作将永久移除条目 {{entryId}}。",
     "industryDataDeleted": "已删除（{{sha}}）",
     "industryDataEmpty": "没有条目。请从文件加载初始数据或导入 JSON。",
     "industryDataExport": "导出",
@@ -3017,6 +3025,7 @@
     "expiredDescription": "此快照链接已过期或被撤销。",
     "notFoundTitle": "找不到公开分享",
     "notFoundDescription": "快照链接不存在。",
-    "errorDescription": "无法加载快照。"
+    "errorDescription": "无法加载快照。",
+    "backToApp": "返回 Trends"
   }
 }

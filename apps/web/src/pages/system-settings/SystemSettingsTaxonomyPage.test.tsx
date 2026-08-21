@@ -177,6 +177,9 @@ describe('SystemSettingsTaxonomyPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
+    expect(screen.getByText('Delete taxonomy cluster?')).toBeInTheDocument()
+    await user.click(screen.getByTestId('taxonomy-delete-confirm'))
+
     await waitFor(() => {
       expect(requestJsonMock).toHaveBeenCalledWith('/api/taxonomy/cluster%2Fwith%20slash', {
         method: 'DELETE',
@@ -187,6 +190,29 @@ describe('SystemSettingsTaxonomyPage', () => {
       expect(screen.queryByText('Manufacturing Systems')).not.toBeInTheDocument()
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('debugConfig.saved')
+  })
+
+  it('cancelling the delete dialog does not call DELETE', async () => {
+    const user = userEvent.setup()
+    const cluster = buildCluster()
+
+    requestJsonMock.mockResolvedValue(buildPayload([cluster]))
+
+    render(<SystemSettingsTaxonomyPage />)
+
+    expect(await screen.findByText('Manufacturing Systems')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByText('Delete taxonomy cluster?')).toBeInTheDocument()
+    await user.click(screen.getByTestId('taxonomy-delete-cancel'))
+
+    expect(screen.queryByText('Delete taxonomy cluster?')).not.toBeInTheDocument()
+    const deleteCalls = requestJsonMock.mock.calls.filter(
+      (call) => typeof call[1] === 'object' && call[1] !== null && (call[1] as RequestInit).method === 'DELETE',
+    )
+    expect(deleteCalls).toHaveLength(0)
+    expect(toastSuccessMock).not.toHaveBeenCalled()
   })
 
   it('generates draft suggestions and refreshes the registry', async () => {

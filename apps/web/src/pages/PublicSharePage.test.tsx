@@ -720,5 +720,47 @@ describe('PublicSharePage', () => {
       expect(apiGetMock).toHaveBeenCalledWith('/api/public-shares/revoked-token')
     })
     expect(await screen.findByRole('heading', { name: 'Public share unavailable' })).toBeInTheDocument()
+    expect(screen.getByTestId('public-share-back')).toBeInTheDocument()
+    expect(screen.getByText('Back to Trends')).toBeInTheDocument()
+  })
+
+  it('shows a retry action on load error and reloads on click', async () => {
+    apiGetMock
+      .mockResolvedValueOnce({
+        error: { message: 'boom' },
+        response: { status: 500 },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          share: {
+            id: 'share-1',
+            title: 'Shared Resume Batch',
+            description: '',
+            token: 'public-token-1',
+            createdAt: 1,
+            expiresAt: 2,
+            member: null,
+            snapshot: {
+              scoringMode: 'hybrid',
+              promptVersion: 'p1',
+              skillConfigVersion: 's1',
+              payload: { results: [], search: { query: '', filters: {} } },
+            },
+          },
+        },
+      })
+
+    renderPublicShare()
+
+    expect(await screen.findByTestId('public-share-retry')).toBeInTheDocument()
+    expect(screen.getByText('Retry')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('public-share-retry'))
+
+    expect(await screen.findByRole('heading', { name: 'Shared Resume Batch' })).toBeInTheDocument()
+    expect(apiGetMock).toHaveBeenCalledTimes(2)
+    expect(apiGetMock).toHaveBeenNthCalledWith(2, '/api/public-shares/public-token-1')
   })
 })

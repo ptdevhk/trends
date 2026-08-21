@@ -597,3 +597,47 @@ describe('FacetSidebar a11y', () => {
     }
   })
 })
+
+describe('filterable facet groups (R1)', () => {
+  it('shows a filter input only for facets with more items than maxVisible', () => {
+    render(<FacetSidebar {...buildProps()} />)
+    // Only the tags facet (9 items > 8) is filterable; brands/companies stay unfiltered.
+    expect(screen.getAllByPlaceholderText('Filter options…')).toHaveLength(1)
+  })
+
+  it('filters tag options by case-insensitive text', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+    expect(screen.getByRole('button', { name: /Machine Tools/ })).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'cnc')
+
+    expect(screen.getByRole('button', { name: /CNC/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
+    // Show-more toggle is hidden while a filter is active.
+    expect(screen.queryByRole('button', { name: /Show 1 more/ })).not.toBeInTheDocument()
+  })
+
+  it('clears the tag filter with the clear button', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'cnc')
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(screen.getByRole('button', { name: /Machine Tools/ })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Filter options…')).toHaveValue('')
+  })
+
+  it('shows a no-matches message when the filter yields nothing', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'zzz')
+
+    expect(screen.getByText('No matching options')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
+  })
+})

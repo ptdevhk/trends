@@ -59,14 +59,14 @@ vi.mock('@/components/ui/card', () => ({
 }))
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={disabled}>{children}</button>
+  Button: ({ children, onClick, disabled, ...props }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean; [key: string]: unknown }) => (
+    <button onClick={onClick} disabled={disabled} data-testid={props['data-testid'] as string ?? undefined}>{children}</button>
   ),
 }))
 
 vi.mock('@/components/ui/input', () => ({
-  Input: ({ value, onChange, disabled }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled?: boolean }) => (
-    <input value={value} onChange={onChange} disabled={disabled} data-testid="input" />
+  Input: ({ value, onChange, disabled, ...props }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled?: boolean; [key: string]: unknown }) => (
+    <input value={value} onChange={onChange} disabled={disabled} data-testid={props['data-testid'] as string ?? 'input'} />
   ),
 }))
 
@@ -324,5 +324,64 @@ describe('SystemSettingsKeywordsPage', () => {
     await waitFor(() => {
       expect(requestJsonMock.mock.calls.length).toBeGreaterThan(2)
     })
+  })
+
+  it('filters brand keywords by name', async () => {
+    render(
+      <BrowserRouter>
+        <SystemSettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('华为')).toBeInTheDocument()
+    })
+    expect(screen.getByText('小米')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByTestId('brand-keyword-search'), 'huawei')
+
+    expect(screen.getByText('华为')).toBeInTheDocument()
+    expect(screen.getByText('Huawei')).toBeInTheDocument()
+    expect(screen.queryByText('小米')).not.toBeInTheDocument()
+    expect(screen.queryByText('Xiaomi')).not.toBeInTheDocument()
+  })
+
+  it('shows a no-matches row when the brand keyword filter yields nothing', async () => {
+    render(
+      <BrowserRouter>
+        <SystemSettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('华为')).toBeInTheDocument()
+    })
+
+    await userEvent.type(screen.getByTestId('brand-keyword-search'), 'zzz')
+
+    expect(screen.getByText('No matching entries')).toBeInTheDocument()
+    expect(screen.queryByText('华为')).not.toBeInTheDocument()
+    expect(screen.queryByText('小米')).not.toBeInTheDocument()
+  })
+
+  it('clears the brand keyword search and restores all rows', async () => {
+    render(
+      <BrowserRouter>
+        <SystemSettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('华为')).toBeInTheDocument()
+    })
+
+    await userEvent.type(screen.getByTestId('brand-keyword-search'), 'huawei')
+    expect(screen.queryByText('小米')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('brand-keyword-search-clear'))
+
+    expect(screen.getByTestId('brand-keyword-search')).toHaveValue('')
+    expect(screen.getByText('华为')).toBeInTheDocument()
+    expect(screen.getByText('小米')).toBeInTheDocument()
   })
 })

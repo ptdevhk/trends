@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -51,6 +51,7 @@ export function SystemSettingsKeywordsPage() {
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
   const [deleteCustomKeywordTargetId, setDeleteCustomKeywordTargetId] = useState<string | null>(null)
   const [deletingCustomKeyword, setDeletingCustomKeyword] = useState(false)
+  const [brandKeywordSearch, setBrandKeywordSearch] = useState('')
 
   const loadCustomKeywords = useCallback(async () => {
     const payload = await requestJson('/api/config/custom-keywords')
@@ -175,6 +176,18 @@ export function SystemSettingsKeywordsPage() {
       setDeletingCustomKeyword(false)
     }
   }, [deleteCustomKeywordTargetId, loadCustomKeywords, requestJson, t])
+
+  const filteredBrandKeywords = useMemo(() => {
+    const query = brandKeywordSearch.trim().toLowerCase()
+    if (!query) {
+      return brandKeywords
+    }
+    return brandKeywords.filter(
+      (item) =>
+        item.nameCn.toLowerCase().includes(query) ||
+        (item.nameEn ?? '').toLowerCase().includes(query),
+    )
+  }, [brandKeywordSearch, brandKeywords])
 
   return (
     <div className="space-y-6">
@@ -334,6 +347,30 @@ export function SystemSettingsKeywordsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  data-testid="brand-keyword-search"
+                  placeholder={t('debugConfig.brandKeywordSearchPlaceholder', {
+                    defaultValue: 'Search by CN/EN name…',
+                  })}
+                  value={brandKeywordSearch}
+                  onChange={(event) => setBrandKeywordSearch(event.target.value)}
+                  className="h-9"
+                />
+              </div>
+              {brandKeywordSearch ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="brand-keyword-search-clear"
+                  onClick={() => setBrandKeywordSearch('')}
+                >
+                  ×
+                </Button>
+              ) : null}
+            </div>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -345,14 +382,20 @@ export function SystemSettingsKeywordsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {brandKeywords.length === 0 ? (
+                  {filteredBrandKeywords.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                        {loading ? t('trends.loading') : t('debug.none')}
+                        {loading
+                          ? t('trends.loading')
+                          : brandKeywordSearch
+                            ? t('debugConfig.brandKeywordNoMatches', {
+                                defaultValue: 'No matching entries',
+                              })
+                            : t('debug.none')}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    brandKeywords.map((item) => (
+                    filteredBrandKeywords.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nameCn}</TableCell>
                         <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>

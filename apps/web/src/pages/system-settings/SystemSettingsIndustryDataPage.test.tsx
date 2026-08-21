@@ -13,7 +13,13 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }))
 
-const mockT = (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key;
+const mockT = (key: string, opts?: { defaultValue?: string }) => {
+  const value = opts?.defaultValue ?? key
+  if (!opts) return value
+  return value.replace(/\{\{(\w+)\}\}/g, (match: string, name: string) =>
+    String((opts as Record<string, unknown>)[name] ?? match),
+  )
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -37,7 +43,10 @@ import { SystemSettingsIndustryDataPage } from './SystemSettingsIndustryDataPage
 describe('SystemSettingsIndustryDataPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRequestJson.mockImplementation(async (path: string) => {
+    mockRequestJson.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/industry-data/entries') && init?.method === 'DELETE') {
+        return { success: true, gitSha: 'abc1234' }
+      }
       if (path.startsWith('/api/industry-data/entries')) {
         return {
           success: true,
@@ -108,6 +117,44 @@ describe('SystemSettingsIndustryDataPage', () => {
           method: 'POST',
           body: JSON.stringify({ companyKey: 'lung-kee-metal' }),
         }),
+      )
+    })
+    expect(mockToast.success).toHaveBeenCalled()
+  })
+
+  it('cancelling the row delete confirmation does not call DELETE', async () => {
+    const user = userEvent.setup()
+    render(<SystemSettingsIndustryDataPage />)
+
+    expect(await screen.findByText('发那科')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByText('Delete industry data entry?')).toBeInTheDocument()
+    expect(screen.getByText(/brand-1/)).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('industry-data-delete-cancel'))
+
+    expect(screen.queryByText('Delete industry data entry?')).not.toBeInTheDocument()
+    const deleteCalls = mockRequestJson.mock.calls.filter(
+      (call) => typeof call[1] === 'object' && call[1] !== null && (call[1] as RequestInit).method === 'DELETE',
+    )
+    expect(deleteCalls).toHaveLength(0)
+  })
+
+  it('deletes an entry after confirming the row delete dialog', async () => {
+    const user = userEvent.setup()
+    render(<SystemSettingsIndustryDataPage />)
+
+    expect(await screen.findByText('发那科')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByText('Delete industry data entry?')).toBeInTheDocument()
+    await user.click(screen.getByTestId('industry-data-delete-confirm'))
+
+    await waitFor(() => {
+      expect(mockRequestJson).toHaveBeenCalledWith(
+        '/api/industry-data/entries/brand-1',
+        expect.objectContaining({ method: 'DELETE' }),
       )
     })
     expect(mockToast.success).toHaveBeenCalled()

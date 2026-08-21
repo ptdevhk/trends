@@ -556,9 +556,9 @@ export function FacetSidebar({
         selectedValues={selectedClusters}
         onToggle={onToggleCluster}
       />
-      <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: 'Tag clusters' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
-      <FacetGroup title={t('resumes.searchPage.facets.brands', { defaultValue: 'Brand tags' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
-      <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: 'Company experience' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.tags', { defaultValue: 'Tag clusters' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.brands', { defaultValue: 'Brand tags' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.companies', { defaultValue: 'Company experience' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: 'Sources' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
       <PillGroup
         label={t('resumes.searchPage.facets.experienceLevel', { defaultValue: 'Experience level' })}

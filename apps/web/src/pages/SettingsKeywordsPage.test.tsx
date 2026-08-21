@@ -331,4 +331,33 @@ describe('SettingsKeywordsPage', () => {
       expect(screen.getByText('resumes.error')).toBeInTheDocument()
     })
   })
+
+  it('filters brand keywords by CN/EN name', async () => {
+    const user = userEvent.setup()
+    render(
+      <BrowserRouter>
+        <SettingsKeywordsPage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('华为')).toBeInTheDocument()
+    })
+
+    const searchInput = screen.getByPlaceholderText(/search by cn\/en name/i)
+    await user.type(searchInput, 'huawei')
+
+    expect(screen.getByText('Huawei')).toBeInTheDocument()
+    expect(screen.queryByText('小米')).not.toBeInTheDocument()
+
+    await user.clear(searchInput)
+    await user.type(searchInput, '小米')
+
+    expect(screen.getByText('小米')).toBeInTheDocument()
+    expect(screen.queryByText('Huawei')).not.toBeInTheDocument()
+
+    await user.clear(searchInput)
+    await user.type(searchInput, 'zzzz-no-match')
+    expect(screen.getByText('No matching entries')).toBeInTheDocument()
+  })
 })

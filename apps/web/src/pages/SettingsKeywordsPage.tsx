@@ -49,6 +49,7 @@ export function SettingsKeywordsPage() {
   const [systemLocationQuery, setSystemLocationQuery] = useState('')
   const [savingSystemLocationId, setSavingSystemLocationId] = useState<string | null>(null)
   const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
+  const [brandKeywordSearch, setBrandKeywordSearch] = useState('')
   const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
   const [customKeywordForm, setCustomKeywordForm] = useState<CustomKeywordFormState>(createEmptyCustomKeywordForm)
@@ -87,6 +88,18 @@ export function SettingsKeywordsPage() {
         return left.keyword.localeCompare(right.keyword, 'zh-Hans-CN')
       })
   }, [systemLocationItems, systemLocationQuery])
+
+  const filteredBrandKeywords = useMemo(() => {
+    const query = brandKeywordSearch.trim().toLowerCase()
+    if (!query) {
+      return brandKeywords
+    }
+    return brandKeywords.filter(
+      (item) =>
+        item.nameCn.toLowerCase().includes(query) ||
+        (item.nameEn ?? '').toLowerCase().includes(query),
+    )
+  }, [brandKeywordSearch, brandKeywords])
 
   const filteredCustomKeywordTags = useMemo(() => {
     const query = customKeywordQuery.trim().toLowerCase()
@@ -535,6 +548,30 @@ export function SettingsKeywordsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  data-testid="brand-keyword-search"
+                  placeholder={t('debugConfig.brandKeywordSearchPlaceholder', {
+                    defaultValue: 'Search by CN/EN name…',
+                  })}
+                  value={brandKeywordSearch}
+                  onChange={(event) => setBrandKeywordSearch(event.target.value)}
+                  className="h-9"
+                />
+              </div>
+              {brandKeywordSearch ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="brand-keyword-search-clear"
+                  onClick={() => setBrandKeywordSearch('')}
+                >
+                  ×
+                </Button>
+              ) : null}
+            </div>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -546,14 +583,20 @@ export function SettingsKeywordsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {brandKeywords.length === 0 ? (
+                  {filteredBrandKeywords.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                        {loading ? t('trends.loading') : t('debug.none')}
+                        {loading
+                          ? t('trends.loading')
+                          : brandKeywordSearch
+                            ? t('debugConfig.brandKeywordNoMatches', {
+                                defaultValue: 'No matching entries',
+                              })
+                            : t('debug.none')}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    brandKeywords.map((item) => (
+                    filteredBrandKeywords.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nameCn}</TableCell>
                         <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>

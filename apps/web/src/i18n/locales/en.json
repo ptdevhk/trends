@@ -522,6 +522,8 @@
         "rangeMin": "Minimum",
         "minRoleYearsInput": "Relevant experience (years)",
         "idOrNamePlaceholder": "ID / Name / External ID",
+        "filterPlaceholder": "Filter options…",
+        "noFilterMatches": "No matching options",
         "invalidValue": "Enter a valid number",
         "minExceedsMax": "Minimum must not exceed maximum"
       },
@@ -1436,6 +1438,8 @@
     "brandKeywordNameEn": "English",
     "brandKeywordType": "Type",
     "brandKeywordOrigin": "Origin",
+    "brandKeywordSearchPlaceholder": "Search by CN/EN name…",
+    "brandKeywordNoMatches": "No matching entries",
     "presets": "Filter Presets",
     "presetsDescription": "Quick filter configurations for common search patterns",
     "addPreset": "Add Preset",
@@ -1556,7 +1560,9 @@
       "saveChanges": "Save Changes",
       "createClusterButton": "Create Cluster",
       "namePlaceholder": "Backend Languages",
-      "tagsPlaceholder": "Go, Java, Rust"
+      "tagsPlaceholder": "Go, Java, Rust",
+      "deleteConfirmTitle": "Delete taxonomy cluster?",
+      "deleteConfirmBody": "This permanently removes cluster {{name}} ({{slug}})."
     },
     "adminUsersTitle": "Users",
     "adminUsersDescription": "Manage local user accounts, memberships, and authentication state.",
@@ -1624,6 +1630,8 @@
     "industryDataControlTitle": "Control center",
     "industryDataDelete": "Delete",
     "industryDataDeleteFailed": "Failed to delete entry",
+    "industryDataDeleteConfirmTitle": "Delete industry data entry?",
+    "industryDataDeleteConfirmBody": "This permanently removes entry {{entryId}}.",
     "industryDataDeleted": "Deleted ({{sha}})",
     "industryDataEmpty": "No entries. Seed from files or import JSON.",
     "industryDataExport": "Export",
@@ -2990,6 +2998,7 @@
     "expiredDescription": "This snapshot link has expired or was revoked.",
     "notFoundTitle": "Public share not found",
     "notFoundDescription": "The snapshot link does not exist.",
-    "errorDescription": "The snapshot could not be loaded."
+    "errorDescription": "The snapshot could not be loaded.",
+    "backToApp": "Back to Trends"
   }
 }
