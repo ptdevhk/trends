@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { buttonVariants } from '@/components/ui/button'
 import { AlertTriangle, Clock, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { toast } from 'sonner'
@@ -1380,11 +1381,9 @@ export function PublicSharePage() {
         title={t('publicShare.unavailableTitle', { defaultValue: 'Public share unavailable' })}
         description={t('publicShare.expiredDescription', { defaultValue: 'This snapshot link has expired or was revoked.' })}
         action={
-          <Button type="button" variant="outline" data-testid="public-share-back" asChild>
-            <Link to="/">
-              {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
-            </Link>
-          </Button>
+          <Link to="/" className={buttonVariants({ variant: 'outline' })} data-testid="public-share-back">
+            {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
+          </Link>
         }
       />
     )
@@ -1415,11 +1414,9 @@ export function PublicSharePage() {
         title={t('publicShare.notFoundTitle', { defaultValue: 'Public share not found' })}
         description={t('publicShare.notFoundDescription', { defaultValue: 'The snapshot link does not exist.' })}
         action={
-          <Button type="button" variant="outline" data-testid="public-share-back" asChild>
-            <Link to="/">
-              {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
-            </Link>
-          </Button>
+          <Link to="/" className={buttonVariants({ variant: 'outline' })} data-testid="public-share-back">
+            {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
+          </Link>
         }
       />
     )
