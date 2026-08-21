@@ -705,12 +705,19 @@
       "cancel": "Cancel",
       "cancelling": "Cancelling...",
       "progress": "Progress",
+      "runModeAi": "AI",
+      "runModeHybrid": "Hybrid",
+      "runModeRules": "Rules",
+      "runStatusPending": "Pending",
+      "runStatusProcessing": "Processing",
       "skipped": "Skipped",
       "analyzed": "Analyzed",
       "avgScore": "Avg Score",
       "highScore": "High Score (80+)",
       "failed": "Failed",
-      "historyDescription": "View active and completed AI analysis tasks."
+      "historyDescription": "View active and completed AI analysis tasks.",
+      "runStatusCompleted": "Completed",
+      "runStatusFailed": "Failed"
     },
     "noNewCandidates": "No new candidates to analyze among top matches.",
     "dispatchedTop": "Analyzing top {{count}} candidates...",
@@ -1245,6 +1252,11 @@
     "none": "None"
   },
   "debugConfig": {
+    "adminUsersColActions": "Actions",
+    "adminUsersColCreated": "Created",
+    "adminUsersColProvider": "Provider",
+    "adminUsersColReason": "Reason",
+    "adminUsersColUser": "User",
     "title": "System Configuration",
     "subtitle": "View and edit AI review runtime, custom keywords, and AI service settings",
     "aiStatus": "AI Service Status",
@@ -1310,6 +1322,10 @@
     "authAccessGrants": "Provider-derived grants",
     "authAccessEvents": "Recent auth events",
     "authAccessEventsDescription": "Latest events for the current workspace.",
+    "configSourceCopyParsed": "Copy parsed",
+    "configSourceCopyRaw": "Copy raw",
+    "configSourceCopyRawToast": "Raw config copied to clipboard",
+    "configSourceGroup": "Group",
     "runtimePageMeta": "{{count}} review stages",
     "configSourcesPageDescription": "Inspect read-only prompt and configuration sources.",
     "keywordsPageDescription": "Manage editable keywords and review derived brand data.",
@@ -1437,6 +1453,13 @@
     "systemDiagnosticsDescription": "Backend task heartbeat and worker synchronization.",
     "live": "Live",
     "activeWorkers": "Active Workers",
+    "adminUsersColRole": "Role",
+    "adminUsersColStatus": "Status",
+    "adminUsersColType": "Type",
+    "adminUsersColWorkspaces": "Workspaces",
+    "adminUsersDisplayNameOptional": "Display name (optional)",
+    "adminUsersEmailOptional": "Email (optional)",
+    "adminUsersNone": "None",
     "total": "Total",
     "processing": "Processing",
     "pending": "Pending",
@@ -1578,6 +1601,10 @@
     "adminUsersTempPasswordWarning": "Copy this now. It will not be shown again after you close this dialog.",
     "adminUsersEmpty": "No users found.",
     "adminUsersLoading": "Loading users...",
+    "adminUsersUsername": "Username",
+    "adminUsersYou": "You",
+    "configSourceAudience": "Audience",
+    "configSourceCopyParsedToast": "Parsed config copied to clipboard",
     "hrDemoSilentTitle": "HR demo silent login",
     "hrDemoSilentDescription": "Shared desk bookmark token (AUTH_HR_DEMO_TOKEN). Append as ?auth=… on /hr/resumes deep links for passwordless full member desk access.",
     "hrDemoSilentTokenCopied": "Silent login token copied",
@@ -1735,7 +1762,11 @@
     "unknownKeyHint": "Not in the company registry — verify the key before linking."
   },
   "industryEvidence": {
+    "actionApprove": "approve",
     "actionFilter": "Action",
+    "actionInspect": "inspect",
+    "actionNeedsEvidence": "needs evidence",
+    "actionReject": "reject",
     "advancedTools": "Advanced tools",
     "advancedToolsDescription": "Coverage, profile lookup, recompute, and maintenance history for deeper investigation.",
     "all": "All",
@@ -1796,6 +1827,9 @@
     "collapseAdvancedTools": "Hide advanced tools",
     "companyRequired": "Map this proposal to a canonical company first",
     "confidenceFilter": "Confidence",
+    "confidenceHigh": "high",
+    "confidenceLow": "low",
+    "confidenceMedium": "medium",
     "coverageDescription": "Pipeline counts, open proposals with candidate sources, resume card coverage, and last maintenance signal. Empty ready-for-review does not mean research is done.",
     "coverageEmptyEvidenceBody": "{{withSources}} / {{openTotal}} open proposals have sources. Research is not filling evidence (check WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET and Operations → Run maintenance).",
     "coverageEmptyEvidenceTitle": "Bottleneck: open proposals have few candidate sources",
@@ -1951,7 +1985,11 @@
     "riskAcknowledgementRequired": "Acknowledge every visible risk flag and provide a detailed reason before approving.",
     "riskAttestationDescription": "Approval remains a human decision. Acknowledge the visible evidence risks and record why the selected revision is still justified.",
     "riskAttestationTitle": "Evidence-risk acknowledgement",
+    "riskCncInferred": "CNC claim inferred",
     "riskFilter": "Risk",
+    "riskLowDiversity": "low source diversity",
+    "riskSourceConflict": "source conflict",
+    "riskStaleSource": "stale or failed source",
     "rowApproveFailed": "Approval failed. Retry this row.",
     "rowAttestationRequired": "Explicit acknowledgement is required",
     "rowCanonicalMissing": "Canonical company mapping is missing",
@@ -2235,6 +2273,8 @@
     "columnRun": "Run",
     "columnStarted": "Started",
     "columnStatus": "Status",
+    "copyContent": "Copy content",
+    "copyContentToast": "Content copied to clipboard",
     "detailAccounts": "Telegram accounts",
     "detailBatches": "Planned batches",
     "detailComparison": "Comparison",
@@ -2620,6 +2660,8 @@
       "empty": "No audit log entries found."
     },
     "filters": {
+      "allOutcomes": "All Outcomes",
+      "allTypes": "All Types",
       "decisionType": "Decision Type",
       "outcome": "Outcome",
       "all": "All"
@@ -2679,6 +2721,41 @@
       "threshold": "Threshold",
       "title": "Metric Breakdown",
       "value": "Value"
+    },
+    "decisionType": {
+      "confirm": "confirm",
+      "filter": "filter",
+      "rank": "rank",
+      "score": "score",
+      "tag": "tag"
+    },
+    "outcome": {
+      "accepted": "accepted",
+      "appealed": "appealed",
+      "overridden": "overridden",
+      "pending": "pending"
+    },
+    "time": {
+      "daysAgo": "{{count}}d ago",
+      "hoursAgo": "{{count}}h ago",
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago"
+    },
+    "status": {
+      "fail": "FAIL",
+      "pass": "PASS"
+    },
+    "anomaly": {
+      "false": "FALSE",
+      "true": "TRUE",
+      "yes": "Yes"
+    },
+    "alert": {
+      "disparityRatio": "Disparity Ratio: {{value}}",
+      "psi": "PSI: {{value}}"
+    },
+    "output": {
+      "score": "Score: {{value}}"
     }
   },
   "explanationPage": {

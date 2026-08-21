@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, RefreshCw, RotateCcw, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Copy, Plus, RefreshCw, RotateCcw, Send, Sparkles, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -1455,7 +1455,25 @@ export function SummaryRunsPage() {
 
                   {selectedRun.content ? (
                     <div className="space-y-2">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailContent', { defaultValue: 'Rendered content' })}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailContent', { defaultValue: 'Rendered content' })}</div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          data-testid="copy-summary-content"
+                          aria-label={t('summaries.copyContent', { defaultValue: 'Copy content' })}
+                          onClick={() => {
+                            const content = selectedRun.content
+                            if (!content) return
+                            void navigator.clipboard.writeText(content).then(() => {
+                              toast.success(t('summaries.copyContentToast', { defaultValue: 'Content copied to clipboard' }))
+                            })
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
                       <pre className="max-h-[320px] overflow-auto rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap">{selectedRun.content}</pre>
                     </div>
                   ) : null}

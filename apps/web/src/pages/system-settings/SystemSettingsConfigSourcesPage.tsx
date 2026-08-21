@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -297,11 +298,11 @@ export function SystemSettingsConfigSourcesPage() {
                         <p className="font-medium">{selectedConfigSourceDetail.type}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Group</p>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceGroup')}</p>
                         <p className="font-medium">{selectedConfigSourceDetail.group}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Audience</p>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceAudience')}</p>
                         <p className="font-medium">{selectedConfigSourceDetail.audience}</p>
                       </div>
                       <div>
@@ -347,13 +348,45 @@ export function SystemSettingsConfigSourcesPage() {
 
                   <div className="grid gap-4 xl:grid-cols-2">
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">{t('debugConfig.configSourceRaw')}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{t('debugConfig.configSourceRaw')}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          data-testid="copy-config-source-raw"
+                          aria-label={t('debugConfig.configSourceCopyRaw', { defaultValue: 'Copy raw' })}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(selectedConfigSourceDetail.rawSource).then(() => {
+                              toast.success(t('debugConfig.configSourceCopyRawToast', { defaultValue: 'Raw config copied to clipboard' }))
+                            })
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
                       <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
                         <code>{selectedConfigSourceDetail.rawSource}</code>
                       </pre>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">{t('debugConfig.configSourceParsedPreview')}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{t('debugConfig.configSourceParsedPreview')}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          data-testid="copy-config-source-parsed"
+                          aria-label={t('debugConfig.configSourceCopyParsed', { defaultValue: 'Copy parsed' })}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(selectedConfigSourcePreview).then(() => {
+                              toast.success(t('debugConfig.configSourceCopyParsedToast', { defaultValue: 'Parsed config copied to clipboard' }))
+                            })
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
                       <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
                         <code>{selectedConfigSourcePreview}</code>
                       </pre>

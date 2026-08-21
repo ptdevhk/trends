@@ -19,7 +19,7 @@ type Props = {
 }
 
 export function UserAuditDrawer({ open, onOpenChange, user }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [events, setEvents] = useState<AuthEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -109,11 +109,11 @@ export function UserAuditDrawer({ open, onOpenChange, user }: Props) {
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Workspace</th>
-                  <th className="px-3 py-2">Provider</th>
-                  <th className="px-3 py-2">Reason</th>
-                  <th className="px-3 py-2">Created</th>
+                  <th className="px-3 py-2">{t('debugConfig.adminUsersColType', { defaultValue: 'Type' })}</th>
+                  <th className="px-3 py-2">{t('debugConfig.adminUsersColWorkspaces', { defaultValue: 'Workspace' })}</th>
+                  <th className="px-3 py-2">{t('debugConfig.adminUsersColProvider', { defaultValue: 'Provider' })}</th>
+                  <th className="px-3 py-2">{t('debugConfig.adminUsersColReason', { defaultValue: 'Reason' })}</th>
+                  <th className="px-3 py-2">{t('debugConfig.adminUsersColCreated', { defaultValue: 'Created' })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,7 +126,10 @@ export function UserAuditDrawer({ open, onOpenChange, user }: Props) {
                       {event.reason ?? '-'}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {event.createdAt}
+                      {(() => {
+                        const d = new Date(event.createdAt)
+                        return isNaN(d.getTime()) ? '-' : d.toLocaleDateString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })
+                      })()}
                     </td>
                   </tr>
                 ))}

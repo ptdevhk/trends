@@ -732,6 +732,19 @@
     "thepaper": "澎湃新闻"
   },
   "debugConfig": {
+    "adminUsersColActions": "操作",
+    "adminUsersColCreated": "创建时间",
+    "adminUsersColProvider": "提供商",
+    "adminUsersColReason": "原因",
+    "adminUsersColRole": "角色",
+    "adminUsersColStatus": "状态",
+    "adminUsersColType": "类型",
+    "adminUsersColUser": "用户",
+    "adminUsersColWorkspaces": "工作区",
+    "adminUsersEmailOptional": "邮箱（可选）",
+    "adminUsersNone": "无",
+    "adminUsersUsername": "用户名",
+    "adminUsersYou": "你",
     "agentsDescription": "用于阈值、批量、并发与模型覆写的审核阶段执行设定",
     "runtimePageDescription": "查看 AI 连接状态与审核阶段执行设定。",
     "resumeWorkHistoryLimitTitle": "简历工作经历条数",
@@ -858,6 +871,8 @@
     "addCustomKeyword": "新增关键词",
     "configSourcesLoadError": "加载配置来源失败",
     "agentThreshold": "通过阈值",
+    "configSourceCopyRawToast": "原始配置已复制到剪贴板",
+    "configSourceGroup": "分组",
     "configSourcesDescription": "以只读方式查看允许暴露的简历配置档与提示词来源。",
     "never": "从未",
     "settingsOverviewPageDescription": "使用上方的本地设定导览，直接进入执行状态、配置来源、关键词或地区配置页面，不必再在超长页面中来回卷动。",
@@ -920,6 +935,7 @@
     "resetDatabaseConfirm": "您确定要删除所有数据吗？此操作无法复原。",
     "presetMaxExp": "最高经验",
     "activeWorkers": "活跃工作节点",
+    "adminUsersDisplayNameOptional": "显示名称（可选）",
     "presets": "筛选默认",
     "settingsOverviewLabel": "设定概览",
     "systemLocationHideAction": "隐藏",
@@ -1065,6 +1081,10 @@
     "adminUsersTempPasswordWarning": "请立即复制。关闭此对话框后将无法再次显示。",
     "adminUsersEmpty": "无用户。",
     "adminUsersLoading": "正在加载用户...",
+    "configSourceAudience": "受众",
+    "configSourceCopyParsed": "复制解析结果",
+    "configSourceCopyParsedToast": "解析配置已复制到剪贴板",
+    "configSourceCopyRaw": "复制原始内容",
     "hrDemoSilentTitle": "HR 演示静默登录",
     "hrDemoSilentDescription": "共享工作台书签令牌（AUTH_HR_DEMO_TOKEN）。在 /hr/resumes 深链上附加 ?auth=… 即可无密码进入完整成员工作台。",
     "hrDemoSilentTokenCopied": "已复制静默登录令牌",
@@ -1222,7 +1242,11 @@
     "unknownKeyHint": "不在公司注册表中，请核对后再链接。"
   },
   "industryEvidence": {
+    "actionApprove": "批准",
     "actionFilter": "动作",
+    "actionInspect": "检查",
+    "actionNeedsEvidence": "需要证据",
+    "actionReject": "拒绝",
     "advancedTools": "高级工具",
     "advancedToolsDescription": "用于深入调查的覆盖率、公司资料查询、重新计算和维护历史。",
     "all": "全部",
@@ -1283,6 +1307,9 @@
     "collapseAdvancedTools": "收起高级工具",
     "companyRequired": "请先将此提案映射到规范公司",
     "confidenceFilter": "置信度",
+    "confidenceHigh": "高",
+    "confidenceLow": "低",
+    "confidenceMedium": "中",
     "coverageDescription": "管线计数、含候选来源的开放提案、简历卡片覆盖率，以及最近的维护信号。待审核队列为空不代表研究已完成。",
     "coverageEmptyEvidenceBody": "{{withSources}} / {{openTotal}} 个开放提案有来源。研究没有填入证据（请检查 WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET 以及“执行操作”→“立即执行维护”）。",
     "coverageEmptyEvidenceTitle": "瓶颈：开放提案几乎没有候选来源",
@@ -1438,7 +1465,11 @@
     "riskAcknowledgementRequired": "批准前请确认所有可见风险，并填写详细理由。",
     "riskAttestationDescription": "批准仍然是人工决定。请确认可见的证据风险，并记录为什么所选版本仍然合理。",
     "riskAttestationTitle": "证据风险确认",
+    "riskCncInferred": "CNC 声明推断",
     "riskFilter": "风险",
+    "riskLowDiversity": "来源多样性低",
+    "riskSourceConflict": "来源冲突",
+    "riskStaleSource": "过期或失效来源",
     "rowApproveFailed": "批准失败，请重试此行。",
     "rowAttestationRequired": "需要明确确认",
     "rowCanonicalMissing": "缺少规范公司映射",
@@ -1865,15 +1896,22 @@
       "avgScore": "平均分",
       "historyTitle": "分析历史",
       "activeTitle": "进行中的分析",
+      "runModeHybrid": "混合",
       "showHistory": "显示历史",
       "highScore": "高分 (80+)",
       "cancel": "取消",
+      "runModeAi": "AI",
+      "runModeRules": "规则",
+      "runStatusPending": "待处理",
+      "runStatusProcessing": "处理中",
       "skipped": "已跳过",
       "analyzed": "已分析",
       "allCompleted": "所有分析任务已完成",
       "cancelling": "取消中...",
       "failed": "失败",
-      "historyDescription": "查看进行中与已完成的 AI 分析任务。"
+      "historyDescription": "查看进行中与已完成的 AI 分析任务。",
+      "runStatusCompleted": "已完成",
+      "runStatusFailed": "失败"
     },
     "dispatchFailed": "启动分析失败",
     "error": "分析失败",
@@ -2263,6 +2301,8 @@
     "columnRun": "运行",
     "columnStarted": "开始时间",
     "columnStatus": "状态",
+    "copyContent": "复制内容",
+    "copyContentToast": "内容已复制到剪贴板",
     "detailAccounts": "Telegram 账号",
     "detailBatches": "计划批次",
     "detailComparison": "对比",
@@ -2647,6 +2687,8 @@
       "empty": "未找到审计日志条目。"
     },
     "filters": {
+      "allOutcomes": "全部结果",
+      "allTypes": "全部类型",
       "decisionType": "决策类型",
       "outcome": "结果",
       "all": "全部"
@@ -2706,6 +2748,41 @@
       "threshold": "阈值",
       "title": "指标明细",
       "value": "值"
+    },
+    "decisionType": {
+      "confirm": "确认",
+      "filter": "筛选",
+      "rank": "排名",
+      "score": "分数",
+      "tag": "标签"
+    },
+    "outcome": {
+      "accepted": "已接受",
+      "appealed": "已申诉",
+      "overridden": "已覆盖",
+      "pending": "待处理"
+    },
+    "time": {
+      "daysAgo": "{{count}}天前",
+      "hoursAgo": "{{count}}小时前",
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}}分钟前"
+    },
+    "status": {
+      "fail": "未通过",
+      "pass": "通过"
+    },
+    "anomaly": {
+      "false": "否",
+      "true": "是",
+      "yes": "是"
+    },
+    "alert": {
+      "disparityRatio": "差异比率：{{value}}",
+      "psi": "PSI：{{value}}"
+    },
+    "output": {
+      "score": "分数：{{value}}"
     }
   },
   "explanationPage": {

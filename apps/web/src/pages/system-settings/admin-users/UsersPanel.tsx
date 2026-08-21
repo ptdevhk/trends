@@ -42,7 +42,7 @@ function formatApiError(error: AdminUsersError): string {
 }
 
 export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -217,11 +217,11 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
           <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b text-left text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">User</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Workspaces</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2 text-right">Actions</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColUser', { defaultValue: 'User' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColStatus', { defaultValue: 'Status' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColWorkspaces', { defaultValue: 'Workspaces' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColCreated', { defaultValue: 'Created' })}</th>
+                <th className="px-3 py-2 text-right">{t('debugConfig.adminUsersColActions', { defaultValue: 'Actions' })}</th>
               </tr>
             </thead>
             <tbody>
@@ -241,7 +241,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                           {u.displayName ?? getLocalUsername(u)}
                           {isSelf && (
                             <Badge variant="outline" className="ml-2 text-xs">
-                              You
+                              {t('debugConfig.adminUsersYou', { defaultValue: 'You' })}
                             </Badge>
                           )}
                         </div>
@@ -257,7 +257,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           {u.memberships.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">none</span>
+                            <span className="text-xs text-muted-foreground">{t('debugConfig.adminUsersNone', { defaultValue: 'None' })}</span>
                           ) : (
                             u.memberships.map((m) => (
                               <Badge key={m.workspaceSlug} variant="secondary" className="text-xs">
@@ -268,7 +268,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         </div>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {new Date(u.createdAt).toLocaleDateString()}
+                        {new Date(u.createdAt).toLocaleDateString(i18n.language)}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex flex-wrap justify-end gap-1">
@@ -365,7 +365,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         {u.displayName ?? getLocalUsername(u)}
                         {isSelf && (
                           <Badge variant="outline" className="ml-2 text-xs">
-                            You
+                            {t('debugConfig.adminUsersYou', { defaultValue: 'You' })}
                           </Badge>
                         )}
                       </div>
@@ -378,7 +378,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         {u.status}
                       </Badge>
                       {u.memberships.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">none</span>
+                        <span className="text-xs text-muted-foreground">{t('debugConfig.adminUsersNone', { defaultValue: 'None' })}</span>
                       ) : (
                         u.memberships.map((m) => (
                           <Badge key={m.workspaceSlug} variant="secondary" className="text-xs">
@@ -388,7 +388,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(u.createdAt).toLocaleDateString()}
+                      {new Date(u.createdAt).toLocaleDateString(i18n.language)}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {u.status === 'active' ? (

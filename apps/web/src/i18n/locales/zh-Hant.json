@@ -705,12 +705,19 @@
       "cancel": "取消",
       "cancelling": "取消中...",
       "progress": "進度",
+      "runModeAi": "AI",
+      "runModeHybrid": "混合",
+      "runModeRules": "規則",
+      "runStatusPending": "待處理",
+      "runStatusProcessing": "處理中",
       "skipped": "已跳過",
       "analyzed": "已分析",
       "avgScore": "平均分",
       "highScore": "高分 (80+)",
       "failed": "失敗",
-      "historyDescription": "檢視進行中與已完成的 AI 分析任務。"
+      "historyDescription": "檢視進行中與已完成的 AI 分析任務。",
+      "runStatusCompleted": "已完成",
+      "runStatusFailed": "失敗"
     },
     "noNewCandidates": "匹配結果中沒有新的候選人需要分析。",
     "dispatchedTop": "正在分析前 {{count}} 位候選人...",
@@ -1245,6 +1252,11 @@
     "none": "無"
   },
   "debugConfig": {
+    "adminUsersColActions": "操作",
+    "adminUsersColCreated": "建立時間",
+    "adminUsersColProvider": "提供者",
+    "adminUsersColReason": "原因",
+    "adminUsersColUser": "使用者",
     "title": "系統配置",
     "subtitle": "查看和編輯 AI 審核執行設定、自定義關鍵詞和 AI 服務設定",
     "aiStatus": "AI 服務狀態",
@@ -1310,6 +1322,10 @@
     "authAccessGrants": "提供方衍生授權",
     "authAccessEvents": "最近認證事件",
     "authAccessEventsDescription": "目前工作區的最新事件。",
+    "configSourceCopyParsed": "複製解析結果",
+    "configSourceCopyRaw": "複製原始內容",
+    "configSourceCopyRawToast": "原始配置已複製到剪貼簿",
+    "configSourceGroup": "群組",
     "runtimePageMeta": "審核階段：{{count}} 個",
     "configSourcesPageDescription": "查看唯讀的提示詞與配置來源。",
     "keywordsPageDescription": "管理可編輯關鍵詞，並查看衍生出的品牌資料。",
@@ -1437,6 +1453,13 @@
     "systemDiagnosticsDescription": "後端任務心跳及工作節點同步。",
     "live": "執行中",
     "activeWorkers": "活躍工作節點",
+    "adminUsersColRole": "角色",
+    "adminUsersColStatus": "狀態",
+    "adminUsersColType": "類型",
+    "adminUsersColWorkspaces": "工作區",
+    "adminUsersDisplayNameOptional": "顯示名稱（選填）",
+    "adminUsersEmailOptional": "電子郵件（選填）",
+    "adminUsersNone": "無",
     "total": "總計",
     "processing": "處理中",
     "pending": "等待中",
@@ -1578,6 +1601,10 @@
     "adminUsersTempPasswordWarning": "請立即複製。關閉此對話框後將無法再次顯示。",
     "adminUsersEmpty": "無用戶。",
     "adminUsersLoading": "正在載入用戶...",
+    "adminUsersUsername": "使用者名稱",
+    "adminUsersYou": "您",
+    "configSourceAudience": "受眾",
+    "configSourceCopyParsedToast": "解析配置已複製到剪貼簿",
     "hrDemoSilentTitle": "HR 演示靜默登入",
     "hrDemoSilentDescription": "共用工作台書籤權杖（AUTH_HR_DEMO_TOKEN）。在 /hr/resumes 深鏈上附加 ?auth=… 即可免密碼進入完整成員工作台。",
     "hrDemoSilentTokenCopied": "已複製靜默登入權杖",
@@ -1735,7 +1762,11 @@
     "unknownKeyHint": "不在公司註冊表中，請核對後再連結。"
   },
   "industryEvidence": {
+    "actionApprove": "核准",
     "actionFilter": "動作",
+    "actionInspect": "檢查",
+    "actionNeedsEvidence": "需要證據",
+    "actionReject": "拒絕",
     "advancedTools": "進階工具",
     "advancedToolsDescription": "用於深入調查的覆蓋率、公司檔案查詢、重新計算和維護歷史。",
     "all": "全部",
@@ -1796,6 +1827,9 @@
     "collapseAdvancedTools": "收起進階工具",
     "companyRequired": "請先將此提案對應到標準公司",
     "confidenceFilter": "信心度",
+    "confidenceHigh": "高",
+    "confidenceLow": "低",
+    "confidenceMedium": "中",
     "coverageDescription": "管線計數、具有候選來源的待處理提案、履歷卡片覆蓋率，以及最近的維護訊號。待審佇列為空不代表研究已完成。",
     "coverageEmptyEvidenceBody": "{{withSources}} / {{openTotal}} 個待處理提案有來源。研究沒有填入證據（請檢查 WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET 以及「執行操作」→「立即執行維護」）。",
     "coverageEmptyEvidenceTitle": "瓶頸：開放提案幾乎沒有候選來源",
@@ -1951,7 +1985,11 @@
     "riskAcknowledgementRequired": "核准前請確認所有可見風險，並填寫詳細理由。",
     "riskAttestationDescription": "核准仍然是人工決定。請確認可見的證據風險，並記錄為何所選版本仍然合理。",
     "riskAttestationTitle": "證據風險確認",
+    "riskCncInferred": "CNC 聲明推斷",
     "riskFilter": "風險",
+    "riskLowDiversity": "來源多樣性低",
+    "riskSourceConflict": "來源衝突",
+    "riskStaleSource": "過期或失效來源",
     "rowApproveFailed": "核准失敗，請重試此列。",
     "rowAttestationRequired": "需要明確確認",
     "rowCanonicalMissing": "缺少標準公司對應",
@@ -2235,6 +2273,8 @@
     "columnRun": "執行",
     "columnStarted": "開始時間",
     "columnStatus": "狀態",
+    "copyContent": "複製內容",
+    "copyContentToast": "內容已複製到剪貼簿",
     "detailAccounts": "Telegram 帳號",
     "detailBatches": "計劃批次",
     "detailComparison": "對比",
@@ -2620,6 +2660,8 @@
       "empty": "未找到稽核日誌條目。"
     },
     "filters": {
+      "allOutcomes": "全部結果",
+      "allTypes": "全部類型",
       "decisionType": "決策類型",
       "outcome": "結果",
       "all": "全部"
@@ -2679,6 +2721,41 @@
       "threshold": "阈值",
       "title": "指标明细",
       "value": "值"
+    },
+    "decisionType": {
+      "confirm": "確認",
+      "filter": "篩選",
+      "rank": "排名",
+      "score": "分數",
+      "tag": "標籤"
+    },
+    "outcome": {
+      "accepted": "已接受",
+      "appealed": "已申訴",
+      "overridden": "已覆寫",
+      "pending": "待處理"
+    },
+    "time": {
+      "daysAgo": "{{count}}天前",
+      "hoursAgo": "{{count}}小時前",
+      "justNow": "剛剛",
+      "minutesAgo": "{{count}}分鐘前"
+    },
+    "status": {
+      "fail": "未通過",
+      "pass": "通過"
+    },
+    "anomaly": {
+      "false": "否",
+      "true": "是",
+      "yes": "是"
+    },
+    "alert": {
+      "disparityRatio": "差異比率：{{value}}",
+      "psi": "PSI：{{value}}"
+    },
+    "output": {
+      "score": "分數：{{value}}"
     }
   },
   "explanationPage": {

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { createAdminUser, type AdminAssignableRole } from '@/lib/admin-users'
 import {
   getWorkspaceDisplayName,
@@ -169,7 +170,7 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
                 handleOpenChange(false)
               }}
             >
-              Close
+              {t('common.close', { defaultValue: 'Close' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -190,11 +191,18 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
             })}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          data-testid="create-user-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void handleSubmit()
+          }}
+        >
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="create-username">
-              Username
-            </label>
+            <Label className="text-sm font-medium" htmlFor="create-username">
+              {t('debugConfig.adminUsersUsername', { defaultValue: 'Username' })}
+            </Label>
             <Input
               id="create-username"
               data-testid="create-user-username"
@@ -206,9 +214,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="create-email">
-              Email (optional)
-            </label>
+            <Label className="text-sm font-medium" htmlFor="create-email">
+              {t('debugConfig.adminUsersEmailOptional', { defaultValue: 'Email (optional)' })}
+            </Label>
             <Input
               id="create-email"
               data-testid="create-user-email"
@@ -220,9 +228,9 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="create-display-name">
-              Display name (optional)
-            </label>
+            <Label className="text-sm font-medium" htmlFor="create-display-name">
+              {t('debugConfig.adminUsersDisplayNameOptional', { defaultValue: 'Display name (optional)' })}
+            </Label>
             <Input
               id="create-display-name"
               data-testid="create-user-display-name"
@@ -309,29 +317,28 @@ export function CreateUserDialog({ open, onOpenChange, onCreated }: Props) {
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
-              handleOpenChange(false)
-            }}
-          >
-            {t('common.cancel', { defaultValue: 'Cancel' })}
-          </Button>
-          <Button
-            data-testid="create-user-submit"
-            disabled={submitting}
-            onClick={() => {
-              void handleSubmit()
-            }}
-          >
-            <Key className="mr-2 h-4 w-4" />
-            {submitting
-              ? t('common.saving', { defaultValue: 'Saving...' })
-              : t('debugConfig.adminUsersCreate', { defaultValue: 'Create user' })}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                handleOpenChange(false)
+              }}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              type="submit"
+              data-testid="create-user-submit"
+              disabled={submitting}
+            >
+              <Key className="mr-2 h-4 w-4" />
+              {submitting
+                ? t('common.saving', { defaultValue: 'Saving...' })
+                : t('debugConfig.adminUsersCreate', { defaultValue: 'Create user' })}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

@@ -112,9 +112,9 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
               <table className="w-full text-sm">
                 <thead className="border-b text-left text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2">Workspace</th>
-                    <th className="px-3 py-2">Role</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
+                    <th className="px-3 py-2">{t('debugConfig.adminUsersColWorkspaces', { defaultValue: 'Workspace' })}</th>
+                    <th className="px-3 py-2">{t('debugConfig.adminUsersColRole', { defaultValue: 'Role' })}</th>
+                    <th className="px-3 py-2 text-right">{t('debugConfig.adminUsersColActions', { defaultValue: 'Actions' })}</th>
                   </tr>
                 </thead>
                 <tbody>

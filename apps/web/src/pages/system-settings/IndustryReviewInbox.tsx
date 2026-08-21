@@ -1131,10 +1131,10 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allRisks', { defaultValue: 'All risks' })}</option>
-                  <option value="source_conflict">source conflict</option>
-                  <option value="low_source_diversity">low source diversity</option>
-                  <option value="cnc_claim_inferred">CNC claim inferred</option>
-                  <option value="stale_or_failed_source">stale or failed source</option>
+                  <option value="source_conflict">{t('industryEvidence.riskSourceConflict', { defaultValue: 'source conflict' })}</option>
+                  <option value="low_source_diversity">{t('industryEvidence.riskLowDiversity', { defaultValue: 'low source diversity' })}</option>
+                  <option value="cnc_claim_inferred">{t('industryEvidence.riskCncInferred', { defaultValue: 'CNC claim inferred' })}</option>
+                  <option value="stale_or_failed_source">{t('industryEvidence.riskStaleSource', { defaultValue: 'stale or failed source' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -1146,9 +1146,9 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allConfidence', { defaultValue: 'All confidence' })}</option>
-                  <option value="high">high</option>
-                  <option value="medium">medium</option>
-                  <option value="low">low</option>
+                  <option value="high">{t('industryEvidence.confidenceHigh', { defaultValue: 'high' })}</option>
+                  <option value="medium">{t('industryEvidence.confidenceMedium', { defaultValue: 'medium' })}</option>
+                  <option value="low">{t('industryEvidence.confidenceLow', { defaultValue: 'low' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -1160,10 +1160,10 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allActions', { defaultValue: 'All actions' })}</option>
-                  <option value="approve">approve</option>
-                  <option value="needs_more_evidence">needs evidence</option>
-                  <option value="inspect">inspect</option>
-                  <option value="reject">reject</option>
+                  <option value="approve">{t('industryEvidence.actionApprove', { defaultValue: 'approve' })}</option>
+                  <option value="needs_more_evidence">{t('industryEvidence.actionNeedsEvidence', { defaultValue: 'needs evidence' })}</option>
+                  <option value="inspect">{t('industryEvidence.actionInspect', { defaultValue: 'inspect' })}</option>
+                  <option value="reject">{t('industryEvidence.actionReject', { defaultValue: 'reject' })}</option>
                 </select>
               </label>
             </div>
