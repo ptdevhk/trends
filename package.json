@@ -47,6 +47,7 @@
     "verify:industry-review-browser-uat": "tsx scripts/industry-review/browser-uat.ts",
     "verify:industry-review-browser-uat-clean": "tsx scripts/industry-review/browser-uat-clean.ts",
     "verify:industry-review-post-uat": "tsx scripts/industry-review/post-uat.ts",
+    "test:multi-role-uat": "tsx scripts/run-multi-role-uat.ts",
     "e2e": "tsx scripts/e2e-smoke.ts"
   },
   "repository": {
