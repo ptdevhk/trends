@@ -32,7 +32,7 @@
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency verify-dev-resume-latency doctor-search-freshness
+.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset verify-top6 benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency verify-dev-resume-latency doctor-search-freshness
 
 # Search-data freshness: ingestComputeEpoch lag + golden MY/CN minRoleYears totals.
 # Auth: TRENDS_AUTH_USERNAME / TRENDS_AUTH_PASSWORD (e.g. demo-admin).
@@ -1091,6 +1091,14 @@ verify-workflow-dataset:
 		npx tsx scripts/resume/verify-workflow-dataset.ts "$$@" $(ARGS); \
 	fi
 
+# Run the Top 6 verification & orchestration suite (service probe/spawn + 6 suites)
+verify-top6:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/run-top6-verification.ts $(ARGS); \
+	else \
+		npx tsx scripts/run-top6-verification.ts $(ARGS); \
+	fi
+
 # Run E2E smoke tests via DevTools MCP / Playwright CDP
 e2e:
 	@echo "Running E2E smoke tests via DevTools..."
@@ -1670,6 +1678,7 @@ help:
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"
 	@echo "  verify-workflow-dataset Verify source mix, query matches, and visible results for a resume workflow dataset"
+	@echo "  verify-top6     Run Top 6 verification & orchestration suite (service probe/spawn + 6 suites)"
 	@echo "  benchmark-critical-path Run repeated critical-path benchmark (median/p95 + rates)"
 	@echo "  benchmark-critical-path-seeded Run seeded-only benchmark profile"
 	@echo "  benchmark-parallelism-matrix Run AI/submit parallelism benchmark matrix"
