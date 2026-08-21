@@ -1,7 +1,8 @@
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
@@ -65,25 +66,25 @@ export function SchedulerStatus() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    useEffect(() => {
-        async function fetchStatus() {
-            try {
-                const { data, response } = await apiClient.GET('/api/worker/status')
-                if (!response.ok) throw new Error('Failed to fetch status')
-                setStatus(data as WorkerStatus)
-                setError(null)
-            } catch (err) {
-                reportUiError('Failed to fetch scheduler status', err)
-                setError(t('debugConfig.schedulerLoadFailed', { defaultValue: 'Failed to load scheduler status' }))
-            } finally {
-                setLoading(false)
-            }
+    const fetchStatus = useCallback(async () => {
+        try {
+            const { data, response } = await apiClient.GET('/api/worker/status')
+            if (!response.ok) throw new Error('Failed to fetch status')
+            setStatus(data as WorkerStatus)
+            setError(null)
+        } catch (err) {
+            reportUiError('Failed to fetch scheduler status', err)
+            setError(t('debugConfig.schedulerLoadFailed', { defaultValue: 'Failed to load scheduler status' }))
+        } finally {
+            setLoading(false)
         }
+    }, [t])
 
-        fetchStatus()
+    useEffect(() => {
+        void fetchStatus()
         const interval = setInterval(fetchStatus, 30000) // Poll every 30s
         return () => clearInterval(interval)
-    }, [])
+    }, [fetchStatus])
 
     if (loading) {
         // Reserve the loaded card height (measured ~232px with an empty job
@@ -121,6 +122,19 @@ export function SchedulerStatus() {
                     <CardTitle className="text-lg text-red-600">{t('debugConfig.schedulerOffline', { defaultValue: 'Scheduler Offline' })}</CardTitle>
                     <CardDescription>{error || t('debugConfig.unknownError', { defaultValue: 'Unknown error' })}</CardDescription>
                 </CardHeader>
+                <CardContent className="pb-6">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="scheduler-status-retry"
+                        onClick={() => {
+                            void fetchStatus()
+                        }}
+                    >
+                        {t('common.retry', { defaultValue: 'Retry' })}
+                    </Button>
+                </CardContent>
             </Card>
         )
     }

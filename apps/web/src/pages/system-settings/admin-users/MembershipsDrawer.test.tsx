@@ -54,7 +54,7 @@ describe('MembershipsDrawer', () => {
     })
   })
 
-  it('deletes a membership row', async () => {
+  it('deletes a membership row with confirm step', async () => {
     mockRemoveAdminUserMembership.mockResolvedValue({ success: true, deleted: true })
     const user = userEvent.setup()
     render(
@@ -65,7 +65,15 @@ describe('MembershipsDrawer', () => {
       />,
     )
 
+    // Click the trash button — confirm row appears, API not called yet
     await user.click(screen.getByTestId('remove-membership-dev'))
+    expect(mockRemoveAdminUserMembership).not.toHaveBeenCalled()
+
+    // Confirm row is visible
+    expect(screen.getByTestId('remove-membership-confirm-dev')).toBeInTheDocument()
+
+    // Click confirm
+    await user.click(screen.getByTestId('remove-membership-confirm-yes-dev'))
 
     expect(mockRemoveAdminUserMembership).toHaveBeenCalledWith('user-1', 'dev')
   })
@@ -86,10 +94,34 @@ describe('MembershipsDrawer', () => {
     )
 
     await user.click(screen.getByTestId('remove-membership-dev'))
+    await user.click(screen.getByTestId('remove-membership-confirm-yes-dev'))
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Cannot remove your own admin membership')
     })
+  })
+
+  it('cancels removal when cancel is clicked', async () => {
+    mockRemoveAdminUserMembership.mockResolvedValue({ success: true, deleted: true })
+    const user = userEvent.setup()
+    render(
+      <MembershipsDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        user={sampleUser}
+      />,
+    )
+
+    // Click trash — confirm row appears
+    await user.click(screen.getByTestId('remove-membership-dev'))
+    expect(screen.getByTestId('remove-membership-confirm-dev')).toBeInTheDocument()
+
+    // Click cancel
+    await user.click(screen.getByTestId('remove-membership-confirm-cancel-dev'))
+
+    // Confirm row gone, API not called
+    expect(screen.queryByTestId('remove-membership-confirm-dev')).not.toBeInTheDocument()
+    expect(mockRemoveAdminUserMembership).not.toHaveBeenCalled()
   })
 
   it('sends selected role (not default) when adding a membership', async () => {

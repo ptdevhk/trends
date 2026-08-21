@@ -99,4 +99,13 @@ describe('KeywordInput', () => {
     await user.click(screen.getByRole('button', { name: /React/ }))
     expect(onChange).toHaveBeenCalled()
   })
+
+  it('has aria-expanded on the toggle button', async () => {
+    const user = userEvent.setup()
+    render(<KeywordInput {...defaultProps} />)
+    const toggle = screen.getByRole('button', { name: /toggle/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
 })
