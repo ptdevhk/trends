@@ -259,7 +259,7 @@ describe("SUITES table", () => {
         expect(SUITES[3].commands).toEqual(["scripts/search-data-freshness-doctor.ts"]);
         expect(SUITES[4].commands).toEqual([
             "scripts/verify-critical-path.ts",
-            "scripts/resume/verify-workflow-dataset.ts",
+            'scripts/resume/verify-workflow-dataset.ts --query "CNC Sales" --workspace dev --limit 200 --top 10',
         ]);
         expect(SUITES[5].commands).toEqual([
             "scripts/verify-industry-scores.ts --sample sample-job5156-detail-enriched --round-trip",

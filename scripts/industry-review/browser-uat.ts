@@ -43,6 +43,20 @@ function parseArgs(argv: string[]): CliOptions {
   return options
 }
 
+async function authenticate(page: import('playwright').Page, baseUrl: string): Promise<void> {
+  const username = 'uat-reviewer'
+  const password = process.env.AUTH_BOOTSTRAP_PASSWORD?.trim() || 'admin123'
+
+  await page.context().clearCookies()
+  await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('#username, input[type="text"]', { timeout: 10_000 })
+  await page.locator('#username').fill(username)
+  await page.locator('#password').fill(password)
+  await page.getByRole('button', { name: /登录|登入|Sign in|Log in/i }).click()
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15_000 })
+  await page.waitForLoadState('networkidle').catch(() => {})
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   if (!existsSync(options.stateFile)) fail(`missing local UAT state file ${options.stateFile}`)
@@ -53,6 +67,11 @@ async function main(): Promise<void> {
   const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext(options.storageState ? { storageState: options.storageState } : undefined)
   const page = await context.newPage()
+
+  if (!options.storageState) {
+    await authenticate(page, options.baseUrl)
+  }
+
   const approveRequests: string[] = []
   const consoleErrors: string[] = []
   page.on('console', (message) => {

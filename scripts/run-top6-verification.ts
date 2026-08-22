@@ -204,7 +204,10 @@ export const SUITES: SuiteDef[] = [
     {
         number: 5,
         name: 'Critical Path & Workflow Dataset Verification',
-        commands: ['scripts/verify-critical-path.ts', 'scripts/resume/verify-workflow-dataset.ts'],
+        commands: [
+            'scripts/verify-critical-path.ts',
+            'scripts/resume/verify-workflow-dataset.ts --query "CNC Sales" --workspace dev --limit 200 --top 10',
+        ],
         timeoutMs: 30 * 60 * 1000,
     },
     {

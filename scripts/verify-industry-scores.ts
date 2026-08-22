@@ -341,13 +341,54 @@ async function fetchResumes(client: ConvexHttpClient, limit: number): Promise<Co
   })) as unknown as ConvexListResponse;
 }
 
-async function postJson(url: string, body: unknown): Promise<unknown> {
+type AuthSession = {
+  /** Cookie header value carrying the session + CSRF cookies. */
+  cookieHeader: string;
+  /** Value for the X-CSRF-Token header (required on non-GET with a session cookie). */
+  csrfToken: string;
+};
+
+const AUTH_SESSION_COOKIE = "trends_session";
+const AUTH_CSRF_COOKIE = "trends_csrf";
+
+function parseAuthCookies(setCookie: string): AuthSession {
+  const valueFor = (name: string): string | null => {
+    const match = setCookie.match(new RegExp(`(?:^|,\\s*)${name}=([^;]+)`));
+    return match ? match[1] : null;
+  };
+
+  const session = valueFor(AUTH_SESSION_COOKIE);
+  if (!session) {
+    throw new Error(
+      `Unable to parse session cookie (${AUTH_SESSION_COOKIE}) from Set-Cookie header: ${setCookie}`,
+    );
+  }
+
+  const csrf = valueFor(AUTH_CSRF_COOKIE);
+  if (!csrf) {
+    throw new Error(
+      `Login set no CSRF cookie (${AUTH_CSRF_COOKIE}); authenticated API calls would 403: ${setCookie}`,
+    );
+  }
+
+  return {
+    cookieHeader: `${AUTH_SESSION_COOKIE}=${session}; ${AUTH_CSRF_COOKIE}=${csrf}`,
+    csrfToken: csrf,
+  };
+}
+
+export async function postJson(url: string, body: unknown, auth?: AuthSession): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Workspace-Slug": "dev",
+  };
+  if (auth) {
+    headers.Cookie = auth.cookieHeader;
+    headers["X-CSRF-Token"] = auth.csrfToken;
+  }
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Workspace-Slug": "dev",
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -357,6 +398,34 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   }
 
   return response.json() as Promise<unknown>;
+}
+
+export async function loginAsAdmin(apiBaseUrl: string): Promise<AuthSession> {
+  const username = "demo-admin";
+  const password =
+    process.env.AUTH_BOOTSTRAP_PASSWORD?.trim() || "admin123";
+
+  const loginUrl = `${apiBaseUrl}/api/auth/login`;
+  const response = await fetch(loginUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "dev",
+    },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Login failed (${response.status}) at ${loginUrl}: ${text}`);
+  }
+
+  const setCookie = response.headers.get("Set-Cookie");
+  if (!setCookie) {
+    throw new Error(`Login succeeded but no Set-Cookie header received from ${loginUrl}`);
+  }
+
+  return parseAuthCookies(setCookie);
 }
 
 async function runRoundTrip(options: CliOptions): Promise<void> {
@@ -378,9 +447,13 @@ async function runRoundTrip(options: CliOptions): Promise<void> {
 
   console.log(`Using API base URL: ${options.apiBaseUrl}`);
   console.log(`Using Convex URL: ${options.convexUrl}`);
+
+  console.log("Logging in as admin to obtain session cookies...");
+  const auth = await loginAsAdmin(options.apiBaseUrl);
+
   console.log(`Importing sample: ${options.sample}`);
 
-  const importResponse = await postJson(`${options.apiBaseUrl}/api/resumes/import`, payload);
+  const importResponse = await postJson(`${options.apiBaseUrl}/api/resumes/import`, payload, auth);
   console.log("Import response:", JSON.stringify(importResponse));
 
   if (shouldTriggerReingest(importResponse) && importResponse.inserted === 0 && importResponse.updated === 0) {
@@ -388,7 +461,7 @@ async function runRoundTrip(options: CliOptions): Promise<void> {
   } else {
     const reingestResponse = await postJson(`${options.apiBaseUrl}/api/resumes/trigger-reingest`, {
       limit: options.limit,
-    });
+    }, auth);
     console.log("Re-ingest response:", JSON.stringify(reingestResponse));
   }
 
@@ -431,7 +504,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+const isMainModule = process.argv[1]
+  ? path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])
+  : false;
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}
