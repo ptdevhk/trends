@@ -9626,6 +9626,13 @@ export interface paths {
                                     decisionReasonDraft: string;
                                     /** @enum {boolean} */
                                     requiresHumanReview: true;
+                                    /** @enum {string} */
+                                    suggestedMachineOrigin?: "international" | "domestic" | "unknown";
+                                    machineOriginSuggestionConfidence?: number;
+                                    machineOriginSuggestionEvidence?: string;
+                                    machineOriginSuggestionSourceUrl?: string;
+                                    machineOriginSuggestionSourceTitle?: string;
+                                    machineOriginSuggestionModel?: string;
                                 };
                                 inputFingerprint: string;
                                 sourceCount: number;
@@ -9785,6 +9792,13 @@ export interface paths {
                                 decisionReasonDraft: string;
                                 /** @enum {boolean} */
                                 requiresHumanReview: true;
+                                /** @enum {string} */
+                                suggestedMachineOrigin?: "international" | "domestic" | "unknown";
+                                machineOriginSuggestionConfidence?: number;
+                                machineOriginSuggestionEvidence?: string;
+                                machineOriginSuggestionSourceUrl?: string;
+                                machineOriginSuggestionSourceTitle?: string;
+                                machineOriginSuggestionModel?: string;
                             };
                             warnings: {
                                 code: string;
@@ -9900,6 +9914,13 @@ export interface paths {
                                 decisionReasonDraft: string;
                                 /** @enum {boolean} */
                                 requiresHumanReview: true;
+                                /** @enum {string} */
+                                suggestedMachineOrigin?: "international" | "domestic" | "unknown";
+                                machineOriginSuggestionConfidence?: number;
+                                machineOriginSuggestionEvidence?: string;
+                                machineOriginSuggestionSourceUrl?: string;
+                                machineOriginSuggestionSourceTitle?: string;
+                                machineOriginSuggestionModel?: string;
                             };
                             warnings: {
                                 code: string;
