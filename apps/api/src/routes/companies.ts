@@ -13,9 +13,11 @@ import {
   INDUSTRY_REVIEW_SCHEMA_VERSION,
   INDUSTRY_REVIEW_SOURCE_REASON_CODES,
   INDUSTRY_VERIFICATION_LEVELS,
+  MACHINE_ORIGINS,
   isRecord,
   validateIndustryReviewAttestation,
   type IndustryReviewAttestation,
+  type MachineOrigin,
 } from "@trends/shared";
 
 import {
@@ -545,6 +547,7 @@ app.openapi(appendPolicyRoute, async (c) => {
 // ---------------------------------------------------------------------------
 
 const IndustryClassEnum = z.enum(INDUSTRY_CLASSES);
+const MachineOriginEnum = z.enum(MACHINE_ORIGINS);
 const VerificationLevelEnum = z.enum(INDUSTRY_VERIFICATION_LEVELS);
 const EvidenceSourceEnum = z.enum(["seed", "manual", "worker_web"]);
 const EvidenceSourceTypeEnum = z.enum(INDUSTRY_EVIDENCE_SOURCE_TYPES);
@@ -1606,6 +1609,7 @@ const approveIndustryProposalRoute = createRoute({
               .optional(),
             verificationLevel: z.enum(["verified", "rejected"]),
             industryClass: IndustryClassEnum,
+            machineOrigin: MachineOriginEnum.optional(),
             approvedSourceIds: z.array(z.string().min(1)).min(1),
             evidenceSummary: z.string().min(1),
             decisionReason: z.string().min(1),
@@ -1680,6 +1684,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
       workspaceSlug: c.var.workspaceSlug,
       packet,
       ...(body.industryClass ? { industryClass: body.industryClass } : {}),
+      ...(body.machineOrigin ? { machineOrigin: body.machineOrigin } : {}),
       ...(body.evidenceSummary ? { evidenceSummary: body.evidenceSummary } : {}),
       ...(body.decisionReason ? { decisionReason: body.decisionReason } : {}),
       ...(body.reviewAttestation

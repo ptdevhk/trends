@@ -1,3 +1,11 @@
+export const MACHINE_ORIGINS = [
+  "international",
+  "domestic",
+  "unknown",
+] as const;
+
+export type MachineOrigin = (typeof MACHINE_ORIGINS)[number];
+
 export const INDUSTRY_CLASSES = [
   "cnc",
   "automation",
@@ -121,6 +129,7 @@ export interface VerifiedIndustryEvidenceSummary
   companyKey: string;
   companyName: string;
   evidenceSummary: string;
+  machineOrigin?: MachineOrigin;
   verifiedYears?: number;
   roleTypes?: string[];
   latestRoleAt?: number;
@@ -136,6 +145,7 @@ export interface NormalizedIndustryEvidenceUrl {
 }
 
 const industryClassSet = new Set<string>(INDUSTRY_CLASSES);
+const machineOriginSet = new Set<string>(MACHINE_ORIGINS);
 const sourceTypeSet = new Set<string>(INDUSTRY_EVIDENCE_SOURCE_TYPES);
 const trustTierSet = new Set<string>(INDUSTRY_EVIDENCE_TRUST_TIERS);
 const freshnessStateSet = new Set<string>(
@@ -381,6 +391,7 @@ export function parseVerifiedIndustryEvidenceSummary(
       ).sort()
     : undefined;
   const freshnessState = toNonEmptyString(value.freshnessState);
+  const machineOrigin = toNonEmptyString(value.machineOrigin);
 
   return {
     companyKey,
@@ -391,6 +402,9 @@ export function parseVerifiedIndustryEvidenceSummary(
     evidenceSummary,
     reviewedAt,
     ...(reviewedBy ? { reviewedBy } : {}),
+    ...(machineOrigin && machineOriginSet.has(machineOrigin)
+      ? { machineOrigin: machineOrigin as MachineOrigin }
+      : {}),
     ...(verifiedYears === undefined
       ? {}
       : { verifiedYears: Math.max(0, verifiedYears) }),

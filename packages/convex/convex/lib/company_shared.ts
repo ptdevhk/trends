@@ -57,6 +57,12 @@ export const industryClassValidator = v.union(
   v.literal("unknown"),
 );
 
+export const machineOriginValidator = v.union(
+  v.literal("international"),
+  v.literal("domestic"),
+  v.literal("unknown"),
+);
+
 export const verificationLevelValidator = v.union(
   v.literal("verified"),
   v.literal("candidate"),

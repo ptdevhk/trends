@@ -3,6 +3,7 @@ import {
   type IndustryClass,
   type IndustryMaintenanceTriggerReason,
   type IndustryProposalStatus,
+  type MachineOrigin,
 } from "@trends/shared";
 
 import {
@@ -176,6 +177,7 @@ export async function approveIndustryProposal(
     expectedSourceVersions?: Array<{ sourceId: string; updatedAt: number }>;
     verificationLevel: "verified" | "rejected";
     industryClass: IndustryClass;
+    machineOrigin?: MachineOrigin;
     approvedSourceIds: string[];
     evidenceSummary: string;
     decisionReason: string;
@@ -239,6 +241,7 @@ export async function approveIndustryProposal(
 export async function autoApproveIndustryProposal(input: {
   proposalId: string;
   industryClass: IndustryClass;
+  machineOrigin?: MachineOrigin;
   approvedSourceIds: string[];
   evidenceSummary: string;
   decisionReason: string;

@@ -49,6 +49,8 @@ import type {
 } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
 
+import { MachineOriginClassifier, type VerifiedCompanyProfileSummary } from "./machine-origin-classifier.js";
+
 export type ResumeFilters = {
   education?: string[];
   skills?: string[];
@@ -60,6 +62,7 @@ export type ResumeFilters = {
   roleFilterType?: string;
   minAge?: number;
   maxAge?: number;
+  machineOrigin?: string;
   sources?: string[];
 };
 
@@ -469,6 +472,7 @@ export class ResumeService {
   readonly projectRoot: string;
   private readonly indexService: ResumeIndexService;
   private readonly industryService: IndustryDataService;
+  private readonly machineOriginClassifier: MachineOriginClassifier;
   private readonly skillsService: SkillsKnowledgeService;
   private readonly unifiedSearchService: UnifiedSearchService;
 
@@ -476,6 +480,7 @@ export class ResumeService {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.indexService = new ResumeIndexService(this.projectRoot);
     this.industryService = new IndustryDataService(this.projectRoot);
+    this.machineOriginClassifier = new MachineOriginClassifier(this.industryService);
     this.skillsService = new SkillsKnowledgeService(this.projectRoot);
     this.unifiedSearchService = new UnifiedSearchService(
       this.skillsService,
@@ -687,7 +692,21 @@ export class ResumeService {
     return this.unifiedSearchService.expandKeyword(query);
   }
 
-  filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {
+  /**
+   * Load verified company profiles (machineOrigin) for candidate company keys.
+   * Fails open (empty map) if the Convex query errors.
+   */
+  async loadVerifiedCompanyProfiles(
+    keys: string[],
+  ): Promise<Map<string, VerifiedCompanyProfileSummary>> {
+    return this.machineOriginClassifier.loadVerifiedProfiles(keys);
+  }
+
+  filterResumes<T extends ResumeItem>(
+    items: T[],
+    filters?: ResumeFilters,
+    verifiedProfilesMap?: Map<string, VerifiedCompanyProfileSummary>,
+  ): T[] {
     if (!filters) return items;
     return items.filter((item) => {
       if (filters.education?.length) {
@@ -740,6 +759,24 @@ export class ResumeService {
       if ((filters.minRoleYears ?? 0) > 0) {
         const roleYears = getResumeItemRoleYears(item, filters.roleFilterType);
         if (roleYears < filters.minRoleYears!) return false;
+      }
+
+      if (filters.machineOrigin) {
+        // Tier-1 verified classification wins over any ingest-time stamp: it
+        // reflects the latest human-reviewed company record. Otherwise fall
+        // back to the stamped value, then query-time classification.
+        const stamped =
+          (item.ingestData as { machineOrigin?: string } | undefined)
+            ?.machineOrigin;
+        const classified = this.machineOriginClassifier.classify(
+          item,
+          verifiedProfilesMap,
+        );
+        const origin =
+          classified.tier === "tier1_verified"
+            ? classified.machineOrigin
+            : (stamped ?? classified.machineOrigin);
+        if (origin !== filters.machineOrigin) return false;
       }
 
       return true;

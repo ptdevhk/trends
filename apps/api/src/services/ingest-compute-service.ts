@@ -26,6 +26,7 @@ import {
 
 import { IndustryDataService } from "./industry-data-service.js";
 import { IndustryVerificationService } from "./industry-verification-service.js";
+import { MachineOriginClassifier, type VerifiedCompanyProfileSummary } from "./machine-origin-classifier.js";
 import { logger } from "./logger.js";
 import { normalizeCompanyPatternIdentifier, SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
@@ -87,6 +88,8 @@ export interface IngestResult {
   brandHits: BrandHit[];
   /** Candidate-level brand origin aggregate (international wins; domestic-only when no intl). */
   brandOrigin: BrandOrigin;
+  /** Candidate-level machine origin (verified profile > employer surface > brandHits fallback). */
+  machineOrigin?: "international" | "domestic" | "unknown";
   /** Candidate-level product class aggregate from brand hits. */
   productClass: ProductClass;
   companyHits: string[];
@@ -230,6 +233,9 @@ function toResumeItem(value: unknown): ResumeItem | null {
     profileId: toOptionalId(value.profileId),
     profileType: toStringValue(value.profileType) || undefined,
     externalId: toStringValue(value.externalId) || undefined,
+    ...(isRecord(value.companyKeyProjection)
+      ? { companyKeyProjection: value.companyKeyProjection as { epoch?: number; companyKeys?: string[]; companyTokens?: string[] } }
+      : {}),
   };
 }
 
@@ -520,6 +526,7 @@ export class IngestComputeService {
   private readonly skillsKnowledgeService: SkillsKnowledgeService;
   private readonly jobDescriptionService: JobDescriptionService;
   private readonly industryDataService: IndustryDataService;
+  private readonly machineOriginClassifier: MachineOriginClassifier;
   private readonly industryVerificationService: IndustryVerificationService;
   private readonly projectRoot?: string;
   private readonly employerResolver: (
@@ -539,6 +546,7 @@ export class IngestComputeService {
     this.skillsKnowledgeService = new SkillsKnowledgeService(projectRoot);
     this.jobDescriptionService = new JobDescriptionService(projectRoot);
     this.industryDataService = new IndustryDataService(projectRoot);
+    this.machineOriginClassifier = new MachineOriginClassifier(this.industryDataService);
     this.industryVerificationService = new IndustryVerificationService(this.industryDataService);
     this.employerResolver =
       dependencies.employerResolver ?? resolveCompanyKeysForEmployerSurfaces;
@@ -630,6 +638,53 @@ export class IngestComputeService {
       computedAt,
     );
 
+    // 7. Compute machineOrigin
+    const verifiedProfilesMap = new Map<string, VerifiedCompanyProfileSummary>();
+    if (catalogContext?.profiles) {
+      for (const [key, profile] of catalogContext.profiles.entries()) {
+        const rawOrigin = (profile as { machineOrigin?: string }).machineOrigin;
+        if (rawOrigin === "international" || rawOrigin === "domestic") {
+          verifiedProfilesMap.set(key, {
+            companyKey: key,
+            machineOrigin: rawOrigin,
+          });
+        }
+      }
+    }
+    // Tier-1 keys: same source as the query-time companyKeyProjection
+    // (first-non-null work-history list, order-preserving, deduped), resolved
+    // through the catalog's normalized-surface map so human-verified records
+    // win over surface/brand guessing at ingest time too.
+    const companyKeys: string[] = [];
+    if (catalogContext) {
+      const seenKeys = new Set<string>();
+      for (const entry of latestWorkHistory) {
+        const companyName =
+          normalizeWorkHistoryEntry(entry)?.companyName ||
+          extractCompanyFromWorkHistory(entry);
+        if (!companyName?.trim()) continue;
+        const companyKey = catalogContext.companyKeysByNormalizedSurface.get(
+          normalizeCompanyAlias(companyName),
+        );
+        if (companyKey && !seenKeys.has(companyKey)) {
+          seenKeys.add(companyKey);
+          companyKeys.push(companyKey);
+        }
+      }
+    }
+    const machineOrigin = this.machineOriginClassifier.classify(
+      {
+        workHistory: item.workHistory,
+        companyKeyProjection:
+          companyKeys.length > 0 ? { companyKeys } : undefined,
+        ingestData: {
+          brandOrigin,
+          brandHits,
+        },
+      },
+      verifiedProfilesMap,
+    ).machineOrigin;
+
     return {
       resumeId,
       market,
@@ -638,6 +693,7 @@ export class IngestComputeService {
       synonymHits,
       brandHits,
       brandOrigin,
+      machineOrigin,
       productClass,
       companyHits,
       industryDbV2Raw,

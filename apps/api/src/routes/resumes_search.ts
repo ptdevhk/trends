@@ -37,6 +37,7 @@ import { workspaceConfigService } from "../services/workspace-config-service.js"
 import { listCandidateBlocks } from "../services/candidate-block-service.js";
 import { getIndustryReviewAccessError } from "../middleware/auth.js";
 import { ResumePolicyEnforcer } from "../services/resume-policy-enforcer.js";
+import type { VerifiedCompanyProfileSummary } from "../services/machine-origin-classifier.js";
 import {
   buildResumeIngestData,
   toOptionalNumber,
@@ -662,6 +663,8 @@ function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
   // bug risk: if searchText is missing on a ResumeItem, BFF falls back to
   // the narrow buildBffSearchText which could exclude resumes that Convex
   // correctly included via full searchText.
+  // machineOrigin is intentionally NOT stripped: Convex never applies it, so
+  // it must always be re-applied by BFF (Tier-1 verified profile aware).
   const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, skills, requiredKeywords, ...rest } = filters;
   return rest;
 }
@@ -770,6 +773,7 @@ app.openapi(getResumesRoute, (c) => {
     roleType,
     minAge,
     maxAge,
+    machineOrigin,
     sources,
     status,
     minMatchScore,
@@ -818,6 +822,7 @@ app.openapi(getResumesRoute, (c) => {
           minAge,
           maxAge,
           sources,
+          machineOrigin: Boolean(machineOrigin),
         });
         const requiresMatchPagination = sortBy === "score" || hasLocalMatchFilters;
         const localResumeFilters: ResumeFilters = {
@@ -831,6 +836,7 @@ app.openapi(getResumesRoute, (c) => {
           roleFilterType: effectiveRoleFilterType,
           minAge,
           maxAge,
+          machineOrigin,
           sources,
         };
         const canUseMatchStoragePagination = Boolean(
@@ -838,17 +844,20 @@ app.openapi(getResumesRoute, (c) => {
           && requiresMatchPagination
           && normalizedKeywords.length === 0
           && !hasLocalResumeFilters
+          && !machineOrigin
         );
         const canUseFilteredMatchStoragePagination = Boolean(
           resolvedJobId
           && requiresMatchPagination
           && normalizedKeywords.length === 0
           && hasLocalResumeFilters
+          && !machineOrigin
         );
         const canUseKeywordMatchPagination = Boolean(
           resolvedJobId
           && requiresMatchPagination
           && normalizedKeywords.length > 0
+          && !machineOrigin
         );
         const canUseSourcePagination = !requiresMatchPagination;
         let usesPrePagedMatchResults = canUseMatchStoragePagination || canUseFilteredMatchStoragePagination;
@@ -1005,7 +1014,12 @@ app.openapi(getResumesRoute, (c) => {
           prepared = preparedResult.prepared;
           liveExpansion = preparedResult.keywordExpansion;
           totalCount = preparedResult.total;
-          usedServerSideFilters = preparedResult.usedServerSideFilters ?? false;
+          // machineOrigin must re-apply BFF-side on every path (Convex never
+          // applies it), but only claim "server-side filters used" when the
+          // source-pagination path actually ran them; otherwise the 8
+          // Convex-applied fields would be silently skipped below.
+          usedServerSideFilters = (preparedResult.usedServerSideFilters ?? false)
+            || (Boolean(machineOrigin) && canUseSourcePagination);
         }
         } // end if (prepared.length === 0 && !hybridSearchMode)
 
@@ -1059,12 +1073,26 @@ app.openapi(getResumesRoute, (c) => {
         // for those filter fields that Convex already handled. Local filtering
         // still runs for the old filter fields that Convex doesn't cover
         // (or when using the non-cursor paths).
+        // machineOrigin filtering is Tier-1 verified-profile aware: preload
+        // the verified company records for the candidate set so the BFF
+        // classifier can prefer human-reviewed machine origins over the
+        // ingest-time stamp (verified data wins by design).
+        let verifiedProfilesMap: Map<string, VerifiedCompanyProfileSummary> | undefined;
+        if (machineOrigin) {
+          const companyKeys = Array.from(new Set(
+            prepared.flatMap((candidate) => candidate.resume.companyKeyProjection?.companyKeys ?? []),
+          ));
+          if (companyKeys.length > 0) {
+            verifiedProfilesMap = await resumeService.loadVerifiedCompanyProfiles(companyKeys);
+          }
+        }
+
         let filtered = prepared.map((item) => item.resume);
         filtered = usesPrePagedMatchResults
           ? filtered
           : usedServerSideFilters
-            ? resumeService.filterResumes(filtered, removeServerSideFilters(localResumeFilters))
-            : resumeService.filterResumes(filtered, localResumeFilters);
+            ? resumeService.filterResumes(filtered, removeServerSideFilters(localResumeFilters), verifiedProfilesMap)
+            : resumeService.filterResumes(filtered, localResumeFilters, verifiedProfilesMap);
 
         const enriched = filtered.map((item, index) => ({
           resume: item,
@@ -1207,6 +1235,7 @@ app.openapi(getResumesRoute, (c) => {
       locations: effectiveLocations,
       minSalary,
       maxSalary,
+      machineOrigin,
     });
 
     const enriched = filtered.map((item, index) => ({

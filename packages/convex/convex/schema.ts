@@ -824,6 +824,11 @@ export default defineSchema({
             v.literal("non_industry"),
             v.literal("unknown"),
         ),
+        machineOrigin: v.optional(v.union(
+            v.literal("international"),
+            v.literal("domestic"),
+            v.literal("unknown"),
+        )),
         verificationLevel: v.union(
             v.literal("verified"),
             v.literal("candidate"),
@@ -1203,6 +1208,11 @@ export default defineSchema({
             v.literal("non_industry"),
             v.literal("unknown"),
         ),
+        machineOrigin: v.optional(v.union(
+            v.literal("international"),
+            v.literal("domestic"),
+            v.literal("unknown"),
+        )),
         verificationLevel: v.union(
             v.literal("verified"),
             v.literal("rejected"),

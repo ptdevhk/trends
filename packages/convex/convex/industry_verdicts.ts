@@ -16,6 +16,7 @@ import {
   findIndustryRecomputeRun,
   industryClassValidator,
   INDUSTRY_REVIEW_STALE_PREFIX,
+  machineOriginValidator,
   nextIndustryEvidenceReviewAt,
   normalizeCompanyKey,
   OPEN_INDUSTRY_PROPOSAL_STATUSES,
@@ -76,6 +77,7 @@ export const approveIndustryProposal = mutation({
     ),
     verificationLevel: approvedVerificationLevelValidator,
     industryClass: industryClassValidator,
+    machineOrigin: v.optional(machineOriginValidator),
     approvedSourceIds: v.array(v.string()),
     evidenceSummary: v.string(),
     reviewer: v.string(),
@@ -102,6 +104,7 @@ export const approveIndustryProposal = mutation({
       expectedSourceVersions: args.expectedSourceVersions,
       verificationLevel: args.verificationLevel,
       industryClass: args.industryClass,
+      machineOrigin: args.machineOrigin,
       approvedSourceIds: args.approvedSourceIds,
       evidenceSummary: args.evidenceSummary,
       reviewer: args.reviewer,
@@ -278,6 +281,7 @@ async function commitIndustryVerdictApproval(
     expectedSourceVersions?: Array<{ sourceId: string; updatedAt: number }>;
     verificationLevel: "verified" | "rejected";
     industryClass: string;
+    machineOrigin?: "international" | "domestic" | "unknown";
     approvedSourceIds: string[];
     evidenceSummary: string;
     reviewer: string;
@@ -469,6 +473,7 @@ async function commitIndustryVerdictApproval(
     revisionId,
     companyKey,
     industryClass: args.industryClass,
+    machineOrigin: args.machineOrigin ?? "unknown",
     verificationLevel: args.verificationLevel,
     approvedSourceIds,
     evidenceSummary,
@@ -518,6 +523,7 @@ async function commitIndustryVerdictApproval(
   const profilePayload = {
     companyKey,
     industryClass: args.industryClass,
+    machineOrigin: args.machineOrigin ?? "unknown",
     verificationLevel: args.verificationLevel,
     evidenceSource: "manual" as const,
     summary: evidenceSummary,
@@ -737,6 +743,7 @@ export const undoIndustryProposalApproval = mutation({
     const primarySource = restoredSources[0];
     const now = Date.now();
     const restoredIndustryClass = previousRevision?.industryClass ?? "unknown";
+    const restoredMachineOrigin = previousRevision?.machineOrigin ?? "unknown";
     const restoredVerificationLevel =
       previousRevision?.verificationLevel ?? "rejected";
     const restoredEvidenceSummary =
@@ -762,6 +769,7 @@ export const undoIndustryProposalApproval = mutation({
       revisionId: reversalRevisionId,
       companyKey,
       industryClass: restoredIndustryClass,
+      machineOrigin: restoredMachineOrigin,
       verificationLevel: restoredVerificationLevel,
       approvedSourceIds: restoredSourceIds,
       evidenceSummary: restoredEvidenceSummary,
@@ -786,6 +794,7 @@ export const undoIndustryProposalApproval = mutation({
     const restoredProfile = {
       companyKey,
       industryClass: restoredIndustryClass,
+      machineOrigin: restoredMachineOrigin,
       verificationLevel: restoredVerificationLevel,
       evidenceSource: "manual" as const,
       ...(profile.officialDomain

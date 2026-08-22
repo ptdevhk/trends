@@ -4139,6 +4139,7 @@ export interface paths {
                     roleType?: string;
                     minAge?: string;
                     maxAge?: string;
+                    machineOrigin?: "international" | "domestic" | "unknown";
                     sources?: string | string[];
                     status?: string | string[];
                     recommendation?: string | string[];
@@ -10683,6 +10684,8 @@ export interface paths {
                         verificationLevel: "verified" | "rejected";
                         /** @enum {string} */
                         industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                        /** @enum {string} */
+                        machineOrigin?: "international" | "domestic" | "unknown";
                         approvedSourceIds: string[];
                         evidenceSummary: string;
                         decisionReason: string;

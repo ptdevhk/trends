@@ -4,6 +4,7 @@ import {
   INDUSTRY_EVIDENCE_TRUST_TIERS,
   INDUSTRY_MAINTENANCE_TRIGGER_REASONS,
   INDUSTRY_PROPOSAL_STATUSES,
+  MACHINE_ORIGINS,
   MAX_RECRUITER_INDUSTRY_EVIDENCE_SOURCES,
   compareSourcePreviews,
   isRecord,
@@ -18,11 +19,13 @@ import {
   type IndustryProposalStatus,
   type IndustryReviewAttestation,
   type IndustryReviewRiskFlag,
+  type MachineOrigin,
 } from "@trends/shared";
 
 import type { ReviewedIndustryProfileSnapshot } from "./industry-verification-service.js";
 
 const industryClassSet = new Set<string>(INDUSTRY_CLASSES);
+const machineOriginSet = new Set<string>(MACHINE_ORIGINS);
 const sourceTypeSet = new Set<string>(INDUSTRY_EVIDENCE_SOURCE_TYPES);
 const trustTierSet = new Set<string>(INDUSTRY_EVIDENCE_TRUST_TIERS);
 const triggerReasonSet = new Set<string>(INDUSTRY_MAINTENANCE_TRIGGER_REASONS);
@@ -150,6 +153,7 @@ export interface IndustryVerdictRevision {
   revisionId: string;
   companyKey: string;
   industryClass: IndustryClass;
+  machineOrigin?: MachineOrigin;
   verificationLevel: "verified" | "rejected";
   approvedSourceIds: string[];
   evidenceSummary: string;
@@ -205,6 +209,9 @@ export function parseReviewedIndustryProfileSnapshot(
     reviewedAt,
     ...(nonEmptyString(value.reviewedBy)
       ? { reviewedBy: nonEmptyString(value.reviewedBy)! }
+      : {}),
+    ...(nonEmptyString(value.machineOrigin) && machineOriginSet.has(nonEmptyString(value.machineOrigin)!)
+      ? { machineOrigin: nonEmptyString(value.machineOrigin) as MachineOrigin }
       : {}),
     sourceCount,
     sourcePreviews,
@@ -444,6 +451,7 @@ export function parseIndustryVerdictRevision(
   const revisionId = nonEmptyString(value.revisionId);
   const companyKey = nonEmptyString(value.companyKey);
   const industryClass = nonEmptyString(value.industryClass);
+  const machineOrigin = nonEmptyString(value.machineOrigin);
   const approvedSourceIds = stringArray(value.approvedSourceIds);
   const evidenceSummary = nonEmptyString(value.evidenceSummary);
   const reviewedBy = nonEmptyString(value.reviewedBy);
@@ -474,6 +482,9 @@ export function parseIndustryVerdictRevision(
     revisionId,
     companyKey,
     industryClass: industryClass as IndustryClass,
+    ...(machineOrigin && machineOriginSet.has(machineOrigin)
+      ? { machineOrigin: machineOrigin as MachineOrigin }
+      : {}),
     verificationLevel: value.verificationLevel,
     approvedSourceIds,
     evidenceSummary,

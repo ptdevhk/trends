@@ -1154,6 +1154,7 @@ describe("resume-candidate-prep", () => {
       expect(mockResumeService.filterResumes).toHaveBeenCalledWith(
         [alice, bob],
         filters,
+        undefined,
       );
     });
 

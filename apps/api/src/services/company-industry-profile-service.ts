@@ -13,6 +13,7 @@ import {
   type IndustryClass,
   type IndustryEvidenceFreshnessState,
   type IndustryVerificationLevel,
+  type MachineOrigin,
 } from "@trends/shared";
 
 import { callConvexMutation, callConvexQuery } from "./convex-utils.js";
@@ -35,6 +36,7 @@ export interface CompanyIndustryProfile {
   _id: string;
   companyKey: string;
   industryClass: IndustryClass;
+  machineOrigin?: MachineOrigin;
   verificationLevel: VerificationLevel;
   officialDomain?: string;
   evidenceSource: EvidenceSource;
@@ -67,6 +69,7 @@ function parseProfile(value: unknown): CompanyIndustryProfile | null {
   }
 
   const industryClass = value.industryClass as IndustryClass;
+  const machineOrigin = typeof value.machineOrigin === "string" ? (value.machineOrigin as MachineOrigin) : undefined;
   const verificationLevel = value.verificationLevel as VerificationLevel;
   const evidenceSource = (value.evidenceSource as EvidenceSource) ?? "manual";
 
@@ -74,6 +77,7 @@ function parseProfile(value: unknown): CompanyIndustryProfile | null {
     _id: typeof value._id === "string" ? value._id : String(value._id ?? ""),
     companyKey,
     industryClass,
+    ...(machineOrigin ? { machineOrigin } : {}),
     verificationLevel,
     ...(typeof value.officialDomain === "string" ? { officialDomain: value.officialDomain } : {}),
     evidenceSource,

@@ -24,6 +24,7 @@ export {
   listIndustryProfiles,
   getIndustryProfile,
   listVerifiedIndustryEmployerAliases,
+  listVerifiedCompanyProfiles,
   getReviewedIndustryCatalogByKeys,
   upsertIndustryProfile,
   deleteIndustryProfile,

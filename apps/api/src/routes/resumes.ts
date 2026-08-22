@@ -792,7 +792,8 @@ function removeServerSideFilters(filters: ResumeFilters): ResumeFilters {
   // bug risk: if searchText is missing on a ResumeItem, BFF falls back to
   // the narrow buildBffSearchText which could exclude resumes that Convex
   // correctly included via full searchText.
-  const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, skills, requiredKeywords, ...rest } = filters;
+  // machineOrigin is post-filtered at BFF server-side.
+  const { minRoleYears, roleFilterType, minAge, maxAge, sources, locations, skills, requiredKeywords, machineOrigin, ...rest } = filters;
   return rest;
 }
 

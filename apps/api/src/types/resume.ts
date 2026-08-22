@@ -69,6 +69,8 @@ export type ResumeIngestData = {
   brandHits?: ResumeIngestBrandHit[];
   /** Candidate-level brand origin aggregate; analysis/debug signal only */
   brandOrigin?: BrandOrigin;
+  /** Candidate-level machine origin (verified profile > employer surface > brandHits fallback) */
+  machineOrigin?: "international" | "domestic" | "unknown";
   /** Candidate-level product class aggregate; analysis/debug signal only */
   productClass?: ProductClass;
   companyHits?: string[];
@@ -91,6 +93,11 @@ export type ResumeItem = {
   profileUrl: string;
   source?: string;
   sourceKey?: string;
+  companyKeyProjection?: {
+    epoch?: number;
+    companyKeys?: string[];
+    companyTokens?: string[];
+  };
   activityStatus: string;
   age: string;
   experience: string;

@@ -7,6 +7,7 @@ import {
   validateIndustryReviewAttestation,
   type IndustryClass,
   type IndustryReviewAttestation,
+  type MachineOrigin,
 } from "@trends/shared";
 
 import type { IndustryReviewPacket } from "./company-industry-review-service.js";
@@ -31,6 +32,7 @@ export interface BuildIndustryApprovalDecisionInput {
   /** Attended classification override. Required when the recommendation has
    *  no suggested class (weak_industry_signal). */
   industryClass?: IndustryClass;
+  machineOrigin?: MachineOrigin;
   decisionReason?: string;
   evidenceSummary?: string;
   attestation?: IndustryApprovalAttestationInput;
@@ -184,6 +186,7 @@ export function buildIndustryApprovalDecision(
       expectedSourceVersions: dataset.sourceVersions,
       verificationLevel: "verified",
       industryClass: effectiveClass,
+      ...(input.machineOrigin ? { machineOrigin: input.machineOrigin } : {}),
       approvedSourceIds: safeSourceIds,
       evidenceSummary,
       decisionReason,

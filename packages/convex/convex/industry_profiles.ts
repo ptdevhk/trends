@@ -12,6 +12,7 @@ import {
 import {
   findIndustryEvidenceSource,
   industryClassValidator,
+  machineOriginValidator,
   mapWithConcurrency,
   normalizeCompanyKey,
   requireReadSecret,
@@ -132,6 +133,43 @@ export const listVerifiedIndustryEmployerAliases = query({
   },
 });
 
+export const listVerifiedCompanyProfiles = query({
+  args: {
+    writeSecret: v.optional(v.string()),
+    keys: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireReadSecret(args.writeSecret);
+    const companyKeys = uniqueSortedStrings(
+      args.keys.slice(0, 200).map(normalizeCompanyKey),
+    );
+    if (companyKeys.length === 0) {
+      return [];
+    }
+
+    const verifiedProfiles = await ctx.db
+      .query("company_industry_profiles")
+      .withIndex("by_verification", (q) => q.eq("verificationLevel", "verified"))
+      .collect();
+
+    const requestedKeySet = new Set(companyKeys);
+    return verifiedProfiles
+      .filter(
+        (profile) =>
+          requestedKeySet.has(profile.companyKey) &&
+          profile.machineOrigin !== undefined &&
+          profile.machineOrigin !== "unknown",
+      )
+      .map((profile) => ({
+        companyKey: profile.companyKey,
+        machineOrigin: profile.machineOrigin!,
+        industryClass: profile.industryClass,
+        updatedAt: profile.updatedAt,
+      }))
+      .sort((left, right) => left.companyKey.localeCompare(right.companyKey));
+  },
+});
+
 export const getReviewedIndustryCatalogByKeys = query({
   args: {
     writeSecret: v.optional(v.string()),
@@ -217,6 +255,9 @@ export const getReviewedIndustryCatalogByKeys = query({
           evidenceSummary: revision.evidenceSummary,
           reviewedAt: revision.reviewedAt,
           reviewedBy: revision.reviewedBy,
+          ...(revision.machineOrigin
+            ? { machineOrigin: revision.machineOrigin }
+            : {}),
           sourceCount: revision.approvedSourceIds.length,
           sourcePreviews,
           additionalSourceCount: Math.max(
@@ -246,6 +287,7 @@ export const upsertIndustryProfile = mutation({
     writeSecret: v.optional(v.string()),
     companyKey: v.string(),
     industryClass: industryClassValidator,
+    machineOrigin: v.optional(machineOriginValidator),
     verificationLevel: verificationLevelValidator,
     officialDomain: v.optional(v.string()),
     evidenceSource: v.optional(evidenceSourceValidator),
@@ -279,6 +321,7 @@ export const upsertIndustryProfile = mutation({
     const payload = {
       companyKey,
       industryClass: args.industryClass,
+      ...(args.machineOrigin !== undefined ? { machineOrigin: args.machineOrigin } : {}),
       verificationLevel: args.verificationLevel,
       ...(args.officialDomain !== undefined ? { officialDomain: args.officialDomain } : {}),
       evidenceSource: args.evidenceSource ?? "manual",

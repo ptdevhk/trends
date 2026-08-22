@@ -762,6 +762,13 @@ export const ResumesQuerySchema = z.object({
     }),
   minAge: OptionalIntParam({ name: "minAge", example: "25" }),
   maxAge: OptionalIntParam({ name: "maxAge", example: "40" }),
+  machineOrigin: z
+    .enum(["international", "domestic", "unknown"])
+    .optional()
+    .openapi({
+      param: { name: "machineOrigin", in: "query" },
+      example: "international",
+    }),
   sources: CsvStringArraySchema.openapi({
     param: { name: "sources", in: "query" },
     example: "job5156,51job",

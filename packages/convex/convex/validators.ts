@@ -1,5 +1,11 @@
 import { v } from "convex/values";
 
+export const machineOriginValidator = v.union(
+    v.literal("international"),
+    v.literal("domestic"),
+    v.literal("unknown"),
+);
+
 const brandOriginValidator = v.union(
     v.literal("international"),
     v.literal("domestic"),
@@ -311,6 +317,7 @@ export const resumeFiltersValidator = v.optional(v.object({
     roleFilterType: v.optional(v.string()),
     minAge: v.optional(v.number()),
     maxAge: v.optional(v.number()),
+    machineOrigin: v.optional(machineOriginValidator),
     sources: v.optional(v.array(v.string())),
     status: v.optional(v.array(v.union(
         v.literal("new"),

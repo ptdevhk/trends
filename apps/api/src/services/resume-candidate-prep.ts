@@ -33,6 +33,7 @@ import {
 import { bffMatchesResumeFilters } from "./bff-filter-utils.js";
 import { callConvexQuery, isConvexPaginatedQueryPage } from "./convex-utils.js";
 import { ResumeService, type ResumeFilters } from "./resume-service.js";
+import type { VerifiedCompanyProfileSummary } from "./machine-origin-classifier.js";
 import type { BrandHit, RoleSignalSummary } from "./rule-scoring.js";
 import type { MatchingResult } from "./ai-matching.js";
 import type { StoredMatch } from "./match-storage.js";
@@ -296,6 +297,7 @@ export function hasResumeListFilters(params: {
   minAge?: number;
   maxAge?: number;
   sources?: string[];
+  machineOrigin?: string | boolean;
   showArchived?: boolean;
 }): boolean {
   return (params.education?.length ?? 0) > 0
@@ -308,7 +310,8 @@ export function hasResumeListFilters(params: {
     || typeof params.roleFilterType === "string"
     || typeof params.minAge === "number"
     || typeof params.maxAge === "number"
-    || (params.sources?.length ?? 0) > 0;
+    || (params.sources?.length ?? 0) > 0
+    || Boolean(params.machineOrigin);
 }
 
 export function resolveResumeSortOrder(
@@ -476,6 +479,9 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
     externalId: toStringValue(record.externalId) || undefined,
     ...(typeof record.identityKey === "string" && record.identityKey ? { identityKey: record.identityKey } : {}),
     ...(typeof record.searchText === 'string' ? { searchText: record.searchText } : {}),
+    ...(isRecord(record.companyKeyProjection)
+      ? { companyKeyProjection: record.companyKeyProjection as { epoch?: number; companyKeys?: string[]; companyTokens?: string[] } }
+      : {}),
   };
 }
 
@@ -663,10 +669,11 @@ export function prepareResumeCandidate(params: {
 function toResumeItemFromResumeDoc(resumeRecord: Record<string, unknown>): ResumeItem {
   const content = isRecord(resumeRecord.content) ? resumeRecord.content : {};
   const sourceKey = toStringValue(resumeRecord.sourceKey);
-  return toResumeItemFromRecord(
-    sourceKey ? { ...content, sourceKey } : content,
-    toStringValue(resumeRecord.source),
-  );
+  const merged: Record<string, unknown> = sourceKey ? { ...content, sourceKey } : { ...content };
+  if (isRecord(resumeRecord.companyKeyProjection)) {
+    merged.companyKeyProjection = resumeRecord.companyKeyProjection;
+  }
+  return toResumeItemFromRecord(merged, toStringValue(resumeRecord.source));
 }
 
 // prepareConvexCandidates — the large duplicated function
@@ -693,6 +700,7 @@ export async function prepareConvexCandidates(params: {
     minAge?: number;
     maxAge?: number;
     sources?: string[];
+    machineOrigin?: string;
     showArchived?: boolean;
   };
   jobDescriptionId?: string;
@@ -706,6 +714,10 @@ export async function prepareConvexCandidates(params: {
   usedServerSideFilters?: boolean;
 }> {
   const resumeIds = Array.from(new Set((params.resumeIds ?? []).map((resumeId) => resumeId.trim()).filter(Boolean)));
+  // machineOrigin is applied BFF-side only (Tier-1 verified profiles); Convex
+  // rejects unknown args, so strip it before spreading into query args.
+  const convexFilters: Record<string, unknown> = { ...params.filters };
+  delete convexFilters.machineOrigin;
   if (resumeIds.length > 0) {
     const value = await callConvexQuery("resumes:getByIdsForExport", { resumeIds });
     if (!Array.isArray(value)) {
@@ -884,7 +896,7 @@ export async function prepareConvexCandidates(params: {
           keywordGroups: keywordExpansion?.groups ?? [],
           mode: keywordExpansion?.mode ?? "AND",
           sourceMappings: sourceMappingEntries(keywordExpansion?.sourceMapping),
-          ...(params.filters ?? {}),
+          ...convexFilters,
         });
 
         if (!isConvexPaginatedQueryPage(value)) {
@@ -984,7 +996,7 @@ export async function prepareConvexCandidates(params: {
     limit: params.limit,
     ...(params.paged ? { offset: params.offset } : {}),
     ...(params.paged && params.sortBy ? { sortBy: params.sortBy, sortOrder: params.sortOrder } : {}),
-    ...(params.paged && params.filters ? params.filters : {}),
+    ...(params.paged && params.filters ? convexFilters : {}),
     jobDescriptionId: params.jobDescriptionId,
   });
   const items = params.paged && isRecord(value) && Array.isArray(value.results)
@@ -1063,12 +1075,13 @@ export function filterPreparedCandidatesByResumeFilters(
   prepared: PreparedResumeCandidate[],
   filters: ResumeFilters | undefined,
   resumeService: ResumeService,
+  verifiedProfilesMap?: Map<string, VerifiedCompanyProfileSummary>,
 ): PreparedResumeCandidate[] {
   if (!filters) {
     return prepared;
   }
 
-  const allowed = new Set(resumeService.filterResumes(prepared.map((item) => item.resume), filters));
+  const allowed = new Set(resumeService.filterResumes(prepared.map((item) => item.resume), filters, verifiedProfilesMap));
   return prepared.filter((item) => allowed.has(item.resume));
 }
 

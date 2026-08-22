@@ -12,6 +12,7 @@
 import type {
   IndustryClass,
   IndustryEvidenceSourcePreview,
+  MachineOrigin,
 } from "@trends/shared";
 
 import { IndustryDataService, type CompanyEntry } from "./industry-data-service.js";
@@ -42,6 +43,7 @@ export interface ReviewedIndustryProfileSnapshot {
   verificationLevel: "verified" | "rejected";
   verdictRevisionId: string;
   evidenceSummary: string;
+  machineOrigin?: MachineOrigin;
   reviewedAt: number;
   reviewedBy?: string;
   sourceCount: number;
