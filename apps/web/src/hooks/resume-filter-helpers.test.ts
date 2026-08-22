@@ -10,6 +10,7 @@ import {
   getResumeIdentityKey,
   getResumeLocationText,
   getRoleYears,
+  isMachineOriginValue,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
   normalizeFilterList,
@@ -30,7 +31,7 @@ import {
 } from './resume-filter-helpers.js'
 
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import type { ResumeFilters } from '@/types/resume'
+import type { ResumeFilters, ResumeMachineOrigin } from '@/types/resume'
 
 describe('normalizeFilterToken', () => {
   it('trims and lowercases input', () => {
@@ -653,6 +654,22 @@ describe('appendKeywordToken', () => {
   })
 })
 
+describe('isMachineOriginValue', () => {
+  it('accepts the three supported values', () => {
+    expect(isMachineOriginValue('international')).toBe(true)
+    expect(isMachineOriginValue('domestic')).toBe(true)
+    expect(isMachineOriginValue('unknown')).toBe(true)
+  })
+
+  it('rejects other values', () => {
+    expect(isMachineOriginValue(undefined)).toBe(false)
+    expect(isMachineOriginValue('')).toBe(false)
+    expect(isMachineOriginValue('all')).toBe(false)
+    expect(isMachineOriginValue('domestic2')).toBe(false)
+    expect(isMachineOriginValue(42)).toBe(false)
+  })
+})
+
 describe('normalizeUrlFilters', () => {
   it('normalizes all fields to their default values for empty input', () => {
     const result = normalizeUrlFilters({})
@@ -704,6 +721,15 @@ describe('normalizeUrlFilters', () => {
     })
     expect(result.sortBy).toBe('score')
     expect(result.sortOrder).toBe('desc')
+  })
+
+  it('passes through valid machineOrigin and drops invalid values', () => {
+    expect(normalizeUrlFilters({ machineOrigin: 'domestic' }).machineOrigin).toBe('domestic')
+    expect(normalizeUrlFilters({ machineOrigin: 'international' }).machineOrigin).toBe('international')
+    expect(normalizeUrlFilters({ machineOrigin: 'unknown' }).machineOrigin).toBe('unknown')
+    expect(normalizeUrlFilters({ machineOrigin: 'all' as ResumeMachineOrigin }).machineOrigin).toBeUndefined()
+    expect(normalizeUrlFilters({ machineOrigin: '' as ResumeMachineOrigin }).machineOrigin).toBeUndefined()
+    expect(normalizeUrlFilters({}).machineOrigin).toBeUndefined()
   })
 })
 

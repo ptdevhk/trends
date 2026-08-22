@@ -351,6 +351,13 @@
       "status": "候選人狀態",
       "showRejected": "顯示已拒絕候選人",
       "showBlocked": "顯示已封鎖候選人",
+      "machineOrigin": "機床產地",
+      "machineOriginOptions": {
+        "all": "全部",
+        "international": "進口品牌",
+        "domestic": "國產",
+        "unknown": "未能核實"
+      },
       "education": {
         "title": "學歷",
         "high_school": "高中/中專",
@@ -509,6 +516,7 @@
         "education": "學歷",
         "status": "候選人狀態",
         "matchScore": "匹配分",
+        "machineOrigin": "機床產地",
         "sources": "來源渠道",
         "salary": "期望薪資",
         "salaryUnit": "k",

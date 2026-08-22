@@ -352,6 +352,13 @@
       "status": "Candidate status",
       "showRejected": "Show rejected candidates",
       "showBlocked": "Show blocked candidates",
+      "machineOrigin": "Machine origin",
+      "machineOriginOptions": {
+        "all": "All",
+        "international": "Imported brands",
+        "domestic": "Domestic",
+        "unknown": "Unverified"
+      },
       "education": {
         "title": "Education",
         "high_school": "High school",
@@ -509,6 +516,7 @@
         "brands": "Brand Tags",
         "education": "Education",
         "status": "Candidate Status",
+        "machineOrigin": "Machine origin",
         "matchScore": "Match Score",
         "sources": "Sources",
         "salary": "Expected Salary",

@@ -64,6 +64,7 @@ import {
   type CandidateStatus,
   type ResumeExportFormat,
   type ResumeFilters,
+  type ResumeMachineOrigin,
 } from '@/types/resume'
 import type {
   FacetCounts,
@@ -320,7 +321,8 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     typeof state.filters.minSalary === 'number' ||
     typeof state.filters.maxSalary === 'number' ||
     Boolean(normalizeOptionalString(state.filters.roleFilterType)) ||
-    (state.filters.locations?.length ?? 0) > 0
+    (state.filters.locations?.length ?? 0) > 0 ||
+    state.filters.machineOrigin != null
   )
 }
 
@@ -398,6 +400,7 @@ function buildSearchContextSignature(state: UrlSearchState): string {
       status: normalizeStringList(state.filters.status ?? []),
       minSalary: state.filters.minSalary,
       maxSalary: state.filters.maxSalary,
+      machineOrigin: state.filters.machineOrigin ?? '',
     },
   })
 }
@@ -868,10 +871,12 @@ export function useResumeSearchState() {
       keywords: parsedState.keywords.length > 0 ? parsedState.keywords : undefined,
       locations: parsedState.filters.locations,
       sources: parsedState.selectedSources.length > 0 ? parsedState.selectedSources : undefined,
+      machineOrigin: parsedState.filters.machineOrigin,
     }),
     [
       effectiveRoleFilterType,
       parsedState.filters.locations,
+      parsedState.filters.machineOrigin,
       parsedState.filters.maxAge,
       parsedState.filters.maxExperience,
       parsedState.filters.maxSalary,
@@ -1652,6 +1657,22 @@ export function useResumeSearchState() {
     [parsedState, syncToUrl],
   )
 
+  const setMachineOriginFilter = useCallback(
+    (machineOrigin: ResumeMachineOrigin | undefined) => {
+      startFilterTransition(() => {
+        syncToUrl(
+          buildUrlState(parsedState, {
+            filters: {
+              ...parsedState.filters,
+              machineOrigin,
+            },
+          }),
+        )
+      })
+    },
+    [parsedState, syncToUrl],
+  )
+
   const setSort = useCallback(
     (sortValue: SearchSortValue) => {
       const nextFilters: Partial<ResumeFilters> = {
@@ -2151,6 +2172,7 @@ export function useResumeSearchState() {
     setSalaryRangeFilter,
     setMinScoreFilter,
     setIdOrNameSearchFilter,
+    setMachineOriginFilter,
     setAiModeEnabled,
     setExportFormat,
     setQueryInput,

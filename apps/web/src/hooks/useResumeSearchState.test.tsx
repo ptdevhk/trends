@@ -877,6 +877,135 @@ describe('useResumeSearchState', () => {
     )
   })
 
+  it('sends machineOrigin to backend filters', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC',
+      keywords: ['CNC'],
+      filters: {
+        machineOrigin: 'domestic',
+      },
+    }))
+
+    resumesMock.push(createResume(1))
+
+    renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          machineOrigin: 'domestic',
+        }),
+      }),
+    )
+  })
+
+  it('treats a machineOrigin-only state as an explicit search context', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      filters: {
+        machineOrigin: 'unknown',
+      },
+    }))
+
+    resumesMock.push(createResume(1))
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.isLanding).toBe(false)
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      undefined,
+      undefined,
+      expect.objectContaining({
+        enabled: true,
+      }),
+    )
+  })
+
+  it('setMachineOriginFilter updates machineOrigin and syncs it back to url state', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC',
+      keywords: ['CNC'],
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    act(() => {
+      result.current.setMachineOriginFilter('international')
+    })
+
+    expect(syncToUrlMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      filters: expect.objectContaining({
+        machineOrigin: 'international',
+      }),
+    }))
+
+    act(() => {
+      result.current.setMachineOriginFilter(undefined)
+    })
+
+    expect(syncToUrlMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      filters: expect.objectContaining({
+        machineOrigin: undefined,
+      }),
+    }))
+  })
+
+  it('includes machineOrigin in the auto-analyze context signature', async () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC',
+      keywords: ['CNC'],
+      location: 'Malaysia',
+    }))
+
+    resumesMock.push(createResume(1), createResume(2), createResume(3))
+
+    recentSearchHistoryRecordsMock.push({
+      _id: 'history-1',
+      sessionKey: 'session-1',
+      title: 'CNC',
+      location: 'Malaysia',
+      keywords: ['CNC'],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        machineOrigin: 'domestic',
+      },
+      createdAt: 1,
+      lastOpenedAt: 2,
+    })
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    await act(async () => {
+      await result.current.applyRecentSearch(result.current.recentSearches[0]!)
+    })
+
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
+
+    // A second candidate wave with the URL still lacking machineOrigin must not
+    // re-dispatch: the armed signature (with machineOrigin) never matches the
+    // parsed URL state, and the force-analyze fallback is already consumed.
+    act(() => {
+      resumesMock.push(createResume(4), createResume(5))
+      useUrlSearchStateMock.mockReturnValue({
+        parsedState: createParsedState({
+          query: 'CNC',
+          keywords: ['CNC'],
+          location: 'Malaysia',
+        }),
+        syncToUrl: syncToUrlMock,
+      })
+      result.current.setQueryInput('CNC ')
+    })
+
+    expect(dispatchTaskMock).toHaveBeenCalledTimes(1)
+  })
+
   it('forwards role-year filters to backend and applies role-year local filtering', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC',

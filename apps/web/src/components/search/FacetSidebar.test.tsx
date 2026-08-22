@@ -641,3 +641,40 @@ describe('filterable facet groups (R1)', () => {
     expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
   })
 })
+
+describe('machineOrigin facet group', () => {
+  it('renders the four origin pills when onSetMachineOrigin is provided', () => {
+    render(<FacetSidebar {...buildProps()} machineOrigin="domestic" onSetMachineOrigin={vi.fn()} />)
+
+    expect(screen.getByText('Machine origin')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Imported brands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Domestic' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unverified' })).toBeInTheDocument()
+  })
+
+  it('marks the active origin pill and forwards selection changes', async () => {
+    const user = userEvent.setup()
+    const onSetMachineOrigin = vi.fn()
+
+    render(<FacetSidebar {...buildProps()} machineOrigin="domestic" onSetMachineOrigin={onSetMachineOrigin} />)
+
+    expect(screen.getByRole('button', { name: 'Domestic' })).toHaveClass('bg-slate-900')
+
+    await user.click(screen.getByRole('button', { name: 'All' }))
+    expect(onSetMachineOrigin).toHaveBeenCalledWith(undefined)
+
+    await user.click(screen.getByRole('button', { name: 'Imported brands' }))
+    expect(onSetMachineOrigin).toHaveBeenCalledWith('international')
+
+    await user.click(screen.getByRole('button', { name: 'Unverified' }))
+    expect(onSetMachineOrigin).toHaveBeenCalledWith('unknown')
+  })
+
+  it('omits the group when onSetMachineOrigin is not provided', () => {
+    render(<FacetSidebar {...buildProps()} />)
+
+    expect(screen.queryByText('Machine origin')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Imported brands' })).not.toBeInTheDocument()
+  })
+})

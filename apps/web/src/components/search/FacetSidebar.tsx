@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Check, X } from 'lucide-react'
 import type { FacetCounts } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
-import type { CandidateStatus } from '@/types/resume'
+import type { CandidateStatus, ResumeMachineOrigin } from '@/types/resume'
 
 export type MinRoleYearsOption = 1 | 2 | 5
 
@@ -29,6 +29,8 @@ export type FacetSidebarProps = {
   selectedSources: string[]
   selectedStatuses: CandidateStatus[]
   selectedTags: string[]
+  machineOrigin?: ResumeMachineOrigin
+  onSetMachineOrigin?: (value: ResumeMachineOrigin | undefined) => void
   onClearAll: () => void
   onSetAgeRange: (minAge: number | undefined, maxAge: number | undefined) => void
   onSetExperienceLevel: (value: ExperienceLevelFilter | undefined) => void
@@ -86,6 +88,46 @@ function PillGroup<T extends string | number>({
 }
 
 const PRESET_ROLE_YEARS = [1, 2, 5] as const
+
+function MachineOriginGroup({
+  machineOrigin,
+  onSetMachineOrigin,
+}: Pick<FacetSidebarProps, 'machineOrigin' | 'onSetMachineOrigin'>) {
+  const { t } = useTranslation()
+  if (!onSetMachineOrigin) {
+    return null
+  }
+  const items: { value: ResumeMachineOrigin | undefined; label: string }[] = [
+    { value: undefined, label: t('resumes.filters.machineOriginOptions.all', { defaultValue: 'All' }) },
+    { value: 'international', label: t('resumes.filters.machineOriginOptions.international', { defaultValue: 'Imported brands' }) },
+    { value: 'domestic', label: t('resumes.filters.machineOriginOptions.domestic', { defaultValue: 'Domestic' }) },
+    { value: 'unknown', label: t('resumes.filters.machineOriginOptions.unknown', { defaultValue: 'Unverified' }) },
+  ]
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {t('resumes.searchPage.facets.machineOrigin', { defaultValue: 'Machine origin' })}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => {
+          const active = machineOrigin === item.value
+          return (
+            <button
+              key={item.value ?? 'all'}
+              type="button"
+              className={active
+                ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
+                : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
+              onClick={() => onSetMachineOrigin(item.value)}
+            >
+              {item.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function MinRoleYearsGroup({
   minRoleYears,
@@ -463,6 +505,8 @@ export function FacetSidebar({
   selectedSources,
   selectedStatuses,
   selectedTags,
+  machineOrigin,
+  onSetMachineOrigin,
   onClearAll,
   onSetAgeRange,
   onSetExperienceLevel,
@@ -524,6 +568,7 @@ export function FacetSidebar({
       </div>
 
       <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: 'Candidate Status' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
+      <MachineOriginGroup machineOrigin={machineOrigin} onSetMachineOrigin={onSetMachineOrigin} />
       <FacetGroup
         title={t('resumes.searchPage.facets.matchScore', { defaultValue: 'Match Score' })}
         items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}

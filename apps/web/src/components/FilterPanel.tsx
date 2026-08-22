@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { CandidateStatus, ResumeFilters } from '@/types/resume'
+import type { CandidateStatus, ResumeFilters, ResumeMachineOrigin } from '@/types/resume'
 
 interface FilterPanelProps {
   filters: ResumeFilters
@@ -38,6 +38,13 @@ const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
   { value: 'withdrawn', labelKey: 'resumes.status.options.withdrawn' },
 ]
 
+const MACHINE_ORIGIN_OPTIONS: Array<{ value: '' | ResumeMachineOrigin; labelKey: string }> = [
+  { value: '', labelKey: 'resumes.filters.machineOriginOptions.all' },
+  { value: 'international', labelKey: 'resumes.filters.machineOriginOptions.international' },
+  { value: 'domestic', labelKey: 'resumes.filters.machineOriginOptions.domestic' },
+  { value: 'unknown', labelKey: 'resumes.filters.machineOriginOptions.unknown' },
+]
+
 export function FilterPanel({
   filters,
   onFiltersChange,
@@ -59,6 +66,7 @@ export function FilterPanel({
   const [status, setStatus] = useState<CandidateStatus[]>([])
   const [showBlocked, setShowBlocked] = useState(false)
   const [showRejected, setShowRejected] = useState(false)
+  const [machineOrigin, setMachineOrigin] = useState<ResumeMachineOrigin | ''>('')
   const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
@@ -72,6 +80,7 @@ export function FilterPanel({
     setStatus(filters.status ?? [])
     setShowBlocked(filters.showBlocked === true)
     setShowRejected(filters.showRejected === true)
+    setMachineOrigin(filters.machineOrigin ?? '')
   }, [filters])
 
   const activeFilterBadges = useMemo(() => {
@@ -112,6 +121,8 @@ export function FilterPanel({
     if (filters.education?.length) {
       items.push(filters.education.map(e => t(EDUCATION_LEVELS.find(l => l.value === e)?.labelKey || '')).join(', '))
     }
+
+    if (filters.machineOrigin) items.push(t(MACHINE_ORIGIN_OPTIONS.find(o => o.value === filters.machineOrigin)?.labelKey || ''))
 
     if (filters.status?.length) {
       items.push(filters.status.map(s => t(STATUS_OPTIONS.find(o => o.value === s)?.labelKey || '')).join(', '))
@@ -168,6 +179,7 @@ export function FilterPanel({
       status: status.length ? status : undefined,
       showBlocked,
       showRejected,
+      machineOrigin: machineOrigin || undefined,
     })
   }
 
@@ -183,6 +195,7 @@ export function FilterPanel({
     setStatus([])
     setShowBlocked(false)
     setShowRejected(false)
+    setMachineOrigin('')
     onFiltersChange({})
     window.setTimeout(() => setClearing(false), 200)
   }
@@ -301,6 +314,20 @@ export function FilterPanel({
                   className="bg-background"
                 />
               </div>
+            </div>
+
+            {/* Row: Machine Origin */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.machineOrigin')}</label>
+              <select
+                value={machineOrigin}
+                onChange={(event) => setMachineOrigin(event.target.value as ResumeMachineOrigin | '')}
+                className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
+              >
+                {MACHINE_ORIGIN_OPTIONS.map((option) => (
+                  <option key={option.value || 'all'} value={option.value}>{t(option.labelKey)}</option>
+                ))}
+              </select>
             </div>
 
             {/* Row 3: Education */}

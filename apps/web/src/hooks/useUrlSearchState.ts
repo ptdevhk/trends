@@ -2,6 +2,7 @@ import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useMemo, useTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
+import { isMachineOriginValue } from './resume-filter-helpers'
 
 const KNOWN_PARAM_KEYS = [
   'q',
@@ -27,6 +28,7 @@ const KNOWN_PARAM_KEYS = [
   'order',
   'idn',
   'skills',
+  'machineOrigin',
 ] as const
 
 export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
@@ -235,6 +237,11 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.maxAge = maxAge
   }
 
+  const machineOriginParam = searchParams.get('machineOrigin')
+  if (isMachineOriginValue(machineOriginParam)) {
+    filters.machineOrigin = machineOriginParam
+  }
+
   const minMatchScore = parseNumberParam(searchParams.get('minScore'))
   if (typeof minMatchScore === 'number') {
     filters.minMatchScore = minMatchScore
@@ -399,6 +406,8 @@ export function useUrlSearchState() {
         if (state.filters.sortOrder) {
           setParam(nextParams, 'order', state.filters.sortOrder)
         }
+
+        if (isMachineOriginValue(state.filters.machineOrigin)) setParam(nextParams, 'machineOrigin', state.filters.machineOrigin)
 
         if (state.filters.idOrNameSearch && state.filters.idOrNameSearch.trim().length > 0) {
           setParam(nextParams, 'idn', state.filters.idOrNameSearch.trim())

@@ -14,7 +14,7 @@ import type { Doc } from '../../../../packages/convex/convex/_generated/dataMode
 import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
-import type { CandidateStatus } from '@/types/resume'
+import type { CandidateStatus, ResumeMachineOrigin } from '@/types/resume'
 import type { ResumeItem } from './useResumes'
 import type { VerifiedIndustryEvidenceSummary } from '@trends/shared'
 
@@ -38,6 +38,7 @@ export type ConvexResumeFilters = {
   minSalary?: number
   maxSalary?: number
   sources?: string[]
+  machineOrigin?: ResumeMachineOrigin
 }
 
 export type ConvexResumeAnalysis = {
@@ -860,6 +861,7 @@ type BffAndModeResult = {
 
 function useBffAndModeSearch(
   enabled: boolean,
+  forceMachineOrigin: boolean,
   normalizedQuery: string | undefined,
   keywordExpansion: KeywordExpansionSummary | null,
   expansionLoading: boolean,
@@ -887,7 +889,7 @@ function useBffAndModeSearch(
   // Track how many pages have been fetched (state-based to satisfy linter)
   const [fetchedPageCount, setFetchedPageCount] = useState(0)
   const prevBffActive = useRef(false)
-  const bffNowActive = enabled && !!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading
+  const bffNowActive = enabled && (forceMachineOrigin || (!!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading))
 
   useEffect(() => {
     if (bffNowActive && !prevBffActive.current) {
@@ -927,7 +929,7 @@ function useBffAndModeSearch(
   useEffect(() => {
     let active = true
 
-    if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
+    if (!enabled || (!forceMachineOrigin && (!normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading))) {
       setAccumulatedResumes([])
       setTotal(0)
       setFetchedPageCount(0)
@@ -949,7 +951,7 @@ function useBffAndModeSearch(
     const pageIndex = fetchedPageCount
 
     const queryParams: Record<string, string | number | boolean | undefined> = {
-      q: normalizedQuery,
+      ...(normalizedQuery ? { q: normalizedQuery } : {}),
       source: 'convex',
       paged: 'true',
       limit: CONVEX_RESUME_PAGE_SIZE,
@@ -966,6 +968,7 @@ function useBffAndModeSearch(
       ...(filters?.minSalary != null ? { minSalary: filters.minSalary } : {}),
       ...(filters?.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
       ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
+      ...(filters?.machineOrigin ? { machineOrigin: filters.machineOrigin } : {}),
       ...(sortBy ? { sortBy } : {}),
       ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
@@ -1062,7 +1065,7 @@ function useBffAndModeSearch(
 
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
-  }, [fetchedPageCount, targetPage, enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, retryNonce, showBlocked, sortBy, sortOrder])
+  }, [fetchedPageCount, targetPage, enabled, forceMachineOrigin, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, retryNonce, showBlocked, sortBy, sortOrder])
 
   return {
     resumes: accumulatedResumes,
@@ -1094,6 +1097,7 @@ export function useConvexResumes(
   const normalizedQuery = query?.trim() || undefined
   const useExactKeywordScan = Boolean(normalizedQuery && normalizedJobDescriptionId)
   const useAndModeBff = Boolean(normalizedQuery && !useExactKeywordScan)
+  const machineOriginActive = options?.filters?.machineOrigin != null
   const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
   const initialNumItems = Math.min(limit, CONVEX_RESUME_PAGE_SIZE)
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
@@ -1191,7 +1195,7 @@ export function useConvexResumes(
     }
   }, [enabled, mockKeywordExpansion, mockPayload, normalizedQuery])
 
-  const isAndModeBffActive = !mockPayload && enabled && useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading
+  const isAndModeBffActive = !mockPayload && enabled && (machineOriginActive || (useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading))
 
   const bffRefetchTrigger = useMemo(() => {
     if (!isAndModeBffActive) return 0
@@ -1203,6 +1207,7 @@ export function useConvexResumes(
 
   const bffAndModeResult = useBffAndModeSearch(
     isAndModeBffActive,
+    machineOriginActive,
     normalizedQuery,
     keywordExpansion,
     expansionLoading,
@@ -1220,7 +1225,7 @@ export function useConvexResumes(
     api.resumes_search.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : enabled && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode !== 'AND'
+      : enabled && !isAndModeBffActive && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode !== 'AND'
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -1246,7 +1251,7 @@ export function useConvexResumes(
     api.resumes_search.searchWithTagExpansionScanPage,
     mockPayload
       ? 'skip'
-      : enabled && normalizedQuery && normalizedJobDescriptionId && keywordExpansion
+      : enabled && !isAndModeBffActive && normalizedQuery && normalizedJobDescriptionId && keywordExpansion
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -1268,6 +1273,8 @@ export function useConvexResumes(
     mockPayload
       ? 'skip'
       : !enabled
+        ? 'skip'
+        : isAndModeBffActive
         ? 'skip'
         : normalizedQuery && !normalizedJobDescriptionId
         ? 'skip'

@@ -18,7 +18,10 @@ export type ResumeFilters = {
   recommendation?: Recommendation[]
   sortBy?: 'score' | 'name' | 'experience' | 'extractedAt'
   sortOrder?: 'asc' | 'desc'
+  machineOrigin?: ResumeMachineOrigin
 }
+
+export type ResumeMachineOrigin = 'international' | 'domestic' | 'unknown'
 
 export type TagEnvelopeSource = 'rule' | 'ai'
 

@@ -61,4 +61,87 @@ describe('FilterPanel', () => {
     expect(screen.getByText('25-35 years old')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
   })
+
+  it('renders 4 machine-origin options', async () => {
+    render(
+      <FilterPanel
+        filters={{}}
+        onFiltersChange={vi.fn()}
+        defaultCollapsed={false}
+      />
+    )
+
+    expect(screen.getByText('resumes.filters.machineOrigin')).toBeInTheDocument()
+    const combobox = screen.getByRole('combobox')
+    expect(combobox).toBeInTheDocument()
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(4)
+    expect(options[0]).toHaveTextContent('resumes.filters.machineOriginOptions.all')
+    expect(options[1]).toHaveTextContent('resumes.filters.machineOriginOptions.international')
+    expect(options[2]).toHaveTextContent('resumes.filters.machineOriginOptions.domestic')
+    expect(options[3]).toHaveTextContent('resumes.filters.machineOriginOptions.unknown')
+  })
+
+  it('choosing domestic + Apply calls onFiltersChange with machineOrigin', async () => {
+    const user = userEvent.setup()
+    const onFiltersChange = vi.fn()
+
+    render(
+      <FilterPanel
+        filters={{}}
+        onFiltersChange={onFiltersChange}
+        defaultCollapsed={false}
+      />
+    )
+
+    const combobox = screen.getByRole('combobox')
+    await user.selectOptions(combobox, 'domestic')
+    await user.click(screen.getByRole('button', { name: 'resumes.filters.apply' }))
+
+    expect(onFiltersChange).toHaveBeenCalledWith(
+      expect.objectContaining({ machineOrigin: 'domestic' }),
+    )
+  })
+
+  it('selecting all + Apply leaves machineOrigin undefined', async () => {
+    const user = userEvent.setup()
+    const onFiltersChange = vi.fn()
+
+    render(
+      <FilterPanel
+        filters={{ machineOrigin: 'domestic' }}
+        onFiltersChange={onFiltersChange}
+        defaultCollapsed={false}
+      />
+    )
+
+    const combobox = screen.getByRole('combobox')
+    const allOption = screen.getByRole('option', { name: 'resumes.filters.machineOriginOptions.all' })
+    await user.selectOptions(combobox, allOption)
+    await user.click(screen.getByRole('button', { name: 'resumes.filters.apply' }))
+
+    const payload = onFiltersChange.mock.calls[0]?.[0]
+    expect(payload.machineOrigin).toBeUndefined()
+  })
+
+  it('Clear resets machine origin to empty and calls onFiltersChange with {}', async () => {
+    const user = userEvent.setup()
+    const onFiltersChange = vi.fn()
+
+    render(
+      <FilterPanel
+        filters={{ machineOrigin: 'domestic' }}
+        onFiltersChange={onFiltersChange}
+        defaultCollapsed={false}
+      />
+    )
+
+    const combobox = screen.getByRole('combobox') as HTMLSelectElement
+    expect(combobox.value).toBe('domestic')
+
+    await user.click(screen.getByRole('button', { name: 'resumes.filters.clear' }))
+
+    expect(combobox.value).toBe('')
+    expect(onFiltersChange).toHaveBeenCalledWith({})
+  })
 })

@@ -351,6 +351,13 @@
       "status": "候选人状态",
       "showRejected": "显示已拒绝候选人",
       "showBlocked": "显示已屏蔽候选人",
+      "machineOrigin": "机床产地",
+      "machineOriginOptions": {
+        "all": "全部",
+        "international": "进口品牌",
+        "domestic": "国产",
+        "unknown": "未能核实"
+      },
       "education": {
         "title": "学历",
         "high_school": "高中/中专",
@@ -509,6 +516,7 @@
         "education": "学历",
         "status": "候选人状态",
         "matchScore": "匹配分",
+        "machineOrigin": "机床产地",
         "sources": "来源渠道",
         "salary": "期望薪资",
         "salaryUnit": "k",

@@ -422,3 +422,88 @@ describe('skills URL param', () => {
     expect(result.current.parsedState.filters.skills).toEqual(['CNC', 'FANUC'])
   })
 })
+
+describe('machineOrigin URL param', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('parses machineOrigin param into filters.machineOrigin', () => {
+    const state = parseUrlSearchState(new URLSearchParams('machineOrigin=domestic'))
+    expect(state.filters.machineOrigin).toBe('domestic')
+  })
+
+  it('parses all valid machineOrigin values', () => {
+    expect(parseUrlSearchState(new URLSearchParams('machineOrigin=international')).filters.machineOrigin).toBe('international')
+    expect(parseUrlSearchState(new URLSearchParams('machineOrigin=domestic')).filters.machineOrigin).toBe('domestic')
+    expect(parseUrlSearchState(new URLSearchParams('machineOrigin=unknown')).filters.machineOrigin).toBe('unknown')
+  })
+
+  it('ignores invalid machineOrigin values', () => {
+    const state = parseUrlSearchState(new URLSearchParams('machineOrigin=invalid'))
+    expect(state.filters.machineOrigin).toBeUndefined()
+  })
+
+  it('leaves machineOrigin undefined when param absent', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=sales'))
+    expect(state.filters.machineOrigin).toBeUndefined()
+  })
+
+  it('writes machineOrigin back to the URL via syncToUrl', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      query: 'CNC',
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        machineOrigin: 'domestic',
+      },
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('machineOrigin')).toBe('domestic')
+  })
+
+  it('round-trips machineOrigin through syncToUrl and parse', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      query: undefined,
+      keywords: [],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        machineOrigin: 'international',
+      },
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    const reparsed = parseUrlSearchState(updatedParams)
+    expect(reparsed.filters.machineOrigin).toBe('international')
+  })
+})
+

@@ -9,8 +9,19 @@ import {
 } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
-import { CANDIDATE_STATUS_VALUES, type CandidateStatus, type ResumeFilters } from '@/types/resume'
+import {
+  CANDIDATE_STATUS_VALUES,
+  type CandidateStatus,
+  type ResumeFilters,
+  type ResumeMachineOrigin,
+} from '@/types/resume'
 import type { CollectionSource } from '@/lib/search-profile-sources'
+
+export const MACHINE_ORIGIN_VALUES: readonly ResumeMachineOrigin[] = ['international', 'domestic', 'unknown']
+
+export function isMachineOriginValue(value: unknown): value is ResumeMachineOrigin {
+  return MACHINE_ORIGIN_VALUES.includes(value as ResumeMachineOrigin)
+}
 
 const EDUCATION_KEYWORDS: Record<string, string[]> = {
   high_school: ['高中', '中专', '技校', 'high school'],
@@ -266,6 +277,7 @@ export function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<Re
     locations: normalizeFilterList(filters.locations),
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
+    machineOrigin: isMachineOriginValue(filters.machineOrigin) ? filters.machineOrigin : undefined,
   }
 }
 
