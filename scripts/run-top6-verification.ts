@@ -13,6 +13,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { WebVitals } from './e2e-utils';
+import { UAT_REPORT_RELATIVE_PATH } from './run-multi-role-uat';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
@@ -577,17 +580,12 @@ export async function runSuite(
 interface CwvArtifactShape {
     details?: Array<{
         role?: string;
-        cwv?: {
-            ttfb?: number | null;
-            lcp?: number | null;
-            cls?: number | null;
-            fcp?: number | null;
-        };
+        cwv?: Partial<WebVitals>;
     }>;
 }
 
 export function readCwvArtifact(cwd: string): CoreWebVitalsSummary | null {
-    const artifactPath = resolve(cwd, 'output/uat/multi-role-uat-report.json');
+    const artifactPath = resolve(cwd, UAT_REPORT_RELATIVE_PATH);
     if (!existsSync(artifactPath)) {
         return null;
     }
@@ -792,6 +790,7 @@ async function ensureServices(
     opts: Top6CliOptions,
     deps: Required<Pick<RunDeps, 'probe' | 'spawn' | 'kill' | 'now' | 'sleep' | 'log'>>,
     cwd: string,
+    env: NodeJS.ProcessEnv,
     readyTimeoutMs: number,
     pollIntervalMs: number,
 ): Promise<{ section: ServicesSection; spawnedChild: SpawnedProcess | null }> {
@@ -819,7 +818,7 @@ async function ensureServices(
         try {
             spawnedChild = deps.spawn(spawnCommand, {
                 cwd,
-                env: { ...process.env, ...loadEnvFile(cwd) },
+                env,
                 shell: true,
                 detached: true,
                 stdio: ['ignore', 'pipe', 'pipe'],
@@ -850,7 +849,17 @@ async function ensureServices(
                     spawnError = 'dev stack exited before services became ready';
                     break;
                 }
-                entries = await probeServices(deps.probe);
+                const down = entries.filter((e) => !e.up);
+                if (down.length > 0) {
+                    const refreshed = await Promise.all(
+                        down.map(async (e) => {
+                            const result = await deps.probe(e.url);
+                            return { ...e, up: result.up, statusCode: result.statusCode, error: result.error };
+                        }),
+                    );
+                    const byName = new Map(refreshed.map((e) => [e.name, e]));
+                    entries = entries.map((e) => byName.get(e.name) ?? e);
+                }
                 if (entries.every((e) => e.up)) {
                     break;
                 }
@@ -904,10 +913,12 @@ export async function runTop6(argv: string[], deps: RunDeps = {}): Promise<Top6R
     );
 
     // Service lifecycle: probe, optional spawn + readiness polling.
+    const env = { ...process.env, ...loadEnvFile(cwd) };
     const { section, spawnedChild } = await ensureServices(
         opts,
         { probe, spawn: spawnFn, kill: killFn, now, sleep, log },
         cwd,
+        env,
         readyTimeoutMs,
         pollIntervalMs,
     );
@@ -926,7 +937,6 @@ export async function runTop6(argv: string[], deps: RunDeps = {}): Promise<Top6R
             commands: [],
         });
     }
-    const env = { ...process.env, ...loadEnvFile(cwd) };
     for (const suite of selected) {
         log(`suite ${suite.number}/${suite.name} starting`);
         const result = await runSuite(suite, opts.headless, {
@@ -953,16 +963,25 @@ export async function runTop6(argv: string[], deps: RunDeps = {}): Promise<Top6R
     if (section.teardown.required && spawnedChild && spawnedChild.pid != null) {
         section.teardown.startedAt = new Date(now()).toISOString();
         log('tearing down spawned dev stack (SIGTERM -> grace -> SIGKILL)');
+        let childExited = false;
+        const exited = new Promise<void>((resolveExited) => {
+            spawnedChild.on('close', () => {
+                childExited = true;
+                resolveExited();
+            });
+        });
         try {
             killFn(-spawnedChild.pid, 'SIGTERM');
         } catch {
             // Process group already gone.
         }
-        await sleep(killGraceMs);
-        try {
-            killFn(-spawnedChild.pid, 'SIGKILL');
-        } catch {
-            // Process group already gone.
+        await Promise.race([exited, sleep(killGraceMs)]);
+        if (!childExited) {
+            try {
+                killFn(-spawnedChild.pid, 'SIGKILL');
+            } catch {
+                // Process group already gone.
+            }
         }
         section.teardown.killed = true;
         section.teardown.finishedAt = new Date(now()).toISOString();

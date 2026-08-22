@@ -78,6 +78,8 @@ export interface UatSummaryReport {
     details: RoleUatResult[];
 }
 
+export const UAT_REPORT_RELATIVE_PATH = 'output/uat/multi-role-uat-report.json';
+
 export function parseUatCliArgs(argv: string[]): UatCliOptions {
     let port = DEFAULT_OPTIONS.port;
     let baseUrl = DEFAULT_OPTIONS.baseUrl;
@@ -87,7 +89,7 @@ export function parseUatCliArgs(argv: string[]): UatCliOptions {
     let locale: UatLocale | undefined = undefined;
     let roles: RoleName[] = ['hr-demo', 'demo-admin', 'uat-reviewer'];
     let screenshotDir = resolve(__dirname, '../output/uat/screenshots');
-    let outputReportPath = resolve(__dirname, '../output/uat/multi-role-uat-report.json');
+    let outputReportPath = resolve(__dirname, '../', UAT_REPORT_RELATIVE_PATH);
 
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
@@ -160,7 +162,6 @@ export async function authenticateRole(page: Page, roleName: RoleName, baseUrl: 
 
     // 4. Wait for redirection away from /login to authorized desk
     await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
-    await page.waitForLoadState('networkidle').catch(() => {});
 }
 
 async function runHrDemoWalk(
