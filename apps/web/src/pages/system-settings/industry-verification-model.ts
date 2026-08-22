@@ -4,6 +4,7 @@ import {
   isIndustryEvidenceResearchState,
   type IndustryReviewRecommendation,
   type IndustryReviewWarning,
+  type MachineOrigin,
 } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
 
@@ -17,12 +18,21 @@ export type IndustryRevision = IndustryBundle['revisions'][number]
 type IndustryRecomputeListResponse = paths['/api/company-industry-recompute-runs']['get']['responses'][200]['content']['application/json']
 export type IndustryRecomputeRun = IndustryRecomputeListResponse['items'][number]
 export type IndustryClass = NonNullable<IndustryProposal['suggestedIndustryClass']>
+export type { MachineOrigin }
 export type VerificationLevel = Extract<NonNullable<IndustryProposal['suggestedVerificationLevel']>, 'verified' | 'rejected'>
 export type ReviewQueueStatus = IndustryProposal['status']
 
 type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
-export type ReviewContext = Pick<ReviewPacketResponse['reviewContext'], 'profile' | 'revisions'>
-export type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'reviewContext' | 'recomputeRuns' | 'research' | 'identityCandidates'>
+export type ReviewProfile = ReviewPacketResponse['reviewContext']['profile'] extends infer P
+  ? P extends null ? null : NonNullable<P> & { machineOrigin?: MachineOrigin }
+  : never
+export type ReviewContext = {
+  profile: ReviewProfile | null
+  revisions: ReviewPacketResponse['reviewContext']['revisions']
+}
+export type ReviewPacket = Pick<ReviewPacketResponse, 'proposal' | 'recommendation' | 'warnings' | 'dataset' | 'sources' | 'recomputeRuns' | 'research' | 'identityCandidates'> & {
+  reviewContext: ReviewContext
+}
 export type DetailBundle = ReviewContext
 
 export const REVIEW_RISK_FLAG_LABELS: Record<string, string> = {

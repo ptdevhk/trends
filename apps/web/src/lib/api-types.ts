@@ -9279,6 +9279,8 @@ export interface paths {
                                 /** @enum {string} */
                                 industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
                                 /** @enum {string} */
+                                machineOrigin?: "international" | "domestic" | "unknown";
+                                /** @enum {string} */
                                 verificationLevel: "verified" | "candidate" | "rejected";
                                 officialDomain?: string;
                                 /** @enum {string} */
@@ -9972,6 +9974,8 @@ export interface paths {
                                     companyKey: string;
                                     /** @enum {string} */
                                     industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                    /** @enum {string} */
+                                    machineOrigin?: "international" | "domestic" | "unknown";
                                     /** @enum {string} */
                                     verificationLevel: "verified" | "candidate" | "rejected";
                                     officialDomain?: string;
@@ -12212,6 +12216,8 @@ export interface paths {
                                 companyKey: string;
                                 /** @enum {string} */
                                 industryClass: "cnc" | "automation" | "metrology" | "industrial" | "non_industry" | "unknown";
+                                /** @enum {string} */
+                                machineOrigin?: "international" | "domestic" | "unknown";
                                 /** @enum {string} */
                                 verificationLevel: "verified" | "candidate" | "rejected";
                                 officialDomain?: string;

@@ -1921,6 +1921,12 @@
     "lookupFailed": "Lookup failed — check companyKey and try again.",
     "lookupKeyRequired": "Enter a companyKey (e.g. eonmetall-group)",
     "lookupSources": "Evidence sources",
+    "machineOriginLabel": "Machine origin",
+    "machineOriginOptions": {
+      "domestic": "Domestic brand",
+      "international": "International brand",
+      "unknown": "Not verified"
+    },
     "moreEvidenceRequested": "Additional evidence requested; current truth is unchanged",
     "needsReview": "Needs review",
     "needsReviewEmpty": "No exceptions need attention.",

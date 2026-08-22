@@ -1401,6 +1401,12 @@
     "lookupFailed": "查询失败——请检查 companyKey 后重试。",
     "lookupKeyRequired": "请输入 companyKey（例如 eonmetall-group）",
     "lookupSources": "证据来源",
+    "machineOriginLabel": "品牌来源",
+    "machineOriginOptions": {
+      "domestic": "国产",
+      "international": "进口品牌",
+      "unknown": "未能核实"
+    },
     "moreEvidenceRequested": "已要求补充证据；当前真实信息未变更",
     "needsReview": "需检查",
     "needsReviewEmpty": "暂无需要处理的例外项。",

@@ -34,6 +34,7 @@ import {
   type IndustryClass,
   type IndustryProposal,
   type IndustryRecomputeRun,
+  type MachineOrigin,
   type ReviewPacket,
   type ReviewQueueStatus,
   type VerificationLevel,
@@ -93,6 +94,7 @@ export function SystemSettingsIndustryVerificationPage() {
   const [directReviewError, setDirectReviewError] = useState<string>()
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
   const [industryClass, setIndustryClass] = useState<IndustryClass>('unknown')
+  const [machineOrigin, setMachineOrigin] = useState<MachineOrigin>('unknown')
   const [verificationLevel, setVerificationLevel] = useState<VerificationLevel>('verified')
   const [evidenceSummary, setEvidenceSummary] = useState('')
   const [decisionReason, setDecisionReason] = useState('')
@@ -220,6 +222,7 @@ export function SystemSettingsIndustryVerificationPage() {
           .map((source) => source.sourceId),
     )
     setIndustryClass(packet.recommendation.recommendedIndustryClass ?? selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
+    setMachineOrigin(nextBundle.profile?.machineOrigin ?? 'unknown')
     setVerificationLevel(
       packet.recommendation.recommendedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
     )
@@ -320,6 +323,7 @@ export function SystemSettingsIndustryVerificationPage() {
             ...(reviewAttestation ? { reviewAttestation } : {}),
             verificationLevel,
             industryClass,
+            machineOrigin,
             approvedSourceIds: selectedSourceIds,
             evidenceSummary: evidenceSummary.trim(),
             decisionReason: decisionReason.trim(),
@@ -590,6 +594,22 @@ export function SystemSettingsIndustryVerificationPage() {
                       >
                         {['cnc', 'automation', 'metrology', 'industrial', 'non_industry', 'unknown'].map((value) => (
                           <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2 text-sm font-medium">
+                      {t('industryEvidence.machineOriginLabel', { defaultValue: 'Machine origin' })}
+                      <select
+                        name="machineOrigin"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                        value={machineOrigin}
+                        onChange={(event) => setMachineOrigin(event.target.value as MachineOrigin)}
+                        disabled={selectedProposalIsTerminal}
+                      >
+                        {(['international', 'domestic', 'unknown'] as const).map((value) => (
+                          <option key={value} value={value}>
+                            {t(`industryEvidence.machineOriginOptions.${value}`, { defaultValue: value })}
+                          </option>
                         ))}
                       </select>
                     </label>

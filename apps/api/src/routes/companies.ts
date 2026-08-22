@@ -568,6 +568,7 @@ const IndustryProfileSchema = z.object({
   _id: z.string(),
   companyKey: z.string(),
   industryClass: IndustryClassEnum,
+  machineOrigin: MachineOriginEnum.optional(),
   verificationLevel: VerificationLevelEnum,
   officialDomain: z.string().optional(),
   evidenceSource: EvidenceSourceEnum,

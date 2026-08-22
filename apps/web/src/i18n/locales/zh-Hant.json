@@ -1921,6 +1921,12 @@
     "lookupFailed": "查詢失敗——請檢查 companyKey 後重試。",
     "lookupKeyRequired": "請輸入 companyKey（例如 eonmetall-group）",
     "lookupSources": "證據來源",
+    "machineOriginLabel": "品牌來源",
+    "machineOriginOptions": {
+      "domestic": "國產",
+      "international": "進口品牌",
+      "unknown": "未能核實"
+    },
     "moreEvidenceRequested": "已要求補充證據；目前真實資料未變更",
     "needsReview": "需檢查",
     "needsReviewEmpty": "目前沒有需要處理的例外項。",

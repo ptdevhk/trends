@@ -1289,6 +1289,7 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       expectedSourceVersions: [{ sourceId: 'source-1', updatedAt: 2 }],
       verificationLevel: 'verified',
       industryClass: 'cnc',
+      machineOrigin: 'unknown',
       approvedSourceIds: ['source-1'],
       evidenceSummary: 'Reviewed official evidence.',
       decisionReason: expect.stringContaining('Primary source confirmed.'),
@@ -1301,6 +1302,77 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       }),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Industry verdict revision approved')
+  })
+
+  it('allows selecting machineOrigin and sends it in the approve payload', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('tab', { name: /Needs review/ }))
+    await user.click(await screen.findByTestId('industry-review-row-proposal-1'))
+    expect(await screen.findByText('CNC products')).toBeInTheDocument()
+
+    const machineOriginSelect = screen.getByRole('combobox', { name: 'Machine origin' })
+    expect(machineOriginSelect).toHaveValue('unknown')
+    await user.selectOptions(machineOriginSelect, 'domestic')
+    expect(machineOriginSelect).toHaveValue('domestic')
+
+    await user.clear(screen.getByLabelText('Evidence summary'))
+    await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
+    await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByLabelText('I reviewed the explicit CNC evidence'))
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/proposal-1/approve',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    const call = requestJsonMock.mock.calls.find(
+      ([path, init]) => path.endsWith('/approve') && init?.method === 'POST',
+    )
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
+      verificationLevel: 'verified',
+      industryClass: 'cnc',
+      machineOrigin: 'domestic',
+      approvedSourceIds: ['source-1'],
+    })
+  })
+
+  it('resets machineOrigin to profile machineOrigin when present, or unknown when absent', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-proposals/proposal-with-profile/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          proposal: { ...proposal, proposalId: 'proposal-with-profile' },
+          bundle: {
+            ...reviewPacket.bundle,
+            profile: {
+              ...reviewPacket.bundle.profile,
+              machineOrigin: 'international',
+            },
+          },
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    const { unmount } = renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-with-profile')
+    // 'ACME CNC' also appears in inbox rows, so wait for the review card
+    // itself, then for the packet-load effect (macrotask) to fill the select.
+    const machineOriginSelect = await screen.findByRole('combobox', { name: 'Machine origin' })
+    await waitFor(() => expect(machineOriginSelect).toHaveValue('international'))
+
+    unmount()
+
+    // Navigate to standard proposal-1 without machineOrigin on profile -> resets to unknown
+    renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-1')
+    await screen.findAllByText('ACME CNC')
+    expect(screen.getByRole('combobox', { name: 'Machine origin' })).toHaveValue('unknown')
   })
 
   it('registers a detail-pane approval into the session registry (counter, badge, Undo)', async () => {
