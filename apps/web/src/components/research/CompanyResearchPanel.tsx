@@ -1,6 +1,8 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Copy } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   isLiveResearchSignal,
   normalizeResearchPersona,
@@ -117,6 +119,13 @@ function SignalListItem({
   const isShowcase = !live
   const summaryText = plainTextSummary(signal.summary)
 
+  function handleCopySignal() {
+    const copyText = summaryText ? `${signal.title}\n${summaryText}` : signal.title
+    void navigator.clipboard.writeText(copyText).then(() => {
+      toast.success(t('research.signalCopied', { defaultValue: 'Signal copied to clipboard' }))
+    })
+  }
+
   return (
     <li
       key={key}
@@ -168,6 +177,18 @@ function SignalListItem({
             {t('research.openPage', { defaultValue: '研究页' })}
           </Link>
         ) : null}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-6 px-2 text-xs"
+          data-testid="copy-signal-button"
+          onClick={() => {
+            handleCopySignal()
+          }}
+        >
+          <Copy className="mr-1 h-3 w-3" />
+          {t('research.copySignal', { defaultValue: 'Copy signal' })}
+        </Button>
       </div>
     </li>
   )

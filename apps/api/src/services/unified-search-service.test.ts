@@ -153,6 +153,63 @@ describe("UnifiedSearchService", () => {
     }
   });
 
+  it("splits CJK-ASCII boundary queries into per-token groups", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword("CNC编程");
+
+      expect(expansion.mode).toBe("AND");
+      expect(expansion.groups).toEqual([
+        {
+          original: "cnc",
+          variants: ["cnc"],
+        },
+        {
+          original: "编程",
+          variants: ["编程"],
+        },
+      ]);
+      expect(expansion.flatTerms).toEqual(["cnc", "编程"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("splits punctuation-delimited keyword groups with AND semantics", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword("数控车床；加工中心");
+
+      expect(expansion.mode).toBe("AND");
+      expect(expansion.groups.map((g) => g.original)).toEqual(["数控车床", "加工中心"]);
+      expect(expansion.flatTerms).toEqual(["数控车床", "加工中心"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("splits mixed boundary + punctuation queries into per-token groups", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword("CNC编程;操机。UG编程．销售");
+
+      expect(expansion.mode).toBe("AND");
+      expect(expansion.groups.map((g) => g.original)).toEqual(["cnc", "编程", "操机", "ug", "编程", "销售"]);
+      expect(expansion.flatTerms).toEqual(["cnc", "编程", "操机", "ug", "销售", "业务", "商务", "销售员", "sales"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("preserves quoted phrase groups with OR semantics", () => {
     const root = createFixtureRoot();
 

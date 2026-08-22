@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { buttonVariants } from '@/components/ui/button'
 import { AlertTriangle, Clock, RefreshCw, Search } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { toast } from 'sonner'
@@ -311,7 +312,15 @@ function useMemberReviewSession(params: {
   return params.enabled ? sessionId : undefined
 }
 
-function EmptyPublicShareState({ title, description }: { title: string; description: string }) {
+function EmptyPublicShareState({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description: string
+  action?: React.ReactNode
+}) {
   return (
     <section className="mx-auto flex min-h-[55vh] max-w-xl flex-col justify-center gap-6 py-12">
       <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted">
@@ -321,6 +330,7 @@ function EmptyPublicShareState({ title, description }: { title: string; descript
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
         <p className="text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
+      {action ? <div className="flex gap-2">{action}</div> : null}
     </section>
   )
 }
@@ -527,8 +537,9 @@ function PublicSnapshotSearchShell({
   query?: string
   resultCount: number
 }) {
+  const { t } = useTranslation()
   const filterEntries = getSnapshotFilterEntries(filters)
-  const displayQuery = normalizeOptionalString(query) ?? 'Shared snapshot'
+  const displayQuery = normalizeOptionalString(query) ?? t('publicShare.queryDefault', { defaultValue: 'Shared snapshot' })
 
   return (
     <section className="space-y-4" data-testid="public-snapshot-search-shell">
@@ -536,7 +547,7 @@ function PublicSnapshotSearchShell({
         <div className="relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border bg-background/95 px-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.85)]">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div
-            aria-label="Shared snapshot query"
+            aria-label={t('publicShare.queryAria', { defaultValue: 'Shared snapshot query' })}
             className="min-w-0 flex-1 truncate text-base font-medium text-slate-900"
             data-testid="public-snapshot-query"
           >
@@ -551,10 +562,10 @@ function PublicSnapshotSearchShell({
             <span data-testid="public-snapshot-result-count">
               {formatSnapshotResultCount(resultCount)}
             </span>
-            <span className="text-muted-foreground"> in this public snapshot</span>
+            <span className="text-muted-foreground">{t('publicShare.inThisSnapshot', { defaultValue: ' in this public snapshot' })}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">Snapshot</Badge>
+            <Badge variant="outline">{t('publicShare.snapshotBadge', { defaultValue: 'Snapshot' })}</Badge>
             {createdAt ? (
               <Badge variant="outline" className="gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
@@ -1312,8 +1323,10 @@ function PublicShareReady({
 }
 
 export function PublicSharePage() {
+  const { t } = useTranslation()
   const { token } = useParams()
   const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!token) {
@@ -1356,17 +1369,22 @@ export function PublicSharePage() {
     return () => {
       active = false
     }
-  }, [token])
+  }, [reloadKey, token])
 
   if (state.status === 'loading') {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <div className="py-6 text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</div>
   }
 
   if (state.status === 'unavailable') {
     return (
       <EmptyPublicShareState
-        title="Public share unavailable"
-        description="This snapshot link has expired or was revoked."
+        title={t('publicShare.unavailableTitle', { defaultValue: 'Public share unavailable' })}
+        description={t('publicShare.expiredDescription', { defaultValue: 'This snapshot link has expired or was revoked.' })}
+        action={
+          <Link to="/" className={buttonVariants({ variant: 'outline' })} data-testid="public-share-back">
+            {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
+          </Link>
+        }
       />
     )
   }
@@ -1374,8 +1392,18 @@ export function PublicSharePage() {
   if (state.status === 'error') {
     return (
       <EmptyPublicShareState
-        title="Public share unavailable"
-        description="The snapshot could not be loaded."
+        title={t('publicShare.unavailableTitle', { defaultValue: 'Public share unavailable' })}
+        description={t('publicShare.errorDescription', { defaultValue: 'The snapshot could not be loaded.' })}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="public-share-retry"
+            onClick={() => setReloadKey((current) => current + 1)}
+          >
+            {t('common.retry', { defaultValue: 'Retry' })}
+          </Button>
+        }
       />
     )
   }
@@ -1383,8 +1411,13 @@ export function PublicSharePage() {
   if (state.status === 'not-found') {
     return (
       <EmptyPublicShareState
-        title="Public share not found"
-        description="The snapshot link does not exist."
+        title={t('publicShare.notFoundTitle', { defaultValue: 'Public share not found' })}
+        description={t('publicShare.notFoundDescription', { defaultValue: 'The snapshot link does not exist.' })}
+        action={
+          <Link to="/" className={buttonVariants({ variant: 'outline' })} data-testid="public-share-back">
+            {t('publicShare.backToApp', { defaultValue: 'Back to Trends' })}
+          </Link>
+        }
       />
     )
   }

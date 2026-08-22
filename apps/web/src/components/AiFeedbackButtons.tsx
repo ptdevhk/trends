@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ThumbsDown, ThumbsUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -20,6 +21,7 @@ export function AiFeedbackButtons({
   className,
   stopPropagation = false,
 }: AiFeedbackButtonsProps) {
+  const { t } = useTranslation()
   return (
     <span className={cn('flex items-center gap-0.5', className)} data-testid={testId}>
       <Button
@@ -32,7 +34,8 @@ export function AiFeedbackButtons({
           }
           onSelect('like')
         }}
-        aria-label={`Like ${label}`}
+        aria-label={t('feedback.likeAria', { label, defaultValue: `Like ${label}` })}
+        aria-pressed={feedback === 'like'}
       >
         <ThumbsUp className="h-3 w-3" />
       </Button>
@@ -46,7 +49,8 @@ export function AiFeedbackButtons({
           }
           onSelect('unlike')
         }}
-        aria-label={`Unlike ${label}`}
+        aria-label={t('feedback.unlikeAria', { label, defaultValue: `Unlike ${label}` })}
+        aria-pressed={feedback === 'unlike'}
       >
         <ThumbsDown className="h-3 w-3" />
       </Button>

@@ -315,7 +315,6 @@ async function callTaggingLlm(input: {
       model,
       messages: input.messages,
       temperature: resolveAiTaggingTemperature(),
-      response_format: { type: "json_object" },
     }),
   });
 

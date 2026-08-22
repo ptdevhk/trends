@@ -75,6 +75,7 @@ const {
 const featureFlagsMock = vi.hoisted(() => ({
   resumeAiSummaryEnabled: false,
   industryEvidenceTargetedQueueEnabled: false,
+  reviewPacketsEnabled: false,
 }))
 
 const routeMock = vi.hoisted(() => ({
@@ -101,6 +102,7 @@ const authMock = vi.hoisted((): { value: AuthMockValue } => ({
 vi.mock('@/lib/feature-flags', () => ({
   isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
   isIndustryEvidenceTargetedQueueEnabled: () => featureFlagsMock.industryEvidenceTargetedQueueEnabled,
+  isReviewPacketsEnabled: () => featureFlagsMock.reviewPacketsEnabled,
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -590,6 +592,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     activeQuery: undefined,
     activeSort: 'score',
     analysisCandidateCount: 0,
+    analysisKeywords: [],
     analyzeResults: vi.fn(),
     aiModeEnabled: true,
     aiModeStats: undefined,
@@ -657,6 +660,9 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     actionsByResume: {},
     ratingsByResume: {},
     commentsByResume: {},
+    overridesByKey: {},
+    setOverride: vi.fn(async () => true),
+    removeOverride: vi.fn(async () => true),
     getAiFeedback: vi.fn(),
     handleBulkAction: vi.fn(),
     handleCandidateAction: vi.fn(),
@@ -1134,6 +1140,7 @@ describe('ResumeSearchPage', () => {
     authMock.value = {
       user: null,
       workspaceRole: null,
+      memberships: [],
       isAuthenticated: false,
       isLoading: false,
       login: vi.fn(async () => false),

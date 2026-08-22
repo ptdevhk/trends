@@ -24,6 +24,7 @@ import { useSession } from '@/hooks/useSession'
 import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
+import { useCandidatePolicyOverrides } from '@/hooks/useCandidatePolicyOverrides'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
 import {
@@ -357,6 +358,7 @@ export function useResumeListState(loadSearchHistory = false) {
     auxiliaryResumeDataEnabled,
   )
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(auxiliaryResumeDataEnabled)
+  const { overridesByKey, setOverride, removeOverride } = useCandidatePolicyOverrides(auxiliaryResumeDataEnabled)
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
   const { tasks: analysisTasks, dispatch: dispatchAnalysis } = useAnalysisTasks()
   const [analyzing, setAnalyzing] = useState(false)
@@ -1568,6 +1570,7 @@ export function useResumeListState(loadSearchHistory = false) {
             const hits = matchResumeCompanyPolicyCached({
               workHistory: entry.resume.workHistory,
               companyHits: ingest?.companyHits,
+              sourceKey: entry.resume.sourceKey,
             })
             return !isCompanyWorkflowBlocked(hits)
           })
@@ -1678,10 +1681,10 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
     () => ({
-      shortlist: t('resumes.actions.shortlist', '入围'),
-      reject: t('resumes.actions.reject', '拒绝'),
-      star: t('resumes.actions.star', '标星'),
-      contact: '联系',
+      shortlist: t('resumes.actions.shortlist', { defaultValue: '入围' }),
+      reject: t('resumes.actions.reject', { defaultValue: '拒绝' }),
+      star: t('resumes.actions.star', { defaultValue: '标星' }),
+      contact: t('resumes.actions.contact', { defaultValue: '联系' }),
     }),
     [t]
   )
@@ -1700,7 +1703,7 @@ export function useResumeListState(loadSearchHistory = false) {
       void (async () => {
         try {
           await saveAction({ resumeId, actionType: action })
-          toast.success(`${actionLabel} 已保存`)
+          toast.success(t('resumes.actions.actionSaved', { action: actionLabel, defaultValue: '{{action}} 已保存' }))
 
           if (nextStatus) {
             const currentStatus = statusByIdentity[identityKey]?.status
@@ -1709,11 +1712,11 @@ export function useResumeListState(loadSearchHistory = false) {
           }
         } catch (error: unknown) {
           console.error('Individual action failed', error)
-          toast.error('Action failed. Please try again.')
+          toast.error(t('resumes.actions.actionFailed', { defaultValue: 'Action failed. Please try again.' }))
         }
       })()
     },
-    [actionFeedbackLabels, displayedResumeMap, displayedResumes, saveAction, sendLearningFeedback, statusByIdentity, updateCandidateStatus]
+    [actionFeedbackLabels, displayedResumeMap, displayedResumes, saveAction, sendLearningFeedback, statusByIdentity, t, updateCandidateStatus]
   )
 
   const handleAiFeedback = useCallback(
@@ -1751,18 +1754,18 @@ export function useResumeListState(loadSearchHistory = false) {
       })
         .then((result) => {
           if (result) {
-            toast.success(rating === 0 ? '评分已清除' : `评分已保存: ${rating}星`)
+            toast.success(rating === 0 ? t('resumes.rating.cleared', { defaultValue: '评分已清除' }) : t('resumes.rating.saved', { count: rating, defaultValue: '评分已保存: {{count}}星' }))
             return
           }
 
-          toast.error('Failed to save rating')
+          toast.error(t('resumes.rating.saveFailed', { defaultValue: 'Failed to save rating' }))
         })
         .catch((error: unknown) => {
           console.error('Rating save failed', error)
-          toast.error('Failed to save rating')
+          toast.error(t('resumes.rating.saveFailed', { defaultValue: 'Failed to save rating' }))
         })
     },
-    [saveAction]
+    [saveAction, t]
   )
 
   const handleRatingComment = useCallback(
@@ -1776,7 +1779,7 @@ export function useResumeListState(loadSearchHistory = false) {
         (item) => item.key === resumeId || item.resume.resumeId === resumeId,
       )
       if (!entry?.identityKey) {
-        toast.error('备注保存失败')
+        toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         return
       }
 
@@ -1788,17 +1791,17 @@ export function useResumeListState(loadSearchHistory = false) {
       void updateCandidateStatus(entry.identityKey, currentStatus, trimmed)
         .then((success) => {
           if (success) {
-            toast.success('备注已保存')
+            toast.success(t('resumes.notes.saveSuccess', { defaultValue: '备注已保存' }))
             return
           }
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
         .catch((error: unknown) => {
           console.error('Rating comment save failed', error)
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
     },
-    [displayedResumes, statusByIdentity, updateCandidateStatus]
+    [displayedResumes, statusByIdentity, t, updateCandidateStatus]
   )
 
   const handleToggleBlock = useCallback(
@@ -1810,21 +1813,21 @@ export function useResumeListState(loadSearchHistory = false) {
       if (blocked) {
         const removed = await unblockCandidate(identityKey)
         if (removed) {
-          toast.success('已取消屏蔽')
+          toast.success(t('resumes.actions.unblocked', { defaultValue: '已取消屏蔽' }))
         } else {
-          toast.error('取消屏蔽失败，请重试')
+          toast.error(t('resumes.actions.unblockFailed', { defaultValue: '取消屏蔽失败，请重试' }))
         }
         return
       }
 
       const success = await blockCandidates([identityKey], reason || 'manual_block')
       if (success) {
-        toast.success('已屏蔽候选人')
+        toast.success(t('resumes.actions.blocked', { defaultValue: '已屏蔽候选人' }))
       } else {
-        toast.error('屏蔽失败，请重试')
+        toast.error(t('resumes.actions.blockFailed', { defaultValue: '屏蔽失败，请重试' }))
       }
     },
-    [blockCandidates, unblockCandidate]
+    [blockCandidates, t, unblockCandidate]
   )
 
   const handleCandidateStatusChange = useCallback(
@@ -1835,10 +1838,10 @@ export function useResumeListState(loadSearchHistory = false) {
 
       const success = await updateCandidateStatus(identityKey, status, notes)
       if (!success) {
-        toast.error('更新候选人状态失败，请重试')
+        toast.error(t('resumes.actions.statusUpdateFailed', { defaultValue: '更新候选人状态失败，请重试' }))
       }
     },
-    [updateCandidateStatus]
+    [t, updateCandidateStatus]
   )
 
   const highScoreCount = useMemo(() => {
@@ -2213,5 +2216,8 @@ export function useResumeListState(loadSearchHistory = false) {
     handleResetAll,
     ensureApiSession,
     handleShareSessionCopied,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   }
 }

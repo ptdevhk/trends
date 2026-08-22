@@ -166,6 +166,135 @@ describe("companies routes", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("lists market policies for an admin market scope query", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:listPoliciesForScope") {
+        expect(call.args.scopeType).toBe("market");
+        expect(call.args.scopeId).toBe("cn");
+        return convexSuccess([
+          {
+            companyKey: "pro-technic-machinery",
+            displayName: "宝力机械 / Pro-Technic Machinery",
+            status: "confirmed",
+            scopeType: "market",
+            scopeId: "cn",
+            revision: 1,
+            effects: { rankingEffect: "none" },
+            createdAt: 1,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies?market=cn", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ effects: { rankingEffect: string } }>;
+    }>(response);
+    expect(body.items[0].effects.rankingEffect).toBe("none");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects market policy listing for a non-admin user", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies?market=cn", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(403);
+    const body = await parseJsonBody<{ error: string }>(response);
+    expect(body.error).toBe("Admin access required");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("appends a market policy revision with lowercase scope id", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "companies:appendPolicyRevision") {
+        expect(call.args.scopeType).toBe("market");
+        expect(call.args.scopeId).toBe("my");
+        expect(call.args.companyKey).toBe("pro-technic-machinery");
+        expect(call.args.visibility).toBe("default");
+        return convexSuccess({ id: "rev1", revision: 3 });
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "my",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ revision: number }>(response);
+    expect(body.revision).toBe(3);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects market policy append for a non-admin user", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "my",
+      }),
+    });
+    expect(response.status).toBe(403);
+    const body = await parseJsonBody<{ error: string }>(response);
+    expect(body.error).toBe("Admin access required");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown market scope on append", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request("/api/company-policies", {
+      method: "POST",
+      headers: {
+        ...auth.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        companyKey: "pro-technic-machinery",
+        preset: "none",
+        market: "jp",
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("seeds canonical companies for the authenticated workspace", async () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -306,6 +435,8 @@ describe("companies routes", () => {
     expect(response.status).toBe(200);
     const body = await parseJsonBody<{
       items: Array<{ proposalId: string; status: string }>;
+      skippedCount?: number;
+      skippedProposalIds?: string[];
     }>(response);
     expect(body.items).toEqual([
       expect.objectContaining({
@@ -313,6 +444,50 @@ describe("companies routes", () => {
         status: "ready_for_review",
       }),
     ]);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
+  });
+
+  it("tolerates malformed active proposal rows on the governed list route", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call).toMatchObject({
+        type: "query",
+        pathName: "companies:listIndustryProposalsPage",
+      });
+      expect(call.args.status).toBe("ready_for_review");
+      return convexSuccess({
+        items: [
+          {
+            _id: "legacy-row",
+            proposalId: "probe-nonexistent-xyz",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+      });
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals?status=ready_for_review",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      items: Array<{ proposalId: string }>;
+      skippedCount?: number;
+      skippedProposalIds?: string[];
+    }>(response);
+    expect(body.items).toEqual([]);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
   });
 
   it("pages governed industry proposals with limit and cursor (no 500-row cap)", async () => {
@@ -405,6 +580,8 @@ describe("companies routes", () => {
         },
       ],
       maintenance: { latest: null, lastFailed: null },
+      skippedCount: 0,
+      skippedProposalIds: [],
     });
     const impactCalls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -442,7 +619,121 @@ describe("companies routes", () => {
       status: "ready_for_review",
       limit: 20,
       workspaceSlug: "hr",
+      timing: expect.any(Function),
     });
+  });
+
+  it("propagates skipped-proposal accounting from the review queue service", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "listIndustryReviewQueue").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      items: [],
+      maintenance: { latest: null, lastFailed: null },
+      skippedCount: 1,
+      skippedProposalIds: ["probe-nonexistent-xyz"],
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        return convexSuccess({});
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/review-queue?status=ready_for_review",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{
+      skippedCount?: number;
+      skippedProposalIds?: string[];
+    }>(response);
+    expect(body.skippedCount).toBe(1);
+    expect(body.skippedProposalIds).toEqual(["probe-nonexistent-xyz"]);
+  });
+
+  it("serves the review queue when the queue contains CJK company keys (no ASCII field-name crash)", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "listIndustryReviewQueue").mockResolvedValue({
+      success: true,
+      ok: true,
+      schemaVersion: "industry-review.v1",
+      items: [
+        {
+          proposal: {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "上海易初电线电缆有限公司",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 80,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          recommendation: {
+            proposalId: "proposal-1",
+            proposalStatus: "ready_for_review",
+            recommendedAction: "inspect",
+            recommendedVerificationLevel: "verified",
+            recommendedIndustryClass: "industrial",
+            recommendedSourceIds: [],
+            sourceDecisions: [],
+            confidenceBand: "low",
+            riskFlags: ["canonical_mapping_missing"],
+            riskDecision: {
+              requiresAcknowledgement: true,
+              nonOverridableRiskFlags: ["canonical_mapping_missing"],
+              canApproveWithRiskOverride: false,
+            },
+            reasons: ["Proposal is not mapped to a canonical company."],
+            excludedSourceReasons: {},
+            evidenceSummaryDraft: "",
+            decisionReasonDraft: "",
+            requiresHumanReview: true,
+            autoApprovable: false,
+          },
+          inputFingerprint: "fingerprint-1",
+          sourceCount: 1,
+        },
+      ],
+      maintenance: { latest: null, lastFailed: null },
+      skippedCount: 0,
+      skippedProposalIds: [],
+    });
+    const impactCalls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      impactCalls.push(call);
+      if (call.pathName === "companies:getIndustryResumeImpactByCompanyKey") {
+        // The API must NOT forward CJK keys to Convex (they cannot be JSON
+        // object keys there); the impact query runs on the ASCII-safe
+        // projection only and the row mapping resolves CJK keys to 0.
+        expect(call.args).toMatchObject({
+          companyKeys: [],
+          writeSecret: expect.any(String),
+        });
+        return convexSuccess({});
+      }
+      throw new Error(`Unexpected path ${call.pathName}`);
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/review-queue?status=ready_for_review&limit=20",
+      { headers: auth.headers },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await parseJsonBody<{ items: Array<{ resumeImpact: number }> }>(response);
+    expect(body.items[0].resumeImpact).toBe(0);
+    // The CJK key was filtered out before the Convex call (empty keys
+    // array), so the impact query was skipped entirely.
+    expect(impactCalls).toHaveLength(0);
   });
 
   it("keeps the review packet admin-only", async () => {
@@ -546,6 +837,37 @@ describe("companies routes", () => {
     expect(await parseJsonBody(response)).toMatchObject({
       code: "INDUSTRY_REVIEW_ATTESTATION_REQUIRED",
     });
+  });
+
+  it("returns 404 with an error envelope when approving a nonexistent proposal", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(industryReviewService, "getIndustryReviewPacket").mockResolvedValue(null as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/does-not-exist/approve",
+      {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revisionId: "revision-2",
+          verificationLevel: "verified",
+          industryClass: "cnc",
+          approvedSourceIds: ["source-1"],
+          evidenceSummary: "Reviewed official evidence.",
+          decisionReason: "Reviewed primary evidence",
+          taxonomyVersion: "industry-v1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(await parseJsonBody(response)).toMatchObject({
+      success: false,
+      error: "Industry proposal not found",
+    });
+    // The approval mutation must never run against a nonexistent proposal.
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("fails closed when the approval boundary reports a stale packet", async () => {
@@ -981,6 +1303,35 @@ describe("companies routes", () => {
       error: "The approval is no longer current",
       code: "INDUSTRY_REVIEW_STALE",
     });
+  });
+
+  it("fails cleanly (500, no success envelope) when the undo mutation reports a non-stale error", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      expect(call.pathName).toBe("companies:undoIndustryProposalApproval");
+      return convexFailure("Unknown industry proposal: proposal-1");
+    });
+
+    const app = createApp({ authStorage: auth.storage });
+    const response = await app.request(
+      "/api/company-industry-proposals/proposal-1/undo-approval",
+      {
+        method: "POST",
+        headers: {
+          ...auth.headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ approvedRevisionId: "revision-2" }),
+      },
+    );
+
+    expect(response.status).toBe(500);
+    // The undo must never be reported as done on a failed mutation: no
+    // success envelope, no partial reversal payload.
+    const text = await response.text();
+    expect(text).not.toContain('"success":true');
+    expect(text).not.toContain("reversalRevisionId");
   });
 
   it("requires an admin for industry approval undo", async () => {

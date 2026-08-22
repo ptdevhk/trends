@@ -5,6 +5,7 @@
  * matching search text against keyword groups, and collecting
  * search provenance for UI display.
  */
+import { MAX_SEARCH_INDEX_TERMS } from "./resumes_pagination.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,10 +96,17 @@ export function buildTagExpansionSearchQuery(
     }
 
     if (mode === "AND") {
-        return selectTagExpansionAnchorGroup(keywordGroups).variants.join(" ");
+        // The anchor group is the one with the fewest variants; cap the
+        // expression at the Convex 16-term limit so oversized variant lists
+        // cannot produce a runtime-rejected query string.
+        return selectTagExpansionAnchorGroup(keywordGroups).variants
+            .slice(0, MAX_SEARCH_INDEX_TERMS)
+            .join(" ");
     }
 
-    return collectExpandedTerms(keywordGroups).join(" ");
+    return collectExpandedTerms(keywordGroups)
+        .slice(0, MAX_SEARCH_INDEX_TERMS)
+        .join(" ");
 }
 
 export function matchesTagExpansionSearchText(

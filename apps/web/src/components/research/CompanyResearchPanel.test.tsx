@@ -1,7 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { CompanyResearchPanel, type ResearchSignalView } from './CompanyResearchPanel'
+
+const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+
+vi.mock('sonner', () => ({
+  toast: mockToast,
+}))
 
 const mockT = (_key: string, opts?: { defaultValue?: string }) => opts?.defaultValue ?? _key;
 
@@ -131,5 +137,62 @@ describe('CompanyResearchPanel live-first honesty', () => {
       'href',
       'https://weibo.com/real/1',
     )
+  })
+})
+
+describe('CompanyResearchPanel copy signal', () => {
+  const mockWriteText = vi.fn().mockResolvedValue(undefined)
+
+  beforeEach(() => {
+    mockToast.success.mockClear()
+    mockWriteText.mockClear()
+    // userEvent.click deletes an own navigator.clipboard property, so drive
+    // the button with fireEvent and keep the mock on the own property.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mockWriteText },
+      configurable: true,
+    })
+  })
+
+  it('copies signal title and summary to the clipboard with a success toast', async () => {
+    render(
+      <MemoryRouter>
+        <CompanyResearchPanel
+          companyKey="fanuc"
+          companyName="发那科"
+          signals={[{ ...liveHire, summary: 'FANUC hiring surge in Guangdong' }]}
+          meta={{ liveCount: 1, showcaseCount: 0, liveFirst: true }}
+          persona="hr"
+        />
+      </MemoryRouter>,
+    )
+    const copyButton = screen.getAllByTestId('copy-signal-button')[0]!
+    fireEvent.click(copyButton)
+    expect(mockWriteText).toHaveBeenCalledWith(
+      'live hire\nFANUC hiring surge in Guangdong',
+    )
+    await waitFor(() => {
+      expect(mockToast.success).toHaveBeenCalledWith('Signal copied to clipboard')
+    })
+  })
+
+  it('copies only the title when the signal has no summary', async () => {
+    render(
+      <MemoryRouter>
+        <CompanyResearchPanel
+          companyKey="fanuc"
+          companyName="发那科"
+          signals={[seedSales]}
+          meta={{ liveCount: 0, showcaseCount: 1, liveFirst: true }}
+          persona="hr"
+        />
+      </MemoryRouter>,
+    )
+    const copyButton = screen.getAllByTestId('copy-signal-button')[0]!
+    fireEvent.click(copyButton)
+    expect(mockWriteText).toHaveBeenCalledWith('seed sales')
+    await waitFor(() => {
+      expect(mockToast.success).toHaveBeenCalledWith('Signal copied to clipboard')
+    })
   })
 })

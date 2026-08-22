@@ -1551,7 +1551,7 @@ describe('useResumeListState role filter regression', () => {
       })
     })
 
-    expect(rawApiClient.GET).not.toHaveBeenCalled()
+    expect(rawApiClient.GET).not.toHaveBeenCalledWith(expect.stringContaining('/api/sessions/'))
     expect(result.current.activeSessionLabel).toBeUndefined()
   })
 

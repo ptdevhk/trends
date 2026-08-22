@@ -27,6 +27,11 @@ export const MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED = 16;
 // Convex search index scans up to 1024 results; 1024 × 27KB = 27MB > 16 MiB.
 // Cap .take() path to 400 docs × 30KB = ~12MB, safely under 16 MiB limit.
 export const MAX_SAFE_SEARCH_TAKE_LIMIT = 400;
+// Convex full-text search supports at most 16 terms per search expression
+// and 8 equality filters per query. Single expressions that exceed 16 terms
+// are rejected at runtime, so every query-string builder caps at this bound.
+// See docs/runbooks/convex-search-budget.md.
+export const MAX_SEARCH_INDEX_TERMS = 16;
 
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 export const MAX_RESUME_SCAN_BATCH_SIZE = 100;

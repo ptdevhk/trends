@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { CheckCircle2, Loader2, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,7 @@ import {
   isTerminalIndustryProposalStatus,
   parseReviewInboxFilter,
   parseReviewInboxItems,
+  parseReviewQueueSkippedCount,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
   TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
@@ -85,6 +86,13 @@ type IndustryReviewInboxProps = {
   onQueueStatusChange: (status: ReviewQueueStatus) => void
   onSelectProposal: (proposal: ReviewInboxProposal | undefined) => void
   onLoadedProposalsChange?: (proposals: ReviewInboxProposal[]) => void
+  /**
+   * Lifted session-approval registry (controlled mode). When provided, the
+   * inbox routes all registry reads/writes through these props; otherwise it
+   * falls back to its internal state.
+   */
+  sessionApprovals?: ReadonlyMap<string, SessionApproval>
+  onSessionApprovalsChange?: Dispatch<SetStateAction<Map<string, SessionApproval>>>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -274,6 +282,8 @@ export function IndustryReviewInbox({
   onQueueStatusChange,
   onSelectProposal,
   onLoadedProposalsChange,
+  sessionApprovals: sessionApprovalsProp,
+  onSessionApprovalsChange,
 }: IndustryReviewInboxProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -284,6 +294,7 @@ export function IndustryReviewInbox({
   const [actionFilter, setActionFilter] = useState('')
   const [items, setItems] = useState<ReviewInboxItem[]>([])
   const [nextCursor, setNextCursor] = useState<string>()
+  const [skippedCount, setSkippedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [queueError, setQueueError] = useState<string>()
@@ -293,6 +304,11 @@ export function IndustryReviewInbox({
   const [historyError, setHistoryError] = useState<string>()
   const [historyPartial, setHistoryPartial] = useState(false)
   const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
+  // Controlled-lift: when the parent supplies the registry (and its setter),
+  // use those instead of the internal state. Both fallbacks are stable
+  // identities, so the effective registry/setter stay stable across renders.
+  const registry = sessionApprovalsProp ?? sessionApprovals
+  const setRegistry = onSessionApprovalsChange ?? setSessionApprovals
   const [pendingActions, setPendingActions] = useState<Map<string, ReviewRowAction>>(new Map())
   const [rowErrors, setRowErrors] = useState<Map<string, ReviewRowError>>(new Map())
   const [forcedNeedsReview, setForcedNeedsReview] = useState<Set<string>>(new Set())
@@ -361,6 +377,7 @@ export function IndustryReviewInbox({
         ? [...current, ...next.filter((item) => !current.some((existing) => existing.proposal.proposalId === item.proposal.proposalId))]
         : next)
       setNextCursor(isRecord(payload) && typeof payload.nextCursor === 'string' ? payload.nextCursor : undefined)
+      setSkippedCount(parseReviewQueueSkippedCount(isRecord(payload) ? payload.skippedCount : undefined))
       return next
     } catch (error) {
       const message = errorMessage(error, t('industryEvidence.queueLoadFailed', { defaultValue: 'Failed to load industry review queue' }))
@@ -436,10 +453,13 @@ export function IndustryReviewInbox({
 
   useEffect(() => {
     if (!targetItem || !targetIsTerminal || searchParams.has('filter')) return
+    // A terminal target that was approved in this session stays in the queue
+    // view (Undo affordance) until refresh — do not auto-redirect to History.
+    if (registry.has(targetItem.proposal.proposalId)) return
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('filter', 'history')
     setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams, targetIsTerminal, targetItem])
+  }, [registry, searchParams, setSearchParams, targetIsTerminal, targetItem])
 
   useEffect(() => {
     if (!requestedProposalId) return
@@ -450,20 +470,29 @@ export function IndustryReviewInbox({
   }, [items, onSelectProposal, requestedProposalId, selectedProposalId])
 
   const itemsWithTarget = useMemo(() => {
-    if (!targetItem || targetIsTerminal) return items
+    if (!targetItem) return items
+    // A terminal target is normally dropped from the queue view, but a
+    // session-approved terminal target is still actionable (Undo) and must
+    // stay visible until refresh.
+    if (targetIsTerminal && !registry.has(targetItem.proposal.proposalId)) return items
     const targetProposalId = targetItem.proposal.proposalId
     return [
       targetItem,
       ...items.filter((item) => item.proposal.proposalId !== targetProposalId),
     ]
-  }, [items, targetIsTerminal, targetItem])
+  }, [items, registry, targetIsTerminal, targetItem])
 
   useEffect(() => {
-    onLoadedProposalsChange?.(itemsWithTarget.map((item) => item.proposal))
-  }, [itemsWithTarget, onLoadedProposalsChange])
+    // Report the QUEUE order (not the target-prepended display order) so the
+    // detail header's Previous/Next can move to the adjacent queue rows.
+    // The prepended `itemsWithTarget` view would put the selected target at
+    // index 0, making Previous wrap to the queue tail and Next jump to the
+    // queue head instead of the real neighbors.
+    onLoadedProposalsChange?.(items.map((item) => item.proposal))
+  }, [items, onLoadedProposalsChange])
 
   const partition = useMemo(() => {
-    const base = partitionReviewQueue(itemsWithTarget, sessionApprovals)
+    const base = partitionReviewQueue(itemsWithTarget, registry)
     const approvable: ReviewInboxRow[] = []
     const forcedReviewRows: ReviewInboxRow[] = []
     for (const row of base.approvable) {
@@ -475,19 +504,37 @@ export function IndustryReviewInbox({
       approvable,
       needsReview: [...base.needsReview, ...forcedReviewRows],
     }
-  }, [forcedNeedsReview, itemsWithTarget, sessionApprovals])
+  }, [forcedNeedsReview, itemsWithTarget, registry])
 
   const visibleHistory = useMemo(
-    () => filterHistoryForSession(historyItems, new Set(sessionApprovals.keys())),
-    [historyItems, sessionApprovals],
+    () => filterHistoryForSession(historyItems, new Set(registry.keys())),
+    [historyItems, registry],
   )
+
+  const historyStatusCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of visibleHistory) {
+      counts.set(item.status, (counts.get(item.status) ?? 0) + 1)
+    }
+    return TERMINAL_INDUSTRY_PROPOSAL_STATUSES
+      .map((status) => ({ status, count: counts.get(status) ?? 0 }))
+      .filter(({ count }) => count > 0)
+  }, [visibleHistory])
+
+  const historyStatusLabel = (status: string) => status === 'approved'
+    ? t('industryEvidence.historyStatusApproved', { defaultValue: 'Approved' })
+    : status === 'rejected'
+      ? t('industryEvidence.historyStatusRejected', { defaultValue: 'Rejected' })
+      : status === 'superseded'
+        ? t('industryEvidence.historyStatusSuperseded', { defaultValue: 'Superseded' })
+        : status
 
   const visibleRows = activeFilter === 'all'
     ? partition.all
     : activeFilter === 'approvable'
       ? partition.approvable
       : partition.needsReview
-  const sessionApprovalCount = sessionApprovals.size
+  const sessionApprovalCount = registry.size
 
   const changeQueueStatus = useCallback((status: ReviewQueueStatus) => {
     setQueueStatus(status)
@@ -567,7 +614,7 @@ export function IndustryReviewInbox({
         ? response.recompute.runId
         : undefined
       const approvedAt = Date.now()
-      setSessionApprovals((current) => new Map(current).set(proposalId, {
+      setRegistry((current) => new Map(current).set(proposalId, {
         proposalId,
         approvedRevisionId: response.revisionId as string,
         ...(recompute ? { recomputeRunId: recompute } : {}),
@@ -614,11 +661,11 @@ export function IndustryReviewInbox({
     } finally {
       updatePending(proposalId)
     }
-  }, [clearRowError, loadPacket, requestJson, setRowError, t, updatePending])
+  }, [clearRowError, loadPacket, requestJson, setRegistry, setRowError, t, updatePending])
 
   const handleUndo = useCallback(async (item: ReviewInboxItem) => {
     const proposalId = item.proposal.proposalId
-    const approval = sessionApprovals.get(proposalId)
+    const approval = registry.get(proposalId)
     if (!approval || undoBlocked.has(proposalId)) return
     updatePending(proposalId, 'undo')
     clearRowError(proposalId)
@@ -634,7 +681,7 @@ export function IndustryReviewInbox({
         `/api/company-industry-proposals/${encodeURIComponent(proposalId)}/undo-approval`,
         { method: 'POST', body: JSON.stringify(body) },
       )
-      setSessionApprovals((current) => {
+      setRegistry((current) => {
         const next = new Map(current)
         next.delete(proposalId)
         return next
@@ -683,15 +730,15 @@ export function IndustryReviewInbox({
     } finally {
       updatePending(proposalId)
     }
-  }, [clearRowError, loadPacket, requestJson, sessionApprovals, setRowError, t, undoBlocked, updatePending])
+  }, [clearRowError, loadPacket, requestJson, registry, setRegistry, setRowError, t, undoBlocked, updatePending])
 
   const refreshInbox = useCallback(async () => {
     setRefreshing(true)
-    const previousSessionIds = new Set(sessionApprovals.keys())
+    const previousSessionIds = new Set(registry.keys())
     const [nextItems, nextHistory] = await Promise.all([loadActiveQueue(), loadHistory()])
     if (nextItems && nextHistory) {
       setItems((current) => current.filter((item) => !previousSessionIds.has(item.proposal.proposalId)))
-      setSessionApprovals(new Map())
+      setRegistry(new Map())
       setPendingActions(new Map())
       setRowErrors(new Map())
       setForcedNeedsReview(new Set())
@@ -709,7 +756,7 @@ export function IndustryReviewInbox({
       toast.error(message)
     }
     setRefreshing(false)
-  }, [loadActiveQueue, loadHistory, onSelectProposal, selectedProposalId, sessionApprovals, t])
+  }, [loadActiveQueue, loadHistory, onSelectProposal, registry, selectedProposalId, setRegistry, t])
 
   const handleRowRetry = useCallback((row: ReviewInboxRow) => {
     if (row.sessionApproval) void handleUndo(row.item)
@@ -752,7 +799,7 @@ export function IndustryReviewInbox({
         return next
       })
       const approvedAt = Date.now()
-      setSessionApprovals((current) => {
+      setRegistry((current) => {
         const next = new Map(current)
         for (const item of succeeded) {
           if (item.kind !== 'approve' || !item.revisionId) continue
@@ -825,7 +872,7 @@ export function IndustryReviewInbox({
     } finally {
       setBatchSubmitting(false)
     }
-  }, [loadActiveQueue, requestJson, t])
+  }, [loadActiveQueue, requestJson, setRegistry, t])
 
   const openIdentityDialog = useCallback(async (items: ReviewInboxItem[]) => {
     if (items.length === 0) return
@@ -1025,6 +1072,15 @@ export function IndustryReviewInbox({
             <span className={`ml-1.5 tabular-nums text-xs ${activeFilter === filter ? 'text-emerald-50' : 'text-muted-foreground'}`}>
               {count}
             </span>
+            {filter === 'history' && historyStatusCounts.map(({ status, count: statusCount }) => (
+              <span
+                key={status}
+                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${activeFilter === filter ? 'bg-emerald-800/80 text-emerald-50' : 'bg-muted text-muted-foreground'}`}
+                data-testid={`industry-review-history-status-${status}`}
+              >
+                {historyStatusLabel(status)} {statusCount}
+              </span>
+            ))}
           </button>
         ))}
       </div>
@@ -1033,7 +1089,9 @@ export function IndustryReviewInbox({
         <div id="industry-review-tabpanel-history" role="tabpanel" aria-label={t('industryEvidence.history', { defaultValue: 'History' })}>
           <IndustryHistoryList
             items={visibleHistory}
-            targetItem={targetIsTerminal ? targetItem?.proposal as IndustryHistoryItem | undefined : undefined}
+            targetItem={targetIsTerminal && targetItem && !registry.has(targetItem.proposal.proposalId)
+              ? targetItem.proposal as IndustryHistoryItem | undefined
+              : undefined}
             loading={historyLoading}
             loaded={historyLoaded}
             error={historyError}
@@ -1058,10 +1116,10 @@ export function IndustryReviewInbox({
                   onChange={(event) => changeQueueStatus(event.target.value as ReviewQueueStatus)}
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
-                  <option value="ready_for_review">Ready for review</option>
-                  <option value="new">New</option>
-                  <option value="researching">Researching</option>
-                  <option value="needs_more_evidence">Needs more evidence</option>
+                  <option value="ready_for_review">{t('industryEvidence.queueStatusReadyReview', { defaultValue: 'Ready for review' })}</option>
+                  <option value="new">{t('industryEvidence.queueStatusNew', { defaultValue: 'New' })}</option>
+                  <option value="researching">{t('industryEvidence.queueStatusResearching', { defaultValue: 'Researching' })}</option>
+                  <option value="needs_more_evidence">{t('industryEvidence.queueStatusNeedsEvidence', { defaultValue: 'Needs more evidence' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -1073,10 +1131,10 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allRisks', { defaultValue: 'All risks' })}</option>
-                  <option value="source_conflict">source conflict</option>
-                  <option value="low_source_diversity">low source diversity</option>
-                  <option value="cnc_claim_inferred">CNC claim inferred</option>
-                  <option value="stale_or_failed_source">stale or failed source</option>
+                  <option value="source_conflict">{t('industryEvidence.riskSourceConflict', { defaultValue: 'source conflict' })}</option>
+                  <option value="low_source_diversity">{t('industryEvidence.riskLowDiversity', { defaultValue: 'low source diversity' })}</option>
+                  <option value="cnc_claim_inferred">{t('industryEvidence.riskCncInferred', { defaultValue: 'CNC claim inferred' })}</option>
+                  <option value="stale_or_failed_source">{t('industryEvidence.riskStaleSource', { defaultValue: 'stale or failed source' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -1088,9 +1146,9 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allConfidence', { defaultValue: 'All confidence' })}</option>
-                  <option value="high">high</option>
-                  <option value="medium">medium</option>
-                  <option value="low">low</option>
+                  <option value="high">{t('industryEvidence.confidenceHigh', { defaultValue: 'high' })}</option>
+                  <option value="medium">{t('industryEvidence.confidenceMedium', { defaultValue: 'medium' })}</option>
+                  <option value="low">{t('industryEvidence.confidenceLow', { defaultValue: 'low' })}</option>
                 </select>
               </label>
               <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -1102,10 +1160,10 @@ export function IndustryReviewInbox({
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                 >
                   <option value="">{t('industryEvidence.allActions', { defaultValue: 'All actions' })}</option>
-                  <option value="approve">approve</option>
-                  <option value="needs_more_evidence">needs evidence</option>
-                  <option value="inspect">inspect</option>
-                  <option value="reject">reject</option>
+                  <option value="approve">{t('industryEvidence.actionApprove', { defaultValue: 'approve' })}</option>
+                  <option value="needs_more_evidence">{t('industryEvidence.actionNeedsEvidence', { defaultValue: 'needs evidence' })}</option>
+                  <option value="inspect">{t('industryEvidence.actionInspect', { defaultValue: 'inspect' })}</option>
+                  <option value="reject">{t('industryEvidence.actionReject', { defaultValue: 'reject' })}</option>
                 </select>
               </label>
             </div>
@@ -1120,6 +1178,22 @@ export function IndustryReviewInbox({
             resolveIdentityDisabled={!batchSelectedItems.some((item) => requiresIdentityResolution(item))}
             onClear={clearBatchSelection}
           />
+
+          {skippedCount > 0 ? (
+            <div
+              className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+              role="status"
+              data-testid="industry-review-skipped-banner"
+            >
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p>
+                {t('industryEvidence.queueSkippedBanner', {
+                  defaultValue: '{{count}} malformed proposals were skipped from this queue',
+                  count: skippedCount,
+                })}
+              </p>
+            </div>
+          ) : null}
 
           {queueError ? (
             <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-950" role="alert" data-testid="industry-review-queue-error">

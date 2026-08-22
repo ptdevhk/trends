@@ -28,4 +28,31 @@ describe("digest-first resume search call-site inventory", () => {
 
         expect(collectColdResumeSearchConsumers(source)).toEqual([]);
     });
+
+    it("never collects a search-index result set", () => {
+        // Convex search indexes cap scans at 1024 rows; .collect() on a
+        // search query therefore silently truncates long-tail result sets.
+        // Every search call site must bound with .take() or .paginate().
+        const source = readFileSync(
+            new URL("../convex/resumes_search.ts", import.meta.url),
+            "utf8",
+        );
+
+        const callSites = [...source.matchAll(/\.withSearchIndex\("search_body"/g)];
+        expect(callSites.length).toBeGreaterThan(0);
+
+        const violations: string[] = [];
+        for (const match of callSites) {
+            const tail = source.slice(match.index ?? 0, (match.index ?? 0) + 300);
+            const before = source.slice(0, match.index ?? 0);
+            const line = before.split("\n").length;
+            if (tail.includes(".collect(")) {
+                violations.push(`packages/convex/convex/resumes_search.ts:${line} uses .collect()`);
+            }
+            if (!tail.includes(".take(") && !tail.includes(".paginate(")) {
+                violations.push(`packages/convex/convex/resumes_search.ts:${line} is unbounded`);
+            }
+        }
+        expect(violations).toEqual([]);
+    });
 });

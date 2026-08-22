@@ -121,4 +121,126 @@ describe('FacetGroup', () => {
     expect(screen.getByRole('button', { name: /Automation/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Show /i })).not.toBeInTheDocument()
   })
+
+  it('renders a filter input only when filterable and items exceed the visible limit', () => {
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+          { value: 'Robotics', count: 4 },
+        ]}
+        maxVisible={2}
+        filterable
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Filter options…' })).toBeInTheDocument()
+  })
+
+  it('omits the filter input when filterable but items fit within the visible limit', () => {
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+        ]}
+        maxVisible={2}
+        filterable
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('textbox', { name: 'Filter options…' })).not.toBeInTheDocument()
+  })
+
+  it('omits the filter input when not filterable', () => {
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+          { value: 'Robotics', count: 4 },
+        ]}
+        maxVisible={2}
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('textbox', { name: 'Filter options…' })).not.toBeInTheDocument()
+  })
+
+  it('filters chips by the query and shows a no-match message when nothing matches', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', label: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+          { value: 'Robotics', count: 4 },
+        ]}
+        maxVisible={2}
+        filterable
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Filter options…' }), 'auto')
+
+    expect(screen.getByRole('button', { name: /Automation/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Machine Tools/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show /i })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByRole('textbox', { name: 'Filter options…' }))
+    await user.type(screen.getByRole('textbox', { name: 'Filter options…' }), 'zzz')
+
+    expect(screen.getByText('No matching options')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Automation/i })).not.toBeInTheDocument()
+  })
+
+  it('clears the filter via the clear button and restores all chips', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+          { value: 'Robotics', count: 4 },
+        ]}
+        maxVisible={2}
+        filterable
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    const input = screen.getByRole('textbox', { name: 'Filter options…' })
+    await user.type(input, 'auto')
+    expect(screen.queryByRole('button', { name: /Machine Tools/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Clear/i }))
+
+    // After clearing, the facet returns to its collapsed limit (maxVisible)
+    // with the show-more control back.
+    expect(input).toHaveValue('')
+    expect(screen.getByRole('button', { name: /Machine Tools/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Automation/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Show 1 more/i }))
+    expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
+  })
 })

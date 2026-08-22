@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api.js";
-import { createTest } from "./test-helpers.js";
+import { createTest, seedResume } from "./test-helpers.js";
 
 const WRITE_SECRET = "test-secret";
 
@@ -111,4 +111,121 @@ describe("candidate_status write authorization", () => {
       ).rejects.toThrow("Unauthorized Convex read");
     },
   );
+});
+
+describe("candidate_status.clearWorkspace", () => {
+  const originalWriteSecret = process.env.CONVEX_WRITE_SECRET;
+
+  beforeEach(() => {
+    process.env.CONVEX_WRITE_SECRET = WRITE_SECRET;
+  });
+
+  afterEach(() => {
+    if (originalWriteSecret === undefined) {
+      delete process.env.CONVEX_WRITE_SECRET;
+      return;
+    }
+    process.env.CONVEX_WRITE_SECRET = originalWriteSecret;
+  });
+
+  it("rejects clearWorkspace without the server write secret", async () => {
+    const t = createTest();
+
+    await expect(
+      t.mutation(api.candidate_status.clearWorkspace, {
+        workspaceSlug: "hr",
+      }),
+    ).rejects.toThrow("Unauthorized Convex write");
+
+    await expect(
+      t.mutation(api.candidate_status.clearWorkspace, {
+        workspaceSlug: "hr",
+        writeSecret: "wrong-secret",
+      }),
+    ).rejects.toThrow("Unauthorized Convex write");
+  });
+
+  it("clears candidate_status rows for the target workspace only", async () => {
+    const t = createTest();
+
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "hr",
+      identityKey: "candidate-hr-1",
+      status: "shortlisted",
+      updatedBy: "api-user",
+      writeSecret: WRITE_SECRET,
+    });
+    await t.mutation(api.candidate_status.upsert, {
+      workspaceSlug: "dev",
+      identityKey: "candidate-dev-1",
+      status: "shortlisted",
+      updatedBy: "api-user",
+      writeSecret: WRITE_SECRET,
+    });
+
+    const result = await t.mutation(api.candidate_status.clearWorkspace, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result.clearedStatuses).toBe(1);
+
+    const hrRemaining = await t.query(api.candidate_status.list, {
+      workspaceSlug: "hr",
+    });
+    const devRemaining = await t.query(api.candidate_status.list, {
+      workspaceSlug: "dev",
+    });
+    expect(hrRemaining).toHaveLength(0);
+    expect(devRemaining).toHaveLength(1);
+    expect(devRemaining[0]?.identityKey).toBe("candidate-dev-1");
+  });
+
+  it("clears resume_digest_statuses overlay rows for the target workspace only", async () => {
+    const t = createTest();
+
+    const hrResumeId = await seedResume(t, {
+      externalId: "overlay-hr-resume",
+      identityKey: "profileUrl:example.com/candidates/overlay-hr",
+    });
+    const devResumeId = await seedResume(t, {
+      externalId: "overlay-dev-resume",
+      identityKey: "profileUrl:example.com/candidates/overlay-dev",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: hrResumeId,
+        identityKey: "overlay-hr-1",
+        workspaceSlug: "hr",
+        status: "shortlisted",
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("resume_digest_statuses", {
+        resumeId: devResumeId,
+        identityKey: "overlay-dev-1",
+        workspaceSlug: "dev",
+        status: "shortlisted",
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.mutation(api.candidate_status.clearWorkspace, {
+      workspaceSlug: "hr",
+      writeSecret: WRITE_SECRET,
+    });
+
+    expect(result.clearedOverlayRows).toBe(1);
+
+    const devOverlay = await t.run(async (ctx) =>
+      ctx.db
+        .query("resume_digest_statuses")
+        .withIndex("by_workspace_identity", (q) =>
+          q.eq("workspaceSlug", "dev")
+        )
+        .collect()
+    );
+    expect(devOverlay).toHaveLength(1);
+    expect(devOverlay[0]?.identityKey).toBe("overlay-dev-1");
+  });
 });

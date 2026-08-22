@@ -141,4 +141,24 @@ describe("resume digest domain-token stability (F3)", () => {
     expect(occurrences("cnc")).toBe(1);
     expect(occurrences("数控")).toBe(1);
   });
+
+  it("derives selfIntro prose tokens into the digest search text (A3)", () => {
+    const digest = buildResumeDigest(
+      resume(
+        {
+          name: "王五",
+          desiredPosition: "工程师",
+          selfIntro: "十年数控车床加工中心操作经验，熟悉机床操作调试与数控编程，参与五金冲压模具设计改进。",
+        },
+        "",
+      ),
+      Date.now(),
+    );
+
+    const searchText = digest.searchText ?? "";
+    const tokens = searchText.split(/\s+/g);
+    for (const token of ["机床", "调试", "编程", "冲压", "cnc", "machine", "tool"]) {
+      expect(tokens).toContain(token);
+    }
+  });
 });

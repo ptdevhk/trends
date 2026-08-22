@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+    companyKeyProjectionValidator,
     ingestDataValidator,
     collectionTaskResultsValidator,
     resumeFiltersValidator,
@@ -109,10 +110,23 @@ export default defineSchema({
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(ingestDataValidator),
 
+        // T3: durable company-key projection snapshot (epoch + keys + tokens).
+        // Stamped by the ingest write path and the recompute drain
+        // (company_key_projection:recomputeCompanyKeyProjections).
+        companyKeyProjection: v.optional(companyKeyProjectionValidator),
+
         // Link to vector embedding for semantic search
         embeddingId: v.optional(v.id("resume_embeddings")),
         // Flag for incremental embedding backfill — indexed to avoid full-table scan
         needsEmbedding: v.optional(v.boolean()),
+
+        // Contact signals captured at submit time (item #9 dedup heuristics).
+        // Normalized once; never used as identity — only for merge suggestions.
+        contactSignals: v.optional(v.object({
+            email: v.optional(v.string()),
+            phone: v.optional(v.string()),
+            linkedin: v.optional(v.string()),
+        })),
     })
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
@@ -121,6 +135,20 @@ export default defineSchema({
         .index("by_primaryRuleScore", ["primaryRuleScore"])
         .index("by_sourceKey", ["sourceKey"])
         .index("by_needsEmbedding", ["needsEmbedding"]),
+
+    // Dedup blocking keys (item #9): capture-time contact-signal prefixes.
+    // signalKey is the source-stripped key so cross-source pairs can be grouped;
+    // blockKey keeps the source for isolation. Advisory only — no merge action.
+    resume_dedup_blocks: defineTable({
+        blockKey: v.string(), // e.g. "phone:1381234|job5156"
+        signalKey: v.string(), // e.g. "phone:1381234"
+        resumeId: v.id("resumes"),
+        source: v.string(),
+        createdAt: v.number(),
+    })
+        .index("by_blockKey", ["blockKey"])
+        .index("by_signalKey", ["signalKey"])
+        .index("by_resumeId", ["resumeId"]),
 
     // Optional: Search Profiles (if we want to store user configs)
     search_profiles: defineTable({
@@ -416,6 +444,22 @@ export default defineSchema({
     })
         .index("by_workspace_identity", ["workspaceSlug", "identityKey"])
         .index("by_workspace", ["workspaceSlug"]),
+
+    candidate_policy_overrides: defineTable({
+        workspaceSlug: v.string(),
+        resumeId: v.id("resumes"),
+        resumeIdentity: v.string(),
+        companyKey: v.string(),
+        effect: v.literal("allow"),
+        reason: v.string(),
+        authorizedBy: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_workspace_identity", ["workspaceSlug", "resumeIdentity"])
+        .index("by_workspace_company", ["workspaceSlug", "companyKey"])
+        .index("by_resume", ["resumeId"]),
 
     candidate_status: defineTable({
         identityKey: v.string(),

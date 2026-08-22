@@ -303,6 +303,7 @@ export const ResumeItemSchema = z
     name: z.string().openapi({ example: "Alex Chen" }),
     profileUrl: z.string().openapi({ example: "https://hr.job5156.com/resume/view/123" }),
     source: z.string().optional().openapi({ example: "hr.job5156.com" }),
+    sourceKey: z.string().optional().openapi({ example: "seek" }),
     activityStatus: z.string().openapi({ example: "Active today" }),
     age: z.string().openapi({ example: "28" }),
     experience: z.string().openapi({ example: "5 years" }),
@@ -322,6 +323,7 @@ export const ResumeItemSchema = z
     profileId: z.string().optional().openapi({ example: "503033454" }),
     profileType: z.string().optional().openapi({ example: "seek" }),
     externalId: z.string().optional().openapi({ example: "seek:profile:503033454" }),
+    identityKey: z.string().optional(),
   })
   .openapi("ResumeItem");
 
@@ -778,6 +780,14 @@ export const ResumesQuerySchema = z.object({
     .transform((value) => value === "true")
     .openapi({
       param: { name: "showBlocked", in: "query" },
+      example: "false",
+    }),
+  includeHidden: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true")
+    .openapi({
+      param: { name: "includeHidden", in: "query" },
       example: "false",
     }),
   // Semantic search parameters

@@ -150,8 +150,11 @@ export type SystemSettingsSubpageId =
   | 'taxonomy'
   | 'industry-verification'
   | 'industry-data'
+  | 'unresolved-queue'
   | 'locations'
   | 'export-fields'
+  | 'workspace'
+  | 'resume-dedup'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -199,6 +202,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
     descriptionKey: 'debugConfig.industryDataPageDescription',
     defaultDescription: 'Central management of CN industry data, maintenance controls, and evidence audit.',
   },
+  'unresolved-queue': {
+    descriptionKey: 'debugConfig.unresolvedQueuePageDescription',
+    defaultDescription: 'Review employer names that failed to resolve during capture and link or ignore them.',
+  },
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',
     defaultDescription: 'Control which system location chips are visible in the UI.',
@@ -206,6 +213,14 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   'export-fields': {
     descriptionKey: 'debugConfig.exportFieldsPageDescription',
     defaultDescription: 'Configure which columns appear in resume CSV/XLSX exports.',
+  },
+  workspace: {
+    descriptionKey: 'debugConfig.workspacePageDescription',
+    defaultDescription: 'Export and import portable workspace snapshots (same format as the CLI).',
+  },
+  'resume-dedup': {
+    descriptionKey: 'debugConfig.resumeDedupPageDescription',
+    defaultDescription: 'Review suggested same-person matches across resume collection sources (advisory only — no merge action).',
   },
 }
 

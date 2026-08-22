@@ -1,4 +1,4 @@
-import { deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, resolveLocationHierarchy } from '@trends/shared'
+import { compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -11,8 +11,9 @@ import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
+import { useCandidatePolicyOverrides } from '@/hooks/useCandidatePolicyOverrides'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { matchResumeCompanyPolicyCached } from '@/hooks/useCompanyPolicyIndex'
+import { matchResumeCompanyPolicyCached, useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 
 import { useStableQuery } from '@/hooks/useStableQuery'
 import {
@@ -405,13 +406,10 @@ function sortResults(
   results: ResumeSearchResultItem[],
   sortValue: SearchSortValue,
 ): ResumeSearchResultItem[] {
-  if (sortValue === 'score') {
-    return [...results].sort(
-      (left, right) => (right.score ?? -1) - (left.score ?? -1),
-    )
-  }
-
-  return [...results].sort((left, right) => {
+  const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
+    if (sortValue === 'score') {
+      return (right.score ?? -1) - (left.score ?? -1)
+    }
     if (sortValue === 'newest') {
       const rightTimestamp = right.resume.extractedAt
         ? Date.parse(right.resume.extractedAt)
@@ -426,6 +424,19 @@ function sortResults(
       parseExperienceYears(right.resume.experience) -
       parseExperienceYears(left.resume.experience)
     )
+  }
+
+  return [...results].sort((left, right) => {
+    // Company-policy ranking tier is the primary key for every sort mode:
+    // known-good above unknown, no-hire grouped below. Never rewrites scores.
+    const tierDiff = compareCompanyRankingEffects(
+      left.companyRankingEffect,
+      right.companyRankingEffect,
+    )
+    if (tierDiff !== 0) {
+      return tierDiff
+    }
+    return tiebreak(left, right)
   })
 }
 
@@ -730,9 +741,12 @@ function ensureStoredSessionKey(storageKey: string): string {
 export function useResumeSearchState() {
   const { t } = useTranslation()
   const { isAuthenticated } = useAuth()
-  const { slug } = useWorkspace()
+  const { slug, isPublicSurface } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
-  const canLoadOperationalState = isAuthenticated
+  // The public resume surface is read-only: workspace-gated operational
+  // endpoints (blocks, status, sessions) 401/403 for anonymous / non-member
+  // viewers, so they are skipped there entirely.
+  const canLoadOperationalState = isAuthenticated && !isPublicSurface
   const storageKey = `${SESSION_KEY_PREFIX}.${slug}`
   const [sessionKey, setSessionKey] = useState(() =>
     ensureStoredSessionKey(storageKey),
@@ -777,6 +791,8 @@ export function useResumeSearchState() {
   })
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(canLoadOperationalState)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(canLoadOperationalState)
+  const { overridesByKey, setOverride, removeOverride } = useCandidatePolicyOverrides(canLoadOperationalState)
+  const { matchResume } = useCompanyPolicyIndex(canLoadOperationalState)
   const { actions: actionsByResume, ratingsByResume, commentsByResume, saveAction, getAiFeedback } = useCandidateActions(
     sessionKey,
     parsedState.jobDescriptionId,
@@ -969,6 +985,10 @@ export function useResumeSearchState() {
         parsedState.jobDescriptionId,
         normalizedAnalysis,
       )
+      const policyHits = matchResume({
+        workHistory: resume.workHistory,
+        companyHits: resume.ingestData?.companyHits,
+      })
       return {
         key: `${resume.resumeId}`,
         identityKey,
@@ -982,6 +1002,7 @@ export function useResumeSearchState() {
               ? 'ai'
               : 'rule'
             : undefined,
+        companyRankingEffect: primaryCompanyPolicyHit(policyHits)?.rankingEffect,
           status: statusRecord?.status ?? 'new',
           statusMeta: statusRecord,
           refreshState,
@@ -991,6 +1012,7 @@ export function useResumeSearchState() {
     analysisKeywords,
     blocksByIdentity,
     currentPromptVersion,
+    matchResume,
     parsedState.jobDescriptionId,
     parsedState.location,
     resumeQuery.resumes,
@@ -1072,6 +1094,8 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
+  const convexSearchFailed = resumeQuery.searchFailed === true
+  const convexRetrySearch = resumeQuery.retrySearch
   const isFiltering = isFilterPending || (loading && results.length > 0)
 
   // Log search analytics (fire-and-forget, debounced by query change)
@@ -1304,6 +1328,12 @@ export function useResumeSearchState() {
         filters: {},
       }),
     )
+  }, [parsedState, syncToUrl])
+
+  const clearJobDescription = useCallback(() => {
+    setPendingAutoAnalyzeContextSignature('')
+    pendingForceAnalyzeRef.current = false
+    syncToUrl(buildUrlState(parsedState, { jobDescriptionId: undefined }))
   }, [parsedState, syncToUrl])
 
   const applyRecentSearch = useCallback(
@@ -1696,7 +1726,7 @@ export function useResumeSearchState() {
       }
 
       await submitResumeExportDownload(apiBaseUrl, exportRequest)
-      toast.info(`Started export for ${exportCandidates.length} resumes`)
+      toast.info(t('bulk.exportStarted', { count: exportCandidates.length, defaultValue: 'Started export for {{count}} resumes' }))
     } catch (error) {
       console.error('Failed to export search results', error)
       const message =
@@ -1707,21 +1737,21 @@ export function useResumeSearchState() {
     } finally {
       setExportingResults(false)
     }
-  }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey]) // selectedIds excluded on purpose — export uses snapshot at call time
+  }, [apiBaseUrl, exportFormat, filteredResults, parsedState.jobDescriptionId, ratingsByResume, sessionKey, t]) // selectedIds excluded on purpose — export uses snapshot at call time
 
   const analyzeResults = useCallback(async () => {
     if (!dispatchAnalysis) {
-      toast.error('AI analysis is unavailable for this account.')
+      toast.error(t('aiTasks.unavailableForAccount', { defaultValue: 'AI analysis is unavailable for this account.' }))
       return
     }
 
     if (analysisDispatchBatchIds.length === 0) {
-      toast.info('No new candidates to analyze among loaded results.')
+      toast.info(t('aiTasks.noNewCandidatesLoaded', { defaultValue: 'No new candidates to analyze among loaded results.' }))
       return
     }
 
     if (hasActiveAnalysisTask) {
-      toast.info('Please wait for current analysis to complete.')
+      toast.info(t('aiTasks.waitForCompletion', { defaultValue: 'Please wait for current analysis to complete.' }))
       return
     }
 
@@ -1764,12 +1794,19 @@ export function useResumeSearchState() {
       const remaining = analysisCandidateResumeIds.length - analysisDispatchBatchIds.length
       toast.success(
         remaining > 0
-          ? `Analyzing batch of ${analysisDispatchBatchIds.length} resumes (${remaining} more pending)...`
-          : `Analyzing ${analysisDispatchBatchIds.length} resumes...`,
+          ? t('aiTasks.analyzingBatch', {
+              count: analysisDispatchBatchIds.length,
+              remaining,
+              defaultValue: 'Analyzing batch of {{count}} resumes ({{remaining}} more pending)...',
+            })
+          : t('aiTasks.analyzingCount', {
+              count: analysisDispatchBatchIds.length,
+              defaultValue: 'Analyzing {{count}} resumes...',
+            }),
       )
     } catch (error) {
       console.error('Failed to dispatch search analysis task', error)
-      toast.error('Failed to start AI analysis. Please try again.')
+      toast.error(t('aiTasks.dispatchFailedFull', { defaultValue: 'Failed to start AI analysis. Please try again.' }))
     } finally {
       setAnalyzingResults(false)
     }
@@ -1782,6 +1819,7 @@ export function useResumeSearchState() {
     hasActiveAnalysisTask,
     parsedState,
     recentSearches,
+    t,
   ])
 
   useEffect(() => {
@@ -1938,7 +1976,7 @@ export function useResumeSearchState() {
         (item) => item.resume.resumeId === resumeId || item.key === resumeId,
       )
       if (!targetItem?.identityKey) {
-        toast.error('备注保存失败')
+        toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         return
       }
 
@@ -1950,17 +1988,17 @@ export function useResumeSearchState() {
       void updateCandidateStatus(targetItem.identityKey, currentStatus, trimmed)
         .then((success) => {
           if (success) {
-            toast.success('备注已保存')
+            toast.success(t('resumes.notes.saveSuccess', { defaultValue: '备注已保存' }))
             return
           }
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
         .catch((error: unknown) => {
           console.error('Rating comment save failed', error)
-          toast.error('备注保存失败')
+          toast.error(t('resumes.notes.saveFailed', { defaultValue: '备注保存失败' }))
         })
     },
-    [filteredResults, statusByIdentity, updateCandidateStatus],
+    [filteredResults, statusByIdentity, t, updateCandidateStatus],
   )
 
   const handleCandidateStatusChange = useCallback(
@@ -1999,6 +2037,7 @@ export function useResumeSearchState() {
           const hits = matchResumeCompanyPolicyCached({
             workHistory: item.resume.workHistory,
             companyHits: item.resume.ingestData?.companyHits,
+            sourceKey: item.resume.sourceKey,
           })
           return !isCompanyWorkflowBlocked(hits)
         })
@@ -2039,7 +2078,22 @@ export function useResumeSearchState() {
         }
       }
 
+      const processedCount = selectedItems.length
       clearSelection()
+
+      if (action === 'shortlist' || action === 'reject' || action === 'block') {
+        const successKey = action === 'shortlist'
+          ? 'bulkActions.successShortlist'
+          : action === 'reject'
+            ? 'bulkActions.successReject'
+            : 'bulkActions.successBlock'
+        const defaultValue = action === 'shortlist'
+          ? 'Shortlisted {{count}} resume(s)'
+          : action === 'reject'
+            ? 'Rejected {{count}} resume(s)'
+            : 'Blocked {{count}} resume(s)'
+        toast.success(t(successKey, { count: processedCount, defaultValue }))
+      }
     },
     [
       blockCandidates,
@@ -2057,12 +2111,14 @@ export function useResumeSearchState() {
     activeQuery,
     activeSort,
     analysisCandidateCount: analysisCandidates.length,
+    analysisKeywords,
     analyzeResults,
     aiModeEnabled,
     aiModeStats,
     applyRecentSearch,
     analyzingResults,
     clearFacetFilters,
+    clearJobDescription,
     clearSearch,
     disableAnalyzeResults,
     exportFormat,
@@ -2077,6 +2133,8 @@ export function useResumeSearchState() {
     isLanding,
     loading,
     loadingMore,
+    convexSearchFailed,
+    convexRetrySearch,
     isFiltering,
     parsedState,
     queryInput,
@@ -2123,6 +2181,9 @@ export function useResumeSearchState() {
     handleRatingComment,
     handleCandidateStatusChange,
     handleToggleBlock,
+    overridesByKey,
+    setOverride,
+    removeOverride,
     highScoreCount,
     selectedIds,
     selectAll,

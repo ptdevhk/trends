@@ -89,6 +89,7 @@ const {
   useCandidateActionsHookMock,
   useCandidateBlocksHookMock,
   useCandidateStatusHookMock,
+  useCompanyPolicyIndexHookMock,
   useMutationMock,
   useQueryMock,
   useAnalysisTasksMock,
@@ -125,12 +126,14 @@ const {
   useCandidateActionsHookMock: vi.fn(),
   useCandidateBlocksHookMock: vi.fn(),
   useCandidateStatusHookMock: vi.fn(),
+  useCompanyPolicyIndexHookMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
   useAnalysisTasksMock: vi.fn(),
   useUrlSearchStateMock: vi.fn(),
   workspaceMock: {
     slug: 'dev',
+    isPublicSurface: false,
   },
 }))
 
@@ -163,6 +166,11 @@ vi.mock('@/hooks/useCandidateBlocks', () => ({
   useCandidateBlocks: (...args: unknown[]) => useCandidateBlocksHookMock(...args),
 }))
 
+vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
+  useCompanyPolicyIndex: (...args: unknown[]) => useCompanyPolicyIndexHookMock(...args),
+  matchResumeCompanyPolicyCached: () => [],
+}))
+
 vi.mock('@/hooks/useCandidateActions', () => ({
   useCandidateActions: (...args: unknown[]) => useCandidateActionsHookMock(...args),
 }))
@@ -177,6 +185,12 @@ function createCandidateStatusHookValue() {
 function createCandidateBlocksHookValue() {
   return {
     blocksByIdentity: blocksByIdentityMock,
+  }
+}
+
+function createCompanyPolicyIndexHookValue() {
+  return {
+    matchResume: () => [],
   }
 }
 
@@ -299,6 +313,7 @@ describe('useResumeSearchState', () => {
     localStorage.clear()
 
     workspaceMock.slug = 'dev'
+    workspaceMock.isPublicSurface = false
     authMock.isAuthenticated = true
     parsedStateMock.shareSessionId = undefined
     parsedStateMock.query = undefined
@@ -340,6 +355,7 @@ describe('useResumeSearchState', () => {
     })
     useCandidateStatusHookMock.mockReturnValue(createCandidateStatusHookValue())
     useCandidateBlocksHookMock.mockReturnValue(createCandidateBlocksHookValue())
+    useCompanyPolicyIndexHookMock.mockReturnValue(createCompanyPolicyIndexHookValue())
     useCandidateActionsHookMock.mockReturnValue(createCandidateActionsHookValue())
 
     useQueryMock.mockImplementation((query) => {
@@ -405,6 +421,7 @@ describe('useResumeSearchState', () => {
 
     expect(useCandidateStatusHookMock).toHaveBeenCalledWith(false)
     expect(useCandidateBlocksHookMock).toHaveBeenCalledWith(false)
+    expect(useCompanyPolicyIndexHookMock).toHaveBeenCalledWith(false)
     expect(useCandidateActionsHookMock).toHaveBeenCalledWith(
       expect.any(String),
       undefined,
@@ -416,6 +433,25 @@ describe('useResumeSearchState', () => {
     expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
     expect(useQueryMock).toHaveBeenCalledWith('resumes:countResumesByStatus', 'skip')
     expect(result.current.searchHistoryLoading).toBe(false)
+  })
+
+  it('does not load operational overlays for authenticated non-members on the public surface', () => {
+    workspaceMock.isPublicSurface = true
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    // Public surface viewers (anonymous or without a workspace membership)
+    // must not hit workspace-gated API endpoints (401/403 console errors).
+    expect(useCandidateStatusHookMock).toHaveBeenCalledWith(false)
+    expect(useCandidateBlocksHookMock).toHaveBeenCalledWith(false)
+    expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
+    expect(result.current.searchHistoryLoading).toBe(false)
+  })
+
+  it('returns analysisKeywords in the hook state (regression: ResumeSearchPage destructures it)', () => {
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(Array.isArray(result.current.analysisKeywords)).toBe(true)
   })
 
   it('defaults to score-first ordering for loaded search results', () => {
@@ -465,6 +501,219 @@ describe('useResumeSearchState', () => {
     ])
     expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
     expect(result.current.filteredResults[0]?.analysis?.summary).toBe('Best AI match')
+  })
+
+  it('stratifies score sort by company ranking effect tier without mutating scores', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Good tier (band_known_good) — highest score in the tier.
+      createResume(1, {
+        primaryRuleScore: 88,
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+      // Neutral tier — no policy hit.
+      createResume(2, {
+        primaryRuleScore: 99,
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Bad tier (band_known_bad) — lower score than resume-4 within tier.
+      createResume(3, {
+        primaryRuleScore: 70,
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Bad tier — higher score than resume-3 within tier.
+      createResume(4, {
+        primaryRuleScore: 80,
+        ingestData: { ...createResume(4).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('score')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
+      'resume-2',
+      'resume-4',
+      'resume-3',
+    ])
+    expect(result.current.results.map((item) => item.companyRankingEffect)).toEqual([
+      'band_known_good',
+      undefined,
+      'band_known_bad',
+      'band_known_bad',
+    ])
+    // No score rewrite: raw scores survive the sort untouched.
+    expect(result.current.filteredResults.map((item) => item.score)).toEqual([88, 99, 80, 70])
+  })
+
+  it('stratifies newest sort by company ranking effect tier', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: { sortBy: 'extractedAt', sortOrder: 'desc' },
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Bad tier — newest resume overall, must still sort below neutral/good.
+      createResume(1, {
+        extractedAt: '2026-03-28T10:00:00.000Z',
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Neutral tier — oldest resume.
+      createResume(2, {
+        extractedAt: '2026-03-01T10:00:00.000Z',
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Good tier — middle recency, must sort above unknown and bad.
+      createResume(3, {
+        extractedAt: '2026-03-15T10:00:00.000Z',
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('newest')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-3',
+      'resume-2',
+      'resume-1',
+    ])
+    expect(result.current.filteredResults.map((item) => item.companyRankingEffect)).toEqual([
+      'band_known_good',
+      undefined,
+      'band_known_bad',
+    ])
+  })
+
+  it('stratifies experience sort by company ranking effect tier', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: { sortBy: 'experience', sortOrder: 'desc' },
+    }))
+
+    useCompanyPolicyIndexHookMock.mockReturnValue({
+      matchResume: (input: {
+        workHistory?: Array<{ companyName?: string; raw?: string } | null | undefined> | null
+        companyHits?: string[] | null
+      }) => {
+        const employer = input.companyHits?.[0]
+        if (employer === 'GOOD_CO') {
+          return [{
+            companyKey: 'good-co',
+            displayName: 'Good Co',
+            matchedEmployer: employer,
+            preset: 'known_good' as const,
+            effects: { rankingEffect: 'band_known_good' as const },
+            rankingEffect: 'band_known_good' as const,
+          }]
+        }
+        if (employer === 'BAD_CO') {
+          return [{
+            companyKey: 'bad-co',
+            displayName: 'Bad Co',
+            matchedEmployer: employer,
+            preset: 'no_hire' as const,
+            effects: { visibility: 'hide' as const, workflow: 'blocked' as const, rankingEffect: 'band_known_bad' as const },
+            rankingEffect: 'band_known_bad' as const,
+          }]
+        }
+        return []
+      },
+    })
+
+    resumesMock.push(
+      // Bad tier — most experienced, must still sort below neutral/good.
+      createResume(1, {
+        experience: '20 years',
+        ingestData: { ...createResume(1).ingestData!, companyHits: ['BAD_CO'] },
+      }),
+      // Neutral tier — least experienced.
+      createResume(2, {
+        experience: '10 years',
+        ingestData: { ...createResume(2).ingestData!, companyHits: [] },
+      }),
+      // Good tier — middle experience, must sort above unknown and bad.
+      createResume(3, {
+        experience: '15 years',
+        ingestData: { ...createResume(3).ingestData!, companyHits: ['GOOD_CO'] },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('experience')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-3',
+      'resume-2',
+      'resume-1',
+    ])
   })
 
   it('derives raw and cluster tags, applies local filters, and sorts matching results', () => {

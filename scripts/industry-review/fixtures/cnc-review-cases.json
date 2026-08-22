@@ -1,16 +1,17 @@
 {
   "schemaVersion": "industry-review-uat.v1",
   "namespace": "cnc-cockpit-uat",
-  "description": "Namespaced local fixture cases for the CNC evidence reviewer cockpit.",
+  "description": "Namespaced local fixture cases for the CNC evidence reviewer cockpit. Local company mapping rebound to CN companies 2026-08-14 (original MY mapping: adastream-sdn-bhd, airtac-industrial-malaysia-sdn-bhd, alps-electric, amerix-metal-machining-technology, anoz-aluminiumsuzhoucoltd, autoveyor-malaysia-sdn-bhd). explicit-cnc uses polywell (zero resume links and zero prior verdict revisions, so the approval recompute reaches terminal cleanly and the post-approval delta is exactly +1).",
   "localSetup": {
     "manualApprovalCase": "cnc-cockpit-uat/explicit-cnc",
     "companyKeyByCase": {
-      "cnc-cockpit-uat/explicit-cnc": "adastream-sdn-bhd",
-      "cnc-cockpit-uat/keyword-only": "airtac-industrial-malaysia-sdn-bhd",
-      "cnc-cockpit-uat/discovery-only": "alps-electric",
-      "cnc-cockpit-uat/stale-source": "amerix-metal-machining-technology",
-      "cnc-cockpit-uat/conflict": "anoz-aluminiumsuzhoucoltd",
-      "cnc-cockpit-uat/worker-failure": "autoveyor-malaysia-sdn-bhd"
+      "cnc-cockpit-uat/explicit-cnc": "polywell",
+      "cnc-cockpit-uat/keyword-only": "pro-technic-machinery",
+      "cnc-cockpit-uat/discovery-only": "candidate-a863a82c8b79a2ccc7bd7350",
+      "cnc-cockpit-uat/stale-source": "上海易初电线电缆有限公司",
+      "cnc-cockpit-uat/conflict": "candidate-493dce82a821abe4071af1e1",
+      "cnc-cockpit-uat/worker-failure": "米思米中国精密机械贸易有限公司",
+      "cnc-cockpit-uat/clean-standard": "uat-clean-standard-co"
     }
   },
   "cases": [
@@ -170,6 +171,42 @@
         "recommendedAction": "needs_more_evidence",
         "explicitCncEvidence": false,
         "riskFlags": ["worker_unreachable"]
+      }
+    },
+    {
+      "id": "cnc-cockpit-uat/clean-standard",
+      "kind": "clean_standard",
+      "companyKey": "uat-clean-standard",
+      "suggestedIndustryClass": "automation",
+      "sources": [
+        {
+          "sourceId": "cnc-cockpit-uat/clean-official",
+          "url": "https://example.com/uat-automation-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Automation equipment catalog",
+          "evidenceExcerpt": "The official catalog describes factory automation equipment and robotic assembly lines.",
+          "fetchStatus": "fetched",
+          "sourceState": "active",
+          "suggestedIndustryClass": "automation"
+        },
+        {
+          "sourceId": "cnc-cockpit-uat/clean-registry",
+          "url": "https://example.com/uat-industry-registry",
+          "sourceType": "registry",
+          "trustTier": "authoritative",
+          "title": "Industry registry entry",
+          "evidenceExcerpt": "Industry registry classifies the company under factory automation equipment.",
+          "fetchStatus": "fetched",
+          "sourceState": "active",
+          "suggestedIndustryClass": "automation"
+        }
+      ],
+      "expected": {
+        "recommendedAction": "approve",
+        "explicitCncEvidence": false,
+        "approvalSafeSourceIds": ["cnc-cockpit-uat/clean-official", "cnc-cockpit-uat/clean-registry"],
+        "riskFlags": []
       }
     }
   ]

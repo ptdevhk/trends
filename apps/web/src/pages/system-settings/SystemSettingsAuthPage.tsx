@@ -45,11 +45,11 @@ export function SystemSettingsAuthPage() {
   const providerIdentities = state?.identities.filter((identity) => identity.provider === form.provider) ?? []
   const anonymousResumeSearchEnabled = slug === 'hr'
   const currentRoleLabel = auth.workspaceRole === 'admin'
-    ? 'Workspace admin'
+    ? t('debugConfig.authRoleWorkspaceAdmin', { defaultValue: 'Workspace admin' })
     : auth.workspaceRole === 'user'
-      ? 'Workspace user'
-      : 'No workspace role'
-  const currentUserLabel = auth.user ? formatAuthUserLabel(auth.user) : 'Signed out'
+      ? t('debugConfig.authRoleWorkspaceUser', { defaultValue: 'Workspace user' })
+      : t('debugConfig.authRoleNone', { defaultValue: 'No workspace role' })
+  const currentUserLabel = auth.user ? formatAuthUserLabel(auth.user) : t('debugConfig.authSignedOut', { defaultValue: 'Signed out' })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -147,7 +147,7 @@ export function SystemSettingsAuthPage() {
   }
 
   if (loading) {
-    return <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+    return <div className="py-6 text-sm text-muted-foreground">{t('debugConfig.loading', { defaultValue: 'Loading...' })}</div>
   }
 
   if (accessDenied || !state) {
@@ -169,14 +169,14 @@ export function SystemSettingsAuthPage() {
 
   const policyRows = [
     {
-      principal: 'Everyone / anonymous',
+      principal: t('debugConfig.authPolicyPrincipalAnonymous', { defaultValue: 'Everyone / anonymous' }),
       role: 'public-search',
-      search: anonymousResumeSearchEnabled ? <Pill>resume:search</Pill> : <Pill active={false}>not granted</Pill>,
-      operational: <span className="text-muted-foreground">login required</span>,
-      writes: <span className="text-muted-foreground">login required</span>,
+      search: anonymousResumeSearchEnabled ? <Pill>resume:search</Pill> : <Pill active={false}>{t('debugConfig.authPolicyNotGranted', { defaultValue: 'not granted' })}</Pill>,
+      operational: <span className="text-muted-foreground">{t('debugConfig.authPolicyLoginRequired', { defaultValue: 'login required' })}</span>,
+      writes: <span className="text-muted-foreground">{t('debugConfig.authPolicyLoginRequired', { defaultValue: 'login required' })}</span>,
     },
     {
-      principal: 'Workspace users',
+      principal: t('debugConfig.authPolicyPrincipalUsers', { defaultValue: 'Workspace users' }),
       role: 'user',
       search: <Pill>resume:search</Pill>,
       operational: (
@@ -188,7 +188,7 @@ export function SystemSettingsAuthPage() {
       writes: <Pill>candidate:mutate</Pill>,
     },
     {
-      principal: 'Workspace admins',
+      principal: t('debugConfig.authPolicyPrincipalAdmins', { defaultValue: 'Workspace admins' }),
       role: 'admin',
       search: <Pill>resume:search</Pill>,
       operational: <Pill>resume:export</Pill>,
@@ -232,8 +232,14 @@ export function SystemSettingsAuthPage() {
           </CardHeader>
           <CardContent className="min-w-0">
             <ResponsiveTable
-              headers={['Principal', 'Role', 'Search', 'Operational HR data', 'Writes']}
-              emptyLabel="No policy rows"
+              headers={[
+                t('debugConfig.authPolicyColumnPrincipal', { defaultValue: 'Principal' }),
+                t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }),
+                t('debugConfig.authPolicyColumnSearch', { defaultValue: 'Search' }),
+                t('debugConfig.authPolicyColumnOperational', { defaultValue: 'Operational HR data' }),
+                t('debugConfig.authPolicyColumnWrites', { defaultValue: 'Writes' }),
+              ]}
+              emptyLabel={t('debugConfig.authPolicyEmpty', { defaultValue: 'No policy rows' })}
               isEmpty={false}
               minWidthClassName="min-w-[640px]"
               stacked={policyRows.map((row) => (
@@ -241,10 +247,10 @@ export function SystemSettingsAuthPage() {
                   key={row.principal}
                   title={row.principal}
                   fields={[
-                    { label: 'Role', value: row.role },
-                    { label: 'Search', value: row.search },
-                    { label: 'Operational HR data', value: row.operational },
-                    { label: 'Writes', value: row.writes },
+                    { label: t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }), value: row.role },
+                    { label: t('debugConfig.authPolicyColumnSearch', { defaultValue: 'Search' }), value: row.search },
+                    { label: t('debugConfig.authPolicyColumnOperational', { defaultValue: 'Operational HR data' }), value: row.operational },
+                    { label: t('debugConfig.authPolicyColumnWrites', { defaultValue: 'Writes' }), value: row.writes },
                   ]}
                 />
               ))}
@@ -302,7 +308,7 @@ export function SystemSettingsAuthPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="auth-provider-subject">Provider subject</label>
+              <label className="text-sm font-medium" htmlFor="auth-provider-subject">{t('debugConfig.authPolicyProviderSubject', { defaultValue: 'Provider subject' })}</label>
               <Input
                 id="auth-provider-subject"
                 data-testid="auth-provider-subject-input"
@@ -311,7 +317,7 @@ export function SystemSettingsAuthPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="auth-provider-tenant">Tenant</label>
+              <label className="text-sm font-medium" htmlFor="auth-provider-tenant">{t('debugConfig.authPolicyTenant', { defaultValue: 'Tenant' })}</label>
               <Input
                 id="auth-provider-tenant"
                 data-testid="auth-provider-tenant-input"
@@ -320,7 +326,7 @@ export function SystemSettingsAuthPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="auth-workspace">Workspace</label>
+              <label className="text-sm font-medium" htmlFor="auth-workspace">{t('debugConfig.authPolicyWorkspace', { defaultValue: 'Workspace' })}</label>
               <Input
                 id="auth-workspace"
                 data-testid="auth-workspace-input"
@@ -329,7 +335,7 @@ export function SystemSettingsAuthPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="auth-role">Role</label>
+              <label className="text-sm font-medium" htmlFor="auth-role">{t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' })}</label>
               <select
                 id="auth-role"
                 data-testid="auth-role-select"
@@ -349,7 +355,7 @@ export function SystemSettingsAuthPage() {
                 className="w-full"
               >
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Grant
+                {t('debugConfig.authPolicyGrant', { defaultValue: 'Grant' })}
               </Button>
             </div>
           </div>
@@ -363,8 +369,13 @@ export function SystemSettingsAuthPage() {
           </CardHeader>
           <CardContent className="min-w-0">
             <ResponsiveTable
-              headers={['User', 'Provider', 'Subject', 'Tenant']}
-              emptyLabel="No provider identities"
+              headers={[
+                t('debugConfig.authColumnUser', { defaultValue: 'User' }),
+                t('debugConfig.authColumnProvider', { defaultValue: 'Provider' }),
+                t('debugConfig.authColumnSubject', { defaultValue: 'Subject' }),
+                t('debugConfig.authPolicyTenant', { defaultValue: 'Tenant' }),
+              ]}
+              emptyLabel={t('debugConfig.authEmptyIdentities', { defaultValue: 'No provider identities' })}
               isEmpty={providerIdentities.length === 0}
               minWidthClassName="min-w-[560px]"
               stacked={providerIdentities.map((identity) => (
@@ -372,10 +383,10 @@ export function SystemSettingsAuthPage() {
                   key={`${identity.provider}:${identity.providerTenant}:${identity.providerSubject}`}
                   title={identity.displayName ?? identity.userId}
                   fields={[
-                    { label: 'Email', value: identity.email ?? '-' },
-                    { label: 'Provider', value: identity.provider },
-                    { label: 'Subject', value: <span className="break-all">{identity.providerSubject}</span> },
-                    { label: 'Tenant', value: identity.providerTenant ?? '-' },
+                    { label: t('debugConfig.authColumnEmail', { defaultValue: 'Email' }), value: identity.email ?? '-' },
+                    { label: t('debugConfig.authColumnProvider', { defaultValue: 'Provider' }), value: identity.provider },
+                    { label: t('debugConfig.authColumnSubject', { defaultValue: 'Subject' }), value: <span className="break-all">{identity.providerSubject}</span> },
+                    { label: t('debugConfig.authPolicyTenant', { defaultValue: 'Tenant' }), value: identity.providerTenant ?? '-' },
                   ]}
                 />
               ))}
@@ -401,8 +412,15 @@ export function SystemSettingsAuthPage() {
           </CardHeader>
           <CardContent className="min-w-0">
             <ResponsiveTable
-              headers={['Subject', 'Tenant', 'Workspace', 'Role', 'Status', '']}
-              emptyLabel="No preapprovals"
+              headers={[
+                t('debugConfig.authColumnSubject', { defaultValue: 'Subject' }),
+                t('debugConfig.authPolicyTenant', { defaultValue: 'Tenant' }),
+                t('debugConfig.authPolicyWorkspace', { defaultValue: 'Workspace' }),
+                t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }),
+                t('debugConfig.authColumnStatus', { defaultValue: 'Status' }),
+                '',
+              ]}
+              emptyLabel={t('debugConfig.authEmptyPreapprovals', { defaultValue: 'No preapprovals' })}
               isEmpty={state.preapprovals.length === 0}
               minWidthClassName="min-w-[640px]"
               stacked={state.preapprovals.map((preapproval) => (
@@ -418,14 +436,14 @@ export function SystemSettingsAuthPage() {
                       onClick={() => { void handleRevoke(preapproval) }}
                     >
                       <Ban className="mr-2 h-4 w-4" />
-                      Revoke
+                      {t('debugConfig.authPolicyRevoke', { defaultValue: 'Revoke' })}
                     </Button>
                   ) : undefined}
                   fields={[
-                    { label: 'Tenant', value: preapproval.providerTenant },
-                    { label: 'Workspace', value: preapproval.workspaceSlug },
-                    { label: 'Role', value: preapproval.role },
-                    { label: 'Status', value: <StatusPill active={preapproval.active} /> },
+                    { label: t('debugConfig.authPolicyTenant', { defaultValue: 'Tenant' }), value: preapproval.providerTenant },
+                    { label: t('debugConfig.authPolicyWorkspace', { defaultValue: 'Workspace' }), value: preapproval.workspaceSlug },
+                    { label: t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }), value: preapproval.role },
+                    { label: t('debugConfig.authColumnStatus', { defaultValue: 'Status' }), value: <StatusPill active={preapproval.active} /> },
                   ]}
                 />
               ))}
@@ -465,8 +483,14 @@ export function SystemSettingsAuthPage() {
           </CardHeader>
           <CardContent className="min-w-0">
             <ResponsiveTable
-              headers={['Subject', 'User ID', 'Workspace', 'Role', 'Status']}
-              emptyLabel="No provider-derived grants"
+              headers={[
+                t('debugConfig.authColumnSubject', { defaultValue: 'Subject' }),
+                t('debugConfig.authColumnUserId', { defaultValue: 'User ID' }),
+                t('debugConfig.authPolicyWorkspace', { defaultValue: 'Workspace' }),
+                t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }),
+                t('debugConfig.authColumnStatus', { defaultValue: 'Status' }),
+              ]}
+              emptyLabel={t('debugConfig.authEmptyGrants', { defaultValue: 'No provider-derived grants' })}
               isEmpty={state.grants.length === 0}
               minWidthClassName="min-w-[560px]"
               stacked={state.grants.map((grant) => (
@@ -474,10 +498,10 @@ export function SystemSettingsAuthPage() {
                   key={`${grant.provider}:${grant.providerTenant}:${grant.providerSubject}:${grant.workspaceSlug}:${grant.userId}`}
                   title={<span className="break-all">{grant.providerSubject}</span>}
                   fields={[
-                    { label: 'User ID', value: <span className="break-all">{grant.userId}</span> },
-                    { label: 'Workspace', value: grant.workspaceSlug },
-                    { label: 'Role', value: grant.role },
-                    { label: 'Status', value: <StatusPill active={grant.active} /> },
+                    { label: t('debugConfig.authColumnUserId', { defaultValue: 'User ID' }), value: <span className="break-all">{grant.userId}</span> },
+                    { label: t('debugConfig.authPolicyWorkspace', { defaultValue: 'Workspace' }), value: grant.workspaceSlug },
+                    { label: t('debugConfig.authPolicyColumnRole', { defaultValue: 'Role' }), value: grant.role },
+                    { label: t('debugConfig.authColumnStatus', { defaultValue: 'Status' }), value: <StatusPill active={grant.active} /> },
                   ]}
                 />
               ))}
@@ -503,13 +527,18 @@ export function SystemSettingsAuthPage() {
             </div>
             <Button variant="outline" size="sm" onClick={() => { void load() }}>
               <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
+              {t('debugConfig.authPolicyRefresh', { defaultValue: 'Refresh' })}
             </Button>
           </CardHeader>
           <CardContent className="min-w-0">
             <ResponsiveTable
-              headers={['Type', 'Provider', 'User', 'Created']}
-              emptyLabel="No auth events"
+              headers={[
+                t('debugConfig.authColumnType', { defaultValue: 'Type' }),
+                t('debugConfig.authColumnProvider', { defaultValue: 'Provider' }),
+                t('debugConfig.authColumnUser', { defaultValue: 'User' }),
+                t('debugConfig.authColumnCreated', { defaultValue: 'Created' }),
+              ]}
+              emptyLabel={t('debugConfig.authEmptyEvents', { defaultValue: 'No auth events' })}
               isEmpty={state.events.length === 0}
               minWidthClassName="min-w-[480px]"
               stacked={state.events.map((event) => (
@@ -517,9 +546,9 @@ export function SystemSettingsAuthPage() {
                   key={event.id}
                   title={event.type}
                   fields={[
-                    { label: 'Provider', value: event.provider ?? '-' },
-                    { label: 'User', value: <span className="break-all">{event.userId ?? '-'}</span> },
-                    { label: 'Created', value: event.createdAt },
+                    { label: t('debugConfig.authColumnProvider', { defaultValue: 'Provider' }), value: event.provider ?? '-' },
+                    { label: t('debugConfig.authColumnUser', { defaultValue: 'User' }), value: <span className="break-all">{event.userId ?? '-'}</span> },
+                    { label: t('debugConfig.authColumnCreated', { defaultValue: 'Created' }), value: event.createdAt },
                   ]}
                 />
               ))}

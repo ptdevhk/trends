@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Lightbulb } from 'lucide-react'
+import { RefreshCw, Lightbulb, Search, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/PageHeader'
 import { reportUiError } from '@/lib/ui-error-reporting'
@@ -63,6 +65,7 @@ export default function SearchAnalyticsPage() {
   const [submittingQuery, setSubmittingQuery] = useState<string | null>(null)
   const [summary, setSummary] = useState<SearchSummaryPayload | null>(null)
   const [zeroResults, setZeroResults] = useState<ZeroResultItem[]>([])
+  const [zeroResultQuery, setZeroResultQuery] = useState('')
   const [suggestions, setSuggestions] = useState<SynonymSuggestion[]>([])
 
   const loadAnalytics = useCallback(async () => {
@@ -110,6 +113,14 @@ export default function SearchAnalyticsPage() {
   const maxSearchVolume = useMemo(() => {
     return Math.max(1, ...(summary?.dailyTrend.map((item) => item.searches) || [1]))
   }, [summary])
+
+  const filteredZeroResults = useMemo(() => {
+    const query = zeroResultQuery.trim().toLowerCase()
+    if (!query) {
+      return zeroResults
+    }
+    return zeroResults.filter((item) => item.query.toLowerCase().includes(query))
+  }, [zeroResults, zeroResultQuery])
 
   const handleSuggestSynonym = useCallback(async (query: string) => {
     const suggestion = suggestionMap.get(query)
@@ -208,7 +219,15 @@ export default function SearchAnalyticsPage() {
               <div className="text-muted-foreground">{t('searchAnalytics.noTopQueries', { defaultValue: 'No query data yet.' })}</div>
             ) : summary.topQueries.map((item) => (
               <div key={item.query} className="flex items-center justify-between border-b border-dashed pb-1 last:border-b-0">
-                <span className="truncate pr-4">{item.query}</span>
+                <Link
+                  to={`/?q=${encodeURIComponent(item.query)}`}
+                  target="_blank"
+                  className="inline-flex min-w-0 items-center gap-1.5 truncate pr-4 text-primary hover:underline"
+                  title={t('searchAnalytics.testQuery', { defaultValue: 'Test Search' })}
+                >
+                  <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.query}</span>
+                </Link>
                 <span className="font-medium">{item.count}</span>
               </div>
             ))}
@@ -247,22 +266,48 @@ export default function SearchAnalyticsPage() {
           <CardTitle className="text-base">{t('searchAnalytics.zeroResults', { defaultValue: 'Zero-result Queries' })}</CardTitle>
         </CardHeader>
         <CardContent>
+          {zeroResults.length > 5 && (
+            <div className="mb-3">
+              <div className="relative sm:max-w-xs">
+                <Input
+                  placeholder={t('searchAnalytics.table.filterPlaceholder', { defaultValue: 'Filter queries...' })}
+                  value={zeroResultQuery}
+                  onChange={(e) => setZeroResultQuery(e.target.value)}
+                  className="pr-9"
+                />
+                {zeroResultQuery.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    data-testid="zero-result-clear-filter"
+                    aria-label={t('searchAnalytics.clearFilter', { defaultValue: 'Clear filter' })}
+                    onClick={() => setZeroResultQuery('')}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('searchAnalytics.table.query', { defaultValue: 'Query' })}</TableHead>
                 <TableHead className="w-[100px]">{t('searchAnalytics.table.count', { defaultValue: 'Count' })}</TableHead>
                 <TableHead className="w-[240px]">{t('searchAnalytics.table.suggestion', { defaultValue: 'Suggestion' })}</TableHead>
+                <TableHead className="w-[140px]">{t('searchAnalytics.table.testSearch', { defaultValue: 'Test Search' })}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {zeroResults.length === 0 ? (
+              {filteredZeroResults.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
                     {t('searchAnalytics.noZeroResults', { defaultValue: 'No zero-result queries recorded.' })}
                   </TableCell>
                 </TableRow>
-              ) : zeroResults.map((item) => {
+              ) : filteredZeroResults.map((item) => {
                 const suggestion = suggestionMap.get(item.query)
                 const isSubmitting = submittingQuery === item.query
 
@@ -291,6 +336,16 @@ export default function SearchAnalyticsPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground">{t('searchAnalytics.noSuggestion', { defaultValue: 'No suggestion available' })}</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        to={`/?q=${encodeURIComponent(item.query)}`}
+                        target="_blank"
+                        className="inline-flex items-center text-sm text-primary hover:underline"
+                      >
+                        <Search className="h-3.5 w-3.5 mr-1" />
+                        <span>{t('searchAnalytics.table.testSearch', { defaultValue: 'Test Search' })}</span>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 )

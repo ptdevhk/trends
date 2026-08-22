@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { useTranslation } from 'react-i18next'
-import { Play, Pencil, Trash2 } from 'lucide-react'
+import { Play, Pencil, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +42,7 @@ interface ProfileCardProps {
   onRunNow: (profileId: string) => void
   onEdit: (profileId: string) => void
   onDelete: (profileId: string) => void
+  onDuplicate?: (profileId: string) => void
 }
 
 function statusBadgeVariant(status: SearchProfileSummary['status']): 'default' | 'secondary' | 'outline' {
@@ -71,6 +72,7 @@ export const ProfileCard = memo(function ProfileCard({
   onRunNow,
   onEdit,
   onDelete,
+  onDuplicate,
 }: ProfileCardProps) {
   const { t } = useTranslation()
   const resultCount = runStatus?.resultCount ?? runStatus?.submitted ?? 0
@@ -138,6 +140,16 @@ export const ProfileCard = memo(function ProfileCard({
           <Trash2 className="h-3.5 w-3.5 mr-1" />
           {t('common.delete', { defaultValue: 'Delete' })}
         </Button>
+        {onDuplicate ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onDuplicate(profile.id)}
+          >
+            <Copy className="h-3.5 w-3.5 mr-1" />
+            {t('searchProfiles.card.duplicate', { defaultValue: 'Duplicate' })}
+          </Button>
+        ) : null}
       </CardFooter>
     </Card>
   )

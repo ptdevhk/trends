@@ -15,6 +15,21 @@ import path from "node:path";
 import { findProjectRoot } from "./db.js";
 import { ensureProcessTimezone, resolveTimezone } from "./timezone.js";
 
+function loadConvexWriteSecret(): string {
+  const direct = process.env.CONVEX_WRITE_SECRET;
+  if (direct) return direct;
+  // Some local dev setups (e.g. older `scripts/dev.sh` runs) export the
+  // secret under a legacy alias; prefer the canonical name but fall back so
+  // the reviewer cockpit never reads Convex with an empty secret. Read at
+  // call time (not module load) so tests and env reloads can change it.
+  const alias = process.env.CONVEX_ADMIN_SECRET;
+  return alias ?? "";
+}
+
+export function getConvexWriteSecret(): string {
+  return loadConvexWriteSecret();
+}
+
 const projectRoot = process.env.PROJECT_ROOT
   ? path.resolve(process.env.PROJECT_ROOT)
   : findProjectRoot();
@@ -65,7 +80,7 @@ export const config = {
       .split(",")
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
-    convexWriteSecret: process.env.CONVEX_WRITE_SECRET || "",
+    convexWriteSecret: loadConvexWriteSecret(),
     /**
      * Shared HR demo silent-login secret (migration bookmarks).
      * Maps to the canonical preview/prod HR seat (`hr-demo` by default).

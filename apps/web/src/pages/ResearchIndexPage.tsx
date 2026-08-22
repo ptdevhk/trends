@@ -154,6 +154,7 @@ function CompanyCardGrid({
   emptyLabel: string
   teamSlug: string
 }) {
+  const { t } = useTranslation()
   if (cards.length === 0) {
     return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
   }
@@ -178,13 +179,13 @@ function CompanyCardGrid({
               ) : null}
               {card.showcase ? (
                 <Badge variant="secondary" data-testid="showcase-data-badge">
-                  展示数据
+                  {t('research.showcaseBadge', { defaultValue: '展示数据' })}
                 </Badge>
               ) : null}
             </div>
             <div className="mt-1 font-mono text-xs text-muted-foreground">{card.companyKey}</div>
             <div className="mt-2 flex flex-wrap gap-1">
-              <Badge variant="outline">{card.signalCount} 条信号</Badge>
+              <Badge variant="outline">{t('research.signalCountBadge', { count: card.signalCount, defaultValue: '{{count}} 条信号' })}</Badge>
               {Object.entries(card.kindCounts).map(([kind, count]) => (
                 <Badge key={kind} variant="outline" className="text-[10px]">
                   {researchSignalKindLabel(kind)}:{count}
@@ -578,7 +579,7 @@ export function ResearchIndexPage() {
         ) : null}
         {showcase?.meta?.seedIngestRunId ? (
           <span className="text-xs text-muted-foreground" data-testid="research-seed-meta">
-            种子 id: {showcase.meta.seedIngestRunId}
+            {t('research.seedMeta', { id: showcase.meta.seedIngestRunId, defaultValue: '种子 id: {{id}}' })}
           </span>
         ) : null}
       </div>
@@ -840,7 +841,7 @@ export function ResearchIndexPage() {
         ) : null}
 
         {pulseLoading ? (
-          <p className="text-sm text-muted-foreground">加载中…</p>
+          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
         ) : displayPulseItems.length === 0 && !softEmpty ? (
           <p className="text-sm text-muted-foreground" data-testid="research-pulse-empty">
             {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
@@ -964,7 +965,7 @@ export function ResearchIndexPage() {
             {t('research.sectionGolden', { defaultValue: '从这里开始（展示）' })}
           </h2>
           {showcaseLoading ? (
-            <p className="text-sm text-muted-foreground">加载中…</p>
+            <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
           ) : (
             <CompanyCardGrid
               cards={golden}
@@ -981,7 +982,7 @@ export function ResearchIndexPage() {
             {t('research.sectionResumeDesk', { defaultValue: '数控品牌台（展示）' })}
           </h2>
           {showcaseLoading ? (
-            <p className="text-sm text-muted-foreground">加载中…</p>
+            <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
           ) : (
             <CompanyCardGrid
               cards={fromDesk}
@@ -1029,7 +1030,7 @@ export function ResearchIndexPage() {
           </p>
         ) : null}
         {industryLoading ? (
-          <p className="text-sm text-muted-foreground">加载中…</p>
+          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
         ) : industry.length === 0 ? (
           <p className="text-sm text-muted-foreground" data-testid="research-industry-empty">
             {t('research.industryEmpty', { defaultValue: '暂无行业目录项。' })}

@@ -1,0 +1,139 @@
+{
+  "generatedAt": "2026-08-19T04:45:49.206Z",
+  "convexUrl": "http://127.0.0.1:3210",
+  "fixtures": [
+    "f1",
+    "f7",
+    "f8"
+  ],
+  "digestRowsScanned": 500,
+  "digestsPerFixture": {
+    "k1708t2frj7bs2wdx5rf3pwyfn8cr8sv": 1,
+    "k17355c8tb31rab098xaemb3zh8crtct": 1,
+    "k17ew3ptvbxra07s5dw42yxw0x8crke8": 1
+  },
+  "digestSamples": [
+    {
+      "id": "f1",
+      "resumeId": "k1708t2frj7bs2wdx5rf3pwyfn8cr8sv",
+      "sourceKey": "unknown",
+      "searchTextLength": 523,
+      "fullSearchText": "cnc 数控 陈师傅 陈 师傅 中专 数控车床 数 控 车床 加工中心 加工 中心 ug 编程 钳工 本公司主营高精密数控车床加工中心五金零件批量生产制造与工艺优化服务 本公司 主 营 高 精密 五金 零件 批量 生产 制造 与 工艺 优 化 服务，涵盖模具设计开发 涵 盖 模具 设计 开发、自动化生产线维护调试及数控编程标准化工作全流程 自动 线 维护 调 试 及 编 程 标准 工作 全 流程 我们工厂专注于不锈钢钣金件激光切割焊接抛光与表面处理工序 我们 工厂 专注 于 不锈钢 钣 金 件 激光 切割 焊接 抛光 表面 处理 工序，严格执行质量管理体系并持续改善现场作业环境与安全规范 严格 执行 质量 管理 体系 并 持续 改善 现场 作业 环境 安全 规范，同时推进精益生产与看板管理 同时 推进 精 益 看板 管理，降低库存周转天数并提升交付准时率与客户满意度 降低 库存 周转 天 提升 交付 准时 率 客户 满意 度。我们工厂专注于不锈钢钣金件激光切割焊接抛光与表面处理工序 规范，同时推进精益生产与看板 2018-03 ~ 2025-06 华东精密机械有限公司 华东 精密机械 有限公司 数控车床师傅 high_school"
+    },
+    {
+      "id": "f7",
+      "resumeId": "k17355c8tb31rab098xaemb3zh8crtct",
+      "sourceKey": "unknown",
+      "searchTextLength": 93,
+      "fullSearchText": "cnc 数控 孙编程 孙 编 程 大专 编程 mastercam 操机 2020-03 ~ 2025-05 锐志机械制造厂 锐志 机械 制造 厂 编程技术员 技术 员 associate"
+    },
+    {
+      "id": "f8",
+      "resumeId": "k17ew3ptvbxra07s5dw42yxw0x8crke8",
+      "sourceKey": "unknown",
+      "searchTextLength": 68,
+      "fullSearchText": "cnc 数控 单测 中专 2024-01 ~ 2025-06 测试机械厂 测试 机械 厂 数控学徒 数 控 学徒 high_school"
+    }
+  ],
+  "A_search_500": {
+    "phase": "A",
+    "total": 500,
+    "fixtureHits": [
+      "f8"
+    ]
+  },
+  "B_scan_数控_full": {
+    "phase": "B",
+    "total": 1014,
+    "pages": 65,
+    "guard": false,
+    "fixtureHits": [
+      "f8",
+      "f7"
+    ],
+    "overlapFailures": 0
+  },
+  "C_srcKey_f1": {
+    "phase": "C",
+    "sourceKey": "unknown",
+    "total": 3,
+    "fixtureHits": [
+      "f8",
+      "f7",
+      "f1"
+    ]
+  },
+  "D_srcKey_f7": {
+    "phase": "D",
+    "sourceKey": "unknown",
+    "total": 3,
+    "fixtureHits": [
+      "f8",
+      "f7",
+      "f1"
+    ]
+  },
+  "E_srcKey_f8": {
+    "phase": "E",
+    "sourceKey": "unknown",
+    "total": 3,
+    "fixtureHits": [
+      "f8",
+      "f7",
+      "f1"
+    ]
+  },
+  "F1_ctrl_数控车床": {
+    "phase": "F1_ctrl_数控车床",
+    "total": 245,
+    "fixtureHits": [
+      "f1"
+    ]
+  },
+  "F2_ctrl_陈师傅": {
+    "phase": "F2_ctrl_陈师傅",
+    "total": 1,
+    "fixtureHits": [
+      "f1"
+    ]
+  },
+  "F3_ctrl_钳工": {
+    "phase": "F3_ctrl_钳工",
+    "total": 39,
+    "fixtureHits": [
+      "f1"
+    ]
+  },
+  "F4_ctrl_scan_数控车床": {
+    "phase": "F4",
+    "total": 245,
+    "pages": 16,
+    "fixtureHits": [
+      "f1"
+    ],
+    "overlapFailures": 0
+  },
+  "G_reupsert": {
+    "phase": "G",
+    "reupserted": "f1"
+  },
+  "A2_search_500_after_rebuild": {
+    "phase": "A2",
+    "total": 500,
+    "fixtureHits": [
+      "f8"
+    ]
+  },
+  "B2_scan_数控_full_after_rebuild": {
+    "phase": "B2",
+    "total": 1014,
+    "pages": 65,
+    "guard": false,
+    "fixtureHits": [
+      "f8",
+      "f7"
+    ],
+    "overlapFailures": 0
+  },
+  "remainingFixtures": 0
+}

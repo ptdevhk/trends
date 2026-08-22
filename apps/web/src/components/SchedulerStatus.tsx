@@ -1,7 +1,9 @@
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { useTranslation } from 'react-i18next'
@@ -45,12 +47,12 @@ function formatAbsoluteTime(value: string | null): string {
     return date.toLocaleString()
 }
 
-function formatScheduleConfig(status: WorkerStatus, t: (key: string) => string): string {
+function formatScheduleConfig(status: WorkerStatus, t: ReturnType<typeof useTranslation>['t']): string {
     if (status.schedule_type === 'interval' && status.schedule_value) {
-        return `Every ${status.schedule_value}`
+        return t('debugConfig.scheduleEvery', { defaultValue: 'Every {{value}}', value: status.schedule_value })
     }
     if (status.schedule_type === 'cron' && status.schedule_value) {
-        return `Cron: ${status.schedule_value}`
+        return t('debugConfig.scheduleCron', { defaultValue: 'Cron: {{value}}', value: status.schedule_value })
     }
     if (status.schedule_value) {
         return status.schedule_value
@@ -64,44 +66,75 @@ export function SchedulerStatus() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    useEffect(() => {
-        async function fetchStatus() {
-            try {
-                const { data, response } = await apiClient.GET('/api/worker/status')
-                if (!response.ok) throw new Error('Failed to fetch status')
-                setStatus(data as WorkerStatus)
-                setError(null)
-            } catch (err) {
-                reportUiError('Failed to fetch scheduler status', err)
-                setError('Failed to load scheduler status')
-            } finally {
-                setLoading(false)
-            }
+    const fetchStatus = useCallback(async () => {
+        try {
+            const { data, response } = await apiClient.GET('/api/worker/status')
+            if (!response.ok) throw new Error('Failed to fetch status')
+            setStatus(data as WorkerStatus)
+            setError(null)
+        } catch (err) {
+            reportUiError('Failed to fetch scheduler status', err)
+            setError(t('debugConfig.schedulerLoadFailed', { defaultValue: 'Failed to load scheduler status' }))
+        } finally {
+            setLoading(false)
         }
+    }, [t])
 
-        fetchStatus()
+    useEffect(() => {
+        void fetchStatus()
         const interval = setInterval(fetchStatus, 30000) // Poll every 30s
         return () => clearInterval(interval)
-    }, [])
+    }, [fetchStatus])
 
     if (loading) {
+        // Reserve the loaded card height (measured ~232px with an empty job
+        // table) so the loading→loaded swap never shifts the grid row (CLS).
         return (
-            <Card className="bg-muted/30 border-dashed">
+            <Card data-testid="scheduler-status-loading" className="bg-muted/30 border-dashed min-h-[232px]">
                 <CardHeader className="py-4">
-                    <CardTitle className="text-lg">Scheduler Status</CardTitle>
+                    <CardTitle className="text-lg">{t('debugConfig.schedulerStatus', { defaultValue: 'Scheduler Status' })}</CardTitle>
                     <CardDescription>{t('common.loading', { defaultValue: 'Loading...' })}</CardDescription>
                 </CardHeader>
+                <CardContent className="pb-6">
+                    <div className="space-y-5" aria-hidden="true">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="space-y-1 border-l-2 border-primary/20 pl-3">
+                                    <Skeleton className="h-3 w-14" />
+                                    <Skeleton className="h-6 w-10" />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-3 w-28" />
+                            <Skeleton className="h-4 w-40" />
+                        </div>
+                    </div>
+                </CardContent>
             </Card>
         )
     }
 
     if (error || !status) {
         return (
-            <Card className="bg-muted/30 border-dashed border-red-200">
+            <Card className="bg-muted/30 border-dashed border-red-200 min-h-[232px]">
                 <CardHeader className="py-4">
-                    <CardTitle className="text-lg text-red-600">Scheduler Offline</CardTitle>
-                    <CardDescription>{error || 'Unknown error'}</CardDescription>
+                    <CardTitle className="text-lg text-red-600">{t('debugConfig.schedulerOffline', { defaultValue: 'Scheduler Offline' })}</CardTitle>
+                    <CardDescription>{error || t('debugConfig.unknownError', { defaultValue: 'Unknown error' })}</CardDescription>
                 </CardHeader>
+                <CardContent className="pb-6">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="scheduler-status-retry"
+                        onClick={() => {
+                            void fetchStatus()
+                        }}
+                    >
+                        {t('common.retry', { defaultValue: 'Retry' })}
+                    </Button>
+                </CardContent>
             </Card>
         )
     }

@@ -13,9 +13,10 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
-import { ExternalLink, SearchCheck } from 'lucide-react'
+import { ExternalLink, SearchCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
+import type { CandidatePolicyOverride } from '@trends/shared'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
@@ -49,6 +50,8 @@ type SearchResultsListProps = {
   items: ResumeSearchResultItem[]
   loading?: boolean
   loadingMore?: boolean
+  searchFailed?: boolean
+  onRetrySearch?: () => void
   showAiScore?: boolean
   onLoadMore: () => void
   onOpenDetail?: (item: ResumeSearchResultItem) => void
@@ -65,6 +68,9 @@ type SearchResultsListProps = {
   onRatingComment?: (resumeId: string, comment: string) => void
   onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
   onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
+  policyOverrides?: CandidatePolicyOverride[]
+  onSetOverride?: (resumeId: string, resumeIdentity: string, companyKey: string, reason: string) => Promise<boolean>
+  onRemoveOverride?: (resumeIdentity: string, companyKey: string) => Promise<boolean>
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
   /** Raw search query text for highlighting matches in result cards */
@@ -84,6 +90,10 @@ type SearchResultsListProps = {
    * reviewer); when set, the verified-only notice gains a review link.
    */
   verifiedOnlyReviewHref?: string
+  /** Show a quick-action button to clear the search query. */
+  onClearQuery?: () => void
+  /** Show a quick-action button to clear all facet filters. */
+  onClearFilters?: () => void
 }
 
 function SearchResultsSkeleton() {
@@ -110,6 +120,8 @@ export function SearchResultsList({
   items,
   loading = false,
   loadingMore = false,
+  searchFailed = false,
+  onRetrySearch,
   showAiScore = false,
   onLoadMore,
   onOpenDetail,
@@ -125,11 +137,16 @@ export function SearchResultsList({
   onRatingComment,
   onCandidateStatusChange,
   onToggleBlock,
+  policyOverrides,
+  onSetOverride,
+  onRemoveOverride,
   searchQuery,
   onQueueIndustryResearch,
   industryResearchQueueEnabled = false,
   verifiedOnlyNotice,
   verifiedOnlyReviewHref,
+  onClearQuery,
+  onClearFilters,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -198,6 +215,7 @@ export function SearchResultsList({
     }
   }, [detailResumeFromConvex, detailResumeId, routeDetailItem])
   const detailItem = routeDetailItem ?? localDetailItem ?? directDetailItem
+  const detailIndex = detailItem ? items.findIndex((item) => item.key === detailItem.key) : -1
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
 
   const rowVirtualizer = useWindowVirtualizer({
@@ -208,23 +226,53 @@ export function SearchResultsList({
     scrollMargin,
   })
 
+  const detailSourceIndexRef = useRef<number | null>(null)
+
   const handleViewDetails = useCallback((item: ResumeSearchResultItem) => {
+    detailSourceIndexRef.current = items.findIndex((candidate) => candidate.key === item.key)
     if (onOpenDetail) {
       onOpenDetail(item)
       return
     }
 
     setLocalDetailItem(item)
-  }, [onOpenDetail])
+  }, [items, onOpenDetail])
 
   const handleCloseDetails = useCallback(() => {
+    const restoreIndex = detailSourceIndexRef.current
     if (onCloseDetail) {
       onCloseDetail()
+    } else {
+      setLocalDetailItem(null)
+    }
+    // Restore focus to the card the dialog was opened from (after paint)
+    if (restoreIndex !== null) {
+      requestAnimationFrame(() => {
+        const card = document.querySelector<HTMLElement>(`[data-result-index="${restoreIndex}"]`)
+        card?.focus({ preventScroll: true })
+      })
+    }
+  }, [onCloseDetail])
+
+  function scrollCardIntoView(index: number) {
+    const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+
+  const navigateToDetail = useCallback((index: number) => {
+    const nextItem = items[index]
+    if (!nextItem) {
       return
     }
-
-    setLocalDetailItem(null)
-  }, [onCloseDetail])
+    handleViewDetails(nextItem)
+    if (shouldVirtualize) {
+      rowVirtualizer.scrollToIndex(index, { align: 'start' })
+    } else {
+      scrollCardIntoView(index)
+    }
+  }, [items, handleViewDetails, shouldVirtualize, rowVirtualizer])
 
   const detailDialog = detailItem ? (
     <Suspense fallback={null}>
@@ -238,6 +286,13 @@ export function SearchResultsList({
           }
         }}
         loading={detailResumeLoading}
+        policyOverrides={policyOverrides}
+        resumeIdentity={detailItem.identityKey}
+        positionLabel={detailIndex >= 0 ? `${detailIndex + 1} / ${items.length}` : undefined}
+        onNavigatePrev={detailIndex > 0 ? () => navigateToDetail(detailIndex - 1) : undefined}
+        onNavigateNext={detailIndex >= 0 && detailIndex < items.length - 1 ? () => navigateToDetail(detailIndex + 1) : undefined}
+        onSetOverride={onSetOverride}
+        onRemoveOverride={onRemoveOverride}
         userRating={ratingsByResume?.[detailItem.resume.resumeId]}
         initialComment={detailItem.statusMeta?.notes ?? commentsByResume?.[detailItem.resume.resumeId]}
         onRating={onRating ? (rating) => onRating(detailItem.resume.resumeId, rating) : undefined}
@@ -294,13 +349,15 @@ export function SearchResultsList({
     return () => observer.disconnect()
   }, [hasMore, items.length, loading, loadingMore, onLoadMore])
 
-  // Keyboard navigation: J/K to move, Enter to expand, S to star, A to archive
+  // Keyboard navigation: J/K to move, Enter to expand, O to open detail, S to star, A to archive
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
+      // Detail dialog is open: background keyboard shortcuts (S/A/O/J/K) must not act on the list behind it
+      if (detailItem) return
       if (items.length === 0) return
 
       switch (event.key) {
@@ -328,6 +385,13 @@ export function SearchResultsList({
             onToggleExpanded(items[focusedIndex].key)
           }
           break
+        case 'o':
+        case 'O':
+          if (focusedIndex !== null && items[focusedIndex]) {
+            event.preventDefault()
+            handleViewDetails(items[focusedIndex])
+          }
+          break
         case 's':
         case 'S':
           if (focusedIndex !== null && items[focusedIndex] && onAction) {
@@ -349,7 +413,7 @@ export function SearchResultsList({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [items, focusedIndex, onToggleExpanded, onAction])
+  }, [items, focusedIndex, onToggleExpanded, onAction, handleViewDetails, detailItem])
 
   // Deep-link support: `#resume-<id>` scrolls to the matching card and flashes
   // a highlight ring. Re-arms on hashchange (back/forward, manual hash edit).
@@ -397,13 +461,6 @@ export function SearchResultsList({
     return () => window.clearTimeout(clearTimer)
   }, [highlightedResumeId])
 
-  function scrollCardIntoView(index: number) {
-    const card = listRef.current?.querySelector(`[data-result-index="${index}"]`)
-    if (card) {
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-  }
-
   const virtualItems = rowVirtualizer.getVirtualItems()
 
   if (loading) {
@@ -415,7 +472,51 @@ export function SearchResultsList({
     )
   }
 
+  if (items.length === 0 && searchFailed) {
+    return (
+      <>
+        <div
+          data-testid="resume-search-failed-panel"
+          className="flex flex-col items-center gap-3 rounded-[1.5rem] border border-destructive/40 bg-destructive/5 px-6 py-10 text-center"
+        >
+          <SearchCheck className="h-8 w-8 text-destructive/70" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">
+              {t('resumes.searchPage.results.failedTitle', {
+                defaultValue: '搜索失败，请重试',
+              })}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t('resumes.searchPage.results.failedDescription', {
+                defaultValue: '搜索请求没有完成。结果可能仍然存在，请重试或刷新页面。',
+              })}
+            </p>
+          </div>
+          {onRetrySearch ? (
+            <Button size="sm" variant="outline" onClick={onRetrySearch}>
+              {t('common.retry', { defaultValue: '重试' })}
+            </Button>
+          ) : null}
+        </div>
+        {detailDialog}
+      </>
+    )
+  }
+
   if (items.length === 0) {
+    const resetActions = [
+      onClearQuery ? (
+        <Button key="clear-query" size="sm" variant="outline" onClick={onClearQuery}>
+          {t('resumes.searchPage.searchBar.clearSearch', { defaultValue: '清除搜索' })}
+        </Button>
+      ) : null,
+      onClearFilters ? (
+        <Button key="clear-filters" size="sm" variant="outline" onClick={onClearFilters}>
+          {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+        </Button>
+      ) : null,
+    ].filter(Boolean)
+
     return (
       <>
         <EmptyState
@@ -425,6 +526,11 @@ export function SearchResultsList({
           description={t('resumes.searchPage.results.emptyDescription', {
             defaultValue: '请尝试放宽搜索词或移除一些筛选项以扩大结果范围。',
           })}
+          action={resetActions.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {resetActions}
+            </div>
+          ) : undefined}
         />
         {detailDialog}
       </>
@@ -443,22 +549,66 @@ export function SearchResultsList({
     onRatingComment,
     onCandidateStatusChange,
     onToggleBlock,
+    policyOverrides,
+    resumeIdentity: item.identityKey,
   })
   const isHighlighted = (item: ResumeSearchResultItem) =>
     item.resume.resumeId != null && highlightedResumeId === `resume-${item.resume.resumeId}`
 
   return (
     <div ref={listRef} className="space-y-4">
+      {items.length > 0 ? (
+        <div
+          className="flex items-center justify-end px-1 text-xs text-muted-foreground"
+          data-testid="resume-keyboard-hint"
+        >
+          {t('resumes.searchPage.results.keyboardHint', {
+            defaultValue: 'J/K move · Enter expand · O detail · S star · A archive',
+          })}
+        </div>
+      ) : null}
+      {onClearQuery || onClearFilters ? (
+        <div
+          className="flex flex-wrap items-center gap-2 px-1"
+          data-testid="resume-active-filter-chips"
+        >
+          {onClearQuery ? (
+            <button
+              type="button"
+              onClick={onClearQuery}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              data-testid="resume-clear-query-chip"
+            >
+              {t('resumes.searchPage.searchBar.clearSearch', { defaultValue: '清除搜索' })}
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
+          {onClearFilters ? (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              data-testid="resume-clear-filters-chip"
+            >
+              {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+              <X className="h-3 w-3" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {onQueueIndustryResearch && industryResearchQueueEnabled ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="resume-industry-research-bulk-control">
           <div>
-            <p className="font-medium">Verify employer evidence for these results</p>
+            <p className="font-medium">{t('resumes.searchPage.results.industryQueue.title', { defaultValue: 'Verify employer evidence for these results' })}</p>
             <p className="text-xs text-muted-foreground">
-              Queues exact resume identity targets only; {items.length > MAX_INDUSTRY_RESEARCH_BATCH
-                ? `the first ${MAX_INDUSTRY_RESEARCH_BATCH} loaded results are queued per batch limit.`
-                : hasMore
-                  ? 'more results are still loading.'
-                  : 'all loaded results are visible.'}
+              {t('resumes.searchPage.results.industryQueue.description', {
+                defaultValue: 'Queues exact resume identity targets only; {{detail}}',
+                detail: items.length > MAX_INDUSTRY_RESEARCH_BATCH
+                  ? t('resumes.searchPage.results.industryQueue.batchedDetail', { defaultValue: 'the first {{count}} loaded results are queued per batch limit.', count: MAX_INDUSTRY_RESEARCH_BATCH })
+                  : hasMore
+                    ? t('resumes.searchPage.results.industryQueue.loadingDetail', { defaultValue: 'more results are still loading.' })
+                    : t('resumes.searchPage.results.industryQueue.allVisibleDetail', { defaultValue: 'all loaded results are visible.' }),
+              })}
             </p>
           </div>
           <Button
@@ -468,7 +618,9 @@ export function SearchResultsList({
             disabled={loading || loadingMore || queueingIndustryResearch || queueableIndustryResearchItems.length === 0}
           >
             <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-            {queueingIndustryResearch ? 'Queueing…' : `Queue ${queueableIndustryResearchItems.length} exact targets`}
+            {queueingIndustryResearch
+              ? t('resumes.searchPage.results.industryQueue.queueing', { defaultValue: 'Queueing…' })
+              : t('resumes.searchPage.results.industryQueue.queueButton', { defaultValue: 'Queue {{count}} exact targets', count: queueableIndustryResearchItems.length })}
           </Button>
         </div>
       ) : null}
@@ -514,6 +666,7 @@ export function SearchResultsList({
                 data-index={virtualRow.index}
                 data-result-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
+                tabIndex={-1}
                 className={`absolute left-0 top-0 w-full pb-4 ${focusedIndex === virtualRow.index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : ''}`}
                 style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
@@ -548,6 +701,7 @@ export function SearchResultsList({
             <div
               key={item.key}
               data-result-index={index}
+              tabIndex={-1}
               className={focusedIndex === index ? 'rounded-[1.5rem] ring-2 ring-primary/30' : undefined}
             >
               <ErrorBoundary fallback={<CardErrorFallback />}>

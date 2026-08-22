@@ -1,6 +1,6 @@
-import { buildWorkHistoryEntryText, formatLocationHierarchySearchText, selectLatestWorkHistory } from "@trends/shared";
+import { buildWorkHistoryEntryText, formatLocationHierarchySearchText, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
 
-import { parseSearchQuery } from "./query-parser.js";
+import { parseSearchQuery, type ParsedQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
 import { extractCompanyFromWorkHistory } from "./work-history.js";
 
@@ -156,7 +156,22 @@ export class UnifiedSearchService {
   }
 
   expandKeyword(keyword: string): UnifiedKeywordExpansion {
-    const parsedQuery = parseSearchQuery(keyword.trim());
+    // Normalize the same way the ingest side built the index, then split
+    // punctuation-delimited groups (；;。.．) before keyword parsing so each
+    // group tokenizes independently; comma/newline splits stay inside
+    // parseSearchQuery. Mode is OR if any segment is OR, else AND.
+    const normalizedKeyword = normalizeSearchQuery(keyword);
+    const segments = normalizedKeyword
+      .split(/[;；。.．]+/)
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0);
+    const parsedSegments = (segments.length > 0 ? segments : [normalizedKeyword]).map((segment) =>
+      parseSearchQuery(segment)
+    );
+    const parsedQuery: ParsedQuery = {
+      keywords: parsedSegments.flatMap((segment) => segment.keywords),
+      mode: parsedSegments.some((segment) => segment.mode === "OR") ? "OR" : "AND",
+    };
     const groups: KeywordGroup[] = [];
     const flatTerms: string[] = [];
     const seenFlatTerms = new Set<string>();

@@ -11,6 +11,7 @@ import {
     splitQueryTokens,
     matchesAllTokens,
 } from "../convex/resume_helpers.js";
+import { normalizeSearchQuery } from "../convex/search_text.js";
 
 // ---------------------------------------------------------------------------
 // toStringValue
@@ -284,6 +285,20 @@ describe("splitQueryTokens", () => {
 
     it("collapses multiple spaces", () => {
         expect(splitQueryTokens("a   b   c")).toEqual(["a", "b", "c"]);
+    });
+
+    it("caps tokens at the Convex 16-term search-expression limit", () => {
+        const tokens = splitQueryTokens("t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 t13 t14 t15 t16 t17 t18");
+        expect(tokens).toHaveLength(16);
+        expect(tokens.at(-1)).toBe("t16");
+    });
+
+    it("tokenizes CJK-ASCII boundary queries like the ingest side", () => {
+        expect(splitQueryTokens(normalizeSearchQuery("CNC编程"))).toEqual(["cnc", "编程"]);
+    });
+
+    it("tokenizes multi-boundary CJK-ASCII queries", () => {
+        expect(splitQueryTokens(normalizeSearchQuery("UG编程 师傅"))).toEqual(["ug", "编程", "师傅"]);
     });
 });
 

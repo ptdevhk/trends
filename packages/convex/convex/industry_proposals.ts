@@ -3,7 +3,10 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { normalizeCompanyAlias } from "@trends/shared";
+import {
+  INDUSTRY_MAINTENANCE_TRIGGER_REASONS,
+  normalizeCompanyAlias,
+} from "@trends/shared";
 import {
   findIndustryProposal,
   industryClassValidator,
@@ -100,6 +103,17 @@ export const upsertIndustryProposal = mutation({
   },
   handler: async (ctx, args) => {
     requireWriteSecret(args.writeSecret);
+    for (const reason of args.triggerReasons) {
+      if (
+        !(INDUSTRY_MAINTENANCE_TRIGGER_REASONS as readonly string[]).includes(
+          reason,
+        )
+      ) {
+        throw new Error(
+          `Unknown industry proposal trigger reason: ${reason}`,
+        );
+      }
+    }
     const proposalId = args.proposalId.trim();
     const companyKey = args.companyKey
       ? normalizeCompanyKey(args.companyKey)
@@ -158,7 +172,11 @@ export const upsertIndustryProposal = mutation({
     const triggerReasons = uniqueSortedStrings([
       ...(existing?.triggerReasons ?? []),
       ...args.triggerReasons,
-    ]);
+    ].filter((reason) =>
+      (INDUSTRY_MAINTENANCE_TRIGGER_REASONS as readonly string[]).includes(
+        reason,
+      ),
+    ));
     const sampleReferences = mergeSampleReferences(
       existing?.sampleReferences,
       args.sampleReferences,

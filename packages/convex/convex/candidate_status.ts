@@ -866,12 +866,61 @@ export const restoreBatch = mutation({
 });
 
 /**
+ * Test/seed helper: delete all candidate_status rows (and their
+ * resume_digest_statuses overlay rows) for a workspace.
+ *
+ * Used by the e2e deterministic-fixture seed so every run starts from an
+ * all-"new" state — the bulk-actions smoke shortlists the top results, which
+ * would otherwise hide them behind the default new-only status filter on the
+ * next run. Gated by CONVEX_WRITE_SECRET.
+ */
+export const clearWorkspace = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        let clearedStatuses = 0;
+        let clearedOverlayRows = 0;
+
+        const statuses = await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", workspaceSlug)
+            )
+            .collect();
+        for (const status of statuses) {
+            await ctx.db.delete(status._id);
+            clearedStatuses += 1;
+        }
+
+        const overlayRows = await ctx.db
+            .query("resume_digest_statuses")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", workspaceSlug)
+            )
+            .collect();
+        for (const row of overlayRows) {
+            await ctx.db.delete(row._id);
+            clearedOverlayRows += 1;
+        }
+
+        return {
+            workspaceSlug,
+            clearedStatuses,
+            clearedOverlayRows,
+        };
+    },
+});
+
+/**
  * Operator helper: stamp resume.workspaceSlug for known externalIds so
  * workspace-scoped feedback import can own restored/unscoped resumes.
  * Gated by CONVEX_WRITE_SECRET.
  */
-export const stampWorkspaceByExternalIds = mutation({
-    args: {
+export const stampWorkspaceByExternalIds = mutation({    args: {
         workspaceSlug: v.string(),
         externalIds: v.array(v.string()),
         writeSecret: v.optional(v.string()),
@@ -932,5 +981,42 @@ export const stampWorkspaceByExternalIds = mutation({
             notFound,
             results,
         };
+    },
+});
+
+/**
+ * Operator helper: remove a single candidate status row by identity key.
+ * Gated by CONVEX_WRITE_SECRET. Mirrors candidate_blocks.remove; intended for
+ * targeted cleanup without clearWorkspace's workspace-wide deletion.
+ */
+export const remove = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        identityKey: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireWriteSecret(args.writeSecret);
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const identityKey = normalizeIdentityKey(args.identityKey);
+        if (!identityKey) {
+            return false;
+        }
+
+        const existing = await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+            )
+            .collect();
+
+        if (existing.length === 0) {
+            return false;
+        }
+
+        for (const status of existing) {
+            await ctx.db.delete(status._id);
+        }
+        return true;
     },
 });

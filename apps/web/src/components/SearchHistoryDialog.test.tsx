@@ -121,4 +121,64 @@ describe('SearchHistoryDialog', () => {
 
     expect(screen.getByText('Loading history...')).toBeInTheDocument()
   })
+
+  it('filters saved searches as the user types in the filter input', async () => {
+    const user = userEvent.setup()
+    render(
+      <SearchHistoryDialog
+        open
+        onOpenChange={vi.fn()}
+        onApply={vi.fn()}
+        items={[
+          buildItem({ id: 'history-1' as SearchHistoryItem['id'], title: 'CNC 销售' }),
+          buildItem({ id: 'history-2' as SearchHistoryItem['id'], title: '注塑机操作', keywords: ['注塑'] }),
+        ]}
+      />
+    )
+
+    await user.type(screen.getByTestId('search-history-filter-input'), 'cnc')
+
+    expect(screen.getByText('CNC 销售')).toBeInTheDocument()
+    expect(screen.queryByText('注塑机操作')).not.toBeInTheDocument()
+  })
+
+  it('shows an empty filter state with a clear action when no search matches', async () => {
+    const user = userEvent.setup()
+    render(
+      <SearchHistoryDialog
+        open
+        onOpenChange={vi.fn()}
+        onApply={vi.fn()}
+        items={[buildItem()]}
+      />
+    )
+
+    await user.type(screen.getByTestId('search-history-filter-input'), 'nobody')
+
+    expect(screen.getByTestId('search-history-empty-filter')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('search-history-clear-filter-empty'))
+
+    expect(screen.getByText('东莞 · CNC 销售')).toBeInTheDocument()
+    expect(screen.queryByTestId('search-history-empty-filter')).not.toBeInTheDocument()
+  })
+
+  it('clears the filter with the inline clear button', async () => {
+    const user = userEvent.setup()
+    render(
+      <SearchHistoryDialog
+        open
+        onOpenChange={vi.fn()}
+        onApply={vi.fn()}
+        items={[buildItem()]}
+      />
+    )
+
+    await user.type(screen.getByTestId('search-history-filter-input'), 'cnc')
+    expect(screen.queryByText('东莞 · CNC 销售')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('search-history-clear-search'))
+
+    expect(screen.getByTestId('search-history-filter-input')).toHaveValue('')
+  })
 })

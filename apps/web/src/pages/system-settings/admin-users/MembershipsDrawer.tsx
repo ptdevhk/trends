@@ -27,6 +27,7 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
   const [addWorkspaceSlug, setAddWorkspaceSlug] = useState<WorkspaceSlug | ''>('')
   const [addRole, setAddRole] = useState<AdminAssignableRole>('user')
   const [submitting, setSubmitting] = useState(false)
+  const [pendingRemoveSlug, setPendingRemoveSlug] = useState<WorkspaceSlug | null>(null)
 
   const workspaceOptions = listSystemWorkspaceSlugs()
 
@@ -34,6 +35,7 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
     setAddWorkspaceSlug('')
     setAddRole('user')
     setSubmitting(false)
+    setPendingRemoveSlug(null)
     onOpenChange(false)
   }
 
@@ -112,9 +114,9 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
               <table className="w-full text-sm">
                 <thead className="border-b text-left text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2">Workspace</th>
-                    <th className="px-3 py-2">Role</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
+                    <th className="px-3 py-2">{t('debugConfig.adminUsersColWorkspaces', { defaultValue: 'Workspace' })}</th>
+                    <th className="px-3 py-2">{t('debugConfig.adminUsersColRole', { defaultValue: 'Role' })}</th>
+                    <th className="px-3 py-2 text-right">{t('debugConfig.adminUsersColActions', { defaultValue: 'Actions' })}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,17 +132,49 @@ export function MembershipsDrawer({ open, onOpenChange, user, onChanged }: Props
                         <td className="px-3 py-2 font-medium">{m.workspaceSlug}</td>
                         <td className="px-3 py-2">{m.role}</td>
                         <td className="px-3 py-2 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            data-testid={`remove-membership-${m.workspaceSlug}`}
-                            disabled={submitting}
-                            onClick={() => {
-                              void handleRemove(m.workspaceSlug as WorkspaceSlug)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {pendingRemoveSlug === (m.workspaceSlug as WorkspaceSlug) ? (
+                            <div
+                              className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1"
+                              data-testid={`remove-membership-confirm-${m.workspaceSlug}`}
+                            >
+                              <span className="text-xs">
+                                {t('debugConfig.adminUsersMembershipRemoveConfirm', { defaultValue: 'Remove this membership?' })}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={submitting}
+                                onClick={() => {
+                                  void handleRemove(m.workspaceSlug as WorkspaceSlug)
+                                }}
+                                data-testid={`remove-membership-confirm-yes-${m.workspaceSlug}`}
+                              >
+                                {t('debugConfig.adminUsersMembershipRemove', { defaultValue: 'Remove' })}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={submitting}
+                                onClick={() => setPendingRemoveSlug(null)}
+                                data-testid={`remove-membership-confirm-cancel-${m.workspaceSlug}`}
+                              >
+                                {t('common.cancel', { defaultValue: 'Cancel' })}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              data-testid={`remove-membership-${m.workspaceSlug}`}
+                              aria-label={t('debugConfig.adminUsersMembershipRemoveLabel', { defaultValue: `Remove membership for ${m.workspaceSlug}` })}
+                              disabled={submitting}
+                              onClick={() => setPendingRemoveSlug(m.workspaceSlug as WorkspaceSlug)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))

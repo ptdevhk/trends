@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from 'react'
+import { isImeComposition } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { FacetGroup } from '@/components/search/FacetGroup'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import type { FacetCounts } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import type { CandidateStatus } from '@/types/resume'
@@ -95,29 +96,48 @@ function MinRoleYearsGroup({
   const isPreset = typeof minRoleYears === 'number' && (PRESET_ROLE_YEARS as readonly number[]).includes(minRoleYears)
   const [customOpen, setCustomOpen] = useState(typeof minRoleYears === 'number' && !isPreset)
   const [customText, setCustomText] = useState(isPreset || minRoleYears == null ? '' : String(minRoleYears))
+  const [customError, setCustomError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+
+  const closeCustom = useCallback(() => {
+    setCustomOpen(false)
+    setCustomText('')
+    setCustomError(null)
+  }, [])
 
   const submitCustomValue = useCallback((rawValue: string) => {
     const parsed = Number(rawValue)
     if (rawValue.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
-      setCustomOpen(false)
-      setCustomText('')
+      setCustomError(t('resumes.searchPage.facets.invalidValue', { defaultValue: 'Enter a valid number' }))
       return
     }
+    setCustomError(null)
     onSetMinRoleYears(parsed)
     setCustomOpen(false)
     setCustomText('')
-  }, [onSetMinRoleYears])
+  }, [onSetMinRoleYears, t])
 
   const handleBlur = useCallback(() => {
     requestAnimationFrame(() => {
       if (formRef.current && !formRef.current.contains(document.activeElement)) {
-        setCustomOpen(false)
-        setCustomText('')
+        closeCustom()
       }
     })
-  }, [])
+  }, [closeCustom])
+
+  const handleMinRoleYearsKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposition(event)) {
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      submitCustomValue(inputRef.current?.value ?? customText)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeCustom()
+    }
+  }, [submitCustomValue, customText, closeCustom])
 
   return (
     <div className="space-y-3">
@@ -136,8 +156,7 @@ function MinRoleYearsGroup({
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
                 : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
               onClick={() => {
-                setCustomOpen(false)
-                setCustomText('')
+                closeCustom()
                 onSetMinRoleYears(active ? undefined : value)
               }}
             >
@@ -158,10 +177,16 @@ function MinRoleYearsGroup({
               ref={inputRef}
               type="number"
               min={1}
+              aria-label={t('resumes.searchPage.facets.minRoleYearsInput', { defaultValue: 'Relevant experience (years)' })}
+              aria-invalid={customError != null}
               className="h-7 w-14 px-2 text-sm"
               value={customText}
-              onChange={(event) => setCustomText(event.target.value)}
+              onChange={(event) => {
+                setCustomText(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleBlur}
+              onKeyDown={handleMinRoleYearsKeyDown}
               autoFocus
             />
             <span className="text-sm text-slate-500">+</span>
@@ -177,10 +202,7 @@ function MinRoleYearsGroup({
             <button
               type="button"
               className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
-              onClick={() => {
-                setCustomOpen(false)
-                setCustomText('')
-              }}
+              onClick={closeCustom}
             >
               {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
@@ -195,6 +217,9 @@ function MinRoleYearsGroup({
           >
             {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
           </button>
+        )}
+        {customError != null && (
+          <span role="alert" className="w-full text-xs text-red-600">{customError}</span>
         )}
       </div>
     </div>
@@ -239,19 +264,30 @@ function RangeFilterGroup({
   const [customOpen, setCustomOpen] = useState(!activePreset && (valueMin != null || valueMax != null))
   const [customMin, setCustomMin] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMin === 'number' ? String(valueMin) : ''))
   const [customMax, setCustomMax] = useState(activePreset || (valueMin == null && valueMax == null) ? '' : (typeof valueMax === 'number' ? String(valueMax) : ''))
+  const [customError, setCustomError] = useState<string | null>(null)
   const minRef = useRef<HTMLInputElement>(null)
   const maxRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
+  const closeCustomRange = useCallback(() => {
+    setCustomOpen(false)
+    setCustomMin('')
+    setCustomMax('')
+    setCustomError(null)
+  }, [])
+
+  const customApplied = !activePreset && (valueMin != null || valueMax != null)
+  const customRangeLabel = `${valueMin != null ? String(valueMin) : ''}-${valueMax != null ? String(valueMax) : ''}`
+    .replace(/^-/, '≤')
+    .replace(/-$/, '+')
+
   const handleRangeBlur = useCallback(() => {
     requestAnimationFrame(() => {
       if (formRef.current && !formRef.current.contains(document.activeElement)) {
-        setCustomOpen(false)
-        setCustomMin('')
-        setCustomMax('')
+        closeCustomRange()
       }
     })
-  }, [])
+  }, [closeCustomRange])
 
   const submitCustomValues = useCallback(() => {
     const rawMin = minRef.current?.value ?? String(customMin)
@@ -263,18 +299,36 @@ function RangeFilterGroup({
       (parsedMin != null && (!Number.isFinite(parsedMin) || parsedMin <= 0)) ||
       (parsedMax != null && (!Number.isFinite(parsedMax) || parsedMax <= 0))
     ) {
+      setCustomError(t('resumes.searchPage.facets.invalidValue', { defaultValue: 'Enter a valid number' }))
       return
     }
     if (parsedMin != null && parsedMax != null && parsedMin > parsedMax) {
+      setCustomError(t('resumes.searchPage.facets.minExceedsMax', { defaultValue: 'Minimum must not exceed maximum' }))
       return
     }
     if (parsedMin == null && parsedMax == null) {
-      setCustomOpen(false)
+      onSetRange(undefined, undefined)
+      closeCustomRange()
       return
     }
+    setCustomError(null)
     onSetRange(parsedMin, parsedMax)
     setCustomOpen(false)
-  }, [customMin, customMax, onSetRange])
+  }, [customMin, customMax, onSetRange, t, closeCustomRange])
+
+  const handleRangeInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (isImeComposition(event)) return
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        submitCustomValues()
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        closeCustomRange()
+      }
+    },
+    [submitCustomValues, closeCustomRange],
+  )
 
   return (
     <div className="space-y-3">
@@ -295,9 +349,7 @@ function RangeFilterGroup({
                 ? 'rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white'
                 : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700'}
               onClick={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
+                closeCustomRange()
                 onSetRange(active ? undefined : preset.min, active ? undefined : preset.max)
               }}
             >
@@ -319,11 +371,16 @@ function RangeFilterGroup({
               type="number"
               min={1}
               placeholder="—"
+              aria-label={t('resumes.searchPage.facets.rangeMin', { label, defaultValue: 'Minimum' })}
+              aria-invalid={customError != null}
               className="h-7 w-12 px-2 text-sm"
               value={customMin}
-              onChange={(event) => setCustomMin(event.target.value)}
+              onChange={(event) => {
+                setCustomMin(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleRangeBlur}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+              onKeyDown={handleRangeInputKeyDown}
               autoFocus
             />
             <span className="text-sm text-slate-400">–</span>
@@ -332,11 +389,16 @@ function RangeFilterGroup({
               type="number"
               min={1}
               placeholder="—"
+              aria-label={t('resumes.searchPage.facets.rangeMax', { label, defaultValue: 'Maximum' })}
+              aria-invalid={customError != null}
               className="h-7 w-12 px-2 text-sm"
               value={customMax}
-              onChange={(event) => setCustomMax(event.target.value)}
+              onChange={(event) => {
+                setCustomMax(event.target.value)
+                setCustomError(null)
+              }}
               onBlur={handleRangeBlur}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitCustomValues() }}
+              onKeyDown={handleRangeInputKeyDown}
             />
             <span className="text-sm text-slate-500">{unitSuffix}</span>
             <Button
@@ -351,15 +413,23 @@ function RangeFilterGroup({
             <button
               type="button"
               className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-600"
-              onClick={() => {
-                setCustomOpen(false)
-                setCustomMin('')
-                setCustomMax('')
-              }}
+              onClick={closeCustomRange}
             >
               {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })}
             </button>
           </form>
+        ) : customApplied ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm text-white">
+            {t('resumes.searchPage.facets.custom', { defaultValue: 'Custom' })} {customRangeLabel}{unitSuffix}
+            <button
+              type="button"
+              aria-label={t('resumes.searchPage.facets.clearCustomRange', { defaultValue: 'Clear custom range' })}
+              className="inline-flex items-center text-white/80 hover:text-white"
+              onClick={() => { closeCustomRange(); onSetRange(undefined, undefined) }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
         ) : (
           <button
             type="button"
@@ -444,7 +514,7 @@ export function FacetSidebar({
         {idOrNameSearch && (
           <button
             type="button"
-            aria-label="clear"
+            aria-label={t('common.clear', { defaultValue: 'Clear' })}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             onClick={() => onSetIdOrNameSearch(undefined)}
           >
@@ -486,9 +556,9 @@ export function FacetSidebar({
         selectedValues={selectedClusters}
         onToggle={onToggleCluster}
       />
-      <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: 'Tag clusters' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
-      <FacetGroup title={t('resumes.searchPage.facets.brands', { defaultValue: 'Brand tags' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
-      <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: 'Company experience' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.tags', { defaultValue: 'Tag clusters' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.brands', { defaultValue: 'Brand tags' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
+      <FacetGroup filterable title={t('resumes.searchPage.facets.companies', { defaultValue: 'Company experience' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: 'Sources' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
       <PillGroup
         label={t('resumes.searchPage.facets.experienceLevel', { defaultValue: 'Experience level' })}

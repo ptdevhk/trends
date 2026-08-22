@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SystemSettingsIndustryVerificationPage } from './SystemSettingsIndustryVerificationPage'
+import { SettingsRequestError } from '@/pages/system-settings/lib'
 
 function LocationProbe() {
   const location = useLocation()
@@ -140,18 +141,24 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => useWorkspaceMock(),
 }))
 
-const { requestJsonMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
+const { requestJsonMock, toastSuccessMock, tMock, mockI18n } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   tMock: vi.fn((key: string, options?: { defaultValue?: string; [name: string]: unknown }) => {
     const template = options?.defaultValue ?? key
     return template.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options?.[name] ?? `{{${name}}}`))
   }),
+  mockI18n: {
+    language: 'en',
+    languages: ['en', 'zh-Hans', 'zh-Hant'],
+    changeLanguage: () => Promise.resolve(),
+  },
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: tMock,
+    i18n: mockI18n,
   }),
 }))
 
@@ -605,6 +612,123 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     }
   })
 
+  it('navigates Previous/Next to adjacent queue rows when a detail is open (not the queue tail/head)', async () => {
+    const user = userEvent.setup()
+    useAuthMock.mockReturnValue({
+      memberships: [{ userId: 'user-1', workspaceSlug: 'hr', role: 'reviewer' }],
+    })
+    useWorkspaceMock.mockReturnValue({
+      slug: 'hr',
+      name: 'hr',
+      isAdmin: false,
+      surface: 'workspace',
+      isSystemSurface: false,
+      isPublicSurface: false,
+    })
+
+    const alpha = {
+      ...proposal,
+      _id: 'row-alpha',
+      proposalId: 'proposal-alpha',
+      companyKey: 'alpha-cnc',
+      materialChangeSummary: 'Alpha catalog changed.',
+    }
+    const beta = {
+      ...proposal,
+      _id: 'row-beta',
+      proposalId: 'proposal-beta',
+      companyKey: 'beta-cnc',
+      materialChangeSummary: 'Beta catalog changed.',
+    }
+    const gamma = {
+      ...proposal,
+      _id: 'row-gamma',
+      proposalId: 'proposal-gamma',
+      companyKey: 'gamma-cnc',
+      materialChangeSummary: 'Gamma catalog changed.',
+    }
+    const byId: Record<string, typeof proposal> = {
+      'proposal-alpha': alpha,
+      'proposal-beta': beta,
+      'proposal-gamma': gamma,
+    }
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [
+            { proposal: alpha, recommendation: { ...recommendation, proposalId: 'proposal-alpha' }, sourceCount: 1 },
+            { proposal: beta, recommendation: { ...recommendation, proposalId: 'proposal-beta' }, sourceCount: 1 },
+            { proposal: gamma, recommendation: { ...recommendation, proposalId: 'proposal-gamma' }, sourceCount: 1 },
+          ],
+          maintenance: { latest: null, lastFailed: null },
+        })
+      }
+      if (path.endsWith('/review-packet')) {
+        const proposalId = decodeURIComponent(path.match(/\/api\/company-industry-proposals\/([^/]+)\/review-packet$/)![1])
+        const target = byId[proposalId]
+        return target
+          ? Promise.resolve({ ...reviewPacket, proposal: target })
+          : Promise.reject(new Error(`Unexpected review packet request: ${path}`))
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/hr/system/settings/industry-verification')
+
+    // Open the MIDDLE row's detail: the queue is [alpha, beta, gamma].
+    await user.click(await screen.findByTestId('industry-review-row-proposal-beta'))
+    await screen.findAllByText('BETA CNC')
+
+    // Previous must go to the queue row BEFORE beta (alpha), not the queue tail.
+    await user.click(screen.getByRole('button', { name: 'Previous proposal' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-alpha',
+      )
+    })
+
+    // Next walks forward in queue order: alpha -> beta -> gamma.
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-beta',
+      )
+    })
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-gamma',
+      )
+    })
+
+    // Wrap-around: Next from the queue tail returns to the queue head.
+    await user.click(screen.getByRole('button', { name: 'Next proposal' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-alpha',
+      )
+    })
+
+    // And Previous from the queue head wraps to the queue tail.
+    await user.click(screen.getByRole('button', { name: 'Previous proposal' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('test-location-path')).toHaveTextContent(
+        '/industry-verification/proposals/proposal-gamma',
+      )
+    })
+
+    // The nav buttons must use the translated labels (zh-Hans: 上一个/下一个) with
+    // accessible names from the industryEvidence namespace, not hardcoded English.
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.previous', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.previousProposal', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.next', expect.anything())
+    expect(tMock).toHaveBeenCalledWith('industryEvidence.nextProposal', expect.anything())
+  })
+
   it('does not scroll the detail section on an initial deep link', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -873,6 +997,70 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     })
   })
 
+  it('blocks same-row undo after a stale 409 and keeps the session approval visible', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    const base = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith('/undo-approval') && init?.method === 'POST') {
+        return Promise.reject(new SettingsRequestError(409, {
+          success: false,
+          error: 'The approval is no longer current',
+          code: 'INDUSTRY_REVIEW_STALE',
+        }))
+      }
+      return base?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    expect(await screen.findByTestId('industry-review-row-error-clean-proposal')).toHaveTextContent('The approval is no longer current')
+    // Conflict on an approved row: no Retry affordance, undo button blocked,
+    // and the session approval is retained for a later explicit refresh.
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeDisabled()
+    expect(screen.getByText('Approved in this session')).toBeInTheDocument()
+  })
+
+  it('fails cleanly on a 500 undo and recovers via Retry without stuck pending state', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Approve CLEAN COMPANY' }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    const base = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith('/undo-approval') && init?.method === 'POST') {
+        return Promise.reject(new SettingsRequestError(500, { success: false }))
+      }
+      return base?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    expect(await screen.findByTestId('industry-review-row-error-clean-proposal')).toHaveTextContent('Undo failed. Retry or refresh to reconcile.')
+    // Network-kind failure keeps the Retry affordance and leaves the row
+    // interactive again (pending state cleared in the finally path).
+    const retryButton = screen.getByRole('button', { name: 'Retry' })
+    expect(retryButton).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeEnabled()
+
+    await user.click(retryButton)
+    await waitFor(() => {
+      const undoCalls = requestJsonMock.mock.calls.filter(
+        ([path, init]) => path.endsWith('/undo-approval') && init?.method === 'POST',
+      )
+      expect(undoCalls).toHaveLength(2)
+    })
+  })
+
   it('moves a session-approved row to History only after explicit refresh', async () => {
     const user = userEvent.setup()
     const cleanMock = installCleanInboxMock()
@@ -1113,6 +1301,79 @@ describe('SystemSettingsIndustryVerificationPage', () => {
       }),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Industry verdict revision approved')
+  })
+
+  it('registers a detail-pane approval into the session registry (counter, badge, Undo)', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    // The clean-proposal fixture is an industrial (non-CNC) one-click-eligible
+    // row, so it lives in the All/Approvable partitions — open its detail pane.
+    await user.click(await screen.findByTestId('industry-review-row-clean-proposal'))
+    expect(await screen.findByRole('button', { name: 'Approve revision' })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Evidence summary'))
+    await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
+    await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    expect(screen.getByTestId('industry-review-approval-confirmation')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
+
+    // F2: the detail-pane approve path must behave like the one-click row
+    // path — the approval registers into the session registry, so the summary
+    // counter, the session badge, and the same-row Undo affordance appear.
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('1')
+    })
+    expect(await screen.findByText('Approved in this session')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+
+    // History stays session-filtered: the approved row only reconciles there
+    // after an explicit refresh, same as the one-click path.
+    await user.click(screen.getByRole('tab', { name: /History/ }))
+    expect(screen.queryByTestId('industry-history-row-clean-proposal')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /All/ }))
+    expect(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).toBeInTheDocument()
+  })
+
+  it('undoes a detail-pane session approval and restores the session counter', async () => {
+    const user = userEvent.setup()
+    installCleanInboxMock()
+    renderPage()
+
+    await user.click(await screen.findByTestId('industry-review-row-clean-proposal'))
+    expect(await screen.findByRole('button', { name: 'Approve revision' })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Evidence summary'))
+    await user.type(screen.getByLabelText('Evidence summary'), 'Reviewed official evidence.')
+    await user.type(screen.getByLabelText('Decision reason'), 'Primary source confirmed.')
+    await user.click(screen.getByRole('button', { name: 'Approve revision' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm approve revision' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('1')
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Undo approval for CLEAN COMPANY' }))
+
+    await waitFor(() => {
+      expect(requestJsonMock).toHaveBeenCalledWith(
+        '/api/company-industry-proposals/clean-proposal/undo-approval',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    const undoCall = requestJsonMock.mock.calls.find(
+      ([path, init]) => path.endsWith('/undo-approval') && init?.method === 'POST',
+    )
+    expect(JSON.parse(String(undoCall?.[1]?.body))).toMatchObject({
+      approvedRevisionId: 'revision-clean',
+      expectedCurrentRevisionId: 'revision-clean',
+      expectedProposalUpdatedAt: 99,
+      recomputeRunId: 'run-clean',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('industry-review-summary-session-approved')).toHaveTextContent('0')
+    })
+    expect(screen.queryByText('Approved in this session')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo approval for CLEAN COMPANY' })).not.toBeInTheDocument()
   })
 
   it('requests more evidence without changing current truth', async () => {
@@ -1852,5 +2113,38 @@ describe('SystemSettingsIndustryVerificationPage propagation runs', () => {
     renderPage('/dev/settings/industry-verification')
 
     expect(await screen.findByTestId('industry-coverage-propagation-empty')).toBeInTheDocument()
+  })
+
+  it('shows an amber banner when the review queue skipped malformed proposals', async () => {
+    requestJsonMock.mockImplementation((path: string) => {
+      if (path.startsWith('/api/company-industry-proposals/review-queue?')) {
+        return Promise.resolve({
+          success: true,
+          ok: true,
+          schemaVersion: 'industry-review.v1',
+          items: [{ proposal, recommendation, sourceCount: 1 }],
+          maintenance: { latest: null, lastFailed: null },
+          skippedCount: 2,
+          skippedProposalIds: ['probe-1', 'probe-2'],
+        })
+      }
+      if (path === '/api/company-industry-coverage') {
+        return Promise.resolve({ success: true, item: coverageSummary })
+      }
+      return Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/dev/system/settings/industry-verification')
+
+    const banner = await screen.findByTestId('industry-review-skipped-banner')
+    expect(banner).toHaveTextContent('2')
+  })
+
+  it('does not render the skipped banner when the queue is clean', async () => {
+    renderPageAtRoute('/dev/system/settings/industry-verification')
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('industry-review-skipped-banner')).not.toBeInTheDocument()
+    })
   })
 })

@@ -362,4 +362,32 @@ describe('SystemSettingsExportFieldsPage state', () => {
     // experience is a detail field -> comes after all selected core fields
     expect(Number(positionOf('experience'))).toBeGreaterThan(3)
   })
+
+  it('filters available fields by name and auto-expands matching groups', async () => {
+    const user = userEvent.setup()
+    requestJsonMock.mockResolvedValueOnce({ success: true, config: null })
+
+    render(<SystemSettingsExportFieldsPage />)
+
+    await waitFor(() => {
+      expect(fieldCheckbox('resumeId')).toBeChecked()
+    })
+
+    const input = screen.getByTestId('export-fields-search-input')
+    await user.type(input, 'brand')
+
+    // Only the matching group remains and it is expanded during filtering
+    expect(screen.getByText('Detail - Matching')).toBeInTheDocument()
+    expect(screen.getByText('Brand Hits')).toBeInTheDocument()
+    expect(screen.queryByText('Core - Identity')).not.toBeInTheDocument()
+
+    // A filter with no matches shows the empty state
+    await user.type(input, 'zzz')
+    expect(screen.getByTestId('export-fields-no-matches')).toBeInTheDocument()
+
+    // Clearing the filter restores every group
+    await user.click(screen.getByTestId('export-fields-clear-filter'))
+    expect(screen.getByText('Core - Identity')).toBeInTheDocument()
+    expect(screen.queryByTestId('export-fields-no-matches')).not.toBeInTheDocument()
+  })
 })

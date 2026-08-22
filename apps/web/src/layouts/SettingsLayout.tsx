@@ -6,8 +6,10 @@ import { Header } from '@/components/Header'
 import { SettingsSidebar } from '@/components/SettingsSidebar'
 import { Button } from '@/components/ui/button'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { useTranslation } from 'react-i18next'
 
 export default function SettingsLayout() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   return (
@@ -17,7 +19,7 @@ export default function SettingsLayout() {
         leftAction={
           <Button variant="ghost" size="icon" className="xl:hidden shrink-0 -ml-2" onClick={() => setOpen((prev) => !prev)}>
             <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle menu</span>
+            <span className="sr-only">{t('common.toggleMenu', { defaultValue: 'Toggle menu' })}</span>
           </Button>
         }
       />

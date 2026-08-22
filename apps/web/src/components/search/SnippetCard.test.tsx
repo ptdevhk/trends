@@ -1,9 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+
+const { matchResumeMock } = vi.hoisted(() => ({ matchResumeMock: vi.fn(() => [] as unknown[]) }))
 
 const mockT = (key: string, options?: string | Record<string, string | number | undefined>) => {
   if (typeof options === 'string') {
@@ -27,21 +30,32 @@ const mockT = (key: string, options?: string | Record<string, string | number | 
   })
 };
 
+const mockI18n = {
+  language: 'en',
+  languages: ['en', 'zh-Hans', 'zh-Hant'],
+  changeLanguage: () => Promise.resolve(),
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
+    i18n: mockI18n,
   }),
 }))
 
 vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   useCompanyPolicyIndex: () => ({
-    aliasIndex: new Map(),
+    aliasIndexByMarket: { cn: new Map(), my: new Map() },
     loading: false,
     error: null,
     load: vi.fn(),
     hasPolicies: false,
-    matchResume: () => [],
+    matchResume: matchResumeMock,
   }),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
@@ -153,6 +167,7 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
 describe('SnippetCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    matchResumeMock.mockImplementation(() => [])
     Element.prototype.scrollIntoView = vi.fn()
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -477,7 +492,7 @@ describe('SnippetCard', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: '4 stars' }))
+    await user.click(screen.getByRole('button', { name: '4 star' }))
     const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
     await user.type(input, 'great fit')
     await user.click(screen.getByTestId('rating-comment-save'))
@@ -977,5 +992,147 @@ describe('SnippetCard', () => {
     const card = document.getElementById('resume-resume-3')
     expect(card).not.toBeNull()
     expect(card?.className).toContain('ring-2 ring-primary/50')
+  })
+
+  it('renders quick-triage shortlist/reject actions when onAction is provided', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        actionType="shortlist"
+        onAction={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('snippet-card-shortlist')).toBeInTheDocument()
+    expect(screen.getByTestId('snippet-card-reject')).toBeInTheDocument()
+  })
+
+  it('does not render quick-triage actions when onAction is omitted', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByTestId('snippet-card-shortlist')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('snippet-card-reject')).not.toBeInTheDocument()
+  })
+
+  it('fires onAction with resumeId and action type on quick-triage clicks without toggling expansion', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    const onToggleExpanded = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={onToggleExpanded}
+        onAction={onAction}
+      />,
+    )
+
+    await user.click(screen.getByTestId('snippet-card-shortlist'))
+    expect(onAction).toHaveBeenCalledWith('resume-1', 'shortlist')
+    expect(onToggleExpanded).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('snippet-card-reject'))
+    expect(onAction).toHaveBeenCalledWith('resume-1', 'reject')
+    expect(onToggleExpanded).not.toHaveBeenCalled()
+  })
+
+  it('disables shortlist quick-triage and shows a workflow-blocked toast when company policy blocks', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    matchResumeMock.mockImplementation(() => [
+      {
+        companyKey: 'blocked-co',
+        displayName: 'Blocked Co',
+        matchedEmployer: 'Blocked Co',
+        preset: 'no_hire',
+        effects: { visibility: 'none', workflow: 'blocked' },
+      },
+    ])
+
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onAction={onAction}
+      />,
+    )
+
+    const shortlistButton = screen.getByTestId('snippet-card-shortlist')
+    expect(shortlistButton).toBeDisabled()
+    expect(shortlistButton).toHaveAttribute('title', 'Blocked by company policy')
+
+    await user.click(shortlistButton)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+
+    // Reject stays usable when the workflow is blocked
+    await user.click(screen.getByTestId('snippet-card-reject'))
+    expect(onAction).toHaveBeenCalledWith('resume-1', 'reject')
+  })
+
+  it('ignores Enter during IME composition in the block dialog note input', async () => {
+    const user = userEvent.setup()
+    const onToggleBlock = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1, { blocked: false })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    await user.click(screen.getByTestId('block-trigger'))
+    const input = screen.getByPlaceholderText('备注')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onToggleBlock).not.toHaveBeenCalled()
+
+    // Plain Enter submits the block action
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onToggleBlock).toHaveBeenCalledWith('identity-1', false, undefined)
+  })
+
+  it('ignores Enter during IME composition in the status note prompt input', async () => {
+    const user = userEvent.setup()
+    const onCandidateStatusChange = vi.fn()
+
+    render(
+      <SnippetCard
+        expanded
+        item={createResult(1)}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+        onCandidateStatusChange={onCandidateStatusChange}
+      />
+    )
+
+    await user.click(screen.getByTestId('status-reject'))
+    const input = screen.getByPlaceholderText('resumes.status.notes')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onCandidateStatusChange).not.toHaveBeenCalled()
+
+    // Plain Enter submits the status change with no notes
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCandidateStatusChange).toHaveBeenCalledWith('identity-1', 'interviewed_reject', undefined)
   })
 })

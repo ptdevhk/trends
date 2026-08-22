@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { JdPastePopover } from '@/components/search/JdPastePopover'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import { useSearchPreload } from '@/hooks/useSearchPrefetch'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
@@ -43,9 +43,11 @@ export function GoogleSearchBar({
   const [focused, setFocused] = useState(false)
   const [jdPopoverOpen, setJdPopoverOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [isComposing, setIsComposing] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
+  const isMacLike = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.platform ?? '')
   useSearchPreload(trimmedValue, prefetchSearch)
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
@@ -124,6 +126,9 @@ export function GoogleSearchBar({
         )}
         onSubmit={(event) => {
           event.preventDefault()
+          if (isComposing) {
+            return
+          }
           setJdPopoverOpen(false)
           onSubmit(trimmedValue)
         }}
@@ -158,7 +163,13 @@ export function GoogleSearchBar({
             setActiveIndex(-1)
           }}
           onFocus={() => setFocused(true)}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           onKeyDown={(event) => {
+            // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+            if (isImeComposition(event)) {
+              return
+            }
             if (!isListboxOpen) {
               if (event.key === 'Escape') {
                 event.preventDefault()
@@ -166,7 +177,10 @@ export function GoogleSearchBar({
                   setJdPopoverOpen(false)
                   return
                 }
-                onClear()
+                if (trimmedValue) {
+                  onChange('')
+                  inputRef.current?.blur()
+                }
               }
               return
             }
@@ -197,17 +211,28 @@ export function GoogleSearchBar({
               }
               case 'Escape': {
                 event.preventDefault()
+                setFocused(false)
                 setActiveIndex(-1)
-                if (jdPopoverOpen) {
-                  setJdPopoverOpen(false)
-                } else {
-                  onClear()
+                if (trimmedValue) {
+                  onChange('')
+                  inputRef.current?.blur()
                 }
                 break
               }
             }
           }}
         />
+        {!trimmedValue ? (
+          <kbd
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none mr-1 hidden select-none items-center rounded-md border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex',
+              compact ? 'h-5' : 'h-6'
+            )}
+          >
+            {isMacLike ? '⌘K' : 'Ctrl K'}
+          </kbd>
+        ) : null}
         {onApplyExtractedKeywords ? (
           <Button
             type="button"

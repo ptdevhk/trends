@@ -28,6 +28,10 @@ vi.mock('@/contexts/ResumeFieldUsagePolicyContext', () => ({
   useResumeFieldUsagePolicy: () => useResumeFieldUsagePolicyMock(),
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({ slug: 'hr' }),
+}))
+
 function createResume(index: number, overrides: Partial<ConvexResumeItem> = {}): ConvexResumeItem {
   return {
     resumeId: `resume-${index}` as ConvexResumeItem['resumeId'],
@@ -715,6 +719,30 @@ describe('SnippetCardExpanded', () => {
 
       const rejectBtn = screen.getByRole('button', { name: /淘汰/i })
       expect(rejectBtn.className).toMatch(/bg-destructive|destructive/)
+    })
+
+    it('renders descriptive icons and aria-labels for shortlist, reject, notes, and block actions', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, { identityKey: 'identity-1', status: 'new', blocked: false })}
+          candidateStatus="new"
+          onCandidateStatusChange={vi.fn()}
+          onNoteTrigger={vi.fn()}
+          onBlockTrigger={vi.fn()}
+        />,
+      )
+
+      const shortlistBtn = screen.getByRole('button', { name: /入选/i })
+      expect(shortlistBtn.querySelector('svg.lucide-circle-check-big')).not.toBeNull()
+
+      const rejectBtn = screen.getByRole('button', { name: /淘汰/i })
+      expect(rejectBtn.querySelector('svg.lucide-circle-x')).not.toBeNull()
+
+      const notesBtn = screen.getByRole('button', { name: /备注/i })
+      expect(notesBtn.querySelector('svg.lucide-message-square')).not.toBeNull()
+
+      const blockBtn = screen.getByRole('button', { name: /屏蔽/i })
+      expect(blockBtn.querySelector('svg.lucide-ban')).not.toBeNull()
     })
   })
 })

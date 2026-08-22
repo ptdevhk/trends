@@ -98,16 +98,16 @@ export function IndustryReviewDetailPanel({
         </div>
         <div className="grid gap-4 px-5 py-4 text-sm sm:grid-cols-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Current verdict</p>
-            <p className="mt-1 font-medium">{profile?.verificationLevel ?? 'No approved revision'}</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentVerdict', { defaultValue: 'Current verdict' })}</p>
+            <p className="mt-1 font-medium">{profile?.verificationLevel ?? t('industryEvidence.detailNoApprovedRevision', { defaultValue: 'No approved revision' })}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Current revision</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentRevision', { defaultValue: 'Current revision' })}</p>
             <p className="mt-1 break-all font-mono text-xs">{profile?.currentRevisionId ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Freshness</p>
-            <p className="mt-1 font-medium">{profile?.freshnessState ?? 'Not recorded'}</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailFreshness', { defaultValue: 'Freshness' })}</p>
+            <p className="mt-1 font-medium">{profile?.freshnessState ?? t('industryEvidence.detailNotRecorded', { defaultValue: 'Not recorded' })}</p>
           </div>
         </div>
       </div>

@@ -1,0 +1,46 @@
+{
+  "schema_version": "dev-loop-dashboard.v1",
+  "generated_at": "2026-08-20T13:06:43.944Z",
+  "read_only": true,
+  "writes_executed": false,
+  "project": {
+    "repo": "/root/workspace",
+    "slug": "trends"
+  },
+  "overall": {
+    "state": "healthy",
+    "slices": 4
+  },
+  "slices": [
+    {
+      "id": "status",
+      "state": "healthy",
+      "summary": "idle — No claimable work in preview",
+      "generated_at": "2026-08-18T04:49:36.722Z",
+      "path": "/root/workspace/.claude/dev-loop/status/2026-08-18T04-49-36-status.json"
+    },
+    {
+      "id": "config_lint",
+      "state": "healthy",
+      "summary": "errors 0 warnings 0",
+      "generated_at": "2026-08-18T01:07:54.780Z",
+      "path": "/root/workspace/.claude/dev-loop/lint/2026-08-18T01-07-54-config-lint.json"
+    },
+    {
+      "id": "config_migrate",
+      "state": "unknown",
+      "summary": "no migrate artifact — run config-migrate.js",
+      "path": null
+    },
+    {
+      "id": "doctor_hud",
+      "state": "healthy",
+      "summary": "dep healthy compact 0",
+      "generated_at": "2026-08-09T19:21:00Z",
+      "path": "/root/.claude/dev-loop/last-doctor.json"
+    }
+  ],
+  "vault_retros": {
+    "note": "Vault retros/CI not aggregated in v1 — use status pipeline_preview and external CI tools"
+  }
+}

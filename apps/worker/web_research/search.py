@@ -161,6 +161,85 @@ class GoogleNewsRssSearchProvider:
         return results
 
 
+class So360SearchProvider:
+    """Free, no-key CN keyword search (so.com).
+
+    The results page rows are ``<li class="res-list">`` blocks carrying the
+    title, snippet, and an opaque ``so.com/link`` redirect URL. The redirect
+    stub page embeds the real target in a meta-refresh; resolving it lets
+    classify_source see the publisher domain (registry/directory/official
+    site) instead of www.so.com.
+    """
+
+    BASE = "https://www.so.com/s?q="
+    _RESULT_BLOCK_RE = re.compile(
+        r'<li class="res-list"[^>]*>(.*?)</li>', re.DOTALL)
+    _RESULT_HREF_RE = re.compile(
+        r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
+    _RESULT_SNIPPET_RE = re.compile(
+        r'<p class="res-desc[^"]*"[^>]*>(.*?)</p>', re.DOTALL)
+    _META_REFRESH_RE = re.compile(
+        r'<meta[^>]*http-equiv=["\']refresh["\'][^>]*'
+        r'content=["\']0;URL=[\'"]([^\'"]+)[\'"]',
+        re.IGNORECASE,
+    )
+
+    def __init__(self, *, fetcher: Any):
+        self.fetcher = fetcher  # object with fetch_text(url) -> str
+        self._resolved: Dict[str, str] = {}
+
+    def _resolve_link(self, url: str) -> str:
+        """Resolve an opaque so.com/link redirect to its real target."""
+        if url in self._resolved:
+            return self._resolved[url]
+        target = url
+        try:
+            page = self.fetcher.fetch_text(url)
+            match = self._META_REFRESH_RE.search(page)
+            if match:
+                target = html.unescape(match.group(1)).strip()
+        except Exception:  # noqa: BLE001 - fall back to the link URL
+            target = url
+        self._resolved[url] = target
+        return target
+
+    @staticmethod
+    def _absolute(href: str) -> str:
+        href = href.strip()
+        if href.startswith("//"):
+            return "https:" + href
+        if href.startswith("/"):
+            return "https://www.so.com" + href
+        return href
+
+    def search(self, query: str, max_results: int) -> List[SearchResult]:
+        page = self.fetcher.fetch_text(self.BASE + quote_plus(query))
+        results: List[SearchResult] = []
+        for block in self._RESULT_BLOCK_RE.finditer(page):
+            raw_block = block.group(1)
+            anchor = self._RESULT_HREF_RE.search(raw_block)
+            if not anchor:
+                continue
+            href = self._absolute(anchor.group(1))
+            title = re.sub(r"<[^>]+>", " ", anchor.group(2)).strip()
+            if not href or not title:
+                continue
+            snippet_match = self._RESULT_SNIPPET_RE.search(raw_block)
+            snippet = (
+                re.sub(r"<[^>]+>", " ", snippet_match.group(1)).strip()
+                if snippet_match else ""
+            )
+            url = (
+                self._resolve_link(href)
+                if href.startswith("https://www.so.com/link")
+                else href
+            )
+            results.append(SearchResult(url=url, title=title, snippet=snippet))
+            if len(results) >= max_results:
+                break
+        return results
+
+
 class NewsNowHotlistSnapshot:
     """Lazily-fetched, once-per-sweep snapshot of NewsNow platform hotlists.
 
@@ -289,6 +368,8 @@ def build_search_chain(config, *, fetcher) -> List[SearchProvider]:
                 fetcher=fetcher,
                 api_url=os.environ.get("RESEARCH_HOTLIST_API_URL") or None,
             ))
+        elif name == "so360":
+            chain.append(So360SearchProvider(fetcher=fetcher))
         elif name == "duckduckgo":
             chain.append(DuckDuckGoSearchProvider(fetcher=fetcher))
         elif name == "google_news":

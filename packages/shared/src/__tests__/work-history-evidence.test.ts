@@ -37,6 +37,27 @@ describe("normalizeWorkHistoryEntry", () => {
     });
   });
 
+  it("normalizes entry carrying companyKey when present and omits when absent", () => {
+    const withKey = normalizeWorkHistoryEntry({
+      companyName: "宝力机械",
+      companyKey: "baoli-machinery",
+    });
+    expect(withKey).toEqual({
+      raw: "",
+      companyName: "宝力机械",
+      companyKey: "baoli-machinery",
+    });
+
+    const withoutKey = normalizeWorkHistoryEntry({
+      companyName: "宝力机械",
+    });
+    expect(withoutKey).toEqual({
+      raw: "",
+      companyName: "宝力机械",
+    });
+    expect(withoutKey?.companyKey).toBeUndefined();
+  });
+
   it("returns null for empty string", () => {
     expect(normalizeWorkHistoryEntry("")).toBeNull();
   });

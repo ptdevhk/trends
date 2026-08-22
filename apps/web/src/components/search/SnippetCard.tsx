@@ -1,10 +1,12 @@
-import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDisplayDateLine, buildWorkHistoryEntryText, hasActiveOverride, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
 import {
   Check,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
   Link2,
   User,
+  XCircle,
 } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,10 +29,12 @@ import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
+import { toast } from 'sonner'
 import { highlightTerms } from '@/lib/highlight'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { getScoreClassName } from '@/lib/score-classes'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
@@ -63,6 +67,8 @@ type SnippetCardProps = {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   /** Raw search query text for highlighting matches in the card */
   searchQuery?: string
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -145,10 +151,8 @@ export const SnippetCard = memo(function SnippetCard({
   onViewDetails,
   selected,
   onSelect,
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  actionType: _actionType,
-  onAction: _onAction,
-  /* eslint-enable @typescript-eslint/no-unused-vars */
+  actionType,
+  onAction,
   userRating,
   initialComment,
   onRating,
@@ -156,6 +160,8 @@ export const SnippetCard = memo(function SnippetCard({
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
+  policyOverrides,
+  resumeIdentity,
 }: SnippetCardProps) {
   const { t } = useTranslation()
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
@@ -188,6 +194,40 @@ export const SnippetCard = memo(function SnippetCard({
       }),
     [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
   )
+  const overriddenCompanyKeys = useMemo(() => {
+    if (!policyOverrides || policyOverrides.length === 0) {
+      return []
+    }
+    const identity = (resumeIdentity ?? item.identityKey).trim()
+    if (!identity) {
+      return []
+    }
+    return companyPolicyHits
+      .filter((hit) => hit.effects.workflow === 'blocked')
+      .filter((hit) => hasActiveOverride(policyOverrides, identity, hit.companyKey))
+      .map((hit) => hit.companyKey)
+  }, [companyPolicyHits, item.identityKey, policyOverrides, resumeIdentity])
+  const companyPolicyState = useMemo(
+    () =>
+      getResumeCompanyPolicyState(
+        {
+          workHistory: item.resume.workHistory,
+          companyHits: item.resume.ingestData?.companyHits,
+        },
+        matchResume,
+        policyOverrides,
+        resumeIdentity ?? item.identityKey,
+      ),
+    [item.identityKey, item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume, policyOverrides, resumeIdentity],
+  )
+  const workflowBlocked = companyPolicyState.workflowBlocked
+  const guardWorkflowAdvance = (fn: () => void) => {
+    if (!workflowBlocked) {
+      fn()
+      return
+    }
+    toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
+  }
   const score = item.score
   const hasAiScore = showAiScore && item.scoreSource === 'ai' && typeof score === 'number'
   const hasRuleScore = !showAiScore && typeof score === 'number'
@@ -387,6 +427,11 @@ export const SnippetCard = memo(function SnippetCard({
           </Badge>
         ))}
         <CompanyPolicyBadges hits={companyPolicyHits} />
+        {overriddenCompanyKeys.length > 0 ? (
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+            {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+          </Badge>
+        ) : null}
         {cardAnchorId ? (
           <TooltipProvider>
             <Tooltip>
@@ -451,7 +496,7 @@ export const SnippetCard = memo(function SnippetCard({
                 href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
-                title={isSeekUuidUrl ? 'Requires active Seek session' : undefined}
+                title={isSeekUuidUrl ? t('resumes.searchPage.card.seekSessionRequired', { defaultValue: 'Requires active Seek session' }) : undefined}
               >
                 {highlightTerms(item.resume.name || unnamedResumeLabel, searchTerms)}
               </a>
@@ -468,16 +513,32 @@ export const SnippetCard = memo(function SnippetCard({
             {/* Action buttons - pushed to the right */}
             <div className="ml-auto flex items-center gap-1">
               <StarRating value={userRating} initialComment={initialComment} onChange={onRating ? (rating) => onRating(item.resume.resumeId, rating) : undefined} onRatingComment={onRatingComment ? (comment) => onRatingComment(item.resume.resumeId, comment) : undefined} size={14} />
-              {/* Star action button disabled — replaced by StarRating (5-star rating) */}
-              {/* <Button
-                variant={actionType === 'star' ? 'default' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'star') }}
-                aria-label={t('resumes.actions.star', { defaultValue: '收藏' })}
-              >
-                <Star className="h-4 w-4" />
-              </Button> */}
+              {onAction ? (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant={actionType === 'shortlist' ? 'default' : 'ghost'}
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={workflowBlocked}
+                    title={workflowBlocked ? t('settings.policies.runtime.workflowBlockedTitle', { defaultValue: 'Blocked by company policy' }) : undefined}
+                    onClick={(e) => { e.stopPropagation(); guardWorkflowAdvance(() => onAction(item.resume.resumeId, 'shortlist')) }}
+                    aria-label={t('resumes.actions.shortlist')}
+                    data-testid="snippet-card-shortlist"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={actionType === 'reject' ? 'destructive' : 'ghost'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => { e.stopPropagation(); onAction(item.resume.resumeId, 'reject') }}
+                    aria-label={t('resumes.actions.reject')}
+                    data-testid="snippet-card-reject"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
               <Button variant="ghost" size="sm" className="h-8" onClick={() => onViewDetails?.(item)}>
                 {t('resumes.actions.view', { defaultValue: '查看详情' })}
               </Button>
@@ -582,6 +643,8 @@ export const SnippetCard = memo(function SnippetCard({
           showAiScore={showAiScore}
           onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
           candidateStatus={candidateStatus}
+          policyOverrides={policyOverrides}
+          resumeIdentity={resumeIdentity ?? item.identityKey}
           onCandidateStatusChange={onCandidateStatusChange
             ? (identityKey, nextStatus) => {
               if (nextStatus === 'interviewed_reject' || nextStatus === 'withdrawn') {
@@ -629,6 +692,7 @@ export const SnippetCard = memo(function SnippetCard({
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder={t('resumes.status.notes')}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 if (pendingStatus) {
@@ -641,7 +705,7 @@ export const SnippetCard = memo(function SnippetCard({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+              {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               onClick={() => {
@@ -652,7 +716,7 @@ export const SnippetCard = memo(function SnippetCard({
                 }
               }}
             >
-              {t('common.confirm', 'Confirm')}
+              {t('common.confirm', { defaultValue: 'Confirm' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -672,6 +736,7 @@ export const SnippetCard = memo(function SnippetCard({
             onChange={(e) => setBlockNoteInput(e.target.value)}
             placeholder={t('resumes.card.notePlaceholder', { defaultValue: '备注' })}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 onToggleBlock?.(item.identityKey, false, blockNoteInput.trim() || undefined)
@@ -681,7 +746,7 @@ export const SnippetCard = memo(function SnippetCard({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setBlockDialogOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+              {t('common.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button
               onClick={() => {
@@ -689,7 +754,7 @@ export const SnippetCard = memo(function SnippetCard({
                 setBlockDialogOpen(false)
               }}
             >
-              {t('common.confirm', 'Confirm')}
+              {t('common.confirm', { defaultValue: 'Confirm' })}
             </Button>
           </DialogFooter>
         </DialogContent>

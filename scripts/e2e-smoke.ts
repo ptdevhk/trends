@@ -6,7 +6,7 @@ import {
     measureWebVitals,
     collectConsoleErrors,
 } from './e2e-utils';
-import { Locator, Page, expect } from '@playwright/test';
+import { Locator, Page, Response, expect } from '@playwright/test';
 import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 import { readFileSync } from 'node:fs';
@@ -34,7 +34,7 @@ const SMOKE_VIEWPORT = { width: 1600, height: 1200 };
 const SEARCH_WITH_QUERY_URL = (baseUrl: string) =>
     `${baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`;
 const SEARCH_EMPTY_STATE_PATTERN = /没有匹配到简历|沒有符合的簡歷|No resumes matched this search|No resumes match this search/i;
-const SEARCH_RESULT_COUNT_PATTERN = /\d+\s*(条结果|條結果|results?)/i;
+const SEARCH_RESULT_COUNT_PATTERN = /\d+\+?\s*(条结果|條結果|results?)/i;
 const JOB5156_LOGIN_URL_PREFIX = 'https://hr.job5156.com/login'
 const JOB5156_SEARCH_URL_PREFIX = 'https://hr.job5156.com/search'
 const RUN_JOB5156_SMOKE_FLAG = '--run-job5156'
@@ -52,6 +52,18 @@ const seedWorkspaceDemoFunction = makeFunctionReference<
     WorkspaceSeedResult
 >('seed:seedWorkspaceDemoData');
 
+type ClearWorkspaceResult = {
+    workspaceSlug: string;
+    clearedStatuses: number;
+    clearedOverlayRows: number;
+};
+
+const clearCandidateStatusesFunction = makeFunctionReference<
+    'mutation',
+    { workspaceSlug: string; writeSecret: string },
+    ClearWorkspaceResult
+>('candidate_status:clearWorkspace');
+
 function resolveConvexUrl(): string {
     if (typeof process.env.CONVEX_URL === 'string' && process.env.CONVEX_URL.trim().length > 0) {
         return process.env.CONVEX_URL.trim();
@@ -66,6 +78,22 @@ async function ensureDeterministicSmokeFixtures() {
     const convexUrl = resolveConvexUrl();
     const client = new ConvexHttpClient(convexUrl);
     console.log(`Seeding deterministic smoke fixtures at ${convexUrl}...`);
+
+    // Reset dev-workspace candidate statuses first so every run starts from an
+    // all-"new" state. The bulk-actions smoke shortlists the top results; without
+    // this reset, the default new-only status filter hides them on the next run
+    // and the deterministic search degrades to an empty list (e2e self-poisoning).
+    const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim();
+    if (writeSecret) {
+        const clearResult = await client.mutation(clearCandidateStatusesFunction, {
+            workspaceSlug: 'dev',
+            writeSecret,
+        });
+        console.log(`✅ Dev candidate statuses reset (${clearResult.clearedStatuses} statuses, ${clearResult.clearedOverlayRows} overlay rows).`);
+    } else {
+        console.warn('⚠️ CONVEX_WRITE_SECRET not set — skipping candidate status reset.');
+    }
+
     const seedResult = await client.mutation(seedWorkspaceDemoFunction, {});
     console.log('✅ Deterministic smoke fixtures ensured.', seedResult.resumes);
 }
@@ -76,7 +104,9 @@ async function preferVisibleLocator(primary: Locator, fallback: Locator, timeout
 }
 
 async function loadDeterministicSearchResults(page: Page) {
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    // The SPA renders from JS; waiting for full "load" can hang on fonts/images
+    // when the local backend is slow. domcontentloaded is sufficient here.
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await page.setViewportSize(SMOKE_VIEWPORT);
 
     const keywordInput = await preferVisibleLocator(
@@ -87,33 +117,135 @@ async function loadDeterministicSearchResults(page: Page) {
     await keywordInput.fill(DETERMINISTIC_SEARCH_QUERY);
 
     const resetBtn = page.getByRole('button', { name: /重置|Reset/i }).first();
-    const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
+    const firstCheckbox = page.getByRole('checkbox', { name: /选择|選擇|Select/i }).first();
     const emptyState = page.getByRole('heading', { name: SEARCH_EMPTY_STATE_PATTERN }).first();
     const searchSubmitBtn = page.getByTestId('resume-search-submit');
+    // The search surfaces an explicit failure panel (with retry) instead of a
+    // false empty state when the BFF search drops (F11: the dev Vite proxy
+    // intermittently kills large search responses). The settle poll retries
+    // through it instead of timing out.
+    const searchFailedPanel = page.getByTestId('resume-search-failed-panel');
+    // Stuck-mode detection lives inside settle(): it tracks completed API
+    // responses (network progress) rather than the loading indicator, whose
+    // flicker across the hook's internal retries defeated a loading-based
+    // counter (see settle below).
+
+    // The empty-state heading also renders in the pre-search landing state
+    // and during the one-frame URL-update → loading-effect flash, so an
+    // "empty" verdict only counts once a search response has completed after
+    // the current search start (submit / reset / recovery navigation).
+    const searchState = { lastSearchStart: 0, lastResponseAt: 0 };
 
     if (await searchSubmitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await searchSubmitBtn.click();
     } else {
         await keywordInput.press('Enter');
     }
+    searchState.lastSearchStart = Date.now();
 
-    await expect.poll(async () => {
-        const hasResetBtn = await resetBtn.isVisible().catch(() => false);
+    // The local backend can take 5–15s per search and the hook retries failed
+    // fetches (ERR_FAILED under collection/analysis churn), so the results
+    // settle window can stretch well past 30s — poll generously, and when the
+    // explicit search-failure panel appears, recover with a fresh page load:
+    // the F11 drops are connection-level, so retrying on the same connection
+    // keeps failing while a reload (new connection) recovers.
+    const settle = async (hasSettled: () => Promise<boolean>, timeoutMs: number) => {
+        const deadline = Date.now() + timeoutMs;
+        const NO_PROGRESS_MS = Number(process.env.E2E_RECOVERY_MS ?? 40000);
+        const dbg = process.env.E2E_DEBUG === '1';
+        const startedAt = Date.now();
+        // Progress = a completed search response. Failed/dropped requests emit
+        // no response event, so this distinguishes "slow but progressing"
+        // searches (wait for them) from stuck ones (drops, missed submits,
+        // silent hangs — recover). Other endpoints (auth/me, keywords, config)
+        // can stay healthy while the search fetch itself hangs, so only
+        // /api/resumes responses count as search progress. The loading-flag
+        // flicker that defeated the old stuck-loading counter is irrelevant.
+        let lastApiResponseAt = Date.now();
+        const onApiResponse = (resp: Response) => {
+            if (/\/api\/resumes/.test(resp.url())) {
+                lastApiResponseAt = Date.now();
+                searchState.lastResponseAt = Date.now();
+            }
+        };
+        page.on('response', onApiResponse);
+        // Recovery = fresh navigation to the query-param URL. The SPA
+        // auto-runs the search from URL params (verified live), so a
+        // navigation both re-issues the search and gets a fresh connection.
+        // Navigation (not page.reload) guarantees the query param is present
+        // even when the original submit never registered on the page.
+        const recover = async (reason: string) => {
+            if (dbg) console.log(`[e2e-debug] RECOVERY(${reason})`);
+            await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl), { waitUntil: 'domcontentloaded' }).catch(() => {});
+            await page.setViewportSize(SMOKE_VIEWPORT);
+            lastApiResponseAt = Date.now();
+            searchState.lastSearchStart = Date.now();
+        };
+        try {
+            // Test hook: exercise the recovery path on demand (E2E_FORCE_RECOVERY=1).
+            if (process.env.E2E_FORCE_RECOVERY === '1') {
+                await recover('forced');
+            }
+            while (Date.now() < deadline) {
+                if (await hasSettled()) return true;
+                if (dbg) {
+                    const inputVal = await keywordInput.inputValue().catch(() => '<n/a>');
+                    console.log(`[e2e-debug] t=${((Date.now() - startedAt) / 1000).toFixed(0)}s input="${inputVal}" url=${page.url()}`);
+                }
+                if (await searchFailedPanel.isVisible().catch(() => false)) {
+                    await recover('failure-panel');
+                    continue;
+                }
+                // No-progress net: ANY stuck mode (silent hang, missed submit,
+                // connection-level drops) recovers with a fresh query-param
+                // navigation instead of polling to the deadline. Overridable
+                // via E2E_RECOVERY_MS for stress runs.
+                if (Date.now() - lastApiResponseAt > NO_PROGRESS_MS) {
+                    await recover('no-progress');
+                    continue;
+                }
+                await page.waitForTimeout(1500);
+            }
+            return hasSettled();
+        } finally {
+            page.off('response', onApiResponse);
+        }
+    };
+
+    const settled = await settle(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
+        if (hasCheckbox) return true;
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        return hasResetBtn || hasCheckbox || hasEmptyState;
-    }, { timeout: 15000 }).toBe(true);
+        // Deliberately NOT the reset button: it renders in the pre-search
+        // state too, which would let the first settle pass before the search
+        // actually produced results or an empty verdict. Same for the empty
+        // heading: gate it on a completed search response after this search
+        // started, so the landing state / one-frame flash can't settle.
+        return hasEmptyState && searchState.lastResponseAt >= searchState.lastSearchStart;
+    }, 120000);
+    expect(settled).toBe(true);
 
-    const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
-    if (hasResetBtn) {
-        await resetBtn.click();
+    // Only click the filters reset when the first settle ended WITHOUT
+    // results. The reset re-runs the search, and that re-search is the most
+    // drop-prone request of the whole run (observed failing the second
+    // settle on consecutive passes right after the chrome/cmux restart).
+    // With results already on screen the reset is a no-op, so skip it.
+    const hasCheckboxAfterFirstSettle = await firstCheckbox.isVisible({ timeout: 2000 }).catch(() => false);
+    if (!hasCheckboxAfterFirstSettle) {
+        const hasResetBtn = await resetBtn.isVisible({ timeout: 3000 }).catch(() => false);
+        if (hasResetBtn) {
+            await resetBtn.click();
+            searchState.lastSearchStart = Date.now();
+        }
     }
 
-    await expect.poll(async () => {
+    const settledAfterReset = await settle(async () => {
         const hasCheckbox = await firstCheckbox.isVisible().catch(() => false);
+        if (hasCheckbox) return true;
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
-        return hasCheckbox || hasEmptyState;
-    }, { timeout: 15000 }).toBe(true);
+        return hasEmptyState && searchState.lastResponseAt >= searchState.lastSearchStart;
+    }, 120000);
+    expect(settledAfterReset).toBe(true);
 
     return {
         keywordInput,
@@ -284,7 +416,8 @@ async function runCollectUrlKeywordModeTest(page: Page) {
 
     // Legacy flow: collect limit input is present on the search page.
     await page.goto(
-        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`
+        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`,
+        { waitUntil: 'domcontentloaded' }
     );
     await installOpenSpy();
 
@@ -292,7 +425,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     const hasLegacyCollectLimit = await collectPageLimitInput.isVisible({ timeout: 1500 }).catch(() => false);
     if (hasLegacyCollectLimit) {
         await collectPageLimitInput.fill('3');
-        await page.getByRole('button', { name: /采集|Collect/i }).click();
+        await page.getByRole('button', { name: /采集|採集|Collect/i }).click();
 
         const openedUrl = await getFirstOpenedUrl();
         expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://my.employer.seek.com/candidates/recommended');
@@ -306,11 +439,11 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     }
 
     // Search-first flow: collect launches from quick-start cards without inline page-limit input.
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await installOpenSpy();
     const collectButton = await preferVisibleLocator(
         page.getByTestId('search-hero-collect').first(),
-        page.getByRole('button', { name: /^(Collect|采集)$/ }).first(),
+        page.getByRole('button', { name: /^(Collect|采集|採集)$/ }).first(),
     );
     await collectButton.waitFor({ state: 'visible' });
     await collectButton.click();
@@ -337,7 +470,7 @@ async function runCollectionTest(page: Page) {
     // Set up CWV observers before navigation
     const vitals = await measureWebVitals(page);
 
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/admin/system/settings/operations`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/admin/system/settings/operations`, { waitUntil: 'domcontentloaded' });
 
     const keywordInput = await preferVisibleLocator(
         page.getByTestId('ops-collection-keyword'),
@@ -483,10 +616,39 @@ async function runAnalysisTest(page: Page) {
     console.log('✅ AI Analysis test passed.');
 }
 
+/**
+ * The collection test dispatches a task whose auto-analyze runs concurrently
+ * with the search test and can make the search response 10x slower (the
+ * e2e self-poisoning pattern). Wait for analysis tasks to drain before the
+ * search tests so the backend is quiescent.
+ */
+async function waitForAnalysisQuiescence(page: Page, timeoutMs = 180000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const active = await page.evaluate(async () => {
+            try {
+                const response = await fetch('/api/resumes/analysis-tasks', {
+                    credentials: 'include',
+                    headers: { 'X-Workspace-Slug': 'dev' },
+                });
+                const payload = await response.json();
+                const tasks = payload.tasks ?? payload.items ?? [];
+                return tasks.filter((task: { status?: string }) => (
+                    task.status === 'pending' || task.status === 'processing'
+                )).length;
+            } catch {
+                return -1;
+            }
+        }).catch(() => -1);
+        if (active === 0) return;
+        await page.waitForTimeout(5000);
+    }
+    console.log('⚠️ Analysis tasks still active after the quiescence wait; continuing.');
+}
+
 async function runBulkActionsTest(page: Page) {
     console.log('Testing Critical Path 4: Bulk Actions...');
     const { firstCheckbox, emptyState } = await loadDeterministicSearchResults(page);
-
     const isEmpty = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
     if (isEmpty) {
         console.log('⚠️ Bulk Actions skipped: 0 search results for deterministic query.');
@@ -497,20 +659,20 @@ async function runBulkActionsTest(page: Page) {
 
     const selectAllBtn = await preferVisibleLocator(
         page.getByTestId('bulk-select-all').first(),
-        page.getByRole('button', { name: /全选|Select All/i }),
+        page.getByRole('button', { name: /全选|全選|Select All/i }),
     );
     await selectAllBtn.waitFor({ state: 'visible' });
     await selectAllBtn.click();
 
     const clearSelectionBtn = await preferVisibleLocator(
         page.getByTestId('bulk-clear-selection').first(),
-        page.getByRole('button', { name: /取消选择|Clear Selection/i }).first(),
+        page.getByRole('button', { name: /取消选择|取消選擇|Clear Selection/i }).first(),
     );
     await expect(clearSelectionBtn).toBeVisible();
 
     const shortlistBtn = await preferVisibleLocator(
         page.getByTestId('bulk-shortlist').first(),
-        page.getByRole('button', { name: /批量入围|Shortlist/i }).first(),
+        page.getByRole('button', { name: /批量入围|批量入圍|Shortlist/i }).first(),
     );
     await shortlistBtn.click();
     await expect(clearSelectionBtn).toBeHidden({ timeout: 15000 });
@@ -522,7 +684,7 @@ async function runErrorStateTest(page: Page) {
     console.log('Testing Error State & Recovery...');
 
     // 1. Navigate to the shell first, then intercept the deterministic search request.
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
+    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
     await page.setViewportSize(SMOKE_VIEWPORT);
 
     // 2. Mock API failure for resumes before the deterministic query submits.
@@ -542,8 +704,8 @@ async function runErrorStateTest(page: Page) {
 
     // 3. Verify the failure surfaces, either as the legacy retry UI or the
     // current empty-state fallback.
-    const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
-    const retryBtn = page.getByRole('button', { name: /Retry|重试|common\.retry/i });
+    const firstCheckbox = page.getByRole('checkbox', { name: /选择|選擇|Select/i }).first();
+    const retryBtn = page.getByRole('button', { name: /Retry|重试|重試|common\.retry/i });
     const emptyState = page.getByRole('heading', { name: SEARCH_EMPTY_STATE_PATTERN }).first();
     await expect.poll(async () => {
         const hasRetry = await retryBtn.isVisible().catch(() => false);
@@ -587,6 +749,53 @@ async function runErrorStateTest(page: Page) {
     console.log('✅ Error State test passed.');
 }
 
+async function ensureDevAdminSession(page: Page) {
+    // The e2e drives the shared chrome-debug profile, which other UAT flows
+    // leave logged in as various users (hr-demo, uat-reviewer, ...). The
+    // collection smoke needs a dev-workspace admin for /admin/* routes; any
+    // other session silently bounces to the workspace home and the limit
+    // label times out after 30s. Detect the session up front and re-login as
+    // demo-admin instead of failing on the label wait.
+    const baseUrl = DEFAULT_OPTIONS.baseUrl;
+    await page.goto(`${baseUrl}/dev/resumes`, { waitUntil: 'domcontentloaded' });
+    const isDevWorkspace = await page
+        .getByTestId('resume-search-input')
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .then(() => page.url().includes('/dev/resumes'))
+        .catch(() => false);
+    if (isDevWorkspace) {
+        console.log('✅ Dev-admin session confirmed.');
+        return;
+    }
+
+    const password = process.env.AUTH_BOOTSTRAP_PASSWORD?.trim();
+    if (!password) {
+        throw new Error('AUTH_BOOTSTRAP_PASSWORD is required to ensure the dev-admin session for /admin/* routes');
+    }
+    console.log('⚠️ Dev-admin session missing — logging in as demo-admin.');
+    // An authenticated non-dev-admin session bounces /login back to the
+    // workspace home, so revoke the session first.
+    await page.evaluate(async () => {
+        const csrf = document.cookie
+            .split(';')
+            .map((c) => c.trim())
+            .find((c) => c.startsWith('trends_csrf='));
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+                ...(csrf ? { 'x-csrf-token': csrf.split('=')[1] } : {}),
+                'X-Workspace-Slug': 'dev',
+            },
+        });
+    });
+    await page.goto(`${baseUrl}/login`);
+    await page.getByLabel(/用户名|使用者名稱|Username/i).fill('demo-admin');
+    await page.getByLabel(/密码|密碼|Password/i).fill(password);
+    await page.getByRole('button', { name: /登录|登入|Sign in|Log in/i }).click();
+    await page.getByTestId('resume-search-input').waitFor({ state: 'visible', timeout: 15000 });
+    console.log('✅ Logged in as demo-admin.');
+}
+
 async function main() {
     const collectOnly = process.argv.includes('--collect-only');
     const liveJob5156Detail = getFlagValue('--live-job5156-detail');
@@ -596,12 +805,14 @@ async function main() {
     const { browser, page } = await connectToChrome();
 
     try {
+        await ensureDevAdminSession(page);
         await runCollectUrlKeywordModeTest(page);
         if (collectOnly) {
             console.log('\n🌟 Collect URL smoke test passed!');
             return;
         }
         await runCollectionTest(page);
+        await waitForAnalysisQuiescence(page);
         await runSearchTest(page);
         await runAnalysisTest(page);
         await runBulkActionsTest(page);

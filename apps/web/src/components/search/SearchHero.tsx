@@ -195,7 +195,7 @@ export function SearchHero({
                   >
                     <button
                       type="button"
-                      className="min-w-0 text-left"
+                      className="min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
                       onClick={() =>
                         void onApplyQuickStart?.({
                           keywords: seed.keywords,
@@ -262,8 +262,9 @@ export function SearchHero({
                 <button
                   key={keyword.id}
                   type="button"
-                  className="rounded-full border bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
+                  className="rounded-full border bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   onClick={() => void onToggleHotKeyword?.(keyword.keyword)}
+                  aria-label={t('resumes.searchPage.hero.searchKeyword', { keyword: keyword.keyword, defaultValue: 'Search for {{keyword}}' })}
                 >
                   {keyword.keyword}
                 </button>

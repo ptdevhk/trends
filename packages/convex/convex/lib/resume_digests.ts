@@ -23,6 +23,7 @@ import {
     appendMissingSearchTokens,
     buildIngestSearchTokens,
     buildSearchText,
+    deriveProseSearchTokens,
     normalizeWhitespace,
     toTextFragments,
 } from "../search_text.js";
@@ -141,6 +142,12 @@ function buildCompactDigestSearchText(
         options.educationLevel,
         ...roleTokens,
         ...ingestTokens,
+        // selfIntro is excluded from the compact content, so its word tokens
+        // (and 机床/machine-tool aliases) are appended at the lowest cap
+        // priority: present when the 1500-char cap is not exhausted.
+        ...deriveProseSearchTokens(
+            typeof content.selfIntro === "string" ? content.selfIntro : undefined,
+        ),
     ].filter((value): value is string => typeof value === "string" && value.length > 0));
     return limitSearchText(withDigestFields, domainTokens);
 }

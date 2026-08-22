@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
@@ -341,6 +341,86 @@ describe('FacetSidebar', () => {
     expect(onSetMinRoleYears).toHaveBeenCalledWith(10)
   })
 
+  it('closes custom minRoleYears input on Escape', async () => {
+    const user = userEvent.setup()
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onSetSalaryRange={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
+      />
+    )
+
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    await user.click(customButtons[0])
+    expect(screen.getAllByRole('spinbutton').length).toBeGreaterThan(0)
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryAllByRole('spinbutton').length).toBe(0)
+    expect(onSetMinRoleYears).not.toHaveBeenCalled()
+  })
+
+  it('ignores Enter keydown during IME composition in minRoleYears input', () => {
+    const onSetMinRoleYears = vi.fn()
+
+    render(
+      <FacetSidebar
+        facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={vi.fn()}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinRoleYears={onSetMinRoleYears}
+        onSetAgeRange={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onSetSalaryRange={vi.fn()}
+        onToggleBrand={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
+        onSetIdOrNameSearch={vi.fn()}
+      />
+    )
+
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    fireEvent.click(customButtons[0])
+    const input = screen.getAllByRole('spinbutton')[0]
+
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+
+    expect(onSetMinRoleYears).not.toHaveBeenCalled()
+  })
+
   it('toggles age range filter pills', async () => {
     const user = userEvent.setup()
     const onSetAgeRange = vi.fn()
@@ -429,35 +509,36 @@ describe('FacetSidebar', () => {
   })
 })
 
-describe('idOrNameSearch filter input', () => {
-  function buildProps() {
-    return {
-      facetCounts: buildFacetCounts(),
-      selectedBrands: [],
-      selectedClusters: [],
-      selectedCompanies: [],
-      selectedEducation: [],
-      selectedExperienceLevel: undefined as undefined,
-      selectedSources: [],
-      selectedStatuses: [] as CandidateStatus[],
-      selectedTags: [],
-      onClearAll: vi.fn(),
-      onSetAgeRange: vi.fn(),
-      onSetExperienceLevel: vi.fn(),
-      onSetMinRoleYears: vi.fn(),
-      onSetMinScore: vi.fn(),
-      onSetSalaryRange: vi.fn(),
-      onToggleBrand: vi.fn(),
-      onToggleCluster: vi.fn(),
-      onToggleCompany: vi.fn(),
-      onToggleEducation: vi.fn(),
-      onToggleSource: vi.fn(),
-      onToggleStatus: vi.fn(),
-      onToggleTag: vi.fn(),
-      idOrNameSearch: undefined as string | undefined,
-      onSetIdOrNameSearch: vi.fn(),
-    }
+function buildProps() {
+  return {
+    facetCounts: buildFacetCounts(),
+    selectedBrands: [],
+    selectedClusters: [],
+    selectedCompanies: [],
+    selectedEducation: [],
+    selectedExperienceLevel: undefined as undefined,
+    selectedSources: [],
+    selectedStatuses: [] as CandidateStatus[],
+    selectedTags: [],
+    onClearAll: vi.fn(),
+    onSetAgeRange: vi.fn(),
+    onSetExperienceLevel: vi.fn(),
+    onSetMinRoleYears: vi.fn(),
+    onSetMinScore: vi.fn(),
+    onSetSalaryRange: vi.fn(),
+    onToggleBrand: vi.fn(),
+    onToggleCluster: vi.fn(),
+    onToggleCompany: vi.fn(),
+    onToggleEducation: vi.fn(),
+    onToggleSource: vi.fn(),
+    onToggleStatus: vi.fn(),
+    onToggleTag: vi.fn(),
+    idOrNameSearch: undefined as string | undefined,
+    onSetIdOrNameSearch: vi.fn(),
   }
+}
+
+describe('idOrNameSearch filter input', () => {
 
   it('renders the id/name search input placeholder', () => {
     render(<FacetSidebar {...buildProps()} embedded />)
@@ -492,5 +573,71 @@ describe('idOrNameSearch filter input', () => {
     render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" onSetIdOrNameSearch={onSetIdOrNameSearch} />)
     await user.click(screen.getByRole('button', { name: /clear/i }))
     expect(onSetIdOrNameSearch).toHaveBeenCalledWith(undefined)
+  })
+})
+
+describe('FacetSidebar a11y', () => {
+  it('clear button has accessible name "Clear"', () => {
+    render(<FacetSidebar {...buildProps()} embedded idOrNameSearch="abc" />)
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+  })
+
+  it('custom range min/max inputs have aria-labels', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} embedded />)
+    // Open a custom range filter (age range is the first RangeFilterGroup "Custom" button;
+    // index 0 is the minRoleYears custom input)
+    const customButtons = screen.getAllByRole('button', { name: /Custom/i })
+    await user.click(customButtons[1])
+    const spinbuttons = screen.getAllByRole('spinbutton')
+    expect(spinbuttons).toHaveLength(2)
+    for (const input of spinbuttons) {
+      const label = input.getAttribute('aria-label')
+      expect(label).toBeTruthy()
+    }
+  })
+})
+
+describe('filterable facet groups (R1)', () => {
+  it('shows a filter input only for facets with more items than maxVisible', () => {
+    render(<FacetSidebar {...buildProps()} />)
+    // Only the tags facet (9 items > 8) is filterable; brands/companies stay unfiltered.
+    expect(screen.getAllByPlaceholderText('Filter options…')).toHaveLength(1)
+  })
+
+  it('filters tag options by case-insensitive text', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+    expect(screen.getByRole('button', { name: /Machine Tools/ })).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'cnc')
+
+    expect(screen.getByRole('button', { name: /CNC/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
+    // Show-more toggle is hidden while a filter is active.
+    expect(screen.queryByRole('button', { name: /Show 1 more/ })).not.toBeInTheDocument()
+  })
+
+  it('clears the tag filter with the clear button', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'cnc')
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(screen.getByRole('button', { name: /Machine Tools/ })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Filter options…')).toHaveValue('')
+  })
+
+  it('shows a no-matches message when the filter yields nothing', async () => {
+    const user = userEvent.setup()
+    render(<FacetSidebar {...buildProps()} />)
+
+    await user.type(screen.getByPlaceholderText('Filter options…'), 'zzz')
+
+    expect(screen.getByText('No matching options')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Machine Tools/ })).not.toBeInTheDocument()
   })
 })

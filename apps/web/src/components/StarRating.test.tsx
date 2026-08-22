@@ -16,10 +16,10 @@ describe('StarRating', () => {
   it('renders with correct aria-labels for all stars', () => {
     render(<StarRating />)
     expect(screen.getByRole('button', { name: '1 star' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '2 stars' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '3 stars' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '4 stars' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '5 stars' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2 star' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '3 star' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '4 star' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '5 star' })).toBeInTheDocument()
   })
 
   it('renders with group role and label', () => {
@@ -30,20 +30,20 @@ describe('StarRating', () => {
   it('calls onChange with rating when a star is clicked', async () => {
     const onChange = vi.fn()
     render(<StarRating onChange={onChange} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: '3 stars' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: '3 star' }))
     expect(onChange).toHaveBeenCalledWith(3)
   })
 
   it('calls onChange with 0 when the current value star is clicked (toggle off)', async () => {
     const onChange = vi.fn()
     render(<StarRating value={3} onChange={onChange} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: '3 stars' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: '3 star' }))
     expect(onChange).toHaveBeenCalledWith(0)
   })
 
   it('does not throw when onChange is not provided', async () => {
     render(<StarRating value={2} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: '4 star' }))
   })
 
   it('disables star buttons when disabled and does not call onChange', async () => {
@@ -56,7 +56,7 @@ describe('StarRating', () => {
       expect(button).toBeDisabled()
     })
 
-    await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: '4 star' }))
 
     expect(onChange).not.toHaveBeenCalled()
   })
@@ -89,7 +89,7 @@ describe('StarRating', () => {
       const onChange = vi.fn()
       const onRatingComment = vi.fn()
       render(<StarRating value={2} onChange={onChange} onRatingComment={onRatingComment} />)
-      await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+      await userEvent.setup().click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.getByTestId('rating-comment-popover')).toBeInTheDocument()
       expect(onChange).toHaveBeenCalledWith(4)
     })
@@ -102,7 +102,7 @@ describe('StarRating', () => {
           <div data-testid="later-card" className="relative z-10">later resume</div>
         </div>,
       )
-      await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+      await userEvent.setup().click(screen.getByRole('button', { name: '4 star' }))
       const popover = screen.getByTestId('rating-comment-popover')
       expect(popover).toHaveAttribute('data-portal', 'true')
       expect(popover.parentElement).toBe(document.body)
@@ -112,7 +112,7 @@ describe('StarRating', () => {
     it('does not open popover when onRatingComment is not provided', async () => {
       const onChange = vi.fn()
       render(<StarRating value={2} onChange={onChange} />)
-      await userEvent.setup().click(screen.getByRole('button', { name: '4 stars' }))
+      await userEvent.setup().click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
     })
 
@@ -120,7 +120,7 @@ describe('StarRating', () => {
       const onChange = vi.fn()
       const onRatingComment = vi.fn()
       render(<StarRating value={3} onChange={onChange} onRatingComment={onRatingComment} />)
-      await userEvent.setup().click(screen.getByRole('button', { name: '3 stars' }))
+      await userEvent.setup().click(screen.getByRole('button', { name: '3 star' }))
       expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
       expect(onChange).toHaveBeenCalledWith(0)
     })
@@ -128,7 +128,7 @@ describe('StarRating', () => {
     it('opens in compose mode when there is no initialComment', async () => {
       const user = userEvent.setup()
       render(<StarRating value={2} onChange={vi.fn()} onRatingComment={vi.fn()} />)
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.getByTestId('rating-comment-input')).toBeInTheDocument()
       expect(screen.getByTestId('rating-comment-save')).toBeInTheDocument()
       expect(screen.queryByTestId('rating-comment-view')).not.toBeInTheDocument()
@@ -145,7 +145,7 @@ describe('StarRating', () => {
           initialComment="previous note"
         />,
       )
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.getByTestId('rating-comment-view')).toHaveTextContent('previous note')
       expect(screen.queryByTestId('rating-comment-input')).not.toBeInTheDocument()
       expect(screen.getByTestId('rating-comment-edit')).toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('StarRating', () => {
       const user = userEvent.setup()
       const onRatingComment = vi.fn()
       render(<StarRating value={2} onChange={vi.fn()} onRatingComment={onRatingComment} />)
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
       await user.type(input, '  strong candidate  ')
       await user.click(screen.getByTestId('rating-comment-save'))
@@ -175,7 +175,7 @@ describe('StarRating', () => {
       const user = userEvent.setup()
       const onRatingComment = vi.fn()
       render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
-      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      await user.click(screen.getByRole('button', { name: '5 star' }))
       const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
       await user.type(input, 'top pick')
       await user.keyboard('{Enter}')
@@ -186,7 +186,7 @@ describe('StarRating', () => {
       const user = userEvent.setup()
       const onRatingComment = vi.fn()
       render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
-      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      await user.click(screen.getByRole('button', { name: '5 star' }))
       const input = screen.getByTestId('rating-comment-input') as HTMLTextAreaElement
       await user.type(input, 'draft note')
       await user.keyboard('{Escape}')
@@ -198,7 +198,7 @@ describe('StarRating', () => {
       const user = userEvent.setup()
       const onRatingComment = vi.fn()
       render(<StarRating value={1} onChange={vi.fn()} onRatingComment={onRatingComment} />)
-      await user.click(screen.getByRole('button', { name: '5 stars' }))
+      await user.click(screen.getByRole('button', { name: '5 star' }))
       await user.click(screen.getByTestId('rating-comment-save'))
       expect(onRatingComment).not.toHaveBeenCalled()
       expect(screen.queryByTestId('rating-comment-popover')).not.toBeInTheDocument()
@@ -215,7 +215,7 @@ describe('StarRating', () => {
           initialComment="keep me"
         />,
       )
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       await user.click(screen.getByTestId('rating-comment-edit'))
       await user.clear(screen.getByTestId('rating-comment-input'))
       await user.click(screen.getByTestId('rating-comment-save'))
@@ -229,13 +229,13 @@ describe('StarRating', () => {
       const { rerender } = render(
         <StarRating value={3} onChange={vi.fn()} onRatingComment={onRatingComment} initialComment="old note" />,
       )
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.getByTestId('rating-comment-view')).toHaveTextContent('old note')
       await user.click(screen.getByTestId('rating-comment-cancel'))
       rerender(
         <StarRating value={3} onChange={vi.fn()} onRatingComment={onRatingComment} initialComment="new note" />,
       )
-      await user.click(screen.getByRole('button', { name: '4 stars' }))
+      await user.click(screen.getByRole('button', { name: '4 star' }))
       expect(screen.getByTestId('rating-comment-view')).toHaveTextContent('new note')
     })
   })

@@ -87,7 +87,7 @@ bash "$SCRIPT_DIR/preview-preflight.sh" || log_warn "Preflight reported issues; 
 # --- Phase 1: production backup ---
 log_step "1/6 Production complete backup"
 if [ -x "$SCRIPT_DIR/backup-prod-complete.sh" ]; then
-    ASSUME_YES=1 bash "$SCRIPT_DIR/backup-prod-complete.sh" || {
+    ASSUME_YES=1 SKIP_RESUME_EXPORT=1 bash "$SCRIPT_DIR/backup-prod-complete.sh" || {
         log_error "Production backup failed — STOP"
         exit 1
     }
@@ -120,16 +120,30 @@ ASSUME_YES=1 bash "$SCRIPT_DIR/preview-isolate-integrations.sh" --apply || true
 log_step "5/6 Stabilize preview Convex + API"
 cd "$PREVIEW_DIR"
 if [ -f docker-compose.preview.yml ]; then
-    docker compose -f docker-compose.preview.yml up -d --force-recreate convex
-    for i in $(seq 1 48); do
-        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
-        health="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' trends-preview-convex 2>/dev/null || echo miss)"
-        if [ "$code" = "200" ]; then
-            log_info "Preview Convex ready (http=$code health=$health)"
-            break
+    recreate=0
+    if convex_healthy "$PREVIEW_CONVEX_URL"; then
+        if [ "${FORCE_CONVEX_RECREATE:-0}" = "1" ]; then
+            recreate=1
+            log_info "FORCE_CONVEX_RECREATE=1 — force-recreating despite healthy /version"
+        else
+            log_info "Preview Convex already healthy (/version 200) — skipping force-recreate (override: FORCE_CONVEX_RECREATE=1)"
         fi
-        sleep 5
-    done
+    else
+        recreate=1
+        log_info "Preview Convex not healthy — force-recreating"
+    fi
+    if [ "$recreate" -eq 1 ]; then
+        docker compose -f docker-compose.preview.yml up -d --force-recreate convex
+        for i in $(seq 1 48); do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 "$PREVIEW_CONVEX_URL/version" || echo 000)"
+            health="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' trends-preview-convex 2>/dev/null || echo miss)"
+            if [ "$code" = "200" ]; then
+                log_info "Preview Convex ready (http=$code health=$health)"
+                break
+            fi
+            sleep 5
+        done
+    fi
 fi
 systemctl restart "$PREVIEW_API_SERVICE"
 wait_for_http "$PREVIEW_API_URL/api/blocks" 120

@@ -4,10 +4,10 @@
  * Enables quick bulk actions on filtered/scored resumes
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, Download, Users, Ban } from 'lucide-react'
+import { CheckCircle, ClipboardList, XCircle, Download, Users, Ban } from 'lucide-react'
 import { CANDIDATE_STATUS_VALUES, type CandidateStatus } from '@/types/resume'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -48,6 +48,8 @@ interface BulkActionBarProps {
     showCompanyPolicyHidden?: boolean
     /** Toggle recovery of company-policy-hidden resumes */
     onShowCompanyPolicyHiddenChange?: (show: boolean) => void
+    /** Open review-packets page with the selected IDs */
+    onOpenReviewPacket?: () => void
 }
 
 export function BulkActionBar({
@@ -71,9 +73,11 @@ export function BulkActionBar({
     companyPolicyHiddenCount = 0,
     showCompanyPolicyHidden = false,
     onShowCompanyPolicyHiddenChange,
+    onOpenReviewPacket,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
+    const [pendingConfirmAction, setPendingConfirmAction] = useState<'reject' | 'block' | null>(null)
     const showCompanyPolicyControl =
         typeof onShowCompanyPolicyHiddenChange === 'function' &&
         (companyPolicyHiddenCount > 0 || showCompanyPolicyHidden)
@@ -93,7 +97,7 @@ export function BulkActionBar({
         }),
     ]
 
-    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
+    const runAction = useCallback(async (action: 'shortlist' | 'reject' | 'block' | 'export') => {
         setLoading(action)
         try {
             if (action === 'export') {
@@ -106,6 +110,21 @@ export function BulkActionBar({
         }
     }, [onBulkAction, exportFormat])
 
+    const handleAction = useCallback((action: 'shortlist' | 'reject' | 'block' | 'export') => {
+        if (action === 'reject' || action === 'block') {
+            setPendingConfirmAction(action)
+            return
+        }
+        setPendingConfirmAction(null)
+        void runAction(action)
+    }, [runAction])
+
+    useEffect(() => {
+        if (selectedCount === 0) {
+            setPendingConfirmAction(null)
+        }
+    }, [selectedCount])
+
     return (
         <div
             className="rounded-lg border bg-muted/50"
@@ -116,7 +135,7 @@ export function BulkActionBar({
             <div className="flex items-center gap-2 text-sm">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">
-                    {t('bulkActions.selected', '已选择')}:
+                    {t('bulkActions.selected', { defaultValue: '已选择' })}:
                 </span>
                 <span className="font-medium">
                     {selectedCount} / {totalCountLabel}
@@ -129,7 +148,7 @@ export function BulkActionBar({
                     <div className="flex items-center gap-1 text-sm">
                         <Ban className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-muted-foreground">
-                            {t('bulkActions.blocked', '屏蔽')}:
+                            {t('bulkActions.blocked', { defaultValue: '屏蔽' })}:
                         </span>
                         <span className="font-medium text-red-600">{blockedCount}</span>
                         {blocksSettingsPath && (
@@ -137,7 +156,7 @@ export function BulkActionBar({
                                 to={blocksSettingsPath}
                                 className="ml-1 text-xs text-muted-foreground underline-offset-4 hover:underline hover:text-foreground"
                             >
-                                {t('bulkActions.manageBlocked', '管理')}
+                                {t('bulkActions.manageBlocked', { defaultValue: '管理' })}
                             </Link>
                         )}
                     </div>
@@ -176,7 +195,7 @@ export function BulkActionBar({
                                     : 'border-border text-muted-foreground hover:bg-muted',
                             )}
                         >
-                            {t('bulkActions.statusAll', '全部状态')}
+                            {t('bulkActions.statusAll', { defaultValue: '全部状态' })}
                             {typeof allStatusCount === 'number' && (
                                 <span className="ml-1 text-slate-700">
                                     {allStatusCount}
@@ -223,7 +242,7 @@ export function BulkActionBar({
                     onClick={onSelectAll}
                     disabled={disabled}
                 >
-                    {t('bulkActions.selectAll', '全选')}
+                    {t('bulkActions.selectAll', { defaultValue: '全选' })}
                 </Button>
                 <Button
                     variant="ghost"
@@ -232,7 +251,7 @@ export function BulkActionBar({
                     disabled={disabled || highScoreCount === 0}
                     className={cn(highScoreCount > 0 && 'text-emerald-700 hover:text-emerald-800')}
                 >
-                    {t('bulkActions.selectHighScore', '选 80+ 分')} ({highScoreCount})
+                    {t('bulkActions.selectHighScore', { defaultValue: '选 80+ 分' })} ({highScoreCount})
                 </Button>
                 {selectedCount > 0 && (
                     <Button
@@ -242,7 +261,7 @@ export function BulkActionBar({
                         onClick={onClearSelection}
                         disabled={disabled}
                     >
-                        {t('bulkActions.clearSelection', '取消选择')}
+                        {t('bulkActions.clearSelection', { defaultValue: '取消选择' })}
                     </Button>
                 )}
             </div>
@@ -261,7 +280,7 @@ export function BulkActionBar({
                     className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                 >
                     <CheckCircle className={cn('mr-1 h-4 w-4', loading === 'shortlist' && 'animate-spin')} />
-                    {t('bulkActions.shortlist', '批量入围')}
+                    {t('bulkActions.shortlist', { defaultValue: '批量入围' })}
                 </Button>
                 <Button
                     variant="outline"
@@ -271,7 +290,7 @@ export function BulkActionBar({
                     className="text-destructive border-destructive/20 hover:bg-destructive/5"
                 >
                     <XCircle className={cn('mr-1 h-4 w-4', loading === 'reject' && 'animate-spin')} />
-                    {t('bulkActions.reject', '批量拒绝')}
+                    {t('bulkActions.reject', { defaultValue: '批量拒绝' })}
                 </Button>
                 <Button
                     variant="outline"
@@ -281,8 +300,21 @@ export function BulkActionBar({
                     className="text-red-600 border-red-200 hover:bg-red-50"
                 >
                     <Ban className={cn('mr-1 h-4 w-4', loading === 'block' && 'animate-spin')} />
-                    {t('bulkActions.block', '批量屏蔽')}
+                    {t('bulkActions.block', { defaultValue: '批量屏蔽' })}
                 </Button>
+                {onOpenReviewPacket ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-review-packet"
+                        onClick={onOpenReviewPacket}
+                        disabled={disabled || selectedCount === 0 || loading !== null}
+                        className="text-sky-700 border-sky-200 hover:bg-sky-50"
+                    >
+                        <ClipboardList className="mr-1 h-4 w-4" />
+                        {t('bulkActions.reviewPacket', { defaultValue: 'Review packet' })}
+                    </Button>
+                ) : null}
                 <div className="flex items-center gap-1">
                     <Select
                         value={exportFormat}
@@ -312,6 +344,48 @@ export function BulkActionBar({
                     </Button>
                 </div>
             </div>
+            {pendingConfirmAction ? (
+                <div
+                    className="flex w-full items-center justify-end gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+                    data-testid="bulk-confirm-row"
+                >
+                    <span className="text-sm text-destructive">
+                        {t(
+                            pendingConfirmAction === 'reject'
+                                ? 'bulkActions.confirmReject'
+                                : 'bulkActions.confirmBlock',
+                            {
+                                count: selectedCount,
+                                defaultValue: pendingConfirmAction === 'reject'
+                                    ? 'Reject {{count}} selected resume(s)?'
+                                    : 'Block {{count}} selected resume(s)?',
+                            }
+                        )}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-confirm-no"
+                        onClick={() => setPendingConfirmAction(null)}
+                        disabled={loading !== null}
+                    >
+                        {t('common.cancel', { defaultValue: '取消' })}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="bulk-confirm-yes"
+                        disabled={loading !== null}
+                        onClick={() => {
+                            const action = pendingConfirmAction
+                            setPendingConfirmAction(null)
+                            void runAction(action)
+                        }}
+                    >
+                        {t('common.confirm', { defaultValue: '确认' })}
+                    </Button>
+                </div>
+            ) : null}
             </div>
         </div>
     )

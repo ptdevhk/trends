@@ -24,21 +24,21 @@ function runStatusClass(status: MatchRunItem['status']): string {
   return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
 }
 
-function runStatusLabel(status: MatchRunItem['status']): string {
-  if (status === 'completed') return 'Completed'
-  if (status === 'failed') return 'Failed'
-  if (status === 'processing') return 'Processing'
-  return 'Pending'
+function runStatusLabel(status: MatchRunItem['status'], t: (key: string, opts?: { defaultValue?: string }) => string): string {
+  if (status === 'completed') return t('aiTasks.monitor.runStatusCompleted', { defaultValue: 'Completed' })
+  if (status === 'failed') return t('aiTasks.monitor.runStatusFailed', { defaultValue: 'Failed' })
+  if (status === 'processing') return t('aiTasks.monitor.runStatusProcessing', { defaultValue: 'Processing' })
+  return t('aiTasks.monitor.runStatusPending', { defaultValue: 'Pending' })
 }
 
-function runModeLabel(mode: MatchRunItem['mode']): string {
-  if (mode === 'rules_only') return 'Rules'
-  if (mode === 'ai_only') return 'AI'
-  return 'Hybrid'
+function runModeLabel(mode: MatchRunItem['mode'], t: (key: string, opts?: { defaultValue?: string }) => string): string {
+  if (mode === 'rules_only') return t('aiTasks.monitor.runModeRules', { defaultValue: 'Rules' })
+  if (mode === 'ai_only') return t('aiTasks.monitor.runModeAi', { defaultValue: 'AI' })
+  return t('aiTasks.monitor.runModeHybrid', { defaultValue: 'Hybrid' })
 }
 
 const RunItem = memo(function RunItem({ run }: { run: MatchRunItem }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const total = Math.max(run.totalCount, 1)
   const current = Math.min(Math.max(run.processedCount, 0), total)
   const progress = Math.min(100, Math.max(0, Math.round((current / total) * 100)))
@@ -58,14 +58,14 @@ const RunItem = memo(function RunItem({ run }: { run: MatchRunItem }) {
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${runStatusClass(run.status)}`}
           >
-            {runStatusLabel(run.status)}
+            {runStatusLabel(run.status, t)}
           </span>
           <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {runModeLabel(run.mode)}
+            {runModeLabel(run.mode, t)}
           </span>
         </div>
         <div className="text-xs text-muted-foreground">
-          {new Date(run.startedAt).toLocaleTimeString()}
+          {new Date(run.startedAt).toLocaleTimeString(i18n.language)}
         </div>
       </div>
 

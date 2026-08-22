@@ -14,18 +14,18 @@ import {
 } from "@/components/ui/dialog"
 import { formatInAppTimezone } from '@/lib/timezone'
 
-function getStatusLabel(status: AnalysisTaskSummary['status']): string {
+function getStatusLabel(status: AnalysisTaskSummary['status'], t: ReturnType<typeof useTranslation>['t']): string {
   switch (status) {
     case 'processing':
-      return 'Processing'
+      return t('analysisTasks.status.processing', { defaultValue: 'Processing' })
     case 'completed':
-      return 'Completed'
+      return t('analysisTasks.status.completed', { defaultValue: 'Completed' })
     case 'failed':
-      return 'Failed'
+      return t('analysisTasks.status.failed', { defaultValue: 'Failed' })
     case 'cancelled':
-      return 'Cancelled'
+      return t('analysisTasks.status.cancelled', { defaultValue: 'Cancelled' })
     default:
-      return 'Pending'
+      return t('analysisTasks.status.pending', { defaultValue: 'Pending' })
   }
 }
 
@@ -74,9 +74,9 @@ function TaskItem({
   const total = task.progress.total || task.config.resumeCount || 1
   const progress = Math.min(100, Math.max(0, Math.round((task.progress.current / total) * 100)))
   const keywordLabel = task.config.keywords?.length
-    ? `Keywords: ${task.config.keywords.join(', ')}`
+    ? t('analysisTasks.keywords', { defaultValue: 'Keywords: {{keywords}}', keywords: task.config.keywords.join(', ') })
     : undefined
-  const taskTitle = task.config.jobDescriptionTitle || task.config.jobDescriptionId || keywordLabel || 'Unknown'
+  const taskTitle = task.config.jobDescriptionTitle || task.config.jobDescriptionId || keywordLabel || t('analysisTasks.unknownTitle', { defaultValue: 'Unknown' })
 
   return (
     <div className="space-y-2 border-b last:border-0 last:pb-0 pb-4">
@@ -85,7 +85,7 @@ function TaskItem({
           <StatusIcon status={task.status} />
           <span className="font-medium">{taskTitle}</span>
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${getStatusBadgeClass(task.status)}`}>
-            {getStatusLabel(task.status)}
+            {getStatusLabel(task.status, t)}
           </span>
         </div>
         <div className="flex items-center gap-3">

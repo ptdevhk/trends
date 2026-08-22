@@ -3,10 +3,6 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
-const workspaceState = vi.hoisted(() => ({
-  isAdmin: true,
-}))
-
 const authState = vi.hoisted(() => ({
   memberships: [] as Array<{ userId: string; workspaceSlug: string; role: string }>,
 }))
@@ -16,11 +12,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({
-    slug: 'dev',
-    name: 'Dev',
-    isAdmin: workspaceState.isAdmin,
-  }),
+  useWorkspace: () => ({ slug: 'dev', name: 'Dev' }),
 }))
 
 vi.mock('@/hooks/useSystemMetadata', () => ({
@@ -36,6 +28,7 @@ vi.mock('@trends/shared', () => ({
     { id: 'policies', titleKey: 'settings.policies.nav', defaultTitle: 'Policies', hrefSuffix: '/settings/policies', matchesSuffixes: ['/settings/policies', '/settings/blocks'] },
     { id: 'export-fields', titleKey: 'nav.exportFields', defaultTitle: 'Export Fields', hrefSuffix: '/settings/export-fields', matchesSuffixes: ['/settings/export-fields'] },
     { id: 'industry-verification', titleKey: 'nav.industryVerification', defaultTitle: 'Industry verification', hrefSuffix: '/system/settings/industry-verification', matchesSuffixes: ['/system/settings/industry-verification'], requiresReviewAccess: true },
+    { id: 'workspace-admin', titleKey: 'nav.workspaceAdmin', defaultTitle: 'Admin only', hrefSuffix: '/settings/workspace-admin', matchesSuffixes: ['/settings/workspace-admin'], requiresAdmin: true },
   ],
 }))
 
@@ -48,7 +41,6 @@ function renderWithRouter(ui: React.ReactElement, path = '/dev/resumes') {
 describe('SettingsSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    workspaceState.isAdmin = true
     authState.memberships = []
   })
 
@@ -67,8 +59,6 @@ describe('SettingsSidebar', () => {
   })
 
   it('shows export fields navigation for non-admin workspaces', () => {
-    workspaceState.isAdmin = false
-
     renderWithRouter(<SettingsSidebar />)
 
     expect(screen.getByText('Home')).toBeInTheDocument()
@@ -101,7 +91,6 @@ describe('SettingsSidebar', () => {
   })
 
   it('shows the industry verification entry to an active-workspace reviewer', () => {
-    workspaceState.isAdmin = false
     authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'reviewer' }]
 
     renderWithRouter(<SettingsSidebar />)
@@ -119,7 +108,6 @@ describe('SettingsSidebar', () => {
   })
 
   it('hides the industry verification entry from plain members', () => {
-    workspaceState.isAdmin = false
     authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'user' }]
 
     renderWithRouter(<SettingsSidebar />)
@@ -128,11 +116,29 @@ describe('SettingsSidebar', () => {
   })
 
   it('hides the industry verification entry from a reviewer of another workspace', () => {
-    workspaceState.isAdmin = false
     authState.memberships = [{ userId: 'u1', workspaceSlug: 'hr', role: 'reviewer' }]
 
     renderWithRouter(<SettingsSidebar />)
 
     expect(screen.queryByRole('link', { name: 'Industry verification' })).not.toBeInTheDocument()
+  })
+
+  it('shows an admin-gated item when the active workspace membership is admin', () => {
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'admin' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.getByRole('link', { name: 'Admin only' })).toHaveAttribute(
+      'href',
+      '/dev/settings/workspace-admin',
+    )
+  })
+
+  it('hides an admin-gated item from a non-admin active-workspace membership', () => {
+    authState.memberships = [{ userId: 'u1', workspaceSlug: 'dev', role: 'reviewer' }]
+
+    renderWithRouter(<SettingsSidebar />)
+
+    expect(screen.queryByRole('link', { name: 'Admin only' })).not.toBeInTheDocument()
   })
 })

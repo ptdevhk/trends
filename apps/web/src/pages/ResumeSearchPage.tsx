@@ -31,7 +31,8 @@ import { useCompanyPolicyListFilter } from '@/hooks/useCompanyPolicyListFilter'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { rawApiClient } from '@/lib/api-helpers'
-import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled } from '@/lib/feature-flags'
+import { isIndustryEvidenceTargetedQueueEnabled, isResumeAiSummaryEnabled, isReviewPacketsEnabled } from '@/lib/feature-flags'
+import { writeReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
@@ -65,9 +66,11 @@ export function ResumeSearchPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
   const resolveSearchResumeEmployers = useCallback(
-    (item: { resume: { workHistory?: unknown; ingestData?: { companyHits?: string[] } } }) => ({
-      workHistory: item.resume.workHistory as Array<{ companyName?: string; raw?: string }> | undefined,
+    (item: { resume: { workHistory?: unknown; ingestData?: { companyHits?: string[] }; identityKey?: string; externalId?: string; sourceKey?: string | null } }) => ({
+      workHistory: item.resume.workHistory as Array<{ companyName?: string; raw?: string; companyKey?: string }> | undefined,
       companyHits: item.resume.ingestData?.companyHits,
+      identityKey: item.resume.identityKey?.trim() || item.resume.externalId,
+      sourceKey: item.resume.sourceKey,
     }),
     [],
   )
@@ -75,6 +78,7 @@ export function ResumeSearchPage() {
     activeQuery,
     activeSort,
     analysisCandidateCount,
+    analysisKeywords,
     analyzeResults,
     aiModeEnabled,
     aiModeStats,
@@ -93,6 +97,8 @@ export function ResumeSearchPage() {
     isLanding,
     loading,
     loadingMore,
+    convexSearchFailed,
+    convexRetrySearch,
     loadMore,
     parsedState,
     queryInput,
@@ -138,8 +144,13 @@ export function ResumeSearchPage() {
     replaceSelection,
     pruneSelection,
     clearSelection,
+    clearJobDescription,
     toggleSelectItem,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   } = useResumeSearchState()
+  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
   const collapseExpandedCards = useCallback(() => {
     setExpandedIds(new Set())
   }, [])
@@ -163,7 +174,7 @@ export function ResumeSearchPage() {
     hiddenCount: companyPolicyHiddenCount,
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
-  } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers)
+  } = useCompanyPolicyListFilter(filteredResults, resolveSearchResumeEmployers, policyOverrides)
 
   // Selection + counts must use the same universe as the list (policy-visible).
   const policyVisibleKeys = useMemo(
@@ -386,14 +397,6 @@ export function ResumeSearchPage() {
     setQueryInput(nextQuery)
   }
 
-  const handleBulkActionWithScroll = useCallback(
-    (...args: Parameters<typeof handleBulkAction>) => {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return handleBulkAction(...args)
-    },
-    [handleBulkAction],
-  )
-
   const mobileFilterProps = useMemo(
     () => ({
       facetCounts,
@@ -480,6 +483,24 @@ export function ResumeSearchPage() {
   const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
     defaultValue: 'Analyze loaded results',
   })
+  const canManageCandidateData = isAuthenticated
+  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
+  const analyzeDisabledReason = useMemo(() => {
+    const isDisabled = disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData
+    if (!isDisabled) {
+      return undefined
+    }
+    if (!canManageCandidateData) {
+      return t('resumes.searchPage.analysis.disabledNoPermission', { defaultValue: 'No permission to analyze candidates' })
+    }
+    if (!aiModeEnabled) {
+      return t('resumes.searchPage.analysis.disabledRulesOnly', { defaultValue: 'Switch to AI Mode to analyze' })
+    }
+    if (!parsedState.jobDescriptionId && analysisKeywords.length === 0) {
+      return t('resumes.searchPage.analysis.disabledNoInput', { defaultValue: 'Add a JD or keywords to enable analysis' })
+    }
+    return t('resumes.searchPage.analysis.disabledGeneric', { defaultValue: 'Select candidates to analyze' })
+  }, [disableAnalyzeResults, aiModeEnabled, canManageCandidateData, parsedState.jobDescriptionId, analysisKeywords, t])
   const errorSearchBarLabel = t('resumes.searchPage.error.searchBar', {
     defaultValue: 'Search bar failed to load.',
   })
@@ -498,8 +519,6 @@ export function ResumeSearchPage() {
   const readOnlyLoginRequiredLabel = t('resumes.searchPage.readOnly.loginRequired', {
     defaultValue: 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
   })
-  const canManageCandidateData = isAuthenticated
-  const showReadOnlyLoginRequired = !authLoading && !canManageCandidateData
   const queueIndustryResearch = useCallback(async (resumeIds: string[]) => {
     if (!industryResearchQueueEnabled || resumeIds.length === 0) return
     const { data, error, response } = await rawApiClient.POST('/api/resumes/industry-research-requests', {
@@ -515,6 +534,11 @@ export function ResumeSearchPage() {
       toast.message(`${result.notLinked ?? 0} result(s) had no exact industry target; ${result.notEligible ?? 0} were not eligible`)
     }
   }, [industryResearchQueueEnabled])
+
+  const handleOpenReviewPacket = useCallback(() => {
+    writeReviewPacketHandoff(Array.from(selectedIds))
+    navigate(`/${workspaceSlug}/review-packets`)
+  }, [navigate, selectedIds, workspaceSlug])
 
   return (
     <div className="space-y-6">
@@ -551,6 +575,7 @@ export function ResumeSearchPage() {
               jobDescriptionId={parsedState.jobDescriptionId}
               loading={loading}
               location={parsedState.location}
+              onClearJobDescription={clearJobDescription}
               queryInput={queryInput}
               recentSearches={recentSearches}
               sortValue={activeSort}
@@ -604,6 +629,7 @@ export function ResumeSearchPage() {
                     data-testid="resume-analyze-button"
                     className="h-10 gap-2 rounded-full px-4"
                     disabled={disableAnalyzeResults || !aiModeEnabled || !canManageCandidateData}
+                    title={analyzeDisabledReason}
                     onClick={() => {
                       void analyzeResults()
                     }}
@@ -665,7 +691,7 @@ export function ResumeSearchPage() {
                   onSelectAll={selectAllVisible}
                   onSelectHighScore={selectHighScoreVisible}
                   onClearSelection={clearSelection}
-                  onBulkAction={handleBulkActionWithScroll}
+                  onBulkAction={handleBulkAction}
                   statusFilter={parsedState.filters.status}
                   onStatusFilterChange={setStatusFilters}
                   onStatusToggle={toggleStatus}
@@ -673,6 +699,7 @@ export function ResumeSearchPage() {
                   companyPolicyHiddenCount={companyPolicyHiddenCount}
                   showCompanyPolicyHidden={showCompanyPolicyHidden}
                   onShowCompanyPolicyHiddenChange={setShowCompanyPolicyHidden}
+                  onOpenReviewPacket={isReviewPacketsEnabled() ? handleOpenReviewPacket : undefined}
                 />
               </div>
 
@@ -684,6 +711,8 @@ export function ResumeSearchPage() {
                   items={policyVisibleResults}
                   loading={loading}
                   loadingMore={loadingMore}
+                  searchFailed={convexSearchFailed}
+                  onRetrySearch={convexRetrySearch}
                   showAiScore={aiModeEnabled}
                   onLoadMore={loadMore}
                   onOpenDetail={supportsRoutedDetail ? handleOpenDetail : undefined}
@@ -699,6 +728,9 @@ export function ResumeSearchPage() {
                   onRatingComment={canManageCandidateData ? handleRatingComment : undefined}
                   onCandidateStatusChange={canManageCandidateData ? handleCandidateStatusChange : undefined}
                   onToggleBlock={canManageCandidateData ? handleToggleBlock : undefined}
+                  policyOverrides={policyOverrides}
+                  onSetOverride={canManageCandidateData ? setOverride : undefined}
+                  onRemoveOverride={canManageCandidateData ? removeOverride : undefined}
                   searchQuery={queryInput}
                   onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
                   industryResearchQueueEnabled={industryResearchQueueEnabled}
@@ -712,6 +744,8 @@ export function ResumeSearchPage() {
                       : undefined
                   }
                   verifiedOnlyReviewHref={verifiedOnlyReviewHref}
+                  onClearQuery={queryInput.trim() ? handleClearQuery : undefined}
+                  onClearFilters={filterCount > 0 ? clearFacetFilters : undefined}
                 />
               </ErrorBoundary>
             </div>

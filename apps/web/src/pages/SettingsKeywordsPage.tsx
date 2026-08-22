@@ -49,12 +49,15 @@ export function SettingsKeywordsPage() {
   const [systemLocationQuery, setSystemLocationQuery] = useState('')
   const [savingSystemLocationId, setSavingSystemLocationId] = useState<string | null>(null)
   const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
+  const [brandKeywordSearch, setBrandKeywordSearch] = useState('')
   const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
   const [customKeywordForm, setCustomKeywordForm] = useState<CustomKeywordFormState>(createEmptyCustomKeywordForm)
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
   const [deleteCustomKeywordTargetId, setDeleteCustomKeywordTargetId] = useState<string | null>(null)
   const [deletingCustomKeyword, setDeletingCustomKeyword] = useState(false)
+  const [customKeywordQuery, setCustomKeywordQuery] = useState('')
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all')
 
   const visibleSystemLocationCount = useMemo(
     () => systemLocationItems.filter((item) => item.visible).length,
@@ -85,6 +88,37 @@ export function SettingsKeywordsPage() {
         return left.keyword.localeCompare(right.keyword, 'zh-Hans-CN')
       })
   }, [systemLocationItems, systemLocationQuery])
+
+  const filteredBrandKeywords = useMemo(() => {
+    const query = brandKeywordSearch.trim().toLowerCase()
+    if (!query) {
+      return brandKeywords
+    }
+    return brandKeywords.filter(
+      (item) =>
+        item.nameCn.toLowerCase().includes(query) ||
+        (item.nameEn ?? '').toLowerCase().includes(query),
+    )
+  }, [brandKeywordSearch, brandKeywords])
+
+  const filteredCustomKeywordTags = useMemo(() => {
+    const query = customKeywordQuery.trim().toLowerCase()
+
+    return customKeywordTags.filter((tag) => {
+      if (selectedCategoryFilter !== 'all' && tag.category !== selectedCategoryFilter) {
+        return false
+      }
+      if (!query) {
+        return true
+      }
+      return (
+        tag.id.toLowerCase().includes(query) ||
+        tag.keyword.toLowerCase().includes(query) ||
+        (tag.english ?? '').toLowerCase().includes(query) ||
+        tag.category.toLowerCase().includes(query)
+      )
+    })
+  }, [customKeywordTags, customKeywordQuery, selectedCategoryFilter])
 
   const loadSearchSetupConfig = useCallback(async () => {
     const payload = await requestJson('/api/config/custom-keywords')
@@ -289,6 +323,25 @@ export function SettingsKeywordsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  placeholder={t('debugConfig.customKeywordSearchPlaceholder', { defaultValue: 'Filter custom keywords...' })}
+                  value={customKeywordQuery}
+                  onChange={(e) => setCustomKeywordQuery(e.target.value)}
+                  className="sm:max-w-xs"
+                />
+                <select
+                  data-testid="custom-keyword-category-filter"
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">{t('debugConfig.categoryFilterAll', { defaultValue: 'All categories' })}</option>
+                  {customKeywordCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -303,14 +356,18 @@ export function SettingsKeywordsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {customKeywordTags.length === 0 ? (
+                    {filteredCustomKeywordTags.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
-                          {loading ? t('trends.loading') : t('debug.none')}
+                          {loading
+                            ? t('trends.loading')
+                            : customKeywordTags.length === 0
+                              ? t('debug.none')
+                              : t('debugConfig.customKeywordNoMatches', { defaultValue: 'No matching keywords' })}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      customKeywordTags.map((tag) => (
+                      filteredCustomKeywordTags.map((tag) => (
                         <TableRow key={tag.id} className={tag.visible === false ? 'opacity-60' : undefined}>
                           <TableCell className="font-mono text-xs">{tag.id}</TableCell>
                           <TableCell>{tag.keyword}</TableCell>
@@ -491,6 +548,30 @@ export function SettingsKeywordsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  data-testid="brand-keyword-search"
+                  placeholder={t('debugConfig.brandKeywordSearchPlaceholder', {
+                    defaultValue: 'Search by CN/EN name…',
+                  })}
+                  value={brandKeywordSearch}
+                  onChange={(event) => setBrandKeywordSearch(event.target.value)}
+                  className="h-9"
+                />
+              </div>
+              {brandKeywordSearch ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="brand-keyword-search-clear"
+                  onClick={() => setBrandKeywordSearch('')}
+                >
+                  ×
+                </Button>
+              ) : null}
+            </div>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -502,14 +583,20 @@ export function SettingsKeywordsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {brandKeywords.length === 0 ? (
+                  {filteredBrandKeywords.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                        {loading ? t('trends.loading') : t('debug.none')}
+                        {loading
+                          ? t('trends.loading')
+                          : brandKeywordSearch
+                            ? t('debugConfig.brandKeywordNoMatches', {
+                                defaultValue: 'No matching entries',
+                              })
+                            : t('debug.none')}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    brandKeywords.map((item) => (
+                    filteredBrandKeywords.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nameCn}</TableCell>
                         <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>

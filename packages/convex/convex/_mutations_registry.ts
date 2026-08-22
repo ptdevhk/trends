@@ -88,6 +88,9 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "candidate_blocks.ts", name: "bulkUpsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_blocks.ts", name: "remove", quiesceAware: true, reason: "Blocked by BFF middleware" },
 
+    { file: "candidate_policy_overrides.ts", name: "set", quiesceAware: true, reason: "Blocked by BFF middleware" },
+    { file: "candidate_policy_overrides.ts", name: "remove", quiesceAware: true, reason: "Blocked by BFF middleware" },
+
     { file: "company_registry.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "company_registry.ts", name: "setCompanyArchived", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "company_registry.ts", name: "addAlias", quiesceAware: true, reason: "Blocked by BFF middleware" },
@@ -150,6 +153,8 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "candidate_status.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "importNotesBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "restoreBatch", quiesceAware: true, reason: "Blocked by BFF middleware" },
+    { file: "candidate_status.ts", name: "clearWorkspace", quiesceAware: true, reason: "Test/seed helper — write-secret gated; user-facing path blocked by BFF middleware" },
+    { file: "candidate_status.ts", name: "remove", quiesceAware: true, reason: "Test/operator cleanup helper — write-secret gated; user-facing path blocked by BFF middleware" },
     { file: "candidate_status.ts", name: "stampWorkspaceByExternalIds", quiesceAware: true, reason: "Admin/workspace stamp via write-secret; user-facing path blocked by BFF middleware" },
 
     { file: "job_descriptions.ts", name: "create", quiesceAware: true, reason: "Blocked by BFF middleware" },
@@ -216,4 +221,8 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
 
     { file: "workspace_config.ts", name: "upsert", quiesceAware: true, reason: "Blocked by BFF middleware" },
     { file: "workspace_config.ts", name: "remove", quiesceAware: true, reason: "Blocked by BFF middleware" },
+
+    // Workspace snapshot restore — admin-only (requireAdmin), and the import
+    // IS the restore path, so it must run during maintenance/restore windows.
+    { file: "workspace_snapshots.ts", name: "importWorkspaceSnapshot", quiesceAware: false, reason: "Snapshot import is the restore path — must run during maintenance/restore windows; admin-only via requireAdmin" },
 ];

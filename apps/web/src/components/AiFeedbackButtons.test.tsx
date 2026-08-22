@@ -41,10 +41,20 @@ describe('AiFeedbackButtons', () => {
     const { rerender } = render(<AiFeedbackButtons {...defaultProps} feedback="like" />)
     const likeBtn = screen.getByRole('button', { name: 'Like resume summary' })
     expect(likeBtn.className).toContain('text-emerald-600')
+    expect(likeBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Unlike resume summary' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
 
     rerender(<AiFeedbackButtons {...defaultProps} feedback="unlike" />)
     const unlikeBtn = screen.getByRole('button', { name: 'Unlike resume summary' })
     expect(unlikeBtn.className).toContain('text-red-600')
+    expect(unlikeBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Like resume summary' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('stops propagation when stopPropagation is true', async () => {

@@ -414,11 +414,35 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     requiresAdmin: true,
   },
   {
+    id: "unresolved-queue",
+    titleKey: "debugConfig.settingsNavUnresolvedQueue",
+    defaultTitle: "Unresolved queue",
+    hrefSuffix: "/system/settings/unresolved-queue",
+    matchesSuffixes: ["/system/settings/unresolved-queue"],
+    requiresAdmin: true,
+  },
+  {
     id: "export-fields",
     titleKey: "debugConfig.settingsNavExportFields",
     defaultTitle: "Export Fields",
     hrefSuffix: "/system/settings/export-fields",
     matchesSuffixes: ["/system/settings/export-fields"],
+  },
+  {
+    id: "workspace",
+    titleKey: "debugConfig.settingsNavWorkspace",
+    defaultTitle: "Workspace",
+    hrefSuffix: "/system/settings/workspace",
+    matchesSuffixes: ["/system/settings/workspace"],
+    requiresAdmin: true,
+  },
+  {
+    id: "resume-dedup",
+    titleKey: "debugConfig.settingsNavResumeDedup",
+    defaultTitle: "Resume dedup review",
+    hrefSuffix: "/system/settings/resume-dedup",
+    matchesSuffixes: ["/system/settings/resume-dedup"],
+    requiresAdmin: true,
   },
 ];
 

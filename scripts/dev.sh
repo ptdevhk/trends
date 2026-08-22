@@ -429,7 +429,7 @@ sync_convex_ai_env() {
     local value
     local synced=0
     local failed=0
-    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE" "CONVEX_WRITE_SECRET")
+    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_FALLBACK_MODEL" "AI_API_KEY" "AI_API_BASE" "CONVEX_WRITE_SECRET")
 
     if [ ! -d "$convex_dir" ]; then
         return 0

@@ -24,6 +24,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { rawApiClient } from '@/lib/api-helpers'
 import { parseHrFeedbackRows, type HrFeedbackRow } from '@/lib/hr-feedback-import'
+import { isModEnterKey } from '@/lib/utils'
 
 type FeedbackBatchResult = {
   resumeId: string
@@ -88,6 +89,21 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
   const handleRawTextChange = (value: string) => {
     stateVersionRef.current += 1
     setRawText(value)
+    setResults([])
+    setImportCompleted(false)
+    try {
+      const parsedRows = parseHrFeedbackRows(value)
+      const validRows = parsedRows.filter((row) => row.resumeId.trim().length > 0)
+      setRows(validRows)
+    } catch (error) {
+      console.error('Failed to parse HR feedback rows', error)
+      setRows([])
+      toast.error(t('resumes.hrFeedbackImport.parseFailed', { defaultValue: 'Failed to parse feedback rows' }))
+    }
+  }
+
+  const handleClear = () => {
+    setRawText('')
     setRows([])
     setResults([])
     setImportCompleted(false)
@@ -122,7 +138,7 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
     }
 
     if (rows.length === 0) {
-      handleParse()
+      toast.error(t('resumes.hrFeedbackImport.noRows', { defaultValue: 'No feedback rows found' }))
       return
     }
 
@@ -198,16 +214,30 @@ export function HrFeedbackImportDialog({ disabled = false }: { disabled?: boolea
           <Textarea
             value={rawText}
             onChange={(event) => handleRawTextChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (isModEnterKey(event) && rows.length > 0 && !isImporting && !importCompleted) {
+                event.preventDefault()
+                void handleImport()
+              }
+            }}
             placeholder={sampleInput}
             className="min-h-40 font-mono text-sm"
             disabled={isImporting}
           />
+          <p data-testid="hr-feedback-shortcut-hint" className="text-xs text-muted-foreground">
+            {t('resumes.hrFeedbackImport.shortcutHint', { defaultValue: 'Ctrl/⌘ + Enter to confirm import' })}
+          </p>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" className="gap-2" onClick={handleParse} disabled={isImporting}>
               <ClipboardList className="h-4 w-4" />
               {t('resumes.hrFeedbackImport.parse', { defaultValue: 'Parse' })}
             </Button>
+            {rawText.length > 0 && (
+              <Button type="button" variant="ghost" size="sm" data-testid="hr-feedback-clear" onClick={handleClear}>
+                {t('resumes.hrFeedbackImport.clear', { defaultValue: 'Clear' })}
+              </Button>
+            )}
             <Button
               type="button"
               className="gap-2"

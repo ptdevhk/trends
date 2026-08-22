@@ -12,11 +12,14 @@ trap 'rm -rf "$TMP"' EXIT
 # shellcheck source=lib-convex-export-fix.sh
 source "$ROOT/deploy/lib-convex-export-fix.sh"
 
-# Build fixture export: one table with showBlocked, one to drop, one missing from schema
+# Build fixture export: one table with showBlocked, system_settings with
+# real-shape rows (keyed by "key"), one table missing from schema
 mkdir -p "$TMP/src/screening_sessions" "$TMP/src/system_settings" "$TMP/src/job_descriptions"
 printf '{"_id":"s1","config":{"filters":{"showBlocked":true,"q":"cnc"}}}\n' > "$TMP/src/screening_sessions/documents.jsonl"
 printf '"uniform"\n' > "$TMP/src/screening_sessions/generated_schema.jsonl"
-printf '{"_id":"x","maintenanceMode":true}\n' > "$TMP/src/system_settings/documents.jsonl"
+printf '{"_id":"m1","key":"maintenanceMode","value":false,"updatedAt":0,"updatedBy":"restore-script"}\n' > "$TMP/src/system_settings/documents.jsonl"
+printf '{"_id":"p1","key":"industryMaintenanceSchedulePaused","value":true,"updatedAt":0,"updatedBy":"restore-script"}\n' >> "$TMP/src/system_settings/documents.jsonl"
+printf '{"_id":"r1","key":"resumeWorkHistoryLimit","value":15,"updatedAt":0,"updatedBy":"operator"}\n' >> "$TMP/src/system_settings/documents.jsonl"
 printf '"uniform"\n' > "$TMP/src/system_settings/generated_schema.jsonl"
 printf '{"_id":"jd1"}\n' > "$TMP/src/job_descriptions/documents.jsonl"
 printf '"uniform"\n' > "$TMP/src/job_descriptions/generated_schema.jsonl"
@@ -34,15 +37,19 @@ fix_convex_export "$TMP/in.zip" "$TMP/schema.ts" "$TMP/out.zip"
 
 # 1. showBlocked stripped
 unzip -p "$TMP/out.zip" screening_sessions/documents.jsonl | grep -q showBlocked && fail "showBlocked not stripped" || pass "showBlocked stripped"
-# 2. system_settings dropped
-unzip -l "$TMP/out.zip" | grep -q "system_settings/" && fail "system_settings still present" || pass "system_settings dropped"
-# 3. missing schema table materialized empty
+# 2. system_settings kept, but environment-local rows dropped
+unzip -l "$TMP/out.zip" | grep -q "system_settings/" || fail "system_settings dropped entirely"
+unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"maintenanceMode"' && fail "maintenanceMode row not dropped" || pass "maintenanceMode row dropped"
+unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"industryMaintenanceSchedulePaused"' && fail "industryMaintenanceSchedulePaused row not dropped" || pass "industryMaintenanceSchedulePaused row dropped"
+# 3. non-env-local settings survive (search-affecting settings must propagate)
+unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"resumeWorkHistoryLimit"' && pass "resumeWorkHistoryLimit preserved" || fail "resumeWorkHistoryLimit lost"
+# 4. missing schema table materialized empty
 unzip -p "$TMP/out.zip" resume_digests/documents.jsonl | grep -q . && fail "resume_digests not empty" || pass "resume_digests materialized empty"
 unzip -p "$TMP/out.zip" resume_digests/generated_schema.jsonl | grep -q uniform || fail "resume_digests schema marker missing"
-# 4. existing tables survive
+# 5. existing tables survive
 unzip -p "$TMP/out.zip" job_descriptions/documents.jsonl | grep -q '"jd1"' && pass "job_descriptions preserved" || fail "job_descriptions lost"
 
-# 5. RETURN trap must not leak past fix_convex_export (regression: the trap
+# 6. RETURN trap must not leak past fix_convex_export (regression: the trap
 #    survives the function's return, but local `work` is gone — a later
 #    function/source completion fires it and under `set -u` the caller aborts
 #    with "work: unbound variable"). The subshell must finish exit 0 with no

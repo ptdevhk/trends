@@ -42,6 +42,44 @@ import { MatchStorage } from "./match-storage.js";
 // Shared types
 // ---------------------------------------------------------------------------
 
+/**
+ * Fetch full resume docs in bounded-parallel batches while preserving batch
+ * order.  Broad AND-mode keyword searches can match thousands of digests;
+ * fetching every batch sequentially costs one Convex round-trip per batch
+ * (~100ms each), which pushed a 7k-match query past 10s.  Bounded concurrency
+ * keeps the latency of the slowest batch while bounding backend load.
+ */
+export async function fetchResumeDocPages(
+  ids: string[],
+  options: { batchSize?: number; concurrency?: number },
+  fetchBatch: (batchIds: string[]) => Promise<unknown>,
+): Promise<Array<{ batchIds: string[]; docs: unknown[] }>> {
+  const batchSize = Math.max(1, options.batchSize ?? 100);
+  const concurrency = Math.max(1, options.concurrency ?? 8);
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    batches.push(ids.slice(i, i + batchSize));
+  }
+  if (batches.length === 0) {
+    return [];
+  }
+
+  const pages: Array<{ batchIds: string[]; docs: unknown[] }> = new Array(batches.length);
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < batches.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const batchIds = batches[index];
+      const value = await fetchBatch(batchIds);
+      pages[index] = { batchIds, docs: Array.isArray(value) ? value : [] };
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, batches.length) }, () => worker()));
+  return pages;
+}
+
 export type ResumeKeywordExpansion = ReturnType<ResumeService["expandSearchQuery"]>;
 
 export type ResumeSearchProvenance = {
@@ -417,6 +455,7 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
     name: toStringValue(record.name),
     profileUrl,
     ...(toStringValue(record.source) || source ? { source: toStringValue(record.source) || source } : {}),
+    sourceKey: toStringValue(record.sourceKey) || undefined,
     activityStatus: toStringValue(record.activityStatus),
     age: toStringValue(record.age),
     experience: toStringValue(record.experience),
@@ -435,6 +474,7 @@ export function toResumeItemFromRecord(record: Record<string, unknown>, source?:
     profileId: toStringValue(record.profileId) || undefined,
     profileType: toStringValue(record.profileType) || (source ? source : undefined),
     externalId: toStringValue(record.externalId) || undefined,
+    ...(typeof record.identityKey === "string" && record.identityKey ? { identityKey: record.identityKey } : {}),
     ...(typeof record.searchText === 'string' ? { searchText: record.searchText } : {}),
   };
 }
@@ -617,6 +657,18 @@ export function prepareResumeCandidate(params: {
 }
 
 // ---------------------------------------------------------------------------
+// Build a ResumeItem from a Convex resume doc projection, carrying the
+// doc-level sourceKey (schema field) through so market-scoped company
+// policy enforcement can route by source market (T5).
+function toResumeItemFromResumeDoc(resumeRecord: Record<string, unknown>): ResumeItem {
+  const content = isRecord(resumeRecord.content) ? resumeRecord.content : {};
+  const sourceKey = toStringValue(resumeRecord.sourceKey);
+  return toResumeItemFromRecord(
+    sourceKey ? { ...content, sourceKey } : content,
+    toStringValue(resumeRecord.source),
+  );
+}
+
 // prepareConvexCandidates — the large duplicated function
 // ---------------------------------------------------------------------------
 
@@ -745,15 +797,16 @@ export async function prepareConvexCandidates(params: {
       }
 
       // Phase 2: Fetch full docs only for matches, then apply remaining filters.
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < matchingIds.length; i += BATCH_SIZE) {
-        const batchIds = matchingIds.slice(i, i + BATCH_SIZE);
-        const fullDocs = await callConvexQuery("resumes_search:getResumeDocsByIds", {
-          ids: batchIds,
-        });
+      // Fetches run with bounded parallelism (8) so a broad query with
+      // thousands of matches does not serialize one Convex round-trip per
+      // 100-doc batch.
+      const fullDocPages = await fetchResumeDocPages(
+        matchingIds,
+        { batchSize: 100, concurrency: 8 },
+        (batchIds) => callConvexQuery("resumes_search:getResumeDocsByIds", { ids: batchIds }),
+      );
 
-        if (!isRecord(fullDocs) || !Array.isArray(fullDocs)) continue;
-
+      for (const { docs: fullDocs } of fullDocPages) {
         for (const doc of fullDocs) {
           if (!isRecord(doc)) continue;
           const resumeId = toStringValue(doc._id);
@@ -765,7 +818,7 @@ export async function prepareConvexCandidates(params: {
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
-          const resume = toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source));
+          const resume = toResumeItemFromResumeDoc(doc);
           // Override resumeId with Convex _id so the frontend can use it
           // for Convex mutations (dispatch analysis, etc.). Content's
           // resumeId is a source-specific ID (e.g., "13467969") that
@@ -848,7 +901,7 @@ export async function prepareConvexCandidates(params: {
             continue;
           }
 
-          const resumeItem = toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source));
+          const resumeItem = toResumeItemFromResumeDoc(resumeRecord);
           if (typeof resumeRecord.searchText === 'string') {
             resumeItem.searchText = resumeRecord.searchText;
           }
@@ -950,7 +1003,7 @@ export async function prepareConvexCandidates(params: {
       if (!resumeId) {
         return [];
       }
-      const resumeItem = toResumeItemFromRecord(isRecord(item.content) ? item.content : {}, toStringValue(item.source));
+      const resumeItem = toResumeItemFromResumeDoc(item);
       if (typeof item.searchText === 'string') {
         resumeItem.searchText = item.searchText;
       }

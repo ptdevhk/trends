@@ -205,16 +205,16 @@ export function IndustryApprovedProfileLookup({
                 <p className="mt-1 break-all font-mono text-xs">{lookedUpKey}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Current verdict</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentVerdict', { defaultValue: 'Current verdict' })}</p>
                 <p className="mt-1 font-medium">
-                  {bundle.profile?.verificationLevel ?? 'No approved revision'}
+                  {bundle.profile?.verificationLevel ?? t('industryEvidence.detailNoApprovedRevision', { defaultValue: 'No approved revision' })}
                   {bundle.profile?.industryClass
                     ? ` · ${bundle.profile.industryClass}`
                     : ''}
                 </p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Current revision</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentRevision', { defaultValue: 'Current revision' })}</p>
                 <p className="mt-1 break-all font-mono text-xs">
                   {bundle.profile?.currentRevisionId ?? '—'}
                 </p>
@@ -244,7 +244,7 @@ export function IndustryApprovedProfileLookup({
                 </span>
               </p>
               {(approvedSources.length ? approvedSources : bundle.sources).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No sources on this profile.</p>
+                <p className="text-sm text-muted-foreground">{t('industryEvidence.detailNoSourcesOnProfile', { defaultValue: 'No sources on this profile.' })}</p>
               ) : (
                 <div className="space-y-2">
                   {(approvedSources.length ? approvedSources : bundle.sources).map((source) => (

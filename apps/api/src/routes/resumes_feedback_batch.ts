@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { requireWorkspaceUser, getAuthenticatedActorId } from "../middleware/auth.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { callConvexMutation } from "../services/convex-utils.js";
 import { logger } from "../services/logger.js";
 
@@ -163,7 +163,7 @@ app.openapi(importFeedbackBatchRoute, async (c) => {
         workspaceSlug,
         items: mutationItems,
         updatedBy,
-        writeSecret: config.auth.convexWriteSecret,
+        writeSecret: getConvexWriteSecret(),
       });
       const mutationResults = parseConvexImportBatch(value, mutationItems);
       mutationResults.forEach((result, index) => {

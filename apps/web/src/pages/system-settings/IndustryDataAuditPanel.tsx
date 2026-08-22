@@ -38,7 +38,7 @@ export function IndustryDataAuditPanel({
             data-testid="industry-data-audit-company-key"
             value={auditCompanyKey}
             onChange={(e) => onAuditCompanyKeyChange(e.target.value)}
-            placeholder="Filter companyKey"
+            placeholder={t('debugConfig.industryDataFilterPlaceholder', { defaultValue: 'Filter companyKey' })}
           />
           <Button type="button" onClick={onFilter}>
             {t('debugConfig.industryDataFilter', { defaultValue: 'Filter' })}

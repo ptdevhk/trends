@@ -2,7 +2,10 @@
   "app": {
     "title": "趋势",
     "subtitle": "Trends",
-    "description": "多源数据聚合与AI智能筛选平台"
+    "description": "多源数据聚合与AI智能筛选平台",
+    "adminAccessRequired": "需要管理员权限",
+    "industryReviewAccessRequired": "行业审核需要 {{workspaceSlug}} 工作区的管理员或审核员账号。",
+    "industryOpsAccessRequired": "行业运维需要 {{workspaceSlug}} 工作区的管理员账号。"
   },
   "nav": {
     "home": "首页",
@@ -38,6 +41,7 @@
     "collapse": "收起",
     "expand": "展开",
     "reset": "重置",
+    "clear": "清除",
     "apply": "应用",
     "archive": "归档",
     "delete": "删除",
@@ -45,7 +49,32 @@
     "save": "保存",
     "saving": "保存中...",
     "deleting": "删除中...",
-    "submitting": "提交中…"
+    "submitting": "提交中…",
+    "clearAll": "清除全部",
+    "removeFilter": "移除 {{filter}}",
+    "toggleMenu": "切换菜单",
+    "workspaceSwitcherAria": "工作区切换器",
+    "userRatingAria": "用户评分",
+    "industryDataTabsAria": "行业数据标签页",
+    "potentialLegalIdentitiesAria": "潜在法定主体",
+    "existingCanonicalCompanyAria": "现有规范公司"
+  },
+  "outreach": {
+    "contactTitle": "联系 {{name}}",
+    "draftDescription": "为 {{title}} 起草一封招聘沟通邮件。",
+    "subjectLabel": "主题",
+    "subjectPlaceholder": "邮件主题...",
+    "regenerateDraft": "重新生成草稿",
+    "bodyLabel": "邮件正文",
+    "bodyPlaceholder": "在此输入邮件内容...",
+    "cancel": "取消",
+    "sending": "发送中...",
+    "sendEmail": "发送邮件",
+    "draftFailed": "草稿生成失败",
+    "sendFailed": "发送失败",
+    "copyMessage": "复制内容",
+    "copiedToClipboard": "已复制到剪贴板",
+    "shortcutHint": "Ctrl/⌘ + Enter 发送"
   },
   "jdManagement": {
     "title": "职位描述管理",
@@ -109,7 +138,12 @@
     "manageBlocked": "管理",
     "statusAll": "全部状态",
     "exportFormat": "导出格式",
-    "export": "导出"
+    "export": "导出",
+    "confirmReject": "确认批量拒绝 {{count}} 份简历？",
+    "confirmBlock": "确认批量屏蔽 {{count}} 份简历？",
+    "successShortlist": "已入围 {{count}} 份简历",
+    "successReject": "已拒绝 {{count}} 份简历",
+    "successBlock": "已屏蔽 {{count}} 份简历"
   },
   "debugAi": {
     "title": "AI 调试",
@@ -254,6 +288,8 @@
       "title": "导入 HR 反馈",
       "description": "粘贴 id、姓名、备注列，创建候选人备注。",
       "parse": "解析",
+      "clear": "清空",
+      "shortcutHint": "Ctrl/⌘ + Enter 确认导入",
       "confirm": "确认导入",
       "importing": "导入中...",
       "noRows": "未找到反馈行",
@@ -280,7 +316,9 @@
     },
     "jobDescription": {
       "placeholder": "选择职位",
-      "manage": "管理职位"
+      "manage": "管理职位",
+      "customLabel": "自定义",
+      "systemLabel": "系统"
     },
     "selectJobDescriptionFirst": "请先选择职位描述",
     "selectKeywordsOrJobDescription": "请选择关键词或职位描述",
@@ -326,6 +364,11 @@
         "ageRange": "{{min}}-{{max}} 岁",
         "minAge": "≥{{value}} 岁",
         "maxAge": "≤{{value}} 岁"
+      },
+      "experienceLevels": {
+        "senior": "资深",
+        "mid": "中级",
+        "junior": "初级"
       }
     },
     "columns": {
@@ -346,7 +389,21 @@
       "star": "收藏",
       "shortlist": "入选",
       "reject": "淘汰",
-      "contact": "联系"
+      "contact": "联系",
+      "actionSaved": "{{action}} 已保存",
+      "actionFailed": "操作失败，请重试",
+      "unblocked": "已取消屏蔽",
+      "unblockFailed": "取消屏蔽失败，请重试",
+      "blocked": "已屏蔽候选人",
+      "blockFailed": "屏蔽失败，请重试",
+      "statusUpdateFailed": "更新候选人状态失败，请重试",
+      "contactDisabledHint": "需要先完成 AI 分析才能起草联系文案"
+    },
+    "rating": {
+      "starValue": "{{count}} 星",
+      "cleared": "评分已清除",
+      "saved": "评分已保存: {{count}}星",
+      "saveFailed": "评分保存失败"
     },
     "ratingComment": {
       "title": "添加评价备注",
@@ -393,7 +450,9 @@
       "industryVerified": "行业验证",
       "aiScoreLabel": "AI 分数",
       "aiSummaryLabel": "AI 摘要",
-      "promptVersion": "提示词 v{{version}}"
+      "promptVersion": "提示词 v{{version}}",
+      "previousResume": "上一份简历",
+      "nextResume": "下一份简历"
     },
     "experienceLevel": {
       "senior": "资深",
@@ -424,6 +483,7 @@
       "notesTitle": "备注",
       "notesViewTitle": "用户备注",
       "notesDescription": "为 {{name}} 添加备注。",
+      "notesSaveShortcut": "Ctrl/⌘ + Enter 保存",
       "currentPosition": "当前职位",
       "pipelineActions": "流程操作"
     },
@@ -456,7 +516,15 @@
         "ageRange": "年龄范围",
         "ageUnit": "岁",
         "custom": "自定义",
-        "idOrNamePlaceholder": "ID / 姓名 / 外部ID"
+        "clearCustomRange": "清除自定义范围",
+        "rangeMax": "最大值",
+        "rangeMin": "最小值",
+        "minRoleYearsInput": "相关经验（年）",
+        "idOrNamePlaceholder": "ID / 姓名 / 外部ID",
+        "filterPlaceholder": "筛选选项…",
+        "noFilterMatches": "没有匹配的选项",
+        "invalidValue": "请输入有效数字",
+        "minExceedsMax": "最小值不能大于最大值"
       },
       "hero": {
         "quickStart": "快速开始",
@@ -465,7 +533,8 @@
         "loadingRecentSearches": "正在加载最近搜索...",
         "noSavedSearches": "暂无已保存搜索。开始浏览后，最近搜索会显示在这里。",
         "collect": "采集",
-        "editProfile": "编辑"
+        "editProfile": "编辑",
+        "searchKeyword": "搜索 {{keyword}}"
       },
       "searchBar": {
         "placeholder": "按关键词、品牌、岗位或地区搜索简历",
@@ -475,6 +544,19 @@
         "pasteJobDescription": "粘贴职位描述",
         "clearSearch": "清除搜索",
         "recentSearchCount": "{{count}} 个最近搜索可用"
+      },
+      "jdPaste": {
+        "title": "粘贴职位描述以提取关键词",
+        "description": "我们只提取搜索关键词，不会向职位描述写入任何内容。",
+        "placeholder": "在此粘贴职位描述文本，以提取岗位、产品和领域关键词。",
+        "tipPrefix": "提示：使用",
+        "tipSuffix": "提取。",
+        "extract": "提取关键词",
+        "extracting": "提取中...",
+        "cancel": "取消",
+        "emptyError": "请先粘贴职位描述",
+        "extractError": "从职位描述中提取关键词失败",
+        "noKeywordsError": "未提取到有用的关键词"
       },
       "header": {
         "results": "{{count}} 条结果",
@@ -495,21 +577,39 @@
         "processedStatuses": "已处理 {{count}}",
         "linkCopied": "链接已复制",
         "copyFailed": "复制失败",
-        "copyLink": "复制链接"
+        "copyLink": "复制链接",
+        "clearJobDescription": "清除职位描述"
       },
       "results": {
         "emptyTitle": "没有匹配到简历",
         "emptyDescription": "可以尝试更宽泛的关键词，或者移除部分筛选条件。",
+        "clearFilters": "清除筛选",
+        "failedTitle": "搜索失败，请重试",
+        "failedDescription": "搜索请求没有完成。结果可能仍然存在，请重试或刷新页面。",
         "loadingMore": "正在加载更多简历...",
         "scrollForMore": "向下滚动查看更多",
-        "endOfResults": "已到底部"
+        "endOfResults": "已到底部",
+        "keyboardHint": "J/K 移动 · Enter 展开 · O 查看详情 · S 标星 · A 归档",
+        "industryQueue": {
+          "title": "核实这些结果的雇主证据",
+          "description": "仅将精确匹配的简历身份目标加入队列；{{detail}}",
+          "batchedDetail": "每批限制内，最先加载的 {{count}} 条结果将被加入队列。",
+          "loadingDetail": "更多结果仍在加载中。",
+          "allVisibleDetail": "所有已加载结果均可见。",
+          "queueButton": "将 {{count}} 个精确目标加入队列",
+          "queueing": "加入队列中…"
+        }
       },
       "analysis": {
         "title": "简历 AI 分析",
         "description": "为当前加载的搜索结果生成逐份简历的 AI 摘要与拆解。",
         "analyzing": "分析中...",
         "analyzeLoaded": "分析已加载的 {{count}} 份",
-        "analyzeLoadedResults": "分析已加载结果"
+        "analyzeLoadedResults": "分析已加载结果",
+        "disabledRulesOnly": "切换到 AI 模式以分析",
+        "disabledNoInput": "添加 JD 或关键词以启用分析",
+        "disabledNoPermission": "无权限分析候选人",
+        "disabledGeneric": "请选择要分析的候选人"
       },
       "readOnly": {
         "loginRequired": "登录后可评分、更新状态、添加备注、屏蔽、导出或执行批量操作。"
@@ -614,7 +714,11 @@
     "loadingMore": "加载更多...",
     "noResumes": "未找到简历",
     "noResumesDesc": "请尝试调整筛选条件或搜索关键词。",
-    "loadedCount": "目前已加载 {{loaded}} 份简历"
+    "loadedCount": "目前已加载 {{loaded}} 份简历",
+    "notes": {
+      "saveSuccess": "备注已保存",
+      "saveFailed": "备注保存失败"
+    }
   },
   "platforms": {
     "baidu": "百度热搜",
@@ -630,6 +734,19 @@
     "thepaper": "澎湃新闻"
   },
   "debugConfig": {
+    "adminUsersColActions": "操作",
+    "adminUsersColCreated": "创建时间",
+    "adminUsersColProvider": "提供商",
+    "adminUsersColReason": "原因",
+    "adminUsersColRole": "角色",
+    "adminUsersColStatus": "状态",
+    "adminUsersColType": "类型",
+    "adminUsersColUser": "用户",
+    "adminUsersColWorkspaces": "工作区",
+    "adminUsersEmailOptional": "邮箱（可选）",
+    "adminUsersNone": "无",
+    "adminUsersUsername": "用户名",
+    "adminUsersYou": "你",
     "agentsDescription": "用于阈值、批量、并发与模型覆写的审核阶段执行设定",
     "runtimePageDescription": "查看 AI 连接状态与审核阶段执行设定。",
     "resumeWorkHistoryLimitTitle": "简历工作经历条数",
@@ -641,6 +758,12 @@
     "resumeWorkHistoryLimitSave": "保存条数",
     "presetId": "ID",
     "trigger": "触发条件",
+    "scheduleCron": "Cron: {{value}}",
+    "scheduleEvery": "每 {{value}}",
+    "schedulerLoadFailed": "加载调度器状态失败",
+    "schedulerOffline": "调度器离线",
+    "schedulerStatus": "调度器状态",
+    "unknownError": "未知错误",
     "customKeywordId": "ID",
     "processing": "处理中",
     "stopped": "已停止",
@@ -664,6 +787,45 @@
     "exportFieldsTitle": "列选择",
     "exportFieldsDescription": "选取要包含在导出中的列。列按所示顺序导出。",
     "exportFieldsPageDescription": "配置简历 CSV/XLSX 导出中显示的列。",
+    "workspacePageDescription": "导出和导入可移植的工作区快照（与 CLI 格式相同）。",
+    "resumeDedupPageDescription": "查看跨简历采集源的建议同人匹配（仅供参考——不执行合并操作）。",
+    "workspaceExportTitle": "导出快照",
+    "workspaceExportDescription": "将候选人状态、候选人屏蔽，以及（可选）搜索配置和工作区配置下载为 JSON 快照。快照绝不包含简历语料库。",
+    "workspaceExportProfileLabel": "配置档",
+    "workspaceExportProfileHrOps": "hr-ops（候选人状态 + 屏蔽）",
+    "workspaceExportProfileFull": "full（+ 搜索配置 + 工作区配置）",
+    "workspaceExportButton": "导出快照",
+    "workspaceExporting": "导出中...",
+    "workspaceExportSuccess": "快照已导出",
+    "workspaceExportFailed": "导出失败",
+    "workspaceExportSummaryTitle": "已导出的快照",
+    "workspaceExportSummaryWorkspace": "工作区",
+    "workspaceExportSummaryExportedAt": "导出时间",
+    "workspaceDownloadButton": "下载文件",
+    "workspaceImportTitle": "导入快照",
+    "workspaceImportDescription": "将本页面或 CLI 生成的快照文件恢复到当前工作区。",
+    "workspaceImportFileLabel": "快照文件",
+    "workspaceImportFileInvalid": "不是有效的工作区快照文件",
+    "workspaceImportPreviewTitle": "快照预览",
+    "workspaceImportWorkspace": "工作区",
+    "workspaceImportProfile": "配置档",
+    "workspaceImportSchemaVersion": "架构版本",
+    "workspaceImportModeLabel": "模式",
+    "workspaceImportModeMerge": "merge — 添加或更新行，保留其余数据",
+    "workspaceImportModeReplace": "replace — 先删除所包含表的当前行",
+    "workspaceImportReplaceConfirm": "我了解 replace 会在导入前删除当前行",
+    "workspaceImportButton": "导入快照",
+    "workspaceImporting": "导入中...",
+    "workspaceImportSuccess": "快照已导入",
+    "workspaceImportFailed": "导入失败",
+    "workspaceImportResultTitle": "导入结果",
+    "workspaceImportResultApplied": "已应用",
+    "workspaceImportResultDeleted": "已删除",
+    "workspaceTableCandidateStatus": "候选人状态",
+    "workspaceTableCandidateBlocks": "候选人屏蔽",
+    "workspaceTableSearchProfiles": "搜索配置",
+    "workspaceTableWorkspaceConfig": "工作区配置",
+    "workspaceRows": "{{count}} 行",
     "exportFieldsResetDefaults": "恢复默认",
     "exportFieldsResetOrder": "重置顺序",
     "exportFieldsIncludeDebug": "调试模式启用时包含调试列",
@@ -674,6 +836,9 @@
     "exportFieldsAvailableTitle": "可用列",
     "exportFieldsAvailableDescription": "点击 + 将列加入导出顺序。",
     "exportFieldsAdd": "加入",
+    "exportFieldsFilterPlaceholder": "筛选可用列...",
+    "exportFieldsNoMatches": "没有符合筛选条件的列。",
+    "exportFieldsClearFilter": "清除筛选",
     "deletePreset": "删除",
     "location": "位置",
     "configSourceFallbackEnabled": "已回退到 zh-Hans",
@@ -708,6 +873,8 @@
     "addCustomKeyword": "新增关键词",
     "configSourcesLoadError": "加载配置来源失败",
     "agentThreshold": "通过阈值",
+    "configSourceCopyRawToast": "原始配置已复制到剪贴板",
+    "configSourceGroup": "分组",
     "configSourcesDescription": "以只读方式查看允许暴露的简历配置档与提示词来源。",
     "never": "从未",
     "settingsOverviewPageDescription": "使用上方的本地设定导览，直接进入执行状态、配置来源、关键词或地区配置页面，不必再在超长页面中来回卷动。",
@@ -718,6 +885,9 @@
     "failed": "失败",
     "resumeDisplayLimitsDescription": "用于简历展示逻辑的只读限制。",
     "customKeywordCategory": "类别",
+    "customKeywordSearchPlaceholder": "筛选自定义关键词...",
+    "categoryFilterAll": "全部分类",
+    "customKeywordNoMatches": "没有匹配的关键词",
     "editPreset": "编辑",
     "latestWorkHistoryEntries": "最新工作经历条数",
     "keywordPlaceholder": "例如: 销售, 工程师",
@@ -738,6 +908,8 @@
     "configSourceLabel": "来源",
     "settingsNavLocations": "地区配置",
     "settingsNavExportFields": "导出字段",
+    "settingsNavWorkspace": "工作区",
+    "settingsNavResumeDedup": "简历去重审查",
     "systemLocationKeyword": "地区",
     "configSourceParsedPreview": "解析预览",
     "presetEducation": "学历",
@@ -765,6 +937,7 @@
     "resetDatabaseConfirm": "您确定要删除所有数据吗？此操作无法复原。",
     "presetMaxExp": "最高经验",
     "activeWorkers": "活跃工作节点",
+    "adminUsersDisplayNameOptional": "显示名称（可选）",
     "presets": "筛选默认",
     "settingsOverviewLabel": "设定概览",
     "systemLocationHideAction": "隐藏",
@@ -798,6 +971,8 @@
     "brandKeywordNameEn": "English",
     "missed": "已错过",
     "brandKeywordOrigin": "来源",
+    "brandKeywordSearchPlaceholder": "按中/英文名称搜索…",
+    "brandKeywordNoMatches": "没有匹配的条目",
     "presetName": "名称",
     "agents": "AI 审核阶段",
     "runtimePageMeta": "审核阶段：{{count}} 个",
@@ -815,6 +990,8 @@
     "settingsNavTaxonomy": "分类",
     "settingsNavIndustryVerification": "产业验证",
     "settingsNavIndustryData": "产业数据",
+    "settingsNavUnresolvedQueue": "未解析雇主队列",
+    "unresolvedQueuePageDescription": "查看采集时未能解析到公司的雇主名称，并将其链接到规范公司键或忽略。",
     "workflowSeedHidden": "隐藏",
     "workflowSeedStatus": "状态",
     "workflowSeedVisible": "可见",
@@ -861,7 +1038,11 @@
       "confidence": "置信度",
       "tagsHelp": "用逗号分隔标签。搜索筛选会把匹配的简历标签归入此聚类。",
       "saveChanges": "保存更改",
-      "createClusterButton": "创建聚类"
+      "createClusterButton": "创建聚类",
+      "namePlaceholder": "后端语言",
+      "tagsPlaceholder": "Go, Java, Rust",
+      "deleteConfirmTitle": "删除分类聚类？",
+      "deleteConfirmBody": "此操作将永久移除聚类 {{name}}（{{slug}}）。"
     },
     "adminUsersTitle": "用户管理",
     "adminUsersDescription": "管理本地用户账户、工作区成员资格及验证状态。",
@@ -880,8 +1061,10 @@
     "adminUsersDisabled": "用户已停用",
     "adminUsersEnabled": "用户已启用",
     "adminUsersResetPassword": "重置密码",
+    "adminUsersResetPasswordTitle": "重置用户密码",
     "adminUsersResetPasswordConfirm": "要重置此用户的密码吗？",
     "adminUsersUnlock": "解除锁定",
+    "adminUsersUnlockTitle": "解锁用户账户",
     "adminUsersUnlockConfirm": "要解除此用户账户的锁定吗？",
     "adminUsersUnlocked": "用户已解除锁定",
     "adminUsersViewAudit": "查看审计记录",
@@ -896,6 +1079,10 @@
     "adminUsersMembershipAddFailed": "新增成员资格失败",
     "adminUsersMembershipRemoved": "成员资格已移除",
     "adminUsersMembershipRemoveFailed": "移除成员资格失败",
+    "adminUsersMembershipRemoveConfirm": "确定移除该成员资格？",
+    "adminUsersMembershipRemoveLabel": "移除 {{workspace}} 的成员资格",
+    "adminUsersMembershipRemove": "移除",
+    "keywordToggleLabel": "展开/收起自定义关键词",
     "adminUsersMembershipAdd": "新增",
     "adminUsersTempPasswordTitle": "临时密码",
     "adminUsersTempPasswordFor": "{{username}} 的密码",
@@ -904,6 +1091,10 @@
     "adminUsersTempPasswordWarning": "请立即复制。关闭此对话框后将无法再次显示。",
     "adminUsersEmpty": "无用户。",
     "adminUsersLoading": "正在加载用户...",
+    "configSourceAudience": "受众",
+    "configSourceCopyParsed": "复制解析结果",
+    "configSourceCopyParsedToast": "解析配置已复制到剪贴板",
+    "configSourceCopyRaw": "复制原始内容",
     "hrDemoSilentTitle": "HR 演示静默登录",
     "hrDemoSilentDescription": "共享工作台书签令牌（AUTH_HR_DEMO_TOKEN）。在 /hr/resumes 深链上附加 ?auth=… 即可无密码进入完整成员工作台。",
     "hrDemoSilentTokenCopied": "已复制静默登录令牌",
@@ -923,6 +1114,8 @@
     "industryDataControlTitle": "控制中心",
     "industryDataDelete": "删除",
     "industryDataDeleteFailed": "删除条目失败",
+    "industryDataDeleteConfirmTitle": "删除行业数据条目？",
+    "industryDataDeleteConfirmBody": "此操作将永久移除条目 {{entryId}}。",
     "industryDataDeleted": "已删除（{{sha}}）",
     "industryDataEmpty": "没有条目。请从文件加载初始数据或导入 JSON。",
     "industryDataExport": "导出",
@@ -960,10 +1153,112 @@
     "industryDataTitle": "行业数据",
     "industryDataTrigger": "研究",
     "industryDataTriggerFailed": "指定触发失败",
-    "industryDataTriggerOk": "已触发 {{companyKey}} 的研究（运行 {{runId}}）"
+    "industryDataTriggerOk": "已触发 {{companyKey}} 的研究（运行 {{runId}}）",
+    "loading": "加载中...",
+    "authPolicyPrincipalAnonymous": "所有人/匿名",
+    "authPolicyPrincipalUsers": "工作区用户",
+    "authPolicyPrincipalAdmins": "工作区管理员",
+    "authPolicyNotGranted": "未授予",
+    "authPolicyLoginRequired": "需要登录",
+    "authPolicyColumnPrincipal": "主体",
+    "authPolicyColumnRole": "角色",
+    "authPolicyColumnSearch": "搜索",
+    "authPolicyColumnOperational": "运营 HR 数据",
+    "authPolicyColumnWrites": "写入",
+    "authPolicyEmpty": "无策略行",
+    "authPolicyProviderSubject": "提供方主体",
+    "authPolicyTenant": "租户",
+    "authPolicyWorkspace": "工作区",
+    "authPolicyGrant": "授予",
+    "authPolicyRevoke": "撤销",
+    "authPolicyRefresh": "刷新",
+    "authRoleWorkspaceAdmin": "工作区管理员",
+    "authRoleWorkspaceUser": "工作区用户",
+    "authRoleNone": "无工作区角色",
+    "authSignedOut": "已登出",
+    "authColumnUser": "用户",
+    "authColumnProvider": "提供方",
+    "authColumnSubject": "主体",
+    "authColumnEmail": "电子邮件",
+    "authColumnStatus": "状态",
+    "authColumnUserId": "用户 ID",
+    "authColumnCreated": "创建时间",
+    "authColumnType": "类型",
+    "authEmptyIdentities": "无提供方身份",
+    "authEmptyPreapprovals": "无预批准",
+    "authEmptyGrants": "无提供方派生授权",
+    "authEmptyEvents": "无认证事件",
+    "industryDataFilterPlaceholder": "按公司Key筛选"
+  },
+  "resumeDedup": {
+    "title": "简历去重审查",
+    "description": "跨简历采集源的建议同人匹配，根据联系信号和内容启发式评分。",
+    "sectionTitle": "建议匹配",
+    "sectionDescription": "仅供参考——此处不会合并简历或更改身份键。配对得分从 1.5 起，每匹配一个信号累加。",
+    "empty": "暂无建议匹配。当来自不同来源的简历共享联系信号（邮箱、电话、领英）或强内容信号时，会出现建议。",
+    "loading": "正在加载合并建议…",
+    "scanned": "已扫描的分组键",
+    "score": "得分",
+    "evidence": "证据",
+    "leftResume": "简历 A",
+    "rightResume": "简历 B",
+    "searchPlaceholder": "按姓名、联系方式或证据搜索候选人...",
+    "allScores": "所有分数",
+    "minScoreLabel": "分数 ≥ {{score}}",
+    "noMatches": "未找到符合筛选条件的重复建议。",
+    "clearFilter": "清除筛选",
+    "showingCount": "显示 {{shown}} / {{total}} 对候选"
+  },
+  "unresolvedQueue": {
+    "title": "未解析雇主队列",
+    "description": "采集时未能解析到公司的雇主名称。将其链接到规范公司键，或选择忽略。",
+    "statusTabs": {
+      "unresolved": "未解析",
+      "linked": "已链接",
+      "ignored": "已忽略",
+      "all": "全部"
+    },
+    "searchPlaceholder": "搜索雇主名称…",
+    "search": "搜索",
+    "loading": "正在加载未解析雇主…",
+    "loadFailed": "加载未解析雇主队列失败",
+    "retry": "重试",
+    "empty": "没有符合筛选条件的雇主名称。",
+    "sectionTitle": "队列",
+    "sectionDescription": "优先级行排在最前（出现频率、邻近分数或疑似售卖品牌拼写）。链接会记录规范公司键；忽略会记录该决定，使该行不再出现。",
+    "selected": "已选 {{count}} 项",
+    "bulkTargetPlaceholder": "所有选中项的公司键…",
+    "bulkLink": "批量链接",
+    "bulkIgnore": "批量忽略",
+    "selectAll": "全选所有雇主",
+    "deselectAll": "取消全选雇主",
+    "column": {
+      "select": "选择",
+      "employer": "雇主",
+      "count": "次数",
+      "score": "邻近分数",
+      "priority": "优先级",
+      "resolution": "处理结果",
+      "actions": "操作"
+    },
+    "priorityBadge": "优先",
+    "linkedTo": "已链接：{{companyKey}}",
+    "ignored": "已忽略",
+    "linkTargetPlaceholder": "公司键…",
+    "link": "链接",
+    "ignore": "忽略",
+    "requiresTarget": "请输入要链接的公司键。",
+    "linkSuccess": "已链接 {{count}} 个雇主键",
+    "ignoreSuccess": "已忽略 {{count}} 个雇主键",
+    "resolveFailed": "更新雇主键失败",
+    "unknownKeyHint": "不在公司注册表中，请核对后再链接。"
   },
   "industryEvidence": {
+    "actionApprove": "批准",
     "actionFilter": "动作",
+    "actionInspect": "检查",
+    "actionNeedsEvidence": "需要证据",
+    "actionReject": "拒绝",
     "advancedTools": "高级工具",
     "advancedToolsDescription": "用于深入调查的覆盖率、公司资料查询、重新计算和维护历史。",
     "all": "全部",
@@ -1024,6 +1319,9 @@
     "collapseAdvancedTools": "收起高级工具",
     "companyRequired": "请先将此提案映射到规范公司",
     "confidenceFilter": "置信度",
+    "confidenceHigh": "高",
+    "confidenceLow": "低",
+    "confidenceMedium": "中",
     "coverageDescription": "管线计数、含候选来源的开放提案、简历卡片覆盖率，以及最近的维护信号。待审核队列为空不代表研究已完成。",
     "coverageEmptyEvidenceBody": "{{withSources}} / {{openTotal}} 个开放提案有来源。研究没有填入证据（请检查 WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET 以及“执行操作”→“立即执行维护”）。",
     "coverageEmptyEvidenceTitle": "瓶颈：开放提案几乎没有候选来源",
@@ -1110,6 +1408,7 @@
     "queueEmpty": "没有可供审核的提案。",
     "queueFilters": "队列筛选",
     "queueLoadFailed": "加载行业证据提案队列失败",
+    "queueSkippedBanner": "本次队列已跳过 {{count}} 条格式异常的提案",
     "queueStatus": "队列状态",
     "recomputeFailed": "更新指定重新计算失败",
     "recomputeStatus": "指定重新计算",
@@ -1178,7 +1477,11 @@
     "riskAcknowledgementRequired": "批准前请确认所有可见风险，并填写详细理由。",
     "riskAttestationDescription": "批准仍然是人工决定。请确认可见的证据风险，并记录为什么所选版本仍然合理。",
     "riskAttestationTitle": "证据风险确认",
+    "riskCncInferred": "CNC 声明推断",
     "riskFilter": "风险",
+    "riskLowDiversity": "来源多样性低",
+    "riskSourceConflict": "来源冲突",
+    "riskStaleSource": "过期或失效来源",
     "rowApproveFailed": "批准失败，请重试此行。",
     "rowAttestationRequired": "需要明确确认",
     "rowCanonicalMissing": "缺少规范公司映射",
@@ -1214,7 +1517,131 @@
     "verifiedOnlyReviewAction": "前往审核",
     "verifiedQuickPick": "已验证公司资料",
     "viewRow": "查看",
-    "visibleRiskFlags": "可见风险标记"
+    "visibleRiskFlags": "可见风险标记",
+    "detailCurrentVerdict": "当前判定",
+    "detailNoApprovedRevision": "尚无已批准版本",
+    "detailCurrentRevision": "当前版本",
+    "detailFreshness": "新鲜度",
+    "detailNotRecorded": "未记录",
+    "recommendationTitle": "审核建议",
+    "recommendationAdvisory": "仅供参考。人工必须确认确切的证据与判定。",
+    "recommendationConfidence": "{{band}} 置信度",
+    "recommendationInspectEvidence": "决定前请检查所附证据。",
+    "recommendationReviewFlags": "审核标记",
+    "recommendationSuggestedClass": "建议分类",
+    "recommendationSuggestedSources": "建议来源",
+    "recommendationPacketFingerprint": "数据包指纹",
+    "acknowledgeRiskFlag": "确认 {{flag}}",
+    "riskFlag.canonical_mapping_missing": "规范公司映射缺失",
+    "riskFlag.only_discovery_sources": "仅附加了发现类来源",
+    "riskFlag.source_conflict": "来源在行业分类上存在冲突",
+    "riskFlag.weak_industry_signal": "行业信号较弱",
+    "riskFlag.cnc_claim_inferred": "CNC 声明由关键词推断得出",
+    "riskFlag.stale_or_failed_source": "来源已过期、不可用或失败",
+    "riskFlag.low_source_diversity": "来源多样性较低",
+    "riskFlag.worker_unreachable": "证据工作器无法访问",
+    "riskFlag.recompute_pending": "定向重新计算待处理",
+    "recomputeEmpty": "尚无定向重新计算运行。",
+    "recomputeAdvance": "推进",
+    "recomputeRetry": "重试",
+    "evidenceEmpty": "未附加证据来源。",
+    "selectEvidenceSource": "选择证据来源 {{title}}",
+    "sourceRecommended": "推荐",
+    "fetchedOn": "抓取于 {{date}}",
+    "revisionHistoryEmpty": "尚无不可变版本。",
+    "terminalReadOnlyNotice": "此提案处于终态历史中。其证据与不可变版本历史为只读。",
+    "verdict": "判定",
+    "suggestedSuffix": "（建议）",
+    "industryClassLabel": "行业分类",
+    "evidenceSummaryLabel": "证据摘要",
+    "decisionReasonLabel": "决定原因",
+    "confirmImmutableTitle": "确认此不可变版本",
+    "approving": "您正在将 {{industryClass}} 批准为 {{verificationLevel}}（{{company}}）。",
+    "approvingSources": "来源：{{sourceIds}} · 这将创建新版本并启动定向重新计算。",
+    "approvingFlagsRemain": "审核标记仍为：{{flags}}",
+    "confirmApprove": "确认批准该版本",
+    "taxonomyVersionLabel": "分类法版本",
+    "detailReviewNoteLabel": "审核备注（用于拒绝 / 请求更多证据）",
+    "approveRevision": "批准该版本",
+    "requestMoreEvidence": "请求更多证据",
+    "rejectProposal": "拒绝提案",
+    "requestMoreEvidenceNote": "“请求更多证据”仅记录人工审核处置。请使用上方的“研究并验证雇主”来排队受保护的 worker。",
+    "sourceType.official_site": "官方网站",
+    "sourceType.registry": "SSM / MSIC",
+    "sourceType.taxonomy": "分类法",
+    "sourceType.oem_partner": "OEM",
+    "sourceType.trade_body": "行业协会",
+    "sourceType.directory": "目录",
+    "sourceType.reporting": "报告",
+    "sourceType.other": "已审核",
+    "trustTier.primary": "可信主要来源",
+    "trustTier.authoritative": "可信权威来源",
+    "trustTier.corroborating": "已审核佐证来源",
+    "sourceAccessibleName": "{{label}} 来源（{{domain}}）",
+    "sourceTitleFallback": "{{label}} 证据",
+    "noExcerpt": "已审核来源；无摘录可用。",
+    "humanApproved": "人工已批准",
+    "reviewedOn": "审核于 {{date}}",
+    "openSource": "打开来源",
+    "openOfficialWebsite": "打开 {{companyName}} 官方网站",
+    "verifiedPathHuman": "由 {{reviewer}} 根据 {{count}} 个已批准证据来源人工核实。",
+    "verifiedPathHumanWithDate": "{{date}} 由 {{reviewer}} 根据 {{count}} 个已批准证据来源人工核实。",
+    "verifiedPathAuto": "根据 {{count}} 个佐证证据来源自动核实为 {{industry}} 行业雇主。",
+    "filterByCompany": "点击按此公司筛选候选人搜索",
+    "approvedEvidenceFor": "{{companyName}} 的已批准行业证据",
+    "industryVerifiedStatus": "{{industry}} 行业验证状态",
+    "verificationStatusDescription": "确认注册的制造与企业管理能力，用于候选人搜索筛选。",
+    "industryField": "行业：",
+    "approvedSourcesLabel": "已批准来源：",
+    "relevantRoles": "相关职位：",
+    "verifiedYears": "已核实 {{count}} 年",
+    "verifiedYearsTitle": "已验证工作年限",
+    "verifiedYearsDescription": "根据该 {{industry}} 行业雇主 {{years}} 年的候选人工作经历计算得出。",
+    "additionalSources": "+{{count}} 个来源",
+    "sourceCountLabel": "已批准 {{count}} 个来源",
+    "reviewedDateSuffix": " · 审核于 {{date}}",
+    "additionalEmployers": "+{{count}} 个已核实雇主",
+    "verifiedEmployerOne": "已核实雇主",
+    "verifiedEmployerOther": "已核实雇主",
+    "detailHeading": "已批准行业证据",
+    "detailDescription": "人工审核的证据已随此简历实体化。此页面不会运行实时网络研究。",
+    "verifiedBadge": "{{industry}} 行业验证",
+    "requestRefresh": "请求刷新",
+    "requestRefreshFor": "请求刷新 {{companyName}}",
+    "requesting": "请求中…",
+    "requested": "已请求",
+    "refreshRequested": "已请求刷新",
+    "refreshError": "无法提交刷新请求。已批准的判定保持不变。",
+    "detailApprovedRevision": "已批准版本",
+    "detailReviewed": "已审核",
+    "detailReviewer": "审核人",
+    "detailCurrentApproved": "当前已批准证据",
+    "detailCanonicalCompany": "规范公司",
+    "detailRevisionId": "版本 ID",
+    "approvedSourcesTitle": "已批准来源",
+    "sourcePreviewsUnavailable": "此实体化投影中不提供来源预览。",
+    "additionalApprovedSources": "另有 {{count}} 个已批准来源",
+    "detailNoSourcesOnProfile": "此档案没有来源。",
+    "coverageTargetedQueue": "定向研究队列",
+    "coveragePartialResult": "部分结果 — 重试前请检查失败/超时的目标。",
+    "coveragePriorityLanes": "优先通道：{{lanes}}。",
+    "coverageNone": "无",
+    "queueActive": "进行中",
+    "queueQueued": "排队中",
+    "queueResearching": "调研中",
+    "queueIdentityReview": "身份审核",
+    "queueFailed": "失败",
+    "queueLeased": "已租用",
+    "queueHealthUnavailable": "队列健康状态不可用。",
+    "opsQueueDescription": "精确的用户请求独立于大规模维护扫描进行租用和重试。",
+    "queueStatusReadyReview": "可审核",
+    "queueStatusNew": "新建",
+    "queueStatusResearching": "调研中",
+    "queueStatusNeedsEvidence": "需要更多证据",
+    "noLedgerRows": "没有台账记录。",
+    "historyStatusApproved": "已批准",
+    "historyStatusRejected": "已拒绝",
+    "historyStatusSuperseded": "已取代"
   },
   "industryAudit": {
     "title": "行业审计",
@@ -1374,8 +1801,25 @@
       "enabledSchedule": "{{schedule}}（已启用）",
       "lastRun": "上次运行：",
       "runStatus": "运行状态：",
-      "runNow": "立即运行"
-    }
+      "runNow": "立即运行",
+      "duplicate": "复制"
+    },
+    "schedule": {
+      "enabled": "已启用",
+      "disabled": "已停用"
+    },
+    "roleFilterTypePlaceholder": "例如：销售",
+    "searchPlaceholder": "按名称、地区或关键词搜索画像…",
+    "filterAll": "所有状态",
+    "filterStatus": {
+      "active": "启用",
+      "paused": "已暂停",
+      "archived": "已归档"
+    },
+    "filterResultCount": "显示 {{count}} / {{total}} 个",
+    "noMatches": "未找到匹配的搜索画像。",
+    "clearFilter": "清除筛选",
+    "copySuffix": "（副本）"
   },
   "debug": {
     "processTitle": "处理数据",
@@ -1464,15 +1908,22 @@
       "avgScore": "平均分",
       "historyTitle": "分析历史",
       "activeTitle": "进行中的分析",
+      "runModeHybrid": "混合",
       "showHistory": "显示历史",
       "highScore": "高分 (80+)",
       "cancel": "取消",
+      "runModeAi": "AI",
+      "runModeRules": "规则",
+      "runStatusPending": "待处理",
+      "runStatusProcessing": "处理中",
       "skipped": "已跳过",
       "analyzed": "已分析",
       "allCompleted": "所有分析任务已完成",
       "cancelling": "取消中...",
       "failed": "失败",
-      "historyDescription": "查看进行中与已完成的 AI 分析任务。"
+      "historyDescription": "查看进行中与已完成的 AI 分析任务。",
+      "runStatusCompleted": "已完成",
+      "runStatusFailed": "失败"
     },
     "dispatchFailed": "启动分析失败",
     "error": "分析失败",
@@ -1480,10 +1931,16 @@
     "analyzing": "分析中...",
     "noNewCandidates": "匹配结果中没有新的候选人需要分析。",
     "dispatchedTop": "正在分析前 {{count}} 位候选人...",
-    "lowKeywordMatch": "关键词可能与显示的简历不匹配。建议先收集新简历。"
+    "lowKeywordMatch": "关键词可能与显示的简历不匹配。建议先收集新简历。",
+    "unavailableForAccount": "当前账号无法使用 AI 分析。",
+    "noNewCandidatesLoaded": "加载的结果中没有可分析的新候选人。",
+    "analyzingCount": "正在分析 {{count}} 份简历...",
+    "analyzingBatch": "正在分析 {{count}} 份简历（还有 {{remaining}} 份待处理）...",
+    "dispatchFailedFull": "AI 分析启动失败，请重试。"
   },
   "settings": {
     "searchSetup": {
+      "nav": "搜索设置",
       "title": "搜索设置",
       "description": "设置工作区关键字与地区显示，引导候选人发掘。",
       "locationsTitle": "地区",
@@ -1492,6 +1949,7 @@
       "brandKeywordsDescription": "只读品牌参考数据，协助成员对齐自定义搜索关键字。"
     },
     "setup": {
+      "nav": "设置",
       "title": "设置向导",
       "description": "三步上手：安装扩展功能、配置搜索设置、从简历工作台启动首次收集。",
       "goToSearchSetup": "前往搜索设置",
@@ -1500,7 +1958,8 @@
     },
     "blocks": {
       "actions": {
-        "unblock": "解除屏蔽"
+        "unblock": "解除屏蔽",
+        "cancel": "取消"
       },
       "countBadge": "已屏蔽 {{count}}",
       "noReason": "-",
@@ -1523,6 +1982,9 @@
       },
       "title": "黑名单管理",
       "bulkUnblock": "批次解除屏蔽 ({{count}})",
+      "unblockConfirm": "确认解除屏蔽此候选人？",
+      "unblockConfirmYes": "确认解除",
+      "clearSearch": "清除搜索",
       "searchPlaceholder": "依候选人识别键或原因搜索...",
       "empty": "目前没有已屏蔽候选人。",
       "nav": "黑名单"
@@ -1538,14 +2000,23 @@
       },
       "companiesTitle": "公司注册表与策略",
       "companiesDescription": "管理此工作区的已知优质/禁止录用公司。策略不改写 AI 分数；搜索侧执行将在后续切片落地。",
+      "companiesDescriptionMarket": "{{scope}} 市场策略优先于工作区策略，适用于源自该市场的简历。策略不改写 AI 分数。",
+      "scopeLabel": "策略范围",
+      "scope": {
+        "workspace": "工作区",
+        "cn": "中国大陆",
+        "my": "马来西亚"
+      },
       "searchPlaceholder": "搜索公司、别名或 key…",
       "seedCanonical": "重置 宝力机械 + 宝惠 为禁止录用",
       "seeding": "种子中…",
       "empty": "尚无公司。请先种子规范公司或在下方新增。",
+      "emptyMarket": "尚无 {{scope}} 市场策略。设置后可为该市场覆盖工作区策略。",
       "noAliases": "无别名",
       "aliasPlaceholder": "添加别名",
       "addAlias": "添加",
       "noPolicy": "尚无工作区策略",
+      "noPolicyMarket": "尚无 {{scope}} 市场策略",
       "addCompanyTitle": "新增公司",
       "addCompanyDescription": "创建已确认公司条目。宝力机械与宝惠必须使用不同 key。",
       "companyKeyPlaceholder": "company-key（如 acme-cnc）",
@@ -1562,6 +2033,7 @@
         "company": "公司",
         "aliases": "别名",
         "policy": "工作区策略",
+        "policyMarket": "{{scope}} 市场策略",
         "actions": "操作"
       },
       "toasts": {
@@ -1593,7 +2065,23 @@
         "noHireShort": "禁止录用",
         "knownGoodShort": "已知优质",
         "manageLink": "管理",
-        "researchLink": "Research"
+        "researchLink": "Research",
+        "overrideBadge": "豁免",
+        "overrideManage": "策略豁免",
+        "overrideDialogTitle": "豁免禁雇策略",
+        "overrideDialogDescription": "授予例外，解除该候选人针对特定公司的禁雇推进限制。可见性与排名效果保持不变。",
+        "overrideCompanyBlocked": "推进被禁雇策略阻止",
+        "overrideCompanyAllowed": "豁免生效 — 允许推进",
+        "overrideReasonPlaceholder": "必填 — 说明该候选人为何可以推进至该公司",
+        "overrideGrant": "授予豁免",
+        "overrideRemove": "移除",
+        "overrideEmpty": "没有可豁免的禁雇公司。",
+        "overrideReasonRequired": "授予豁免必须填写理由。",
+        "overrideSetSuccess": "豁免已授予",
+        "overrideSetFailed": "豁免授予失败",
+        "overrideRemoveSuccess": "豁免已移除",
+        "overrideRemoveFailed": "豁免移除失败",
+        "overrideAuthorizedBy": "授权人 {{author}}"
       },
       "researchLink": "Research (HR)",
       "archive": "封存",
@@ -1616,7 +2104,9 @@
       "currentPasswordIncorrect": "当前密码不正确",
       "passwordTooShort": "密码至少需要 8 个字符",
       "passwordsDoNotMatch": "密码不匹配",
-      "changeFailed": "更改密码失败"
+      "changeFailed": "更改密码失败",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码"
     }
   },
   "searchAnalytics": {
@@ -1632,7 +2122,9 @@
     "table": {
       "query": "查询词",
       "count": "次数",
-      "suggestion": "建议"
+      "suggestion": "建议",
+      "testSearch": "测试搜索",
+      "filterPlaceholder": "筛选查询..."
     },
     "loadError": "加载搜索分析失败",
     "noTopQueries": "尚无查询数据。",
@@ -1646,6 +2138,8 @@
     "dailyTrend": "每日趋势",
     "noSuggestion": "暂无可用建议",
     "noZeroResults": "尚无零结果查询纪录。",
+    "testQuery": "测试搜索",
+    "clearFilter": "清除筛选",
     "suggestSynonym": "建议同义词",
     "nav": "搜索分析",
     "savingSuggestion": "保存中..."
@@ -1666,11 +2160,16 @@
     "minSalary": "最低期望薪资",
     "maxSalary": "最高期望薪资",
     "defaultSalary": "单位: k (千)",
-    "customKeywords": "自定义:",
+    "customKeywords": "自定义",
     "minRelatedExp": "最低相关经验(年)",
     "locationPlaceholder": "例如：东莞",
     "maxRelatedExp": "最高相关经验(年)",
     "contentPlaceholder": "可贴上或编辑职位 Markdown 内容",
+    "customKeywordsPlaceholder": "例如：机床 车床",
+    "titleRequired": "职位标题不能为空",
+    "contentRequired": "职位内容不能为空",
+    "saveFailed": "保存职位描述失败",
+    "shortcutHint": "Ctrl/⌘ + Enter 保存",
     "post": "职位名称",
     "maxAge": "最高年龄",
     "simpleMode": "基本信息"
@@ -1690,7 +2189,10 @@
       "lastOpened": "上次开启",
       "description": "显式开启已保存的搜索，而不是在页面加载时静默恢复。",
       "createdAt": "建立时间",
-      "saveError": "保存搜索历史失败"
+      "saveError": "保存搜索历史失败",
+      "searchPlaceholder": "按标题、关键词、地点搜索历史...",
+      "noMatches": "没有符合筛选条件的已保存搜索。",
+      "clearSearch": "清除搜索"
     },
     "collectResumes": "采集",
     "autoMatchTitle": "智能匹配",
@@ -1770,7 +2272,10 @@
     "shortcutsTitle": "快捷方式",
     "workflows": "工作流",
     "collectJob51Hint": "最多收集 {{effectiveLimit}} 份简历，跨 {{effectiveMaxPages}} 页。",
-    "shellDescription": "保持顶层 shell 专注于搜索。历史记录、收集和维护操作位于下一层。"
+    "shellDescription": "保持顶层 shell 专注于搜索。历史记录、收集和维护操作位于下一层。",
+    "hideLocationKeywords": "隐藏地点关键词",
+    "showLocationKeywords": "显示地点关键词",
+    "clearLocations": "清除地点"
   },
   "time": {
     "justNow": "刚刚",
@@ -1790,6 +2295,12 @@
     "archivedAt": "归档时间",
     "archivedBadge": "已归档",
     "restore": "恢复",
+    "restoreConfirm": "还原这份简历？",
+    "restoreConfirmYes": "确认还原",
+    "restoreSelectedConfirmTitle": "还原选中的简历？",
+    "restoreSelectedConfirmBody": "将还原 {{count}} 份简历，重新进入活跃人才库。",
+    "noResultsForSearch": "没有符合搜索条件的已归档简历",
+    "clearSearch": "清除搜索",
     "noResults": "未找到已归档简历",
     "restoreFailed": "恢复简历失败",
     "restoreNothing": "没有需要恢复的简历",
@@ -1802,6 +2313,8 @@
     "columnRun": "运行",
     "columnStarted": "开始时间",
     "columnStatus": "状态",
+    "copyContent": "复制内容",
+    "copyContentToast": "内容已复制到剪贴板",
     "detailAccounts": "Telegram 账号",
     "detailBatches": "计划批次",
     "detailComparison": "对比",
@@ -1853,6 +2366,8 @@
     "profileCreating": "创建中...",
     "profileDelete": "删除配置",
     "profileDeleting": "删除中...",
+    "profileDeleteConfirm": "确定要永久删除此配置吗？",
+    "profileDeleteConfirmYes": "确定删除",
     "profileFormChannel": "配置频道",
     "profileFormCron": "Cron 表达式",
     "profileFormCronHint": "使用全局 worker 时区。",
@@ -1899,6 +2414,75 @@
       "saveProfileFailed": "保存摘要配置失败",
       "createProfileFailed": "创建摘要配置失败",
       "deleteProfileFailed": "删除摘要配置失败"
+    },
+    "period": {
+      "daily": "每日",
+      "weekly": "每周"
+    },
+    "channel": {
+      "telegram": "Telegram",
+      "wechatWork": "企业微信",
+      "feishu": "飞书",
+      "email": "邮件"
+    },
+    "delivery": {
+      "sentCount": "已发送 {{sent}}/{{total}}",
+      "batches": "{{count}} 批次",
+      "override": "覆盖",
+      "ok": "正常",
+      "available": "可用"
+    },
+    "accountStatus": {
+      "sent": "已发送",
+      "failed": "失败",
+      "skipped": "已跳过"
+    },
+    "comparison": {
+      "sharedIngest": "共享导入 {{delta}} 份简历",
+      "workspaceActivity": "工作区 {{delta}} 状态",
+      "weekly": "与上周相比",
+      "daily": "与前一天相比"
+    },
+    "profile": {
+      "emailRecipientRequired": "需要邮件接收人",
+      "envDefaults": "环境变量默认值",
+      "enabled": "已启用",
+      "paused": "已暂停",
+      "dryRun": "试运行",
+      "send": "发送"
+    }
+  },
+  "analysisTasks": {
+    "status": {
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "pending": "等待中"
+    },
+    "keywords": "关键词：{{keywords}}",
+    "unknownTitle": "未知"
+  },
+  "taskMonitor": {
+    "allCompleted": "所有任务已完成（{{count}}）",
+    "hideHistory": "隐藏历史",
+    "showHistory": "显示历史",
+    "viewHistory": "查看历史",
+    "activeTitle": "正在采集",
+    "historyTitle": "采集历史",
+    "workerWarning": "检测到待处理任务，但未看到正常的采集 Worker 心跳。",
+    "noActiveTasks": "暂无进行中的任务。",
+    "cancelling": "正在取消...",
+    "cancel": "取消",
+    "progress": "进度：{{current}} / {{limit}}",
+    "page": "第 {{page}} 页",
+    "worker": "Worker：",
+    "status": {
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "pending": "等待中"
     }
   },
   "aiTagging": {
@@ -1956,7 +2540,9 @@
   },
   "feedback": {
     "failed": "保存反馈失败",
-    "saved": "反馈已保存"
+    "saved": "反馈已保存",
+    "likeAria": "点赞 {{label}}",
+    "unlikeAria": "取消点赞 {{label}}"
   },
   "manualResumeImport": {
     "clearFiles": "清除",
@@ -1980,6 +2566,7 @@
     "selectFiles": "选择文件",
     "selectFilesFirst": "请至少选择一个文件进行导入",
     "selectedFiles": "已选文件",
+    "selectedFilesSummary": "已选文件 ({{count}} 个 · {{size}})",
     "skipped": "已跳过",
     "submit": "导入简历",
     "title": "导入简历",
@@ -2078,7 +2665,14 @@
     "feedbackCardDescription": "上传审阅后的电子表格以更新跟踪运行的状态、操作和备注。",
     "feedbackImportSuccess": "已导入 {{count}} 行审阅数据",
     "summaryCardDescription": "生成 WeChat 摘要预览，然后使用配置的模板和可选的 webhook 覆盖发送。",
-    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
+    "resumeIdsParsed": "已解析 {{count}} 个 ID",
+    "exportInvalidIds": "{{count}} 个无效简历 ID 阻止了导出",
+    "removeInvalidRetry": "移除无效 ID 并重试",
+    "filterAll": "所有状态",
+    "copyRunId": "复制批次 ID",
+    "runIdCopied": "批次 ID 已复制到剪贴板",
+    "noMatchingRuns": "未找到符合筛选条件的审查批次。"
   },
   "auditCompliance": {
     "title": "审计与合规",
@@ -2105,6 +2699,8 @@
       "empty": "未找到审计日志条目。"
     },
     "filters": {
+      "allOutcomes": "全部结果",
+      "allTypes": "全部类型",
       "decisionType": "决策类型",
       "outcome": "结果",
       "all": "全部"
@@ -2164,6 +2760,41 @@
       "threshold": "阈值",
       "title": "指标明细",
       "value": "值"
+    },
+    "decisionType": {
+      "confirm": "确认",
+      "filter": "筛选",
+      "rank": "排名",
+      "score": "分数",
+      "tag": "标签"
+    },
+    "outcome": {
+      "accepted": "已接受",
+      "appealed": "已申诉",
+      "overridden": "已覆盖",
+      "pending": "待处理"
+    },
+    "time": {
+      "daysAgo": "{{count}}天前",
+      "hoursAgo": "{{count}}小时前",
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}}分钟前"
+    },
+    "status": {
+      "fail": "未通过",
+      "pass": "通过"
+    },
+    "anomaly": {
+      "false": "否",
+      "true": "是",
+      "yes": "是"
+    },
+    "alert": {
+      "disparityRatio": "差异比率：{{value}}",
+      "psi": "PSI：{{value}}"
+    },
+    "output": {
+      "score": "分数：{{value}}"
     }
   },
   "explanationPage": {
@@ -2216,7 +2847,8 @@
       "submitting": "提交中...",
       "success": "您的申诉已提交。专业人员将审核您的申请。",
       "nextSteps": "您将收到审核结果通知。",
-      "error": "申诉提交失败，请重试。"
+      "error": "申诉提交失败，请重试。",
+      "shortcutHint": "Ctrl/⌘ + Enter 提交"
     },
     "footer": {
       "compliance": "此说明依据 EU AI Act 第13条提供。"
@@ -2284,6 +2916,8 @@
     "backToPolicies": "企业策略",
     "companyTitle": "企业研究",
     "empty": "No research signals for this company yet.",
+    "copySignal": "复制动态",
+    "signalCopied": "动态已复制到剪贴板",
     "evidenceLink": "原文",
     "evidenceSeed": "种子证据（非外链）",
     "goldenEmpty": "暂无金色展示企业。",
@@ -2382,6 +3016,20 @@
     "hotlistLoading": "加载中…",
     "openHotlistTab": "查看综合热榜",
     "tabBrand": "品牌动态",
-    "tabHotlist": "综合热榜"
+    "tabHotlist": "综合热榜",
+    "signalCountBadge": "{{count}} 条信号",
+    "seedMeta": "种子 id: {{id}}"
+  },
+  "publicShare": {
+    "queryAria": "共享快照查询",
+    "queryDefault": "共享快照",
+    "inThisSnapshot": " 在此公开快照中",
+    "snapshotBadge": "快照",
+    "unavailableTitle": "公开分享不可用",
+    "expiredDescription": "此快照链接已过期或被撤销。",
+    "notFoundTitle": "找不到公开分享",
+    "notFoundDescription": "快照链接不存在。",
+    "errorDescription": "无法加载快照。",
+    "backToApp": "返回 Trends"
   }
 }

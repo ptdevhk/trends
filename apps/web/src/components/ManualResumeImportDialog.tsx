@@ -133,6 +133,10 @@ export function ManualResumeImportDialog({
 
   const keyword = useMemo(() => normalizeKeywords(keywords), [keywords])
   const normalizedLocation = useMemo(() => normalizeOptionalString(location), [location])
+  const totalSelectedSize = useMemo(
+    () => formatBytes(selectedFiles.reduce((sum, file) => sum + file.size, 0)),
+    [selectedFiles],
+  )
 
   useEffect(() => {
     if (open) {
@@ -152,7 +156,13 @@ export function ManualResumeImportDialog({
 
   const removeFile = (fileToRemove: File) => {
     const fingerprint = getFileFingerprint(fileToRemove)
-    setSelectedFiles((current) => current.filter((file) => getFileFingerprint(file) !== fingerprint))
+    setSelectedFiles((current) => {
+      const remaining = current.filter((file) => getFileFingerprint(file) !== fingerprint)
+      if (remaining.length === 0 && inputRef.current) {
+        inputRef.current.value = ''
+      }
+      return remaining
+    })
     setResult(null)
   }
 
@@ -312,7 +322,10 @@ export function ManualResumeImportDialog({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="text-sm font-medium">
-                {t('manualResumeImport.selectedFiles', 'Selected files')} ({selectedFiles.length})
+                {t('manualResumeImport.selectedFilesSummary', 'Selected files ({{count}} · {{size}})', {
+                  count: selectedFiles.length,
+                  size: totalSelectedSize,
+                })}
               </div>
               {selectedFiles.length > 0 ? (
                 <Button
@@ -321,6 +334,9 @@ export function ManualResumeImportDialog({
                   size="sm"
                   onClick={() => {
                     setSelectedFiles([])
+                    if (inputRef.current) {
+                      inputRef.current.value = ''
+                    }
                     setResult(null)
                   }}
                 >

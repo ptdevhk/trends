@@ -127,4 +127,42 @@ describe("serverTimingMiddleware", () => {
     const dur = parseInt(match![1], 10);
     expect(dur).toBeGreaterThanOrEqual(0);
   });
+
+  it("emits total alone when no named segments are recorded", async () => {
+    const app = new Hono();
+    app.use("*", serverTimingMiddleware);
+    app.get("/test", (c) => c.json({ ok: true }));
+
+    const res = await app.request("/test");
+    expect(res.headers.get("Server-Timing")).toMatch(/^total;dur=\d+$/);
+  });
+
+  it("includes named segments recorded via c.var.serverTiming", async () => {
+    const app = new Hono();
+    app.use("*", serverTimingMiddleware);
+    app.get("/test", (c) => {
+      c.var.serverTiming.add("idx-cache", 1.4);
+      c.var.serverTiming.add("queue", 3);
+      return c.json({ ok: true });
+    });
+
+    const res = await app.request("/test");
+    expect(res.headers.get("Server-Timing")).toMatch(
+      /^total;dur=\d+, idx-cache;dur=1, queue;dur=3$/,
+    );
+  });
+
+  it("records named segments in the order they were added", async () => {
+    const app = new Hono();
+    app.use("*", serverTimingMiddleware);
+    app.get("/test", (c) => {
+      c.var.serverTiming.add("a", 1);
+      c.var.serverTiming.add("b", 2);
+      return c.json({ ok: true });
+    });
+
+    const res = await app.request("/test");
+    const header = res.headers.get("Server-Timing") ?? "";
+    expect(header.indexOf("a;dur=1")).toBeLessThan(header.indexOf("b;dur=2"));
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 
 describe('cn', () => {
   it('joins class names', () => {
@@ -33,5 +33,19 @@ describe('cn', () => {
 
   it('resolves color conflicts', () => {
     expect(cn('text-red-500', 'text-blue-700')).toBe('text-blue-700')
+  })
+})
+
+describe('isImeComposition', () => {
+  it('flags native composition events', () => {
+    expect(isImeComposition({ nativeEvent: { isComposing: true }, keyCode: 229 } as React.KeyboardEvent)).toBe(true)
+  })
+
+  it('flags the legacy 229 keyCode', () => {
+    expect(isImeComposition({ nativeEvent: { isComposing: false }, keyCode: 229 } as React.KeyboardEvent)).toBe(true)
+  })
+
+  it('passes plain Enter', () => {
+    expect(isImeComposition({ nativeEvent: { isComposing: false }, keyCode: 13 } as React.KeyboardEvent)).toBe(false)
   })
 })

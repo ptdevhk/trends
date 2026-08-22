@@ -8,6 +8,7 @@ import {
     splitQueryTokens,
     matchesAllTokens,
 } from "./resume_helpers.js";
+import { normalizeSearchQuery } from "@trends/shared";
 import {
     normalizeTagExpansionKeywordGroups,
     collectExpandedTerms,
@@ -381,7 +382,8 @@ export const search = query({
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
-        const tokens = splitQueryTokens(args.query);
+        const normalizedQuery = normalizeSearchQuery(args.query);
+        const tokens = splitQueryTokens(normalizedQuery);
         if (tokens.length > 1) {
             const digestMatches = await searchDigestRowsForTokens(
                 ctx,
@@ -398,7 +400,7 @@ export const search = query({
 
         const digestMatches = await ctx.db
             .query("resume_digests")
-            .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
+            .withSearchIndex("search_body", (q) => q.search("searchText", normalizedQuery).eq("isArchived", undefined))
             .take(limit);
         const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
 
@@ -415,7 +417,8 @@ export const searchWithIngestData = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const tokens = splitQueryTokens(args.query);
+        const normalizedQuery = normalizeSearchQuery(args.query);
+        const tokens = splitQueryTokens(normalizedQuery);
         let matches: Doc<"resumes">[];
         if (tokens.length > 1) {
             const digestMatches = await searchDigestRowsForTokens(
@@ -430,7 +433,7 @@ export const searchWithIngestData = query({
             const fetchLimit = Math.max(limit, 200);
             const digestMatches = await ctx.db
                 .query("resume_digests")
-                .withSearchIndex("search_body", (q) => q.search("searchText", args.query).eq("isArchived", undefined))
+                .withSearchIndex("search_body", (q) => q.search("searchText", normalizedQuery).eq("isArchived", undefined))
                 .take(fetchLimit);
             matches = await getResumeDocsByDigestRows(ctx, digestMatches);
         }
@@ -1088,6 +1091,28 @@ export const upsertResumeDigestForTest = mutation({
     },
 });
 
+// Test-only query for measurement spikes — narrows a search to one sourceKey
+// via the index filterField, so a fixture-only probe can tell a rank/window
+// artifact (row present in the posting list) from a genuine index miss.
+export const searchBySourceKeyForTest = query({
+    args: {
+        query: v.string(),
+        sourceKey: v.string(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = Math.min(args.limit ?? 100, 500);
+        const digestMatches = await ctx.db
+            .query("resume_digests")
+            .withSearchIndex("search_body", (q) =>
+                q.search("searchText", args.query).eq("isArchived", undefined).eq("sourceKey", args.sourceKey),
+            )
+            .take(limit);
+        const matches = await getResumeDocsByDigestRows(ctx, digestMatches);
+        return matches.slice(0, limit);
+    },
+});
+
 // Idempotent backfill: paginate through all resumes and upsert digests.
 // Safe to re-run — existing digests are updated in place.
 export const backfillResumeDigests = mutation({
@@ -1261,6 +1286,7 @@ export const getResumeDocsByIds = query({
                 searchText: doc.searchText,
                 isArchived: doc.isArchived,
                 source: doc.source,
+                sourceKey: doc.sourceKey,
                 primaryRuleScore: doc.primaryRuleScore,
                 age: doc.age,
                 content: doc.content,

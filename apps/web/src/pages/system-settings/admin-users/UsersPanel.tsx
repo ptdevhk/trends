@@ -18,6 +18,14 @@ import {
 import { CreateUserDialog } from './CreateUserDialog'
 import { MembershipsDrawer } from './MembershipsDrawer'
 import { UserAuditDrawer } from './UserAuditDrawer'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type Props = {
   operatorId: string | null
@@ -34,7 +42,7 @@ function formatApiError(error: AdminUsersError): string {
 }
 
 export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -42,6 +50,10 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [membershipsUser, setMembershipsUser] = useState<AdminUserRecord | null>(null)
   const [auditUser, setAuditUser] = useState<AdminUserRecord | null>(null)
+  const [pendingAction, setPendingAction] = useState<{
+    type: 'resetPassword' | 'unlock'
+    username: string
+  } | null>(null)
 
   function publishTemporaryPassword(temporaryPassword: string | null) {
     onTemporaryPassword?.(temporaryPassword)
@@ -103,35 +115,34 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
     )
   }
 
-  async function handleResetPassword(username: string) {
-    const confirmed = window.confirm(
-      t('debugConfig.adminUsersResetPasswordConfirm', {
-        defaultValue: 'Reset the password for this user?',
-      }),
-    )
-    if (!confirmed) return
-    const result = await resetAdminUserPassword(username)
-    if (result.success === false) {
-      toast.error(result.error)
-      return
-    }
-    publishTemporaryPassword(result.temporaryPassword)
+  function requestResetPassword(username: string) {
+    setPendingAction({ type: 'resetPassword', username })
   }
 
-  async function handleUnlock(username: string) {
-    const confirmed = window.confirm(
-      t('debugConfig.adminUsersUnlockConfirm', {
-        defaultValue: 'Unlock this user account?',
-      }),
-    )
-    if (!confirmed) return
-    const result = await unlockAdminUser(username)
-    if (result.success === false) {
-      toast.error(result.error)
-      return
+  function requestUnlock(username: string) {
+    setPendingAction({ type: 'unlock', username })
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingAction) return
+    const { type, username } = pendingAction
+    setPendingAction(null)
+    if (type === 'resetPassword') {
+      const result = await resetAdminUserPassword(username)
+      if (result.success === false) {
+        toast.error(result.error)
+        return
+      }
+      publishTemporaryPassword(result.temporaryPassword)
+    } else {
+      const result = await unlockAdminUser(username)
+      if (result.success === false) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(t('debugConfig.adminUsersUnlocked', { defaultValue: 'User unlocked' }))
+      // No user-list change needed; unlock clears lockout state server-side.
     }
-    toast.success(t('debugConfig.adminUsersUnlocked', { defaultValue: 'User unlocked' }))
-    // No user-list change needed; unlock clears lockout state server-side.
   }
 
   function getLocalUsername(user: AdminUserRecord): string {
@@ -206,11 +217,11 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
           <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b text-left text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">User</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Workspaces</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2 text-right">Actions</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColUser', { defaultValue: 'User' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColStatus', { defaultValue: 'Status' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColWorkspaces', { defaultValue: 'Workspaces' })}</th>
+                <th className="px-3 py-2">{t('debugConfig.adminUsersColCreated', { defaultValue: 'Created' })}</th>
+                <th className="px-3 py-2 text-right">{t('debugConfig.adminUsersColActions', { defaultValue: 'Actions' })}</th>
               </tr>
             </thead>
             <tbody>
@@ -230,7 +241,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                           {u.displayName ?? getLocalUsername(u)}
                           {isSelf && (
                             <Badge variant="outline" className="ml-2 text-xs">
-                              You
+                              {t('debugConfig.adminUsersYou', { defaultValue: 'You' })}
                             </Badge>
                           )}
                         </div>
@@ -246,7 +257,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           {u.memberships.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">none</span>
+                            <span className="text-xs text-muted-foreground">{t('debugConfig.adminUsersNone', { defaultValue: 'None' })}</span>
                           ) : (
                             u.memberships.map((m) => (
                               <Badge key={m.workspaceSlug} variant="secondary" className="text-xs">
@@ -257,7 +268,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         </div>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {new Date(u.createdAt).toLocaleDateString()}
+                        {new Date(u.createdAt).toLocaleDateString(i18n.language)}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex flex-wrap justify-end gap-1">
@@ -291,7 +302,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                             size="sm"
                             data-testid={`admin-reset-pw-${u.id}`}
                             onClick={() => {
-                              void handleResetPassword(getLocalUsername(u))
+                              requestResetPassword(getLocalUsername(u))
                             }}
                           >
                             <Key className="mr-1 h-3 w-3" />
@@ -302,7 +313,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                             size="sm"
                             data-testid={`admin-unlock-${u.id}`}
                             onClick={() => {
-                              void handleUnlock(getLocalUsername(u))
+                              requestUnlock(getLocalUsername(u))
                             }}
                           >
                             <Lock className="mr-1 h-3 w-3" />
@@ -354,7 +365,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         {u.displayName ?? getLocalUsername(u)}
                         {isSelf && (
                           <Badge variant="outline" className="ml-2 text-xs">
-                            You
+                            {t('debugConfig.adminUsersYou', { defaultValue: 'You' })}
                           </Badge>
                         )}
                       </div>
@@ -367,7 +378,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         {u.status}
                       </Badge>
                       {u.memberships.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">none</span>
+                        <span className="text-xs text-muted-foreground">{t('debugConfig.adminUsersNone', { defaultValue: 'None' })}</span>
                       ) : (
                         u.memberships.map((m) => (
                           <Badge key={m.workspaceSlug} variant="secondary" className="text-xs">
@@ -377,7 +388,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(u.createdAt).toLocaleDateString()}
+                      {new Date(u.createdAt).toLocaleDateString(i18n.language)}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {u.status === 'active' ? (
@@ -410,7 +421,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         size="sm"
                         data-testid={`admin-reset-pw-${u.id}`}
                         onClick={() => {
-                          void handleResetPassword(getLocalUsername(u))
+                          requestResetPassword(getLocalUsername(u))
                         }}
                       >
                         <Key className="mr-1 h-3 w-3" />
@@ -421,7 +432,7 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
                         size="sm"
                         data-testid={`admin-unlock-${u.id}`}
                         onClick={() => {
-                          void handleUnlock(getLocalUsername(u))
+                          requestUnlock(getLocalUsername(u))
                         }}
                       >
                         <Lock className="mr-1 h-3 w-3" />
@@ -486,6 +497,58 @@ export function UsersPanel({ operatorId, onTemporaryPassword }: Props) {
         }}
         user={auditUser}
       />
+
+      <Dialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null)
+        }}
+      >
+        <DialogContent data-testid="admin-user-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPasswordTitle', {
+                    defaultValue: 'Reset User Password',
+                  })
+                : t('debugConfig.adminUsersUnlockTitle', {
+                    defaultValue: 'Unlock User Account',
+                  })}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPasswordConfirm', {
+                    defaultValue: 'Reset the password for this user?',
+                  })
+                : t('debugConfig.adminUsersUnlockConfirm', {
+                    defaultValue: 'Unlock this user account?',
+                  })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              data-testid="admin-user-confirm-cancel"
+              onClick={() => {
+                setPendingAction(null)
+              }}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant={pendingAction?.type === 'resetPassword' ? 'destructive' : 'default'}
+              data-testid="admin-user-confirm-button"
+              onClick={() => {
+                void confirmPendingAction()
+              }}
+            >
+              {pendingAction?.type === 'resetPassword'
+                ? t('debugConfig.adminUsersResetPassword', { defaultValue: 'Reset password' })
+                : t('debugConfig.adminUsersUnlock', { defaultValue: 'Unlock' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

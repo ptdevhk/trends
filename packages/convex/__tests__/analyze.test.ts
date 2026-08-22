@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { isRecord } from "@trends/shared";
 import {
+  callLLM,
   toNumber,
   clamp,
   parseNumericBreakdown,
@@ -701,5 +702,142 @@ describe("isEnglishResumeAiLocale", () => {
 
   it("returns false for undefined locale", () => {
     expect(isEnglishResumeAiLocale(undefined)).toBe(false);
+  });
+});
+
+describe("callLLM primary/fallback on response_format 400", () => {
+  const originals: Record<string, string | undefined> = {};
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    for (const key of ["AI_MODEL", "AI_FALLBACK_MODEL", "AI_API_BASE", "AI_TEMPERATURE"]) {
+      if (originals[key] === undefined) delete process.env[key];
+      else process.env[key] = originals[key];
+    }
+  });
+
+  it("retries with deepseek-v4-flash-e when primary rejects response_format", async () => {
+    for (const key of ["AI_MODEL", "AI_FALLBACK_MODEL", "AI_API_BASE", "AI_TEMPERATURE"]) {
+      originals[key] = process.env[key];
+    }
+    process.env.AI_MODEL = "openai/deepseek-v4-flash";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash-e";
+    process.env.AI_API_BASE = "https://api.poe.com/v1";
+    process.env.AI_TEMPERATURE = "0";
+
+    const models: string[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string; response_format?: unknown };
+      models.push(String(body.model));
+      expect(body.response_format).toEqual({ type: "json_object" });
+      if (body.model === "deepseek-v4-flash") {
+        return new Response(
+          JSON.stringify({
+            error: { type: "invalid_input", message: "response_format json_object is not supported" },
+          }),
+          { status: 400, statusText: "Bad Request" },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                score: 70,
+                summary: "ok",
+                highlights: [],
+                concerns: [],
+                recommendation: "maybe",
+              }),
+            },
+          }],
+          usage: {},
+        }),
+        { status: 200 },
+      );
+    });
+
+    const result = await callLLM([{ role: "user", content: "score this resume" }], "sk-test");
+    expect(models).toEqual(["deepseek-v4-flash", "deepseek-v4-flash-e"]);
+    expect(result.content).toMatchObject({ score: 70 });
+  });
+
+  it("keeps primary deepseek-v4-flash when chat completion is full-function", async () => {
+    for (const key of ["AI_MODEL", "AI_FALLBACK_MODEL", "AI_API_BASE", "AI_TEMPERATURE"]) {
+      originals[key] = process.env[key];
+    }
+    process.env.AI_MODEL = "openai/deepseek-v4-flash";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash-e";
+    process.env.AI_API_BASE = "https://api.poe.com/v1";
+
+    const models: string[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+      models.push(String(body.model));
+      return new Response(
+        JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                score: 80,
+                summary: "full",
+                highlights: [],
+                concerns: [],
+                recommendation: "interview",
+              }),
+            },
+          }],
+          usage: {},
+        }),
+        { status: 200 },
+      );
+    });
+
+    const result = await callLLM([{ role: "user", content: "score this resume" }], "sk-test");
+    expect(models).toEqual(["deepseek-v4-flash"]);
+    expect(result.content).toMatchObject({ score: 80 });
+  });
+
+  it("posts to the new provider base after a mid-process env swap", async () => {
+    for (const key of ["AI_MODEL", "AI_FALLBACK_MODEL", "AI_API_BASE", "AI_TEMPERATURE"]) {
+      originals[key] = process.env[key];
+    }
+    process.env.AI_MODEL = "openai/deepseek-v4-flash";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash-e";
+    process.env.AI_API_BASE = "https://api.poe.com/v1";
+
+    const urls: string[] = [];
+    const ok = () =>
+      new Response(
+        JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                score: 50,
+                summary: "swap",
+                highlights: [],
+                concerns: [],
+                recommendation: "maybe",
+              }),
+            },
+          }],
+          usage: {},
+        }),
+        { status: 200 },
+      );
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(String(url));
+      return ok();
+    });
+
+    await callLLM([{ role: "user", content: "first" }], "sk-test");
+    process.env.AI_API_BASE = "https://api.example-runtime.test/v1";
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    await callLLM([{ role: "user", content: "second" }], "sk-test");
+
+    expect(urls).toEqual([
+      "https://api.poe.com/v1/chat/completions",
+      "https://api.example-runtime.test/v1/chat/completions",
+    ]);
   });
 });

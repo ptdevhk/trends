@@ -335,6 +335,9 @@ async function runCompanyLinkBackfillScan(
             ? { currentVerdictRevisionId: hit.currentVerdictRevisionId }
             : {}),
         })),
+        ...(catalog.currentRevisionId
+          ? { companyKeyRevision: catalog.currentRevisionId }
+          : {}),
       },
     );
     linkedRows = result.linkedRows;

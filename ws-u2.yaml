@@ -1,0 +1,98 @@
+- generic [ref=f1e3]:
+  - region "Notifications alt+T"
+  - banner [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - generic [ref=f1e6]:
+        - link "趋势 Trends" [ref=f1e7] [cursor=pointer]:
+          - /url: /hr/resumes
+          - generic [ref=f1e11]:
+            - generic [ref=f1e12]: 趋势
+            - generic [ref=f1e13]: Trends
+        - navigation [ref=f1e14]:
+          - link "简历" [ref=f1e15] [cursor=pointer]:
+            - /url: /hr/resumes
+          - link "研究" [ref=f1e16] [cursor=pointer]:
+            - /url: /hr/research
+          - link "设置" [ref=f1e17] [cursor=pointer]:
+            - /url: /hr/settings
+      - generic [ref=f1e18]:
+        - combobox "Workspace switcher" [ref=f1e19]:
+          - option "HR Team" [selected]
+        - combobox "语言：" [ref=f1e20]:
+          - option "繁體中文"
+          - option "简体中文" [selected]
+          - option "English"
+        - generic [ref=f1e21]:
+          - generic "hr-demo" [ref=f1e22]
+          - button "退出登录" [ref=f1e23] [cursor=pointer]
+  - main [ref=f1e27]:
+    - generic [ref=f1e30]:
+      - generic [ref=f1e31]:
+        - generic [ref=f1e33]:
+          - generic [ref=f1e34]:
+            - combobox "按关键词、品牌、岗位或地区搜索简历" [ref=f1e39]
+            - button "粘贴职位描述" [ref=f1e40] [cursor=pointer]
+            - button "搜索" [ref=f1e46] [cursor=pointer]
+          - status [ref=f1e47]
+        - switch "AI 模式" [checked] [ref=f1e50] [cursor=pointer]
+      - generic [ref=f1e53]:
+        - generic [ref=f1e54]: 快速开始
+        - generic [ref=f1e57]:
+          - generic [ref=f1e58]:
+            - button "China · Job5156 · CNC 销售 CNC, 销售 · China" [ref=f1e59] [cursor=pointer]:
+              - generic [ref=f1e60]: China · Job5156 · CNC 销售
+              - generic [ref=f1e61]: CNC, 销售 · China
+            - generic [ref=f1e62]:
+              - button "采集" [ref=f1e63] [cursor=pointer]
+              - link "编辑" [ref=f1e64] [cursor=pointer]:
+                - /url: /hr/settings/profiles?edit=job5156-cn-cnc-sales
+          - generic [ref=f1e65]:
+            - button "Malaysia · SEEK · CNC Sales CNC, Sales · Malaysia" [ref=f1e66] [cursor=pointer]:
+              - generic [ref=f1e67]: Malaysia · SEEK · CNC Sales
+              - generic [ref=f1e68]: CNC, Sales · Malaysia
+            - generic [ref=f1e69]:
+              - button "采集" [ref=f1e70] [cursor=pointer]
+              - link "编辑" [ref=f1e71] [cursor=pointer]:
+                - /url: /hr/settings/profiles?edit=seek-malaysia-sales
+          - generic [ref=f1e72]:
+            - button "China 51job CNC Sales CNC, 销售 · China" [ref=f1e73] [cursor=pointer]:
+              - generic [ref=f1e74]: China 51job CNC Sales
+              - generic [ref=f1e75]: CNC, 销售 · China
+            - generic [ref=f1e76]:
+              - button "采集" [ref=f1e77] [cursor=pointer]
+              - link "编辑" [ref=f1e78] [cursor=pointer]:
+                - /url: /hr/settings/profiles?edit=51job-cn-cnc-sales
+          - generic [ref=f1e79]:
+            - button "SEEK Malaysia CNC Sales — Talent Search CNC, Sales · Malaysia" [ref=f1e80] [cursor=pointer]:
+              - generic [ref=f1e81]: SEEK Malaysia CNC Sales — Talent Search
+              - generic [ref=f1e82]: CNC, Sales · Malaysia
+            - generic [ref=f1e83]:
+              - button "采集" [ref=f1e84] [cursor=pointer]
+              - link "编辑" [ref=f1e85] [cursor=pointer]:
+                - /url: /hr/settings/profiles?edit=seek-malaysia-talent-search
+      - generic [ref=f1e86]:
+        - generic [ref=f1e87]: 热门标签
+        - generic [ref=f1e88]:
+          - button "CNC" [ref=f1e89] [cursor=pointer]
+          - button "销售" [ref=f1e90] [cursor=pointer]
+          - button "Malaysia" [ref=f1e91] [cursor=pointer]
+          - button "China" [ref=f1e92] [cursor=pointer]
+      - generic [ref=f1e93]:
+        - generic [ref=f1e94]: 最近搜索
+        - generic [ref=f1e98]:
+          - button "陈先生 陈先生" [ref=f1e99] [cursor=pointer]:
+            - generic [ref=f1e100]: 陈先生
+            - generic [ref=f1e101]: 陈先生
+          - button "陈先生 陈先生" [ref=f1e102] [cursor=pointer]:
+            - generic [ref=f1e103]: 陈先生
+            - generic [ref=f1e104]: 陈先生
+          - button "陈先生 陈先生" [ref=f1e105] [cursor=pointer]:
+            - generic [ref=f1e106]: 陈先生
+            - generic [ref=f1e107]: 陈先生
+          - button "Polywell Polywell" [ref=f1e108] [cursor=pointer]:
+            - generic [ref=f1e109]: Polywell
+            - generic [ref=f1e110]: Polywell
+          - button "CNC CNC" [ref=f1e111] [cursor=pointer]:
+            - generic [ref=f1e112]: CNC
+            - generic [ref=f1e113]: CNC
+  - contentinfo [ref=f1e114]

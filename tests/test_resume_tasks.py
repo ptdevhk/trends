@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
+import pytest
+
 from apps.worker import resume_tasks, scheduler as worker_scheduler, tasks
+
+
+@pytest.fixture(autouse=True)
+def _isolate_crawl_progress(tmp_path, monkeypatch) -> None:
+    """Keep crawl-progress writes out of the repo output dir during tests."""
+    monkeypatch.setenv("WORKER_CRAWL_PROGRESS_PATH", str(tmp_path / "crawl-progress.json"))
 
 
 def _make_profile(keywords: Any, filters: Any = None) -> dict[str, Any]:
@@ -27,11 +36,11 @@ def test_run_resume_crawl_task_normalizes_keyword_list_with_spaces(monkeypatch) 
     _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
-    def fake_mutation(convex_url: str, mutation_path: str, args: dict[str, Any]) -> str:
+    def fake_mutation(convex_url: str, mutation_path: str, args: dict[str, Any]) -> dict[str, Any]:
         captured["convex_url"] = convex_url
         captured["mutation_path"] = mutation_path
         captured["args"] = args
-        return "task-001"
+        return {"queued": True, "taskId": "task-001"}
 
     monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
 
@@ -54,9 +63,9 @@ def test_run_resume_crawl_task_trims_and_skips_empty_keyword_items(monkeypatch) 
     _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
-    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
+    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> dict[str, Any]:
         captured["args"] = args
-        return "task-002"
+        return {"queued": True, "taskId": "task-002"}
 
     monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
 
@@ -74,9 +83,9 @@ def test_run_resume_crawl_task_keeps_non_list_keyword_string(monkeypatch) -> Non
     _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
-    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
+    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> dict[str, Any]:
         captured["args"] = args
-        return "task-003"
+        return {"queued": True, "taskId": "task-003"}
 
     monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
 
@@ -92,9 +101,9 @@ def test_run_resume_crawl_task_returns_false_for_empty_keyword(monkeypatch) -> N
     _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
-    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> str:
+    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> dict[str, Any]:
         called["mutation"] = True
-        return "task-unexpected"
+        return {"queued": True, "taskId": "task-unexpected"}
 
     monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
 
@@ -110,9 +119,9 @@ def test_run_resume_crawl_task_passes_age_range_filters(monkeypatch) -> None:
     _enable_headless_collector(monkeypatch)
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
 
-    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
+    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> dict[str, Any]:
         captured["args"] = args
-        return "task-004"
+        return {"queued": True, "taskId": "task-004"}
 
     monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
 
@@ -123,6 +132,119 @@ def test_run_resume_crawl_task_passes_age_range_filters(monkeypatch) -> None:
     assert ok is True
     assert captured["args"]["minAge"] == 25
     assert captured["args"]["maxAge"] == 40
+
+
+def test_run_resume_crawl_task_persists_progress_record(monkeypatch, tmp_path) -> None:
+    progress_path = tmp_path / "crawl-progress.json"
+
+    _enable_headless_collector(monkeypatch)
+    monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
+
+    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> dict[str, Any]:
+        return {"queued": True, "taskId": "task-001"}
+
+    monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
+
+    ok = resume_tasks.run_resume_crawl_task(_make_profile(["CNC", "车床"]))
+
+    assert ok is True
+    record = json.loads(progress_path.read_text(encoding="utf-8"))["profile-1"]
+    assert record["taskId"] == "task-001"
+    assert record["outcome"] == "queued"
+    assert record["idempotencyKey"] == "profile:profile-1:cnc-车床:东莞:120:10"
+    assert "dispatchedAt" in record
+    assert "updatedAt" in record
+    assert "error" not in record
+
+
+def test_run_resume_crawl_task_maintenance_quiesce_records_skip(monkeypatch, tmp_path) -> None:
+    progress_path = tmp_path / "crawl-progress.json"
+
+    _enable_headless_collector(monkeypatch)
+    monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
+
+    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> dict[str, Any]:
+        return {"queued": False, "reason": "maintenance"}
+
+    monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
+
+    ok = resume_tasks.run_resume_crawl_task(_make_profile(["CNC"]))
+
+    assert ok is False
+    record = json.loads(progress_path.read_text(encoding="utf-8"))["profile-1"]
+    assert record["outcome"] == "skipped_maintenance"
+    assert "taskId" not in record
+    assert "error" not in record
+
+
+def test_run_resume_crawl_task_retry_polls_prior_task_and_keeps_single_record(
+    monkeypatch, tmp_path
+) -> None:
+    progress_path = tmp_path / "crawl-progress.json"
+    progress_path.write_text(
+        json.dumps(
+            {
+                "profile-1": {
+                    "idempotencyKey": "profile:profile-1:cnc-车床:东莞:120:10",
+                    "taskId": "task-001",
+                    "outcome": "queued",
+                    "dispatchedAt": "2026-08-18T10:00:00+00:00",
+                    "updatedAt": "2026-08-18T10:00:00+00:00",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _enable_headless_collector(monkeypatch)
+    monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
+
+    queries: list[dict[str, Any]] = []
+
+    def fake_query(_convex_url: str, query_path: str, args: dict[str, Any]) -> dict[str, Any]:
+        queries.append({"path": query_path, "args": args})
+        return {
+            "_id": "task-001",
+            "status": "processing",
+            "progress": {"current": 12, "page": 2, "total": 50},
+        }
+
+    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> dict[str, Any]:
+        return {"queued": True, "taskId": "task-001"}
+
+    monkeypatch.setattr(resume_tasks, "_convex_query", fake_query)
+    monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
+
+    ok = resume_tasks.run_resume_crawl_task(_make_profile(["CNC", "车床"]))
+
+    assert ok is True
+    assert queries == [{"path": "resume_tasks:getById", "args": {"taskId": "task-001"}}]
+    record = json.loads(progress_path.read_text(encoding="utf-8"))["profile-1"]
+    assert record["taskId"] == "task-001"
+    assert record["outcome"] == "reused"
+    assert record["lastStatus"] == "processing"
+    assert record["lastProgress"] == {"current": 12, "page": 2, "total": 50}
+    assert "lastPolledAt" in record
+    assert record["dispatchedAt"] == "2026-08-18T10:00:00+00:00"
+
+
+def test_run_resume_crawl_task_error_records_outcome(monkeypatch, tmp_path) -> None:
+    progress_path = tmp_path / "crawl-progress.json"
+
+    _enable_headless_collector(monkeypatch)
+    monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
+
+    def fake_mutation(_convex_url: str, _mutation_path: str, _args: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("convex exploded")
+
+    monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
+
+    ok = resume_tasks.run_resume_crawl_task(_make_profile(["CNC"]))
+
+    assert ok is False
+    record = json.loads(progress_path.read_text(encoding="utf-8"))["profile-1"]
+    assert record["outcome"] == "error"
+    assert "convex exploded" in record["error"]
 
 
 def test_run_workspace_summary_posts_summary_request(monkeypatch) -> None:

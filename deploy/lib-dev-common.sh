@@ -64,6 +64,17 @@ dev_import_convex() {
     local zip_path="$1"
     log_step "Importing Convex export (replace-all): $zip_path"
     ( cd "$DEV_ROOT/packages/convex" && CONVEX_URL="$DEV_CONVEX_URL" npx convex import --replace-all "$zip_path" --yes )
+
+    # Backups taken with backup-prod-complete.sh set maintenanceMode=true during
+    # the writer-quiesce window. The export captures this flag. Clear it after
+    # import so the restored stack can accept writes (logins, mutations).
+    # Set RESTORE_KEEP_MAINTENANCE=1 to preserve (e.g., debugging quiesce state).
+    if [ "${RESTORE_KEEP_MAINTENANCE:-}" != "1" ]; then
+        log_step "Clearing maintenanceMode (export may have captured quiesce flag)"
+        ( cd "$DEV_ROOT/packages/convex" && CONVEX_URL="$DEV_CONVEX_URL" \
+          npx convex run system_settings:set \
+          '{"key":"maintenanceMode","value":false,"updatedBy":"dev-import"}' 2>/dev/null ) || true
+    fi
 }
 
 dev_swap_sqlite() {

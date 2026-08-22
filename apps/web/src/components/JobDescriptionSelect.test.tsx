@@ -17,13 +17,9 @@ vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: { GET: mockGet },
 }))
 
+const mockUseWorkspace = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/WorkspaceContext', () => ({
-  useWorkspace: () => ({
-    slug: 'dev',
-    name: 'Development',
-    isAdmin: false,
-    isSystemSurface: true,
-  }),
+  useWorkspace: (...args: unknown[]) => mockUseWorkspace(...args),
 }))
 
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
@@ -37,41 +33,49 @@ describe('buildJobDescriptionOptions', () => {
   it('returns placeholder option when no descriptions', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select a JD',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [],
       systemJobDescriptions: [],
     })
     expect(options).toEqual([{ value: '', label: 'Select a JD' }])
   })
 
-  it('includes custom convex JDs with ✨ prefix and (Custom) suffix', () => {
+  it('includes custom convex JDs with ✨ prefix and translated group label', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: '自定义',
+      systemLabel: 'System',
       convexJobDescriptions: [{ _id: 'jd-1', title: 'Frontend Dev', type: 'custom' }],
       systemJobDescriptions: [],
     })
-    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Frontend Dev (Custom)' })
+    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Frontend Dev', group: '自定义' })
   })
 
   it('filters out disabled custom convex JDs', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [
         { _id: 'jd-1', title: 'Active', type: 'custom', enabled: true },
         { _id: 'jd-2', title: 'Disabled', type: 'custom', enabled: false },
       ],
       systemJobDescriptions: [],
     })
-    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Active (Custom)' })
+    expect(options).toContainEqual({ value: 'jd-1', label: '✨ Active', group: 'Custom' })
     expect(options).not.toContainEqual(expect.objectContaining({ value: 'jd-2' }))
   })
 
-  it('includes system JDs with (System) suffix', () => {
+  it('includes system JDs with translated group label', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select',
+      customLabel: 'Custom',
+      systemLabel: '系统',
       convexJobDescriptions: [],
       systemJobDescriptions: [{ name: 'sys-jd', title: 'System JD' }],
     })
-    expect(options).toContainEqual({ value: 'sys-jd', label: 'System JD (System)' })
+    expect(options).toContainEqual({ value: 'sys-jd', label: 'System JD', group: '系统' })
   })
 })
 
@@ -83,6 +87,12 @@ describe('JobDescriptionSelect', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseWorkspace.mockReturnValue({
+      slug: 'dev',
+      name: 'Development',
+      isAdmin: false,
+      isSystemSurface: true,
+    })
   })
 
   it('renders select element', () => {
@@ -99,6 +109,20 @@ describe('JobDescriptionSelect', () => {
 
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', '/admin/system/jds')
+  })
+
+  it('links to the workspace jds page on a workspace surface', async () => {
+    mockUseWorkspace.mockReturnValue({
+      slug: 'dev',
+      name: 'Development',
+      isAdmin: false,
+      isSystemSurface: false,
+    })
+    useQueryMock.mockReturnValue([])
+    mockGet.mockResolvedValue({ data: { success: true, items: [] } })
+    renderWithRouter(<JobDescriptionSelect {...defaultProps} value="jd-1" />)
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/dev/jds')
   })
 
   it('does not show external link when no value', () => {

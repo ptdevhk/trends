@@ -62,6 +62,7 @@ export function IndustryProposalHeaderCard({
   onPrevious: () => void
   onNext: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <Card>
       <CardHeader>
@@ -73,11 +74,23 @@ export function IndustryProposalHeaderCard({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onPrevious} disabled={!canMove || saving}>
-              Previous
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPrevious}
+              disabled={!canMove || saving}
+              aria-label={t('industryEvidence.previousProposal', { defaultValue: 'Previous proposal' })}
+            >
+              {t('industryEvidence.previous', { defaultValue: 'Previous' })}
             </Button>
-            <Button size="sm" variant="outline" onClick={onNext} disabled={!canMove || saving}>
-              Next
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onNext}
+              disabled={!canMove || saving}
+              aria-label={t('industryEvidence.nextProposal', { defaultValue: 'Next proposal' })}
+            >
+              {t('industryEvidence.next', { defaultValue: 'Next' })}
             </Button>
             <Badge>{proposal.status}</Badge>
           </div>
@@ -85,16 +98,16 @@ export function IndustryProposalHeaderCard({
       </CardHeader>
       <CardContent className="grid gap-4 text-sm sm:grid-cols-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current verdict</p>
-          <p className="mt-1 font-medium">{profile?.verificationLevel ?? 'No approved revision'}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentVerdict', { defaultValue: 'Current verdict' })}</p>
+          <p className="mt-1 font-medium">{profile?.verificationLevel ?? t('industryEvidence.detailNoApprovedRevision', { defaultValue: 'No approved revision' })}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current revision</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailCurrentRevision', { defaultValue: 'Current revision' })}</p>
           <p className="mt-1 break-all font-mono text-xs">{profile?.currentRevisionId ?? '—'}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Freshness</p>
-          <p className="mt-1 font-medium">{profile?.freshnessState ?? 'Not recorded'}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.detailFreshness', { defaultValue: 'Freshness' })}</p>
+          <p className="mt-1 font-medium">{profile?.freshnessState ?? t('industryEvidence.detailNotRecorded', { defaultValue: 'Not recorded' })}</p>
         </div>
       </CardContent>
     </Card>
@@ -110,30 +123,42 @@ export function IndustryReviewRecommendationCard({
   warnings: IndustryReviewWarning[]
   dataset: ReviewPacket['dataset'] | null
 }) {
+  const { t } = useTranslation()
   if (!recommendation) return null
   return (
     <Card data-testid="industry-review-recommendation">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Review recommendation</CardTitle>
+            <CardTitle>{t('industryEvidence.recommendationTitle', { defaultValue: 'Review recommendation' })}</CardTitle>
             <CardDescription>
-              Advisory only. A human must confirm the exact evidence and verdict.
+              {t('industryEvidence.recommendationAdvisory', {
+                defaultValue: 'Advisory only. A human must confirm the exact evidence and verdict.',
+              })}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{recommendation.recommendedAction.replace(/_/g, ' ')}</Badge>
-            <Badge variant="secondary">{recommendation.confidenceBand} confidence</Badge>
+            <Badge variant="secondary">
+              {t('industryEvidence.recommendationConfidence', {
+                band: recommendation.confidenceBand,
+                defaultValue: `${recommendation.confidenceBand} confidence`,
+              })}
+            </Badge>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p>{recommendation.reasons[0] ?? 'Inspect the attached evidence before deciding.'}</p>
+        <p>{recommendation.reasons[0] ?? t('industryEvidence.recommendationInspectEvidence', { defaultValue: 'Inspect the attached evidence before deciding.' })}</p>
         {recommendation.riskFlags.length > 0 && (
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950">
-            <p className="font-medium">Review flags</p>
+            <p className="font-medium">{t('industryEvidence.recommendationReviewFlags', { defaultValue: 'Review flags' })}</p>
             <ul className="mt-1 list-disc pl-5">
-              {recommendation.riskFlags.map((flag) => <li key={flag}>{flag.replace(/_/g, ' ')}</li>)}
+              {recommendation.riskFlags.map((flag) => (
+                <li key={flag}>
+                  {t(`industryEvidence.riskFlag.${flag}`, { defaultValue: REVIEW_RISK_FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ') })}
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -148,15 +173,15 @@ export function IndustryReviewRecommendationCard({
         ))}
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Suggested class</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.recommendationSuggestedClass', { defaultValue: 'Suggested class' })}</p>
             <p className="mt-1 font-medium">{recommendation.recommendedIndustryClass}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Suggested sources</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.recommendationSuggestedSources', { defaultValue: 'Suggested sources' })}</p>
             <p className="mt-1 font-medium">{recommendation.recommendedSourceIds.length}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Packet fingerprint</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('industryEvidence.recommendationPacketFingerprint', { defaultValue: 'Packet fingerprint' })}</p>
             <p className="mt-1 break-all font-mono text-xs">{dataset?.inputFingerprint.slice(0, 16) ?? '—'}</p>
           </div>
         </div>
@@ -210,10 +235,15 @@ export function IndustryRiskAttestationCard({
                   className="mt-0.5 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
                   checked={acknowledgedRiskFlags.includes(flag)}
                   onChange={(event) => onToggleRiskFlag(flag, event.target.checked)}
-                  aria-label={`Acknowledge ${flag}`}
+                  aria-label={t('industryEvidence.acknowledgeRiskFlag', {
+                    flag: flag.replace(/_/g, ' '),
+                    defaultValue: `Acknowledge ${flag}`,
+                  })}
                 />
                 <span>
-                  <span className="font-medium">{REVIEW_RISK_FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ')}</span>
+                  <span className="font-medium">
+                    {t(`industryEvidence.riskFlag.${flag}`, { defaultValue: REVIEW_RISK_FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ') })}
+                  </span>
                   {recommendation.riskDecision?.nonOverridableRiskFlags.includes(flag) && (
                     <span className="ml-2 text-xs font-semibold text-destructive">
                       {t('industryEvidence.hardBlock', { defaultValue: 'hard block' })}
@@ -284,7 +314,7 @@ export function IndustryRecomputeCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {runs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No targeted recompute run yet.</p>
+          <p className="text-sm text-muted-foreground">{t('industryEvidence.recomputeEmpty', { defaultValue: 'No targeted recompute run yet.' })}</p>
         ) : runs.map((run) => (
           <div key={run.runId} className="rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -300,7 +330,7 @@ export function IndustryRecomputeCard({
                     disabled={saving}
                     onClick={() => onAdvance(run)}
                   >
-                    Advance
+                    {t('industryEvidence.recomputeAdvance', { defaultValue: 'Advance' })}
                   </Button>
                 )}
                 {['partial_failed', 'failed'].includes(run.status) && (
@@ -310,7 +340,7 @@ export function IndustryRecomputeCard({
                     disabled={saving}
                     onClick={() => onRetry(run)}
                   >
-                    Retry
+                    {t('industryEvidence.recomputeRetry', { defaultValue: 'Retry' })}
                   </Button>
                 )}
               </div>
@@ -338,7 +368,7 @@ export function IndustryEvidenceReviewCard({
   onToggleSource: (sourceId: string, checked: boolean) => void
   readOnly: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <Card>
       <CardHeader>
@@ -351,7 +381,7 @@ export function IndustryEvidenceReviewCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {sources.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No evidence sources attached.</p>
+          <p className="text-sm text-muted-foreground">{t('industryEvidence.evidenceEmpty', { defaultValue: 'No evidence sources attached.' })}</p>
         ) : sources.map((source) => {
           const sourceDecision = recommendation?.sourceDecisions.find((item) => item.sourceId === source.sourceId)
           const approvable = sourceDecision?.approvalSafe === true
@@ -369,7 +399,10 @@ export function IndustryEvidenceReviewCard({
                 className="mt-1 h-4 w-4 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
                 checked={checked}
                 disabled={readOnly || !usable}
-                aria-label={`Select evidence source ${source.title ?? source.sourceDomain}`}
+                aria-label={t('industryEvidence.selectEvidenceSource', {
+                  title: source.title ?? source.sourceDomain,
+                  defaultValue: `Select evidence source ${source.title ?? source.sourceDomain}`,
+                })}
                 onChange={(event) => onToggleSource(source.sourceId, event.target.checked)}
               />
               <span className="min-w-0 flex-1">
@@ -377,14 +410,14 @@ export function IndustryEvidenceReviewCard({
                   <span className="font-medium">{source.title ?? source.sourceDomain}</span>
                   <Badge variant="outline">{source.sourceType}</Badge>
                   <Badge variant="secondary">{source.trustTier}</Badge>
-                  {sourceDecision?.recommended && <Badge>Recommended</Badge>}
+                  {sourceDecision?.recommended && <Badge>{t('industryEvidence.sourceRecommended', { defaultValue: 'Recommended' })}</Badge>}
                   {!approvable && <Badge variant="destructive">{t('industryEvidence.sourceDisabled', { defaultValue: 'Not approval-safe' })}</Badge>}
                 </span>
                 {source.evidenceExcerpt && (
                   <span className="mt-1 block text-sm leading-6 text-muted-foreground">{source.evidenceExcerpt}</span>
                 )}
                 <span className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>Fetched {formatDate(source.fetchedAt)}</span>
+                  <span>{t('industryEvidence.fetchedOn', { date: formatDate(source.fetchedAt, i18n.language), defaultValue: `Fetched ${formatDate(source.fetchedAt)}` })}</span>
                   {disabledReason && <span>{t('industryEvidence.sourceDisabledReason', { defaultValue: 'Reason: ' })}{disabledReason}</span>}
                   <a
                     href={source.url}
@@ -406,7 +439,7 @@ export function IndustryEvidenceReviewCard({
 }
 
 export function IndustryRevisionHistoryCard({ revisions }: { revisions: IndustryRevision[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <Card>
       <CardHeader>
@@ -419,7 +452,7 @@ export function IndustryRevisionHistoryCard({ revisions }: { revisions: Industry
       </CardHeader>
       <CardContent className="space-y-3">
         {revisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No immutable revisions yet.</p>
+          <p className="text-sm text-muted-foreground">{t('industryEvidence.revisionHistoryEmpty', { defaultValue: 'No immutable revisions yet.' })}</p>
         ) : revisions.map((revision) => (
           <div key={revision.revisionId} className="rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -430,7 +463,7 @@ export function IndustryRevisionHistoryCard({ revisions }: { revisions: Industry
             </div>
             <p className="mt-2 text-sm">{revision.evidenceSummary}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              {revision.reviewedBy} · {formatDate(revision.reviewedAt)}
+              {revision.reviewedBy} · {formatDate(revision.reviewedAt, i18n.language)}
             </p>
           </div>
         ))}

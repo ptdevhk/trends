@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { SchedulerStatus } from '@/components/SchedulerStatus'
 
@@ -50,6 +51,14 @@ describe('SchedulerStatus', () => {
     getMock.mockReturnValue(new Promise(() => {}))
     render(<SchedulerStatus />)
     expect(screen.getByText('Loading from i18n')).toBeInTheDocument()
+  })
+
+  it('reserves the loaded-card structure while loading (stable grid height)', () => {
+    getMock.mockReturnValue(new Promise(() => {}))
+    render(<SchedulerStatus />)
+    // The loading card keeps the loaded card's skeleton structure so the
+    // loading→loaded swap never shifts the ops-page grid row (CLS).
+    expect(screen.getByTestId('scheduler-status-loading')).toBeInTheDocument()
   })
 
   it('shows error state when fetch fails', async () => {
@@ -108,5 +117,24 @@ describe('SchedulerStatus', () => {
     mockStatusResponse()
     render(<SchedulerStatus />)
     await waitFor(() => { expect(getMock).toHaveBeenCalledWith('/api/worker/status') })
+  })
+
+  it('shows retry button on error and recovers on click', async () => {
+    const user = userEvent.setup()
+    getMock.mockRejectedValueOnce(new Error('network error'))
+    getMock.mockResolvedValueOnce({
+      data: {
+        jobs_executed: 1, jobs_failed: 0, jobs_missed: 0,
+        last_run: null, last_success: null, last_failure: null,
+        schedule_type: null, schedule_value: null, running: false, jobs: [],
+      },
+      response: { ok: true, status: 200 },
+    })
+    render(<SchedulerStatus />)
+    await waitFor(() => { expect(screen.getByText('Scheduler Offline')).toBeInTheDocument() })
+    expect(screen.getByTestId('scheduler-status-retry')).toBeInTheDocument()
+    await user.click(screen.getByTestId('scheduler-status-retry'))
+    await waitFor(() => { expect(screen.getByText('1')).toBeInTheDocument() })
+    expect(getMock).toHaveBeenCalledTimes(2)
   })
 })

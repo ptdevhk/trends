@@ -162,9 +162,9 @@ export function displayCompany(value: string | undefined): string {
     .join(' ')
 }
 
-export function formatDate(value: number | undefined): string {
+export function formatDate(value: number | undefined, locale?: string): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale ?? undefined, { dateStyle: 'medium' }).format(new Date(value))
 }
 
 export function createRevisionId(companyKey: string): string {

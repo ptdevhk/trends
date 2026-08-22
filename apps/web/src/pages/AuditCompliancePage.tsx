@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { useAuditLogs, useBiasReport } from '@/hooks/useAuditLogs'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { hasWorkspaceAdminAccess } from '@/lib/workspace-access'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -97,6 +99,7 @@ const outcomeVariant = (outcome?: string): 'default' | 'secondary' | 'destructiv
 }
 
 function RelativeTime({ epoch }: { epoch: number }) {
+  const { t } = useTranslation()
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000)
@@ -104,31 +107,33 @@ function RelativeTime({ epoch }: { epoch: number }) {
   }, [])
   const diffMs = now - epoch
   const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) return <span>just now</span>
-  if (minutes < 60) return <span>{minutes}m ago</span>
+  if (minutes < 1) return <span>{t('auditCompliance.time.justNow', { defaultValue: 'just now' })}</span>
+  if (minutes < 60) return <span>{t('auditCompliance.time.minutesAgo', { defaultValue: '{{count}}m ago', count: minutes })}</span>
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return <span>{hours}h ago</span>
+  if (hours < 24) return <span>{t('auditCompliance.time.hoursAgo', { defaultValue: '{{count}}h ago', count: hours })}</span>
   const days = Math.floor(hours / 24)
-  return <span>{days}d ago</span>
+  return <span>{t('auditCompliance.time.daysAgo', { defaultValue: '{{count}}d ago', count: days })}</span>
 }
 
 function KpiCard({ label, value, passing }: { label: string; value: string; passing: boolean }) {
+  const { t } = useTranslation()
   return (
     <div className="border rounded-md p-3 space-y-1">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold">{value}</div>
       <Badge variant={passing ? 'default' : 'destructive'} data-testid={passing ? 'kpi-pass' : 'kpi-fail'}>
-        {passing ? 'PASS' : 'FAIL'}
+        {passing ? t('auditCompliance.status.pass', { defaultValue: 'PASS' }) : t('auditCompliance.status.fail', { defaultValue: 'FAIL' })}
       </Badge>
     </div>
   )
 }
 
 function AnomalyFlag({ label, active }: { label: string; active: boolean }) {
+  const { t } = useTranslation()
   return (
     <div className="text-xs flex items-center gap-1.5">
       <Badge variant={active ? 'destructive' : 'outline'} data-testid={active ? 'anomaly-active' : 'anomaly-inactive'}>
-        {active ? 'TRUE' : 'FALSE'}
+        {active ? t('auditCompliance.anomaly.true', { defaultValue: 'TRUE' }) : t('auditCompliance.anomaly.false', { defaultValue: 'FALSE' })}
       </Badge>
       <span className="text-muted-foreground">{label}</span>
     </div>
@@ -136,6 +141,7 @@ function AnomalyFlag({ label, active }: { label: string; active: boolean }) {
 }
 
 function MetricRow({ label, value, threshold, passing }: { label: string; value: string; threshold: string; passing: boolean }) {
+  const { t } = useTranslation()
   return (
     <TableRow>
       <TableCell className="font-medium text-xs">{label}</TableCell>
@@ -143,7 +149,7 @@ function MetricRow({ label, value, threshold, passing }: { label: string; value:
       <TableCell className="text-xs text-muted-foreground">{threshold}</TableCell>
       <TableCell>
         <Badge variant={passing ? 'default' : 'destructive'}>
-          {passing ? 'PASS' : 'FAIL'}
+          {passing ? t('auditCompliance.status.pass', { defaultValue: 'PASS' }) : t('auditCompliance.status.fail', { defaultValue: 'FAIL' })}
         </Badge>
       </TableCell>
     </TableRow>
@@ -165,6 +171,10 @@ function OutcomeDialog({
 }) {
   const { t } = useTranslation()
   const [selectedOutcome, setSelectedOutcome] = useState<OutcomeValue>('overridden')
+  const outcomeOverrideOptions = useMemo(
+    () => OUTCOME_OVERRIDE_OPTIONS.map((o) => ({ value: o.value, label: t(`auditCompliance.outcome.${o.value}`, { defaultValue: o.label }) })),
+    [t],
+  )
 
   if (!entry) return null
 
@@ -208,7 +218,7 @@ function OutcomeDialog({
           <Select
             value={selectedOutcome}
             onChange={(e) => setSelectedOutcome(e.target.value as OutcomeValue)}
-            options={OUTCOME_OVERRIDE_OPTIONS}
+            options={outcomeOverrideOptions}
           />
         </div>
         <DialogFooter>
@@ -226,7 +236,33 @@ function OutcomeDialog({
 
 export function AuditCompliancePage() {
   const { t } = useTranslation()
-  const { slug, isAdmin } = useWorkspace()
+  const decisionTypeFilterOptions = useMemo(
+    () =>
+      DECISION_TYPE_FILTER_OPTIONS.map((o) => ({
+        value: o.value,
+        label:
+          o.value === 'all'
+            ? t('auditCompliance.filters.allTypes', { defaultValue: o.label })
+            : t(`auditCompliance.decisionType.${o.value}`, { defaultValue: o.label }),
+      })),
+    [t],
+  )
+  const outcomeFilterOptions = useMemo(
+    () =>
+      OUTCOME_FILTER_OPTIONS.map((o) => ({
+        value: o.value,
+        label:
+          o.value === 'all'
+            ? t('auditCompliance.filters.allOutcomes', { defaultValue: o.label })
+            : t(`auditCompliance.outcome.${o.value}`, { defaultValue: o.label }),
+      })),
+    [t],
+  )
+  const { slug } = useWorkspace()
+  // WorkspaceContext hardcodes `isAdmin: false`; derive admin from memberships
+  // so the audit dashboard matches the API's requireAdmin (admin of this slug).
+  const { memberships } = useAuth()
+  const isAdmin = hasWorkspaceAdminAccess(memberships, slug)
   const { logs, loading, error, filters, setFilters, setOutcome } = useAuditLogs(slug, isAdmin)
   const { report, anomalyAlerts, loading: reportLoading, error: reportError } = useBiasReport(slug, isAdmin)
 
@@ -397,12 +433,12 @@ export function AuditCompliancePage() {
                   </div>
                   {anomalyAlerts.psiValue != null && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      PSI: {anomalyAlerts.psiValue.toFixed(4)}
+                      {t('auditCompliance.alert.psi', { defaultValue: 'PSI: {{value}}', value: anomalyAlerts.psiValue.toFixed(4) })}
                     </div>
                   )}
                   {anomalyAlerts.disparityRatio != null && (
                     <div className="text-xs text-muted-foreground">
-                      Disparity Ratio: {anomalyAlerts.disparityRatio.toFixed(4)}
+                      {t('auditCompliance.alert.disparityRatio', { defaultValue: 'Disparity Ratio: {{value}}', value: anomalyAlerts.disparityRatio.toFixed(4) })}
                     </div>
                   )}
                 </div>
@@ -541,14 +577,14 @@ export function AuditCompliancePage() {
               <Select
                 value={filters.decisionType ?? 'all'}
                 onChange={(e) => setFilters((f) => ({ ...f, decisionType: e.target.value === 'all' ? undefined : e.target.value }))}
-                options={DECISION_TYPE_FILTER_OPTIONS}
+                options={decisionTypeFilterOptions}
                 className="w-[140px]"
                 data-testid="filter-decision-type"
               />
               <Select
                 value={filters.outcome ?? 'all'}
                 onChange={(e) => setFilters((f) => ({ ...f, outcome: e.target.value === 'all' ? undefined : e.target.value }))}
-                options={OUTCOME_FILTER_OPTIONS}
+                options={outcomeFilterOptions}
                 className="w-[140px]"
                 data-testid="filter-outcome"
               />
@@ -628,7 +664,7 @@ export function AuditCompliancePage() {
                       <TableCell className="text-xs">
                         {entry.output.score != null && (
                           <>
-                            Score: {entry.output.score}
+                            {t('auditCompliance.output.score', { defaultValue: 'Score: {{value}}', value: entry.output.score })}
                             <br />
                           </>
                         )}
@@ -641,7 +677,7 @@ export function AuditCompliancePage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={outcomeVariant(entry.outcome)}>
-                          {entry.outcome ?? 'pending'}
+                          {t(`auditCompliance.outcome.${entry.outcome ?? 'pending'}`, { defaultValue: entry.outcome ?? 'pending' })}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs">
@@ -656,7 +692,7 @@ export function AuditCompliancePage() {
                       <TableCell>
                         {hasAnomaly ? (
                           <Badge variant="destructive" data-testid="anomaly-flag">
-                            {entry.anomalyFlags?.flagReason ?? 'Yes'}
+                            {entry.anomalyFlags?.flagReason ?? t('auditCompliance.anomaly.yes', { defaultValue: 'Yes' })}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>

@@ -54,6 +54,26 @@ describe('LocationSelector', () => {
     expect(buttons.length).toBe(3) // toggle + 2 chips
   })
 
+  it('toggles aria-expanded on the expand button', async () => {
+    const user = userEvent.setup()
+    render(<LocationSelector {...defaultProps} />)
+    const toggle = screen.getByRole('button', { name: 'Show location keywords' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveAttribute('aria-controls', 'location-keywords-tray')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Hide location keywords' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('sets aria-pressed on location chips', () => {
+    render(<LocationSelector {...defaultProps} value="Shanghai" />)
+    expect(screen.getByRole('button', { name: /Shanghai/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Beijing/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('highlights active location chip', () => {
     render(<LocationSelector {...defaultProps} value="Shanghai" />)
     const shanghaiChip = screen.getByRole('button', { name: /Shanghai/ })
@@ -92,5 +112,27 @@ describe('LocationSelector', () => {
     render(<LocationSelector {...defaultProps} />)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('renders clear button when value is non-empty and clicking it clears value', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    const { unmount } = render(<LocationSelector {...defaultProps} value="Shanghai" onChange={onChange} />)
+    const clearButton = screen.getByTestId('location-clear-button')
+    await user.click(clearButton)
+    expect(onChange).toHaveBeenCalledWith('')
+
+    unmount()
+    render(<LocationSelector {...defaultProps} value="" />)
+    expect(screen.queryByTestId('location-clear-button')).not.toBeInTheDocument()
+  })
+
+  it('shows active location count badge when locations are selected', () => {
+    const { unmount } = render(<LocationSelector {...defaultProps} value="Shanghai,Beijing" />)
+    expect(screen.getByTestId('location-count-badge')).toHaveTextContent('2')
+
+    unmount()
+    render(<LocationSelector {...defaultProps} value="" />)
+    expect(screen.queryByTestId('location-count-badge')).not.toBeInTheDocument()
   })
 })

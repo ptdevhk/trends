@@ -9,7 +9,7 @@ import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import { ConfirmedScoreBadge } from '@/components/ConfirmedScoreBadge'
 import { ResumeRefreshBadge } from '@/components/ResumeRefreshBadge'
 import { toast } from 'sonner'
-import { isAdvancingCandidateStatus } from '@trends/shared'
+import { isAdvancingCandidateStatus, type CandidatePolicyOverride } from '@trends/shared'
 import { CompanyPolicyBadges } from '@/components/CompanyPolicyBadges'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
@@ -20,7 +20,7 @@ import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, Candid
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
 import { getScoreClassName } from '@/lib/score-classes'
-import { cn } from '@/lib/utils'
+import { cn, isImeComposition } from '@/lib/utils'
 import {
   formatRoleYears,
   getResumeContentLocale,
@@ -109,6 +109,8 @@ interface ResumeCardProps {
   onRatingComment?: (comment: string) => void
   confirmedScore?: number
   refreshState?: ResumeRefreshState
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -257,6 +259,8 @@ export const ResumeCard = memo(function ResumeCard({
   onRatingComment,
   confirmedScore,
   refreshState,
+  policyOverrides,
+  resumeIdentity,
   industryTags,
   companyHits,
   brandHits,
@@ -298,8 +302,10 @@ export const ResumeCard = memo(function ResumeCard({
           companyHits,
         },
         matchResume,
+        policyOverrides,
+        resumeIdentity,
       ),
-    [companyHits, matchResume, resume.workHistory],
+    [companyHits, matchResume, policyOverrides, resume.workHistory, resumeIdentity],
   )
   const companyPolicyHits = companyPolicyState.hits
   const guardWorkflowAdvance = (fn: () => void) => {
@@ -522,6 +528,11 @@ export const ResumeCard = memo(function ResumeCard({
         ) : null}
         {scoreNode}
         <CompanyPolicyBadges hits={companyPolicyHits} />
+        {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">
+            {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+          </Badge>
+        ) : null}
         {experienceBadge ? (
           <Badge
             variant="outline"
@@ -801,7 +812,10 @@ export const ResumeCard = memo(function ResumeCard({
                 variant="outline"
                 size="icon"
                 onClick={() => setShowOutreach(true)}
-                aria-label={t('resumes.actions.contact', 'Contact')}
+                aria-label={t('resumes.actions.contact', { defaultValue: 'Contact' })}
+                title={!matchResult
+                  ? t('resumes.actions.contactDisabledHint', { defaultValue: 'Requires AI analysis to draft outreach' })
+                  : t('resumes.actions.contact', { defaultValue: 'Contact' })}
                 disabled={!matchResult}
               >
                 <Phone className="h-3.5 w-3.5" />
@@ -897,6 +911,7 @@ export const ResumeCard = memo(function ResumeCard({
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder={t('resumes.status.notes')}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 if (pendingStatus) {
@@ -939,6 +954,7 @@ export const ResumeCard = memo(function ResumeCard({
             onChange={(e) => setBlockNoteInput(e.target.value)}
             placeholder={t('resumes.card.notePlaceholder', { defaultValue: 'Note' })}
             onKeyDown={(e) => {
+              if (isImeComposition(e)) return
               if (e.key === 'Enter') {
                 e.preventDefault()
                 onToggleBlock?.(blockNoteInput.trim() || undefined)

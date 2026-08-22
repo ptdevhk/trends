@@ -3,11 +3,13 @@ import { Toaster } from 'sonner'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { SystemSidebar } from '@/components/SystemSidebar'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function SystemLayout() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
   return (
@@ -17,7 +19,7 @@ export default function SystemLayout() {
         leftAction={
           <Button variant="ghost" size="icon" className="xl:hidden shrink-0 -ml-2" onClick={() => setOpen((prev) => !prev)}>
             <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle menu</span>
+            <span className="sr-only">{t('common.toggleMenu', { defaultValue: 'Toggle menu' })}</span>
           </Button>
         }
       />

@@ -16,6 +16,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!scripts/lib/
+!scripts/lib/**
 lib64/
 parts/
 sdist/
@@ -104,6 +106,9 @@ resume-backup-*.json
 
 # Playwright CLI runtime output
 .playwright-cli/
+
+# UAT screenshot evidence (non-git-tracked)
+uat-screenshots/
 
 # local env backups
 .env*.bak.*

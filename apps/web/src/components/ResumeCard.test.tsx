@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeCard } from './ResumeCard'
@@ -21,15 +21,22 @@ const mockT = (key: string, options?: string | Record<string, unknown>) => {
   })
 };
 
+const mockI18n = {
+  language: 'en',
+  languages: ['en', 'zh-Hans', 'zh-Hant'],
+  changeLanguage: () => Promise.resolve(),
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
+    i18n: mockI18n,
   }),
 }))
 
 vi.mock('@/hooks/useCompanyPolicyIndex', () => ({
   useCompanyPolicyIndex: () => ({
-    aliasIndex: new Map(),
+    aliasIndexByMarket: { cn: new Map(), my: new Map() },
     loading: false,
     error: null,
     load: vi.fn(),
@@ -543,5 +550,29 @@ describe('ResumeCard brand-hit badges', () => {
     )
 
     expect(screen.queryByText('Legacy rules signal')).not.toBeInTheDocument()
+  })
+
+  it('ignores Enter during IME composition in the block dialog note input', () => {
+    const onToggleBlock = vi.fn()
+
+    render(
+      <ResumeCard
+        resume={baseResume}
+        onViewDetails={vi.fn()}
+        blocked={false}
+        onToggleBlock={onToggleBlock}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const input = screen.getByPlaceholderText('Note')
+
+    // IME composition Enter must not submit
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onToggleBlock).not.toHaveBeenCalled()
+
+    // Plain Enter submits the block action with no reason
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onToggleBlock).toHaveBeenCalledWith(undefined)
   })
 })

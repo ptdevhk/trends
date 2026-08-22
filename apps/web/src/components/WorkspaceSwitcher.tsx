@@ -1,11 +1,13 @@
 import { getWorkspaceDisplayName, isValidWorkspace, listSystemWorkspaceSlugs } from '@trends/shared'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { writeLastWorkspaceSlug } from '@/lib/last-workspace'
 import { hasWorkspaceMembership } from '@/lib/workspace-access'
 
 export function WorkspaceSwitcher() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { slug } = useWorkspace()
   const { isAuthenticated, memberships, user } = useAuth()
@@ -40,7 +42,7 @@ export function WorkspaceSwitcher() {
         navigate(`/${nextSlug}/resumes`)
       }}
       className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-      aria-label="Workspace switcher"
+      aria-label={t('common.workspaceSwitcherAria', { defaultValue: 'Workspace switcher' })}
       data-testid="workspace-switcher"
     >
       {visible.map((workspaceSlug) => (

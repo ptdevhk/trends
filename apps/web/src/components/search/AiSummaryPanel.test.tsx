@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 
@@ -82,5 +82,25 @@ describe('AiSummaryPanel', () => {
 
     expect(screen.getByText('Summary without cache metadata.')).toBeInTheDocument()
     expect(screen.queryByText(/Generated /)).not.toBeInTheDocument()
+  })
+
+  it('collapses long summaries by default with a toggle to expand', () => {
+    const longSummary = 'Machine tools. '.repeat(25)
+    const { container } = render(<AiSummaryPanel summary={longSummary} />)
+
+    const toggle = screen.getByRole('button', { name: 'Expand' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(container.querySelector('p.line-clamp-2')).not.toBeNull()
+
+    fireEvent.click(toggle)
+
+    expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+    expect(container.querySelector('p.line-clamp-2')).toBeNull()
+  })
+
+  it('omits the collapse toggle for short summaries', () => {
+    render(<AiSummaryPanel summary="Short summary." />)
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

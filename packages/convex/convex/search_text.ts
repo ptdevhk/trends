@@ -1,10 +1,19 @@
+/// <reference path="./segmentit.d.ts" />
 import {
+    addScriptBoundarySpaces,
     buildLatestWorkHistoryEvidence,
     formatLocationHierarchySearchText,
     getDisallowedResumeFieldKeys,
     isRecord,
+    normalizeSearchQuery,
+    normalizeWhitespace,
     type LocationHierarchy,
 } from "@trends/shared";
+import { Segment, useDefault } from "segmentit/dist/esm/segmentit.js";
+
+// Shared normalization, re-exported so ingest-side callers (and tests) keep a
+// single import surface; the query side uses normalizeSearchQuery directly.
+export { addScriptBoundarySpaces, normalizeSearchQuery, normalizeWhitespace };
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -27,26 +36,67 @@ const EXCLUDED_KEYS = new Set([
     ...getDisallowedResumeFieldKeys("analysis"),
 ]);
 
-
-
-export function normalizeWhitespace(value: string): string {
-    return value.replace(/\s+/g, " ").trim();
-}
-
-const CJK_RANGE = "\\u4e00-\\u9fff\\u3400-\\u4dbf";
-const CJK_CHAR = `[${CJK_RANGE}]`;
-const ASCII_WORD = "[a-zA-Z0-9]";
-
-export function addScriptBoundarySpaces(text: string): string {
-    return text
-        .replace(new RegExp(`(${CJK_CHAR})(${ASCII_WORD})`, "g"), "$1 $2")
-        .replace(new RegExp(`(${ASCII_WORD})(${CJK_CHAR})`, "g"), "$1 $2");
-}
-
 const CJK_SEGMENTER = new (Intl as unknown as { Segmenter: new (locale: string, options?: { granularity?: string }) => { segment: (text: string) => Iterable<{ segment: string; isWordLike: boolean }> } }).Segmenter(
     "zh-CN",
     { granularity: "word" },
 );
+
+type Segmenter = { doSegment: (value: string) => Array<{ w: string }> };
+
+// Lazy-init memoized: the first call evaluates the segmentit module (~160 ms
+// cold); subsequent calls are sub-ms. Convex isolates re-evaluate module
+// state, so this only memoizes within one isolate lifetime.
+let cachedSegmenter: Segmenter | null | undefined;
+
+function getSegmenter(): Segmenter | null {
+    if (cachedSegmenter !== undefined) {
+        return cachedSegmenter;
+    }
+    let seg: Segmenter | null = null;
+    try {
+        seg = useDefault(new Segment());
+    } catch {
+        seg = null;
+    }
+    cachedSegmenter = seg;
+    return seg;
+}
+
+// DictTokenizer.getChunks enumerates every possible chunking of the
+// word-position graph, which is exponential in the length of dense-overlap
+// runs (工程师工程师…: 60 chars ≈ 5 s). Prose is split at non-alphanumeric
+// boundaries first (chunk edges land on natural word boundaries), and only
+// pieces longer than SEGMENTIT_CHUNK_MAX get hard-sliced (~0.5 ms worst
+// measured per call); a word straddling a hard-slice edge is split into
+// parts, and callers keep the full-run and Intl tokens, so no recall
+// regression.
+const SEGMENTIT_CHUNK_MAX = 20;
+
+// Jieba emits punctuation and single-char tokens that are noise in the
+// search index; keep only multi-code-point letter/digit tokens.
+function isSearchableToken(token: string): boolean {
+    return /^[\p{L}\p{N}]+$/u.test(token) && Array.from(token).length >= 2;
+}
+
+function doJiebaSegment(value: string): Array<{ w: string }> {
+    const segmenter = getSegmenter();
+    if (!segmenter) {
+        return [];
+    }
+    const out: Array<{ w: string }> = [];
+    for (const piece of value.split(/[^\p{L}\p{N}]+/u)) {
+        if (piece.length === 0) {
+            continue;
+        }
+        const step = Math.min(piece.length, SEGMENTIT_CHUNK_MAX);
+        for (let i = 0; i < piece.length; i += step) {
+            for (const word of segmenter.doSegment(piece.slice(i, i + step))) {
+                out.push(word);
+            }
+        }
+    }
+    return out;
+}
 
 export function segmentChineseRuns(text: string): string {
     return text.replace(
@@ -56,6 +106,14 @@ export function segmentChineseRuns(text: string): string {
             for (const { segment, isWordLike } of CJK_SEGMENTER.segment(run)) {
                 if (isWordLike && segment.trim()) {
                     words.push(segment);
+                }
+            }
+            // Union augmentation: keep the full run and Intl words, add jieba
+            // words (数控/编程/机床...) that Intl fragments into single chars.
+            // Zero token loss => no recall regression vs the old index.
+            for (const { w } of doJiebaSegment(run)) {
+                if (isSearchableToken(w)) {
+                    words.push(w);
                 }
             }
             return [...new Set(words)].join(" ");
@@ -226,6 +284,23 @@ function buildDomainAliasTokens(text: string): string[] {
         }
     }
     return toNormalizedSearchTokens(tokens);
+}
+
+/**
+ * Derive additional search tokens from free-form prose (e.g. selfIntro) that
+ * is not part of the compact digest fields: jieba (segmentit) word segments
+ * plus domain alias tokens. Punctuation and single-char tokens are dropped;
+ * ASCII/alnum tokens (iso, 9001, mastercam) are kept.
+ */
+export function deriveProseSearchTokens(value: string | undefined): string[] {
+    if (!value) {
+        return [];
+    }
+    const words = doJiebaSegment(value).map(({ w }) => w).filter(isSearchableToken);
+    return Array.from(new Set([
+        ...toNormalizedSearchTokens(words),
+        ...buildDomainAliasTokens(value),
+    ]));
 }
 
 export function buildSearchText(content: unknown): string {

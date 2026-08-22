@@ -16,8 +16,10 @@ import type * as analyze from "../analyze.js";
 import type * as audit from "../audit.js";
 import type * as bias_audit from "../bias_audit.js";
 import type * as candidate_blocks from "../candidate_blocks.js";
+import type * as candidate_policy_overrides from "../candidate_policy_overrides.js";
 import type * as candidate_status from "../candidate_status.js";
 import type * as companies from "../companies.js";
+import type * as company_key_projection from "../company_key_projection.js";
 import type * as company_registry from "../company_registry.js";
 import type * as company_resume_links from "../company_resume_links.js";
 import type * as crons from "../crons.js";
@@ -60,6 +62,7 @@ import type * as migrations from "../migrations.js";
 import type * as research_news from "../research_news.js";
 import type * as research_ops from "../research_ops.js";
 import type * as research_signals from "../research_signals.js";
+import type * as resume_dedup from "../resume_dedup.js";
 import type * as resume_helpers from "../resume_helpers.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
@@ -77,6 +80,7 @@ import type * as taxonomy_clusters from "../taxonomy_clusters.js";
 import type * as validators from "../validators.js";
 import type * as web_research from "../web_research.js";
 import type * as workspace_config from "../workspace_config.js";
+import type * as workspace_snapshots from "../workspace_snapshots.js";
 
 import type {
   ApiFromModules,
@@ -93,8 +97,10 @@ declare const fullApi: ApiFromModules<{
   audit: typeof audit;
   bias_audit: typeof bias_audit;
   candidate_blocks: typeof candidate_blocks;
+  candidate_policy_overrides: typeof candidate_policy_overrides;
   candidate_status: typeof candidate_status;
   companies: typeof companies;
+  company_key_projection: typeof company_key_projection;
   company_registry: typeof company_registry;
   company_resume_links: typeof company_resume_links;
   crons: typeof crons;
@@ -137,6 +143,7 @@ declare const fullApi: ApiFromModules<{
   research_news: typeof research_news;
   research_ops: typeof research_ops;
   research_signals: typeof research_signals;
+  resume_dedup: typeof resume_dedup;
   resume_helpers: typeof resume_helpers;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
@@ -154,6 +161,7 @@ declare const fullApi: ApiFromModules<{
   validators: typeof validators;
   web_research: typeof web_research;
   workspace_config: typeof workspace_config;
+  workspace_snapshots: typeof workspace_snapshots;
 }>;
 
 /**

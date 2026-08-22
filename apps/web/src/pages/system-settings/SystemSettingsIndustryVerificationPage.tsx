@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   INDUSTRY_REVIEW_ATTESTATION_SCHEMA_VERSION,
   isExplicitCncEvidenceSource,
+  isRecord,
   type IndustryReviewAttestation,
 } from '@trends/shared'
 
@@ -23,8 +24,10 @@ import { EvidenceRecoveryPanel } from './EvidenceRecoveryPanel'
 import {
   isTerminalIndustryProposalStatus,
   type ReviewInboxItem,
+  type SessionApproval,
 } from './industry-review-inbox-model'
 import {
+  REVIEW_RISK_FLAG_LABELS,
   createRevisionId,
   displayCompany,
   parseReviewPacket,
@@ -100,6 +103,10 @@ export function SystemSettingsIndustryVerificationPage() {
   const [acknowledgementReason, setAcknowledgementReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [approvalConfirmOpen, setApprovalConfirmOpen] = useState(false)
+  // Session-approval registry lifted from the inbox so detail-pane approvals
+  // (which call the same /approve API) register too, keeping the counter,
+  // row badge, and Undo affordance symmetric across both approval paths.
+  const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
   const [userInitiatedSelection, setUserInitiatedSelection] = useState(false)
   const detailSectionRef = useRef<HTMLDivElement | null>(null)
   const userInitiatedSelectionRef = useRef(false)
@@ -300,7 +307,7 @@ export function SystemSettingsIndustryVerificationPage() {
             acknowledgementReason: acknowledgementReason.trim(),
           }
         : undefined
-      await requestJson(
+      const response = await requestJson(
         `/api/company-industry-proposals/${encodeURIComponent(selectedProposal.proposalId)}/approve`,
         {
           method: 'POST',
@@ -320,6 +327,20 @@ export function SystemSettingsIndustryVerificationPage() {
           }),
         },
       )
+      // Register into the session registry exactly like the inbox row path so
+      // the summary counter, row badge, and Undo affordance stay symmetric.
+      if (isRecord(response) && typeof response.revisionId === 'string') {
+        const revisionId = response.revisionId
+        const recomputeRunId = isRecord(response.recompute) && typeof response.recompute.runId === 'string'
+          ? response.recompute.runId
+          : undefined
+        setSessionApprovals((current) => new Map(current).set(selectedProposal.proposalId, {
+          proposalId: selectedProposal.proposalId,
+          approvedRevisionId: revisionId,
+          ...(recomputeRunId ? { recomputeRunId } : {}),
+          approvedAt: Date.now(),
+        }))
+      }
       toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
       setApprovalConfirmOpen(false)
       await reloadDirectReviewPacket()
@@ -451,6 +472,8 @@ export function SystemSettingsIndustryVerificationPage() {
         onQueueStatusChange={changeQueueStatus}
         onSelectProposal={(proposal) => selectProposal(proposal?.proposalId)}
         onLoadedProposalsChange={setProposals}
+        sessionApprovals={sessionApprovals}
+        onSessionApprovalsChange={setSessionApprovals}
       />
 
       <div className="space-y-6">
@@ -537,12 +560,13 @@ export function SystemSettingsIndustryVerificationPage() {
                 <CardContent className="space-y-4">
                   {selectedProposalIsTerminal ? (
                     <p className="rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="industry-review-terminal-read-only">
-                      This proposal is in terminal history. Its evidence and immutable revision history are read-only.
+                      {t('industryEvidence.terminalReadOnlyNotice', { defaultValue: 'This proposal is in terminal history. Its evidence and immutable revision history are read-only.' })}
                     </p>
                   ) : null}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm font-medium">
-                      Verdict {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
+                      {t('industryEvidence.verdict', { defaultValue: 'Verdict' })}{' '}
+                      {recommendation && <span className="text-xs font-normal text-muted-foreground">{t('industryEvidence.suggestedSuffix', { defaultValue: '(Suggested)' })}</span>}
                       <select
                         name="verificationLevel"
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
@@ -555,7 +579,8 @@ export function SystemSettingsIndustryVerificationPage() {
                       </select>
                     </label>
                     <label className="space-y-2 text-sm font-medium">
-                      Industry class {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
+                      {t('industryEvidence.industryClassLabel', { defaultValue: 'Industry class' })}{' '}
+                      {recommendation && <span className="text-xs font-normal text-muted-foreground">{t('industryEvidence.suggestedSuffix', { defaultValue: '(Suggested)' })}</span>}
                       <select
                         name="industryClass"
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
@@ -570,22 +595,24 @@ export function SystemSettingsIndustryVerificationPage() {
                     </label>
                   </div>
                   <label className="block space-y-2 text-sm font-medium">
-                    Evidence summary {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
+                    {t('industryEvidence.evidenceSummaryLabel', { defaultValue: 'Evidence summary' })}{' '}
+                    {recommendation && <span className="text-xs font-normal text-muted-foreground">{t('industryEvidence.suggestedSuffix', { defaultValue: '(Suggested)' })}</span>}
                     <Input
                       name="evidenceSummary"
                       autoComplete="off"
-                      aria-label="Evidence summary"
+                      aria-label={t('industryEvidence.evidenceSummaryLabel', { defaultValue: 'Evidence summary' })}
                       value={evidenceSummary}
                       onChange={(event) => setEvidenceSummary(event.target.value)}
                       disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   <label className="block space-y-2 text-sm font-medium">
-                    Decision reason {recommendation && <span className="text-xs font-normal text-muted-foreground">(Suggested)</span>}
+                    {t('industryEvidence.decisionReasonLabel', { defaultValue: 'Decision reason' })}{' '}
+                    {recommendation && <span className="text-xs font-normal text-muted-foreground">{t('industryEvidence.suggestedSuffix', { defaultValue: '(Suggested)' })}</span>}
                     <Input
                       name="decisionReason"
                       autoComplete="off"
-                      aria-label="Decision reason"
+                      aria-label={t('industryEvidence.decisionReasonLabel', { defaultValue: 'Decision reason' })}
                       value={decisionReason}
                       onChange={(event) => setDecisionReason(event.target.value)}
                       disabled={selectedProposalIsTerminal}
@@ -593,46 +620,58 @@ export function SystemSettingsIndustryVerificationPage() {
                   </label>
                   {approvalConfirmOpen && (
                     <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-4 text-sm" data-testid="industry-review-approval-confirmation">
-                      <p className="font-medium">Confirm this immutable revision</p>
+                      <p className="font-medium">{t('industryEvidence.confirmImmutableTitle', { defaultValue: 'Confirm this immutable revision' })}</p>
                       <p>
-                        You are approving <strong>{industryClass}</strong> as <strong>{verificationLevel}</strong> for{' '}
-                        <strong>{displayCompany(selectedProposal.companyKey ?? selectedProposal.normalizedEmployerSurface)}</strong>.
+                        {t('industryEvidence.approving', {
+                          industryClass,
+                          verificationLevel,
+                          company: displayCompany(selectedProposal.companyKey ?? selectedProposal.normalizedEmployerSurface),
+                          defaultValue: `You are approving ${industryClass} as ${verificationLevel} for ${displayCompany(selectedProposal.companyKey ?? selectedProposal.normalizedEmployerSurface)}.`,
+                        })}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Sources: {selectedSourceIds.join(', ')} · this will create a new revision and start targeted recompute.
+                        {t('industryEvidence.approvingSources', {
+                          sourceIds: selectedSourceIds.join(', '),
+                          defaultValue: `Sources: ${selectedSourceIds.join(', ')} · this will create a new revision and start targeted recompute.`,
+                        })}
                       </p>
                       {recommendation && recommendation.riskFlags.length > 0 && (
                         <p className="text-xs font-medium text-amber-900">
-                          Review flags remain: {recommendation.riskFlags.join(', ')}
+                          {t('industryEvidence.approvingFlagsRemain', {
+                            flags: recommendation.riskFlags
+                              .map((flag) => t(`industryEvidence.riskFlag.${flag}`, { defaultValue: REVIEW_RISK_FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ') }))
+                              .join(', '),
+                            defaultValue: `Review flags remain: ${recommendation.riskFlags.join(', ')}`,
+                          })}
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2 pt-1">
                         <Button onClick={() => void approveRevision()} disabled={saving || selectedProposalIsTerminal}>
-                          Confirm approve revision
+                          {t('industryEvidence.confirmApprove', { defaultValue: 'Confirm approve revision' })}
                         </Button>
                         <Button variant="outline" onClick={() => setApprovalConfirmOpen(false)} disabled={saving}>
-                          Cancel
+                          {t('common.cancel', { defaultValue: 'Cancel' })}
                         </Button>
                       </div>
                     </div>
                   )}
                   <label className="block space-y-2 text-sm font-medium">
-                    Taxonomy version
+                    {t('industryEvidence.taxonomyVersionLabel', { defaultValue: 'Taxonomy version' })}
                     <Input
                       name="taxonomyVersion"
                       autoComplete="off"
-                      aria-label="Taxonomy version"
+                      aria-label={t('industryEvidence.taxonomyVersionLabel', { defaultValue: 'Taxonomy version' })}
                       value={taxonomyVersion}
                       onChange={(event) => setTaxonomyVersion(event.target.value)}
                       disabled={selectedProposalIsTerminal}
                     />
                   </label>
                   <label className="block space-y-2 text-sm font-medium">
-                    Review note (for reject / more evidence)
+                    {t('industryEvidence.detailReviewNoteLabel', { defaultValue: 'Review note (for reject / more evidence)' })}
                     <Input
                       name="reviewNote"
                       autoComplete="off"
-                      aria-label="Review note"
+                      aria-label={t('industryEvidence.detailReviewNoteLabel', { defaultValue: 'Review note (for reject / more evidence)' })}
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                       disabled={selectedProposalIsTerminal}
@@ -644,25 +683,27 @@ export function SystemSettingsIndustryVerificationPage() {
                       disabled={selectedProposalIsTerminal || saving || approvalConfirmOpen || (recommendation?.riskDecision?.nonOverridableRiskFlags.length ?? 0) > 0}
                     >
                       <ShieldCheck className="mr-2 h-4 w-4" />
-                      Approve revision
+                      {t('industryEvidence.approveRevision', { defaultValue: 'Approve revision' })}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => void resolveProposal('needs_more_evidence')}
                       disabled={selectedProposalIsTerminal || saving}
                     >
-                      Request more evidence
+                      {t('industryEvidence.requestMoreEvidence', { defaultValue: 'Request more evidence' })}
                     </Button>
                     <Button
                       variant="destructive"
                       onClick={() => void resolveProposal('rejected')}
                       disabled={selectedProposalIsTerminal || saving}
                     >
-                      Reject proposal
+                      {t('industryEvidence.rejectProposal', { defaultValue: 'Reject proposal' })}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    “Request more evidence” records the human review disposition only. Use “Research &amp; verify employer” above to queue the guarded worker.
+                    {t('industryEvidence.requestMoreEvidenceNote', {
+                      defaultValue: '“Request more evidence” records the human review disposition only. Use “Research & verify employer” above to queue the guarded worker.',
+                    })}
                   </p>
                 </CardContent>
               </Card>

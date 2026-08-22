@@ -20,6 +20,7 @@ import {
   prepareResumeCandidate,
   filterPreparedCandidatesByResumeFilters,
   buildAiResumePayload,
+  fetchResumeDocPages,
 } from "../resume-candidate-prep.js";
 import type { ResumeItem } from "../../types/resume.js";
 import type { ResumeIndex } from "../resume-index.js";
@@ -916,6 +917,52 @@ describe("resume-candidate-prep", () => {
   });
 
   // ── prepareResumeCandidate ──────────────────────────────────────────────
+  describe("fetchResumeDocPages", () => {
+    it("fetches all batches in order with bounded concurrency", async () => {
+      const ids = Array.from({ length: 25 }, (_, i) => `res-${i}`);
+      const inFlight: number[] = [];
+      let maxInFlight = 0;
+      const fetchBatch = async (batchIds: string[]): Promise<unknown> => {
+        inFlight.push(batchIds.length);
+        maxInFlight = Math.max(maxInFlight, inFlight.length);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight.pop();
+        return batchIds.map((resumeId) => ({ resumeId }));
+      };
+
+      const pages = await fetchResumeDocPages(ids, { batchSize: 10, concurrency: 3 }, fetchBatch);
+
+      expect(pages).toHaveLength(3);
+      expect(pages[0].batchIds).toEqual(ids.slice(0, 10));
+      expect(pages[1].batchIds).toEqual(ids.slice(10, 20));
+      expect(pages[2].batchIds).toEqual(ids.slice(20, 25));
+      expect(maxInFlight).toBeLessThanOrEqual(3);
+      expect(pages.flatMap((page) => page.docs)).toHaveLength(25);
+    });
+
+    it("returns an empty page list for empty ids", async () => {
+      const fetchBatch = vi.fn(async (): Promise<unknown> => []);
+      const pages = await fetchResumeDocPages([], { batchSize: 10, concurrency: 3 }, fetchBatch);
+      expect(pages).toEqual([]);
+      expect(fetchBatch).not.toHaveBeenCalled();
+    });
+
+    it("preserves batch order even when fetches resolve out of order", async () => {
+      const ids = Array.from({ length: 30 }, (_, i) => `res-${i}`);
+      const fetchBatch = async (batchIds: string[]): Promise<unknown> => {
+        // Longest batch first takes longest, so completion order != batch order
+        const delay = batchIds.length === 10 ? 15 : 1;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return batchIds.map((resumeId) => ({ resumeId }));
+      };
+
+      const pages = await fetchResumeDocPages(ids, { batchSize: 10, concurrency: 3 }, fetchBatch);
+
+      expect(pages.map((page) => page.batchIds[0])).toEqual(["res-0", "res-10", "res-20"]);
+      expect(pages.flatMap((page) => page.docs)).toHaveLength(30);
+    });
+  });
+
   describe("prepareResumeCandidate", () => {
     it("prepares candidate with provided indexData", () => {
       const resume = makeMinimalResume();

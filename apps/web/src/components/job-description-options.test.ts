@@ -5,6 +5,8 @@ describe('buildJobDescriptionOptions', () => {
   it('keeps placeholder first and includes custom+system options from correct sources', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Select job description',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [
         { _id: 'sys-1', title: '车床销售工程师', type: 'system', enabled: true },
         { _id: 'cus-1', title: '车床销售工程师', type: 'custom', enabled: true },
@@ -18,22 +20,24 @@ describe('buildJobDescriptionOptions', () => {
 
     expect(options).toEqual([
       { value: '', label: 'Select job description' },
-      { value: 'cus-1', label: '✨ 车床销售工程师 (Custom)' },
-      { value: 'lathe-sales', label: '车床销售工程师 (System)' },
-      { value: 'fixture-engineer', label: '夹具工程师 (System)' },
+      { value: 'cus-1', label: '✨ 车床销售工程师', group: 'Custom' },
+      { value: 'lathe-sales', label: '车床销售工程师', group: 'System' },
+      { value: 'fixture-engineer', label: '夹具工程师', group: 'System' },
     ])
   })
 
   it('falls back to system name when title is missing', () => {
     const options = buildJobDescriptionOptions({
       placeholderLabel: 'Pick one',
+      customLabel: 'Custom',
+      systemLabel: 'System',
       convexJobDescriptions: [],
       systemJobDescriptions: [{ name: 'cpp-software-engineer' }],
     })
 
     expect(options).toEqual([
       { value: '', label: 'Pick one' },
-      { value: 'cpp-software-engineer', label: 'cpp-software-engineer (System)' },
+      { value: 'cpp-software-engineer', label: 'cpp-software-engineer', group: 'System' },
     ])
   })
 })

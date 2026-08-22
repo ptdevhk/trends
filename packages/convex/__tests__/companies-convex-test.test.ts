@@ -264,7 +264,7 @@ describe("companies (convex-test)", () => {
     ).rejects.toThrow("Unauthorized Convex write");
   });
 
-  it("appends policy revisions and resolves workspace over global", async () => {
+  it("appends policy revisions and resolves market over workspace (global inert)", async () => {
     const t = createTest();
     await t.mutation(api.companies.seedCanonicalCompanies, {
       writeSecret: WRITE_SECRET,
@@ -288,15 +288,54 @@ describe("companies (convex-test)", () => {
       writeSecret: WRITE_SECRET,
       createdBy: "hr-user",
     });
+    await t.mutation(api.companies.appendPolicyRevision, {
+      companyKey: "pro-technic-machinery",
+      scopeType: "market",
+      scopeId: "cn",
+      rankingEffect: "none",
+      visibility: "default",
+      writeSecret: WRITE_SECRET,
+      createdBy: "cn-operator",
+    });
 
+    // Explicit market CN row wins over the workspace row.
     const effective = await t.query(api.companies.getEffectivePolicy, {
       companyKey: "pro-technic-machinery",
       workspaceSlug: "hr",
       market: "CN",
       writeSecret: WRITE_SECRET,
     });
-    expect(effective?.effects?.rankingEffect).toBe("band_known_good");
-    expect(effective?.resolvedFrom?.scopeType).toBe("workspace");
+    expect(effective?.effects?.rankingEffect).toBe("none");
+    expect(effective?.resolvedFrom?.scopeType).toBe("market");
+    expect(effective?.resolvedFrom?.scopeId).toBe("cn");
+
+    // No market MY row → workspace fallback still applies.
+    const fallback = await t.query(api.companies.getEffectivePolicy, {
+      companyKey: "pro-technic-machinery",
+      workspaceSlug: "hr",
+      market: "MY",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(fallback?.effects?.rankingEffect).toBe("band_known_good");
+    expect(fallback?.resolvedFrom?.scopeType).toBe("workspace");
+
+    // Global-only company resolves to null: global is not a resolution tier.
+    await t.mutation(api.companies.appendPolicyRevision, {
+      companyKey: "polywell",
+      scopeType: "global",
+      scopeId: "global",
+      rankingEffect: "band_known_bad",
+      visibility: "hide",
+      writeSecret: WRITE_SECRET,
+      createdBy: "admin",
+    });
+    const inert = await t.query(api.companies.getEffectivePolicy, {
+      companyKey: "polywell",
+      workspaceSlug: "hr",
+      market: "CN",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(inert?.effects).toBeNull();
   });
 
   it("refuses alias reassignment across companies", async () => {
@@ -390,6 +429,71 @@ describe("companies (convex-test)", () => {
       "unknown_employer",
     ]);
     expect(proposals[0]?.sampleReferences).toHaveLength(2);
+  });
+
+  it("rejects upserts with an unknown industry proposal trigger reason", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await expect(
+      t.mutation(api.companies.upsertIndustryProposal, {
+        proposalId: "proposal-acme-unknown-reason",
+        companyKey: "acme-cnc",
+        triggerReasons: ["keyword_only_cnc"],
+        priority: 40,
+        writeSecret: WRITE_SECRET,
+      }),
+    ).rejects.toThrow(
+      /Unknown industry proposal trigger reason: keyword_only_cnc/,
+    );
+  });
+
+  it("self-heals legacy trigger reasons on upsert merge", async () => {
+    const t = createTest();
+    await t.mutation(api.companies.upsert, {
+      companyKey: "acme-cnc",
+      displayName: "ACME CNC",
+      status: "confirmed",
+      writeSecret: WRITE_SECRET,
+    });
+
+    // Legacy row predating the reason allowlist, carrying a junk reason.
+    await t.run(async (ctx) =>
+      ctx.db.insert("company_industry_review_proposals", {
+        proposalId: "proposal-acme-legacy-reasons",
+        companyKey: "acme-cnc",
+        triggerReasons: ["manual", "keyword_only_cnc"],
+        priority: 40,
+        status: "ready_for_review",
+        requestedBy: "legacy-import",
+        createdAt: 1,
+        updatedAt: 2,
+      }),
+    );
+
+    const merged = await t.mutation(api.companies.upsertIndustryProposal, {
+      proposalId: "proposal-acme-legacy-reasons",
+      companyKey: "acme-cnc",
+      triggerReasons: ["high_value_candidate"],
+      priority: 40,
+      writeSecret: WRITE_SECRET,
+    });
+    expect(merged.created).toBe(false);
+
+    const proposals = await t.query(api.companies.listIndustryProposals, {
+      status: "ready_for_review",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.triggerReasons).toEqual([
+      "high_value_candidate",
+      "manual",
+    ]);
   });
 
   it("resolves review targets only from exact workspace, resume identity, and work-entry fingerprint links", async () => {

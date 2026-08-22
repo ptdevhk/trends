@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Unit tests for packages/convex/convex/lib/analysis_config.ts
@@ -32,7 +32,9 @@ import {
   getAiApiKey,
   getAiApiBase,
   getAiModel,
+  getAiFallbackModel,
   getAiTemperature,
+  resolveAnalyzeLlmRuntimeConfig,
   SYSTEM_PROMPT,
   USER_PROMPT_TEMPLATE,
 } from "../convex/lib/analysis_config.js";
@@ -221,8 +223,63 @@ describe("getAiModel", () => {
     expect(getAiModel()).toBe("gpt-4o-mini");
   });
 
-  it("defaults to gpt-4-turbo-preview", () => {
-    expect(getAiModel()).toBe("gpt-4-turbo-preview");
+  it("defaults to openai/deepseek-v4-flash-e", () => {
+    expect(getAiModel()).toBe("openai/deepseek-v4-flash-e");
+  });
+});
+
+describe("getAiFallbackModel", () => {
+  afterEach(() => {
+    delete process.env.AI_FALLBACK_MODEL;
+  });
+
+  it("returns AI_FALLBACK_MODEL when set", () => {
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash";
+    expect(getAiFallbackModel()).toBe("openai/deepseek-v4-flash");
+  });
+
+  it("defaults to openai/deepseek-v4-flash (known Poe response_format bug, tracked)", () => {
+    delete process.env.AI_FALLBACK_MODEL;
+    expect(getAiFallbackModel()).toBe("openai/deepseek-v4-flash");
+  });
+});
+
+describe("resolveAnalyzeLlmRuntimeConfig (call-time, no process reload)", () => {
+  const keys = ["AI_API_BASE", "OPENAI_API_BASE", "AI_MODEL", "OPENAI_MODEL", "AI_FALLBACK_MODEL"] as const;
+  const originals: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of keys) {
+      originals[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of keys) {
+      if (originals[key] === undefined) delete process.env[key];
+      else process.env[key] = originals[key];
+    }
+  });
+
+  it("returns new provider base and model names on a second call after env swap", () => {
+    process.env.AI_API_BASE = "https://api.poe.com/v1";
+    process.env.AI_MODEL = "openai/deepseek-v4-flash";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash-e";
+    expect(resolveAnalyzeLlmRuntimeConfig()).toEqual({
+      apiBase: "https://api.poe.com/v1",
+      primary: "openai/deepseek-v4-flash",
+      fallback: "openai/deepseek-v4-flash-e",
+    });
+
+    process.env.AI_API_BASE = "https://api.example-runtime.test/v1";
+    process.env.AI_MODEL = "openai/gpt-4o-mini";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-chat";
+    expect(resolveAnalyzeLlmRuntimeConfig()).toEqual({
+      apiBase: "https://api.example-runtime.test/v1",
+      primary: "openai/gpt-4o-mini",
+      fallback: "openai/deepseek-chat",
+    });
   });
 });
 

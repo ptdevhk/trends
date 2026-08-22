@@ -270,8 +270,11 @@ if [ "$PROD_STATUS" != "{}" ] && [ "$PREV_STATUS" != "{}" ] && [ "$PROD_STATUS" 
     fi
 fi
 
-# Optional minScore bucket
-if [ "${CHECK_MIN_SCORE:-}" = "80" ] || [ -n "${CHECK_MIN_SCORE:-}" ]; then
+# Optional minScore bucket. NOTE: summary.total ignores minScore on both
+# sides, so a bucket mismatch under API version drift is the same version
+# drift signal as the search totals — warn by default, fail only when search
+# parity is pinned (PARITY_STRICT_SEARCH=1) or versions match.
+if [ -n "${CHECK_MIN_SCORE:-}" ]; then
     MS="${CHECK_MIN_SCORE:-80}"
     PT="$(preview_auth_curl "$PROD_JAR" "$PROD_HR_WS" --max-time 60 \
         "$PROD_API/api/resumes?source=convex&paged=true&limit=1&minScore=${MS}&${QUERY}" \
@@ -281,8 +284,12 @@ if [ "${CHECK_MIN_SCORE:-}" = "80" ] || [ -n "${CHECK_MIN_SCORE:-}" ]; then
         | python3 -c 'import sys,json;print(json.load(sys.stdin)["summary"]["total"])')"
     echo "minScore>=$MS prod=$PT preview=$VT"
     if [ "$PT" != "$VT" ]; then
-        log_error "minScore bucket mismatch"
-        FAIL=1
+        if [ "$VERSION_DRIFT" -eq 1 ] && [ "$PARITY_ALLOW_VERSION_DRIFT" != "0" ] && [ "$PARITY_STRICT_SEARCH" != "1" ]; then
+            log_warn "minScore bucket differs under API version drift (prod=$PT preview=$VT); set PARITY_STRICT_SEARCH=1 to fail"
+        else
+            log_error "minScore bucket mismatch"
+            FAIL=1
+        fi
     else
         log_info "minScore bucket OK"
     fi

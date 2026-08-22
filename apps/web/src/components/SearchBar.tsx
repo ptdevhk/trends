@@ -15,15 +15,20 @@ interface SearchBarProps {
 export function SearchBar({ onSearch, onClear, loading, placeholder, buttonLabel }: SearchBarProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
+  const [isComposing, setIsComposing] = useState(false)
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault()
+      // Ignore submits while an IME composition is in flight (e.g. Enter confirming a Chinese candidate).
+      if (isComposing) {
+        return
+      }
       if (keyword.trim()) {
         onSearch(keyword.trim())
       }
     },
-    [keyword, onSearch]
+    [isComposing, keyword, onSearch]
   )
 
   const handleClear = useCallback(() => {
@@ -40,6 +45,8 @@ export function SearchBar({ onSearch, onClear, loading, placeholder, buttonLabel
           placeholder={placeholder ?? t('search.placeholder')}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           className="pl-9 pr-9"
         />
         {keyword && (

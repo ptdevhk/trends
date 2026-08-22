@@ -12,6 +12,14 @@ function normalizeCompanyKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+function assertAsciiFieldName(value: string, context: string): void {
+  if (/[^\x00-\x7F]/.test(value)) {
+    throw new Error(
+      `companyKey ${JSON.stringify(value)} (${context}) contains non-ASCII characters; Convex field names must be ASCII`,
+    );
+  }
+}
+
 /**
  * Resume-impact counts per company key: the number of company_resume_links
  * rows per companyKey (one index scan per key, bounded to 200 keys), used to
@@ -32,16 +40,17 @@ export const getIndustryResumeImpactByCompanyKey = query({
           .filter((key) => Boolean(key)),
       ),
     ).slice(0, 200);
-    const counts: Record<string, number> = {};
+    const entries: Array<[string, number]> = [];
     for (const companyKey of keys) {
+      assertAsciiFieldName(companyKey, "resume-impact query");
       const rows = await ctx.db
         .query("company_resume_links")
         .withIndex("by_company", (index) =>
           index.eq("companyKey", companyKey),
         )
         .collect();
-      counts[companyKey] = rows.length;
+      entries.push([companyKey, rows.length]);
     }
-    return counts;
+    return Object.fromEntries(entries);
   },
 });

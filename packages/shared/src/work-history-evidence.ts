@@ -23,6 +23,7 @@ function toOptionalString(value: unknown): string | undefined {
 export type NormalizedWorkHistoryEntry = {
   raw: string;
   companyName?: string;
+  companyKey?: string;
   jobTitle?: string;
   description?: string;
   startDate?: string;
@@ -76,22 +77,24 @@ export function normalizeWorkHistoryEntry(entry: unknown): NormalizedWorkHistory
 
   const raw = toOptionalString(entry.raw) ?? "";
   const companyName = toOptionalString(entry.companyName);
+  const companyKey = toOptionalString(entry.companyKey);
   const jobTitle = toOptionalString(entry.jobTitle);
   const description = toOptionalString(entry.description);
   const startDate = toOptionalString(entry.startDate);
   const endDate = toOptionalString(entry.endDate);
 
-  if (!raw && !companyName && !jobTitle && !description && !startDate && !endDate) {
+  if (!raw && !companyName && !companyKey && !jobTitle && !description && !startDate && !endDate) {
     return null;
   }
 
   return {
     raw,
-    companyName,
-    jobTitle,
-    description,
-    startDate,
-    endDate,
+    ...(companyName ? { companyName } : {}),
+    ...(companyKey ? { companyKey } : {}),
+    ...(jobTitle ? { jobTitle } : {}),
+    ...(description ? { description } : {}),
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
   };
 }
 

@@ -62,11 +62,11 @@ const trustLabels: Record<
   corroborating: 'Reviewed corroborating source',
 }
 
-function formatDate(value: number | undefined): string | null {
+function formatDate(value: number | undefined, locale?: string): string | null {
   if (value === undefined || !Number.isFinite(value)) {
     return null
   }
-  return new Intl.DateTimeFormat('en', {
+  return new Intl.DateTimeFormat(locale ?? 'en', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -79,8 +79,17 @@ function industryLabel(industryClass: string): string {
     : industryClass.replace(/_/g, ' ').toUpperCase()
 }
 
-function sourceAccessibleName(source: IndustryEvidenceSourcePreview): string {
-  return `${sourceTypeLabels[source.sourceType]} source from ${source.sourceDomain}`
+function sourceAccessibleName(
+  source: IndustryEvidenceSourcePreview,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  return t('industryEvidence.sourceAccessibleName', {
+    label: t(`industryEvidence.sourceType.${source.sourceType}`, {
+      defaultValue: sourceTypeLabels[source.sourceType],
+    }),
+    domain: source.sourceDomain,
+    defaultValue: `${sourceTypeLabels[source.sourceType]} source from ${source.sourceDomain}`,
+  })
 }
 
 function stopCardInteraction(event: MouseEvent<HTMLElement>): void {
@@ -116,6 +125,7 @@ function IndustryEvidenceSourceChip({
   source: IndustryEvidenceSourcePreview
   compact?: boolean
 }) {
+  const { t, i18n } = useTranslation()
   const previewId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -199,14 +209,19 @@ function IndustryEvidenceSourceChip({
       width: position.width,
     }
     : undefined
-  const title = source.title ?? `${sourceTypeLabels[source.sourceType]} evidence`
+  const title = source.title ?? t('industryEvidence.sourceTitleFallback', {
+    label: t(`industryEvidence.sourceType.${source.sourceType}`, {
+      defaultValue: sourceTypeLabels[source.sourceType],
+    }),
+    defaultValue: `${sourceTypeLabels[source.sourceType]} evidence`,
+  })
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        aria-label={sourceAccessibleName(source)}
+        aria-label={sourceAccessibleName(source, t)}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? previewId : undefined}
@@ -242,7 +257,9 @@ function IndustryEvidenceSourceChip({
         }}
       >
         <FileCheck2 className="h-3 w-3" aria-hidden="true" />
-        {sourceTypeLabels[source.sourceType]}
+        {t(`industryEvidence.sourceType.${source.sourceType}`, {
+          defaultValue: sourceTypeLabels[source.sourceType],
+        })}
       </button>
       {open && position && typeof document !== 'undefined'
         ? createPortal(
@@ -275,7 +292,9 @@ function IndustryEvidenceSourceChip({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium text-slate-500">
-                  {source.sourceDomain} · {sourceTypeLabels[source.sourceType]}
+                  {source.sourceDomain} · {t(`industryEvidence.sourceType.${source.sourceType}`, {
+                    defaultValue: sourceTypeLabels[source.sourceType],
+                  })}
                 </div>
                 <div className="mt-0.5 text-sm font-semibold leading-5 text-slate-950">
                   {title}
@@ -288,24 +307,36 @@ function IndustryEvidenceSourceChip({
               </p>
             ) : (
               <p className="mt-3 text-sm italic text-slate-500">
-                Reviewed source; no excerpt is available.
+                {t('industryEvidence.noExcerpt', { defaultValue: 'Reviewed source; no excerpt is available.' })}
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
                 <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-                {trustLabels[source.trustTier]}
+                {t(`industryEvidence.trustTier.${source.trustTier}`, {
+                  defaultValue: trustLabels[source.trustTier],
+                })}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-800">
                 <Check className="h-3 w-3" aria-hidden="true" />
-                Human approved
+                {t('industryEvidence.humanApproved', { defaultValue: 'Human approved' })}
               </span>
             </div>
-            {(formatDate(source.reviewedAt) || formatDate(source.fetchedAt)) ? (
+            {(formatDate(source.reviewedAt, i18n.language) || formatDate(source.fetchedAt, i18n.language)) ? (
               <div className="mt-3 text-[11px] leading-5 text-slate-500">
-                {formatDate(source.reviewedAt) ? `Reviewed ${formatDate(source.reviewedAt)}` : null}
-                {formatDate(source.reviewedAt) && formatDate(source.fetchedAt) ? ' · ' : null}
-                {formatDate(source.fetchedAt) ? `Fetched ${formatDate(source.fetchedAt)}` : null}
+                {formatDate(source.reviewedAt, i18n.language)
+                  ? t('industryEvidence.reviewedOn', {
+                    date: formatDate(source.reviewedAt, i18n.language),
+                    defaultValue: `Reviewed ${formatDate(source.reviewedAt)}`,
+                  })
+                  : null}
+                {formatDate(source.reviewedAt, i18n.language) && formatDate(source.fetchedAt, i18n.language) ? ' · ' : null}
+                {formatDate(source.fetchedAt, i18n.language)
+                  ? t('industryEvidence.fetchedOn', {
+                    date: formatDate(source.fetchedAt, i18n.language),
+                    defaultValue: `Fetched ${formatDate(source.fetchedAt)}`,
+                  })
+                  : null}
               </div>
             ) : null}
             <a
@@ -314,7 +345,7 @@ function IndustryEvidenceSourceChip({
               rel="noopener noreferrer"
               className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              Open source
+              {t('industryEvidence.openSource', { defaultValue: 'Open source' })}
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           </div>,
@@ -339,12 +370,16 @@ export function OfficialSiteLink({
   companyName: string
   className?: string
 }) {
+  const { t } = useTranslation()
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`Open official website for ${companyName}`}
+      aria-label={t('industryEvidence.openOfficialWebsite', {
+        companyName,
+        defaultValue: `Open official website for ${companyName}`,
+      })}
       title={url}
       onClick={stopCardInteraction}
       className={cn(
@@ -368,16 +403,31 @@ export function VerifiedCompanyBadge({
   onCompanyClick?: (companyName: string) => void
   className?: string
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const indLabel = industryLabel(summary.industryClass)
   const badgeLabel = t('resumes.card.industryVerifiedBadge', {
     industry: indLabel,
     defaultValue: `${indLabel} Verified`,
   })
-  const reviewedDate = formatDate(summary.reviewedAt)
+  const reviewedDate = formatDate(summary.reviewedAt, i18n.language)
   const verificationPathExplanation = summary.reviewedBy
-    ? `Human-verified by ${summary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${summary.sourceCount} approved evidence source(s).`
-    : `Auto-verified ${indLabel} industry employer based on ${summary.sourceCount} corroborating evidence source(s).`
+    ? reviewedDate
+      ? t('industryEvidence.verifiedPathHumanWithDate', {
+        reviewer: summary.reviewedBy,
+        count: summary.sourceCount,
+        date: reviewedDate,
+        defaultValue: `Human-verified by ${summary.reviewedBy} based on ${summary.sourceCount} approved evidence source(s) on ${reviewedDate}.`,
+      })
+      : t('industryEvidence.verifiedPathHuman', {
+        reviewer: summary.reviewedBy,
+        count: summary.sourceCount,
+        defaultValue: `Human-verified by ${summary.reviewedBy} based on ${summary.sourceCount} approved evidence source(s).`,
+      })
+    : t('industryEvidence.verifiedPathAuto', {
+      industry: indLabel,
+      count: summary.sourceCount,
+      defaultValue: `Auto-verified ${indLabel} industry employer based on ${summary.sourceCount} corroborating evidence source(s).`,
+    })
   const officialSiteUrl = getOfficialSiteUrl(summary)
 
   return (
@@ -429,7 +479,7 @@ export function VerifiedCompanyBadge({
             {onCompanyClick ? (
               <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                Click to filter candidate search by this company
+                {t('industryEvidence.filterByCompany', { defaultValue: 'Click to filter candidate search by this company' })}
               </div>
             ) : null}
           </TooltipContent>
@@ -453,7 +503,7 @@ export function IndustryEvidenceSummary({
   onCompanyClick?: (companyName: string) => void
   className?: string
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const selection = selectPrimaryIndustryEvidence(summaries, {
     preferredRoleTypes,
   })
@@ -462,23 +512,41 @@ export function IndustryEvidenceSummary({
   }
 
   const { primary, additionalVerifiedEmployerCount } = selection
-  const reviewedDate = formatDate(primary.reviewedAt)
+  const reviewedDate = formatDate(primary.reviewedAt, i18n.language)
   const employerSuffix = additionalVerifiedEmployerCount === 1
-    ? 'verified employer'
-    : 'verified employers'
+    ? t('industryEvidence.verifiedEmployerOne', { defaultValue: 'verified employer' })
+    : t('industryEvidence.verifiedEmployerOther', { defaultValue: 'verified employers' })
   const indLabel = industryLabel(primary.industryClass)
   const badgeLabel = t('resumes.card.industryVerifiedBadge', {
     industry: indLabel,
     defaultValue: `${indLabel} Verified`,
   })
   const verificationPathExplanation = primary.reviewedBy
-    ? `Human-verified by ${primary.reviewedBy}${reviewedDate ? ` on ${reviewedDate}` : ''} based on ${primary.sourceCount} approved evidence source(s).`
-    : `Auto-verified ${indLabel} industry employer based on ${primary.sourceCount} corroborating evidence source(s).`
+    ? reviewedDate
+      ? t('industryEvidence.verifiedPathHumanWithDate', {
+        reviewer: primary.reviewedBy,
+        count: primary.sourceCount,
+        date: reviewedDate,
+        defaultValue: `Human-verified by ${primary.reviewedBy} based on ${primary.sourceCount} approved evidence source(s) on ${reviewedDate}.`,
+      })
+      : t('industryEvidence.verifiedPathHuman', {
+        reviewer: primary.reviewedBy,
+        count: primary.sourceCount,
+        defaultValue: `Human-verified by ${primary.reviewedBy} based on ${primary.sourceCount} approved evidence source(s).`,
+      })
+    : t('industryEvidence.verifiedPathAuto', {
+      industry: indLabel,
+      count: primary.sourceCount,
+      defaultValue: `Auto-verified ${indLabel} industry employer based on ${primary.sourceCount} corroborating evidence source(s).`,
+    })
   const primaryOfficialSiteUrl = getOfficialSiteUrl(primary)
 
   return (
     <section
-      aria-label={`Approved industry evidence for ${primary.companyName}`}
+      aria-label={t('industryEvidence.approvedEvidenceFor', {
+        companyName: primary.companyName,
+        defaultValue: `Approved industry evidence for ${primary.companyName}`,
+      })}
       className={cn(
         'rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white px-3.5 py-2.5 shadow-sm transition-all',
         className,
@@ -496,11 +564,16 @@ export function IndustryEvidenceSummary({
             <TooltipContent className="max-w-xs p-3 text-xs bg-slate-900 text-white space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-emerald-400 border-b border-white/20 pb-1 mb-1">
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                {indLabel} Industry Verification Status
+                {t('industryEvidence.industryVerifiedStatus', {
+                  industry: indLabel,
+                  defaultValue: `${indLabel} Industry Verification Status`,
+                })}
               </div>
               <p>{verificationPathExplanation}</p>
               <p className="text-[11px] text-slate-300 italic">
-                Confirms registered manufacturing & enterprise capabilities for candidate search filtering.
+                {t('industryEvidence.verificationStatusDescription', {
+                  defaultValue: 'Confirms registered manufacturing & enterprise capabilities for candidate search filtering.',
+                })}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -536,16 +609,16 @@ export function IndustryEvidenceSummary({
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                 <div>
-                  <span className="text-slate-400">Industry:</span>{' '}
+                  <span className="text-slate-400">{t('industryEvidence.industryField', { defaultValue: 'Industry:' })}</span>{' '}
                   <span className="font-medium text-slate-200">{indLabel}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Approved Sources:</span>{' '}
+                  <span className="text-slate-400">{t('industryEvidence.approvedSourcesLabel', { defaultValue: 'Approved sources:' })}</span>{' '}
                   <span className="font-medium text-slate-200">{primary.sourceCount}</span>
                 </div>
                 {primary.roleTypes && primary.roleTypes.length > 0 ? (
                   <div className="col-span-2">
-                    <span className="text-slate-400">Relevant Roles:</span>{' '}
+                    <span className="text-slate-400">{t('industryEvidence.relevantRoles', { defaultValue: 'Relevant roles:' })}</span>{' '}
                     <span className="font-medium text-slate-200 capitalize">{primary.roleTypes.join(', ')}</span>
                   </div>
                 ) : null}
@@ -564,7 +637,7 @@ export function IndustryEvidenceSummary({
               {onCompanyClick ? (
                 <div className="pt-1 text-[11px] font-medium text-emerald-300 flex items-center gap-1">
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                  Click to filter candidate search by this company
+                  {t('industryEvidence.filterByCompany', { defaultValue: 'Click to filter candidate search by this company' })}
                 </div>
               ) : null}
             </TooltipContent>
@@ -580,13 +653,20 @@ export function IndustryEvidenceSummary({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="cursor-help text-xs font-medium text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                  {primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} verified years
+                  {t('industryEvidence.verifiedYears', {
+                    count: primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1),
+                    defaultValue: `${primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} verified years`,
+                  })}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="p-2.5 text-xs bg-slate-900 text-white max-w-xs">
-                <p className="font-semibold text-emerald-400 mb-0.5">Verified Experience Duration</p>
+                <p className="font-semibold text-emerald-400 mb-0.5">{t('industryEvidence.verifiedYearsTitle', { defaultValue: 'Verified Experience Duration' })}</p>
                 <p>
-                  Calculated from {primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} years of candidate work history at this confirmed {indLabel} industry employer.
+                  {t('industryEvidence.verifiedYearsDescription', {
+                    years: primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1),
+                    industry: indLabel,
+                    defaultValue: `Calculated from ${primary.verifiedYears.toFixed(primary.verifiedYears % 1 === 0 ? 0 : 1)} years of candidate work history at this confirmed ${indLabel} industry employer.`,
+                  })}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -602,16 +682,30 @@ export function IndustryEvidenceSummary({
         ))}
         {primary.additionalSourceCount > 0 ? (
           <span className="text-[11px] font-medium text-slate-500">
-            +{primary.additionalSourceCount} sources
+            {t('industryEvidence.additionalSources', {
+              count: primary.additionalSourceCount,
+              defaultValue: `+${primary.additionalSourceCount} sources`,
+            })}
           </span>
         ) : null}
         <span className="text-[11px] text-slate-500">
-          {primary.sourceCount} approved {primary.sourceCount === 1 ? 'source' : 'sources'}
-          {reviewedDate ? ` · reviewed ${reviewedDate}` : ''}
+          {t('industryEvidence.sourceCountLabel', {
+            count: primary.sourceCount,
+            sources: primary.sourceCount === 1 ? 'source' : 'sources',
+            defaultValue: `${primary.sourceCount} approved ${primary.sourceCount === 1 ? 'source' : 'sources'}`,
+          })}
+          {reviewedDate ? t('industryEvidence.reviewedDateSuffix', {
+            date: reviewedDate,
+            defaultValue: ` · reviewed ${reviewedDate}`,
+          }) : ''}
         </span>
         {additionalVerifiedEmployerCount > 0 ? (
           <span className="ml-auto text-[11px] font-semibold text-emerald-800">
-            +{additionalVerifiedEmployerCount} {employerSuffix}
+            {t('industryEvidence.additionalEmployers', {
+              count: additionalVerifiedEmployerCount,
+              employers: employerSuffix,
+              defaultValue: `+${additionalVerifiedEmployerCount} ${employerSuffix}`,
+            })}
           </span>
         ) : null}
       </div>
@@ -632,6 +726,7 @@ export function IndustryEvidenceDetail({
   resumeId?: string
   className?: string
 }) {
+  const { t, i18n } = useTranslation()
   const approvedSummaries = summaries
     .map((summary) => selectPrimaryIndustryEvidence([summary])?.primary)
     .filter((summary): summary is VerifiedIndustryEvidenceSummary => Boolean(summary))
@@ -671,15 +766,17 @@ export function IndustryEvidenceDetail({
     <section className={cn('space-y-3', className)} aria-labelledby="industry-evidence-detail-heading">
       <div>
         <h3 id="industry-evidence-detail-heading" className="text-sm font-semibold text-slate-950">
-          Approved industry evidence
+          {t('industryEvidence.detailHeading', { defaultValue: 'Approved industry evidence' })}
         </h3>
         <p className="mt-0.5 text-xs leading-5 text-slate-500">
-          Human-reviewed evidence materialized with this resume. No live web research runs on this page.
+          {t('industryEvidence.detailDescription', {
+            defaultValue: 'Human-reviewed evidence materialized with this resume. No live web research runs on this page.',
+          })}
         </p>
       </div>
       {approvedSummaries.map((summary) => {
         const refreshStatus = refreshStatuses[summary.verdictRevisionId] ?? 'idle'
-        const reviewDate = formatDate(summary.reviewedAt)
+        const reviewDate = formatDate(summary.reviewedAt, i18n.language)
         const detailOfficialSiteUrl = getOfficialSiteUrl(summary)
         return (
           <article
@@ -691,7 +788,10 @@ export function IndustryEvidenceDetail({
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge className="border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-700">
                     <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                    {industryLabel(summary.industryClass)} 行业验证
+                    {t('industryEvidence.verifiedBadge', {
+                      industry: industryLabel(summary.industryClass),
+                      defaultValue: `${industryLabel(summary.industryClass)} Industry Verification`,
+                    })}
                   </Badge>
                   <span className="font-semibold text-slate-950">{summary.companyName}</span>
                   {detailOfficialSiteUrl ? (
@@ -715,7 +815,10 @@ export function IndustryEvidenceDetail({
                 size="sm"
                 variant="outline"
                 disabled={refreshStatus === 'requesting' || refreshStatus === 'requested'}
-                aria-label={`Request refresh for ${summary.companyName}`}
+                aria-label={t('industryEvidence.requestRefreshFor', {
+                  companyName: summary.companyName,
+                  defaultValue: `Request refresh for ${summary.companyName}`,
+                })}
                 onClick={() => void requestRefresh(summary)}
               >
                 <RefreshCw
@@ -723,56 +826,58 @@ export function IndustryEvidenceDetail({
                   aria-hidden="true"
                 />
                 {refreshStatus === 'requesting'
-                  ? 'Requesting…'
+                  ? t('industryEvidence.requesting', { defaultValue: 'Requesting…' })
                   : refreshStatus === 'requested'
-                    ? 'Requested'
-                    : 'Request refresh'}
+                    ? t('industryEvidence.requested', { defaultValue: 'Requested' })
+                    : t('industryEvidence.requestRefresh', { defaultValue: 'Request refresh' })}
               </Button>
             </div>
 
             {refreshStatus === 'requested' ? (
               <p className="mt-2 text-xs font-medium text-emerald-700">
-                Refresh requested
+                {t('industryEvidence.refreshRequested', { defaultValue: 'Refresh requested' })}
               </p>
             ) : null}
             {refreshStatus === 'error' ? (
               <p role="alert" className="mt-2 text-xs font-medium text-red-700">
-                Refresh request could not be submitted. The approved verdict remains unchanged.
+                {t('industryEvidence.refreshError', {
+                  defaultValue: 'Refresh request could not be submitted. The approved verdict remains unchanged.',
+                })}
               </p>
             ) : null}
 
             <dl className="mt-3 grid gap-2 rounded-xl border border-emerald-100 bg-white/80 p-3 text-xs sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Verdict</dt>
-                <dd className="font-medium text-slate-900">Approved revision</dd>
+                <dt className="text-slate-500">{t('industryEvidence.verdict', { defaultValue: 'Verdict' })}</dt>
+                <dd className="font-medium text-slate-900">{t('industryEvidence.detailApprovedRevision', { defaultValue: 'Approved revision' })}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Reviewed</dt>
+                <dt className="text-slate-500">{t('industryEvidence.detailReviewed', { defaultValue: 'Reviewed' })}</dt>
                 <dd className="font-medium text-slate-900">{reviewDate ?? '--'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Reviewer</dt>
-                <dd className="font-medium text-slate-900">{summary.reviewedBy ?? 'Human approved'}</dd>
+                <dt className="text-slate-500">{t('industryEvidence.detailReviewer', { defaultValue: 'Reviewer' })}</dt>
+                <dd className="font-medium text-slate-900">{summary.reviewedBy ?? t('industryEvidence.humanApproved', { defaultValue: 'Human approved' })}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Freshness</dt>
+                <dt className="text-slate-500">{t('industryEvidence.detailFreshness', { defaultValue: 'Freshness' })}</dt>
                 <dd className="font-medium capitalize text-slate-900">
-                  {summary.freshnessState?.replace(/_/g, ' ') ?? 'Current approved evidence'}
+                  {summary.freshnessState?.replace(/_/g, ' ') ?? t('industryEvidence.detailCurrentApproved', { defaultValue: 'Current approved evidence' })}
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-slate-500">Canonical company</dt>
+                <dt className="text-slate-500">{t('industryEvidence.detailCanonicalCompany', { defaultValue: 'Canonical company' })}</dt>
                 <dd className="break-all font-mono text-[11px] text-slate-900">{summary.companyKey}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-slate-500">Revision ID</dt>
+                <dt className="text-slate-500">{t('industryEvidence.detailRevisionId', { defaultValue: 'Revision ID' })}</dt>
                 <dd className="break-all font-mono text-[11px] text-slate-900">{summary.verdictRevisionId}</dd>
               </div>
             </dl>
 
             <div className="mt-3 space-y-2">
               <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Approved sources
+                {t('industryEvidence.approvedSourcesTitle', { defaultValue: 'Approved sources' })}
               </div>
               {summary.sourcePreviews.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -786,12 +891,18 @@ export function IndustryEvidenceDetail({
                 </div>
               ) : (
                 <p className="text-xs italic text-slate-500">
-                  Source previews are not available in this materialized projection.
+                  {t('industryEvidence.sourcePreviewsUnavailable', {
+                    defaultValue: 'Source previews are not available in this materialized projection.',
+                  })}
                 </p>
               )}
               {summary.additionalSourceCount > 0 ? (
                 <p className="text-xs text-slate-500">
-                  {summary.additionalSourceCount} additional approved {summary.additionalSourceCount === 1 ? 'source' : 'sources'}
+                  {t('industryEvidence.additionalApprovedSources', {
+                    count: summary.additionalSourceCount,
+                    sources: summary.additionalSourceCount === 1 ? 'source' : 'sources',
+                    defaultValue: `${summary.additionalSourceCount} additional approved ${summary.additionalSourceCount === 1 ? 'source' : 'sources'}`,
+                  })}
                 </p>
               ) : null}
             </div>

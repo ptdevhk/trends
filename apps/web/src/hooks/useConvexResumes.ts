@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   inferSeekMarket,
   isRecord,
@@ -854,6 +854,8 @@ type BffAndModeResult = {
   expansion: KeywordExpansionSummary | null
   loading: boolean
   statusCounts?: Partial<Record<CandidateStatus, number>>
+  searchFailed: boolean
+  retrySearch: () => void
 }
 
 function useBffAndModeSearch(
@@ -868,12 +870,20 @@ function useBffAndModeSearch(
   jobDescriptionId: string | undefined,
   refetchTrigger?: number,
   limit?: number,
+  includeHidden?: boolean,
 ): BffAndModeResult & { loadingMore: boolean } {
   const [total, setTotal] = useState(0)
   const [accumulatedResumes, setAccumulatedResumes] = useState<ConvexResumeItem[]>([])
   const [loadingFirstPage, setLoadingFirstPage] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [statusCounts, setStatusCounts] = useState<Partial<Record<CandidateStatus, number>>>()
+  // True when the page-0 BFF AND-mode search failed after retries. The UI
+  // must surface this as an explicit search-failure state instead of a false
+  // "0 results" empty state (the dev Vite proxy intermittently drops large
+  // search responses; a refresh recovers).
+  const [searchFailed, setSearchFailed] = useState(false)
+  const [retryNonce, setRetryNonce] = useState(0)
+  const retrySearch = useCallback(() => setRetryNonce((nonce) => nonce + 1), [])
   // Track how many pages have been fetched (state-based to satisfy linter)
   const [fetchedPageCount, setFetchedPageCount] = useState(0)
   const prevBffActive = useRef(false)
@@ -911,6 +921,7 @@ function useBffAndModeSearch(
     setAccumulatedResumes([])
     setTotal(0)
     setFetchedPageCount(0)
+    setSearchFailed(false)
   }, [pageResetKey])
 
   useEffect(() => {
@@ -958,11 +969,13 @@ function useBffAndModeSearch(
       ...(sortBy ? { sortBy } : {}),
       ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
+      ...(includeHidden ? { includeHidden: 'true' } : {}),
       ...(jobDescriptionId ? { jobDescriptionId } : {}),
     }
 
     if (pageIndex === 0) {
       setLoadingFirstPage(true)
+      setSearchFailed(false)
     } else {
       setLoadingMore(true)
     }
@@ -988,6 +1001,9 @@ function useBffAndModeSearch(
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
+          if (pageIndex === 0) {
+            setSearchFailed(true)
+          }
           setAccumulatedResumes([])
           setTotal(0)
           setFetchedPageCount(0)
@@ -1033,6 +1049,9 @@ function useBffAndModeSearch(
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
         if (active) {
+          if (pageIndex === 0) {
+            setSearchFailed(true)
+          }
           setAccumulatedResumes([])
           setTotal(0)
           setFetchedPageCount(0)
@@ -1043,7 +1062,7 @@ function useBffAndModeSearch(
 
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filtersKey captures all filter fields via JSON.stringify
-  }, [fetchedPageCount, targetPage, enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, showBlocked, sortBy, sortOrder])
+  }, [fetchedPageCount, targetPage, enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger, retryNonce, showBlocked, sortBy, sortOrder])
 
   return {
     resumes: accumulatedResumes,
@@ -1052,6 +1071,8 @@ function useBffAndModeSearch(
     loading: loadingFirstPage && accumulatedResumes.length === 0,
     statusCounts,
     loadingMore,
+    searchFailed,
+    retrySearch,
   }
 }
 
@@ -1192,6 +1213,7 @@ export function useConvexResumes(
     normalizedJobDescriptionId,
     bffRefetchTrigger,
     limit,
+    true,
   )
 
   const paginatedSearchResults = useStablePaginatedQuery(
@@ -1516,6 +1538,8 @@ export function useConvexResumes(
     loading: isLoading,
     loadingMore,
     hasMore,
+    searchFailed: bffAndModeResult.searchFailed === true,
+    retrySearch: bffAndModeResult.retrySearch,
     jobDescriptionId: normalizedJobDescriptionId,
     expansion: resolvedExpansion,
     isAndModeBff: isAndModeBffActive,
@@ -1523,11 +1547,21 @@ export function useConvexResumes(
   }
 }
 
+const CONVEX_DOCUMENT_ID_PATTERN = /^[a-z0-9]{32}$/
+
+export function isConvexDocumentId(value: string): boolean {
+  // Convex ids are 32 lowercase alphanumeric chars; URL route segments
+  // (e.g. /hr/resumes/<route-name>) must never reach a Convex query.
+  return CONVEX_DOCUMENT_ID_PATTERN.test(value)
+}
+
 export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | undefined) {
-  const detailDoc = useQuery(api.resumes.getResumeDetail, resumeId ? { resumeId } : 'skip')
+  const queryableResumeId =
+    resumeId !== null && resumeId !== undefined && isConvexDocumentId(resumeId) ? resumeId : null
+  const detailDoc = useQuery(api.resumes.getResumeDetail, queryableResumeId ? { resumeId: queryableResumeId } : 'skip')
 
   return useMemo(() => ({
     resume: detailDoc ? mapResumeDoc(detailDoc) : null,
-    loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
-  }), [detailDoc, resumeId])
+    loading: queryableResumeId !== null && queryableResumeId !== undefined && detailDoc === undefined,
+  }), [detailDoc, queryableResumeId])
 }

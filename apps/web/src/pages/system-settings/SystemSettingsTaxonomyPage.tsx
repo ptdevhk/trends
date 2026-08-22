@@ -78,6 +78,7 @@ export function SystemSettingsTaxonomyPage() {
   const [form, setForm] = useState<TaxonomyClusterFormState>(createEmptyTaxonomyClusterForm)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [suggesting, setSuggesting] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -344,7 +345,7 @@ export function SystemSettingsTaxonomyPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            void deleteCluster(item.id)
+                            setPendingDeleteId(item.id)
                           }}
                           disabled={deletingId === item.id}
                         >
@@ -393,7 +394,7 @@ export function SystemSettingsTaxonomyPage() {
                       : current.slug,
                   }))
                 }}
-                placeholder="Backend Languages"
+                placeholder={t('debugConfig.taxonomy.namePlaceholder', { defaultValue: 'Backend Languages' })}
               />
             </div>
 
@@ -460,7 +461,7 @@ export function SystemSettingsTaxonomyPage() {
                 onChange={(event) => {
                   setForm((current) => ({ ...current, tags: event.target.value }))
                 }}
-                placeholder="Go, Java, Rust"
+                placeholder={t('debugConfig.taxonomy.tagsPlaceholder', { defaultValue: 'Go, Java, Rust' })}
               />
               <p className="text-xs text-muted-foreground">
                 {t('debugConfig.taxonomy.tagsHelp', {
@@ -482,6 +483,56 @@ export function SystemSettingsTaxonomyPage() {
                 : editingItem
                   ? t('debugConfig.taxonomy.saveChanges', { defaultValue: 'Save Changes' })
                   : t('debugConfig.taxonomy.createClusterButton', { defaultValue: 'Create Cluster' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setPendingDeleteId(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t('debugConfig.taxonomy.deleteConfirmTitle', {
+                defaultValue: 'Delete taxonomy cluster?',
+              })}
+            </DialogTitle>
+            <DialogDescription>
+              {t('debugConfig.taxonomy.deleteConfirmBody', {
+                defaultValue: 'This permanently removes cluster {{name}} ({{slug}}).',
+                name: items.find((item) => item.id === pendingDeleteId)?.name ?? '',
+                slug: items.find((item) => item.id === pendingDeleteId)?.slug ?? '',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              data-testid="taxonomy-delete-cancel"
+              onClick={() => setPendingDeleteId(null)}
+              disabled={pendingDeleteId !== null && deletingId === pendingDeleteId}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              data-testid="taxonomy-delete-confirm"
+              onClick={() => {
+                const id = pendingDeleteId
+                setPendingDeleteId(null)
+                if (id !== null) {
+                  void deleteCluster(id)
+                }
+              }}
+              disabled={pendingDeleteId !== null && deletingId === pendingDeleteId}
+            >
+              {t('common.delete', { defaultValue: 'Delete' })}
             </Button>
           </DialogFooter>
         </DialogContent>

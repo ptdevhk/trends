@@ -1,5 +1,6 @@
 import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from "@trends/shared"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -13,6 +14,7 @@ interface KeywordInputProps {
 }
 
 export function KeywordInput({ value, onChange, placeholder, id }: KeywordInputProps) {
+    const { t } = useTranslation()
     const { grouped } = useIndustryKeywords()
     const availableCustomKeywords = grouped.custom || []
     const [expanded, setExpanded] = useState(false)
@@ -49,6 +51,8 @@ export function KeywordInput({ value, onChange, placeholder, id }: KeywordInputP
                         size="icon"
                         className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
                         onClick={() => setExpanded(!expanded)}
+                        aria-label={t("debugConfig.keywordToggleLabel", { defaultValue: "Toggle custom keywords" })}
+                        aria-expanded={expanded}
                     >
                         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>

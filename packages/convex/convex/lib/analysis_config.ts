@@ -12,7 +12,11 @@ import {
     resolveResumeAnalysisSourceKey,
     resolveResumeAiPromptLocale,
 } from "@trends/shared";
-import { warnUnknownModel } from "./ai_model.js";
+import {
+    DEFAULT_FALLBACK_CHAT_MODEL,
+    DEFAULT_PRIMARY_CHAT_MODEL,
+    warnUnknownModel,
+} from "./ai_model.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -75,7 +79,25 @@ export function getAiApiBase(): string {
 }
 
 export function getAiModel(): string {
-    return warnUnknownModel(process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview");
+    return warnUnknownModel(process.env.AI_MODEL || process.env.OPENAI_MODEL || DEFAULT_PRIMARY_CHAT_MODEL);
+}
+
+export function getAiFallbackModel(): string {
+    const raw = process.env.AI_FALLBACK_MODEL?.trim();
+    return warnUnknownModel(raw && raw.length > 0 ? raw : DEFAULT_FALLBACK_CHAT_MODEL);
+}
+
+/** Call-time provider + models. Reads process.env on every invocation — not a module snapshot. */
+export function resolveAnalyzeLlmRuntimeConfig(): {
+    apiBase: string;
+    primary: string;
+    fallback: string;
+} {
+    return {
+        apiBase: getAiApiBase(),
+        primary: getAiModel(),
+        fallback: getAiFallbackModel(),
+    };
 }
 
 export function getAiTemperature(): number {

@@ -83,7 +83,7 @@ describe('HrFeedbackImportDialog', () => {
     expect(within(reopened).queryByText('imported')).not.toBeInTheDocument()
   })
 
-  it('invalidates parsed rows and prior results when raw text changes', async () => {
+  it('re-parses rows automatically as raw text changes', async () => {
     const user = userEvent.setup()
     render(<HrFeedbackImportDialog />)
 
@@ -93,11 +93,13 @@ describe('HrFeedbackImportDialog', () => {
 
     await user.type(within(dialog).getByRole('textbox'), '\nresume-2\tBob\tNew feedback')
 
-    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeDisabled()
-    expect(within(dialog).queryByText('resume-1')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeEnabled()
+    expect(within(dialog).getByText('resume-1')).toBeInTheDocument()
+    expect(within(dialog).getByText('resume-2')).toBeInTheDocument()
+    expect(within(dialog).getByText('Bob')).toBeInTheDocument()
   })
 
-  it('locks successful input until the user edits and reparses it', async () => {
+  it('locks successful input until the user edits it again', async () => {
     const user = userEvent.setup()
     apiPostMock.mockResolvedValue(successResponse())
     render(<HrFeedbackImportDialog />)
@@ -112,9 +114,30 @@ describe('HrFeedbackImportDialog', () => {
     expect(apiPostMock).toHaveBeenCalledTimes(1)
 
     await user.type(within(dialog).getByRole('textbox'), '\nresume-2\tBob\tFresh feedback')
-    expect(confirm).toBeDisabled()
-    await user.click(within(dialog).getByRole('button', { name: 'Parse' }))
     expect(confirm).toBeEnabled()
+  })
+
+  it('auto-parses rows as the user types without clicking Parse', async () => {
+    const user = userEvent.setup()
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    await user.type(within(dialog).getByRole('textbox'), feedbackRow)
+
+    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeEnabled()
+    expect(within(dialog).getByText('resume-1')).toBeInTheDocument()
+    expect(within(dialog).getByText('Alice')).toBeInTheDocument()
+  })
+
+  it('shows an error toast when raw text cannot be parsed', async () => {
+    const user = userEvent.setup()
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    await user.type(within(dialog).getByRole('textbox'), '"unclosed quote')
+
+    expect(toastErrorMock).toHaveBeenCalled()
+    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeDisabled()
   })
 
   it('allows only one request while an import is pending', async () => {
@@ -135,5 +158,70 @@ describe('HrFeedbackImportDialog', () => {
 
     resolveRequest?.(successResponse())
     await waitFor(() => expect(within(dialog).getByText('imported')).toBeInTheDocument())
+  })
+
+  it('shows the shortcut hint below the textarea', async () => {
+    const user = userEvent.setup()
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    expect(within(dialog).getByTestId('hr-feedback-shortcut-hint')).toBeInTheDocument()
+    expect(within(dialog).getByTestId('hr-feedback-shortcut-hint')).toHaveTextContent('Ctrl/⌘ + Enter to confirm import')
+  })
+
+  it('clears textarea, rows, and results when Clear is clicked', async () => {
+    const user = userEvent.setup()
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    await user.type(within(dialog).getByRole('textbox'), feedbackRow)
+    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeEnabled()
+    expect(within(dialog).getByText('resume-1')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByTestId('hr-feedback-clear'))
+
+    expect(within(dialog).getByRole('textbox')).toHaveValue('')
+    expect(within(dialog).queryByText('resume-1')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeDisabled()
+  })
+
+  it('triggers import on Ctrl+Enter', async () => {
+    const user = userEvent.setup()
+    apiPostMock.mockResolvedValueOnce(successResponse())
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    await user.type(within(dialog).getByRole('textbox'), feedbackRow)
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeEnabled()
+    })
+
+    fireEvent.keyDown(within(dialog).getByRole('textbox'), { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('does not trigger import on Ctrl+Enter during IME composition', async () => {
+    const user = userEvent.setup()
+    apiPostMock.mockResolvedValueOnce(successResponse())
+    render(<HrFeedbackImportDialog />)
+
+    const dialog = await openDialog(user)
+    await user.type(within(dialog).getByRole('textbox'), feedbackRow)
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: 'Confirm import' })).toBeEnabled()
+    })
+
+    fireEvent.keyDown(within(dialog).getByRole('textbox'), {
+      key: 'Enter',
+      ctrlKey: true,
+      isComposing: true,
+    })
+
+    expect(apiPostMock).not.toHaveBeenCalled()
   })
 })

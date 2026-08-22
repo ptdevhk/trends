@@ -67,6 +67,16 @@ IDENTITY_LEGAL_SUFFIX_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+# CN registrant names: contiguous CJK run ending in a CN legal-form suffix.
+# The ASCII legal-suffix extractor cannot see them, so CN registry evidence
+# (shuidi/qcc excerpts) would otherwise produce no identity candidate and the
+# human cockpit could never map the proposal to a canonical company.
+_CJK_COMPANY_NAME_RE = re.compile(
+    r"[一-鿿]{2,60}?(?:有限公司|股份有限公司|集团有限公司|有限责任公司|"
+    r"机械有限公司|科技有限公司|电子有限公司|贸易有限公司|机电有限公司|"
+    r"设备有限公司|自动化有限公司|工业有限公司|电气有限公司|"
+    r"集团|厂|机械厂|公司)",
+)
 IDENTITY_NAME_RE = re.compile(
     r"\b([A-Za-z0-9][A-Za-z0-9&.,'()\-/ ]{2,100}?\s+"
     + IDENTITY_LEGAL_SUFFIX_RE.pattern
@@ -145,10 +155,20 @@ def _find_legal_names(text: str) -> List[str]:
     matches. Each candidate is normalized, chrome-trimmed, deduplicated, and
     bounded to the same 8-80 char window the candidate pipeline accepts.
     Review-only: nothing here maps or approves identity.
+
+    CJK registrant names (CN market) carry no ASCII legal suffix, so they
+    are captured separately: a contiguous CJK company-name span (2-40 chars,
+    ending in a CN legal-form suffix like 有限公司/股份有限公司/厂/集团) is
+    yielded as a candidate before the ASCII regexes run.
     """
     source = str(text or "")
     names: List[str] = []
     seen: set = set()
+    for match in _CJK_COMPANY_NAME_RE.finditer(source):
+        candidate = match.group(0).strip()
+        if 4 <= len(candidate) <= 80 and candidate not in seen:
+            seen.add(candidate)
+            names.append(candidate)
     for match in _COPYRIGHT_LEGAL_NAME_RE.finditer(source):
         if not _suffix_case_ok(match):
             continue
@@ -302,7 +322,27 @@ def _name_overlap_passes(
     A legal name sharing any non-generic token with the employer surface is a
     viable candidate; fully generic surfaces fall back to a stricter
     two-token rule. Legal-suffix tokens never count toward overlap.
+
+    CJK surfaces and CJK legal names compare by exact character overlap (a
+    registrant sharing any 2+ char run with the employer surface is a viable
+    candidate; the suffix 公司/有限 is never distinctive).
     """
+    if re.search(r"[\u4e00-\u9fff]", employer_surface) or re.search(
+        r"[\u4e00-\u9fff]", legal_name
+    ):
+        surface_cjk = set(re.findall(r"[\u4e00-\u9fff]", employer_surface))
+        name_cjk = set(re.findall(r"[\u4e00-\u9fff]", legal_name))
+        shared = surface_cjk & name_cjk
+        # A short shared run (e.g. 科技) is not distinctive; require at least
+        # two shared characters beyond the generic 公司/有限/股份 suffix, or
+        # a longer shared run when the surface itself is short.
+        generic = set("公司有限股份集团")
+        distinctive_shared = shared - generic
+        if len(distinctive_shared) >= 2:
+            return True
+        if len(surface_cjk) <= 4:
+            return len(shared) >= 2
+        return False
     name_tokens = {
         token
         for token in re.findall(r"[a-z0-9]+", legal_name.lower())
@@ -1015,19 +1055,53 @@ class IndustryEvidenceResearcher:
                 )
 
         employer_surface = employer_surface_for_search(proposal)
+        # Strong classes: only confident, *content-verified* classifications
+        # may drive the proposed industry class. Fetched boilerplate rows
+        # (registry/directory homepages whose content does not mention the
+        # employer) never contribute a class — that is what makes the
+        # proposed class differ across sources on the same company.
         strong_classes = {
             industry_class
             for industry_class, confidence in classifications
             if confidence >= 0.65
         }
-        conflicts = len(strong_classes) > 1 or any(
+        reviewable_classes = {
+            industry_class
+            for industry_class, confidence in classifications
+            if confidence >= 0.65
+            and any(
+                source.get("sourceType") != "search_result"
+                and source.get("trustTier") != "discovery"
+                and source.get("fetchStatus") == "fetched"
+                and source.get("domainGuardPassed") is not False
+                and source.get("suggestedIndustryClass") == industry_class
+                and (
+                    not employer_surface
+                    or _source_content_proves_employer(
+                        employer_surface, source
+                    )
+                )
+                for source in sources
+            )
+        }
+        conflicts = len(reviewable_classes) > 1 or any(
             source.get("domainGuardPassed") is False for source in sources
         )
         ranked_classes = sorted(
             classifications,
             key=lambda item: (-item[1], item[0]),
         )
-        suggested_class = ranked_classes[0][0] if ranked_classes else None
+        suggested_class = (
+            ranked_classes[0][0] if ranked_classes else None
+        )
+        # The strongest classifier vote is the aggregate signal, but it must
+        # still be grounded: a suggested class backed only by unproven
+        # boilerplate rows (registry/directory homepages that do not mention
+        # the employer) is dropped to "unknown". The human cockpit then sees
+        # a clean single-class proposal instead of a source conflict between
+        # the aggregate class and boilerplate "unknown" votes.
+        if suggested_class and suggested_class not in reviewable_classes:
+            suggested_class = None
         proof_sources = []
         for source in sources:
             if (
@@ -1059,7 +1133,11 @@ class IndustryEvidenceResearcher:
             "proposalId": proposal_id,
             "status": status,
             "sources": sources,
-            **({"suggestedIndustryClass": suggested_class} if suggested_class else {}),
+            **(
+                {"suggestedIndustryClass": suggested_class}
+                if suggested_class
+                else {}
+            ),
             "suggestedVerificationLevel": "candidate",
             "conflicts": conflicts,
             "materialChangeSummary": summary[:MAX_EXCERPT_LENGTH],
@@ -1389,6 +1467,34 @@ class IndustryEvidenceMaintenanceJob:
         except Exception as error:  # noqa: BLE001 - best-effort observability
             logger.warning("[MaintenanceLedger] finish failed: %s", error)
 
+    def _refresh_cn_registry_classifications(
+        self, proposal: Dict[str, Any], candidates: Sequence[Dict[str, Any]]
+    ) -> None:
+        """Re-classify stored CN registry-domain candidates with the current
+        rules before re-fetch.
+
+        Registry rows stored before the record-path guard (qcc.com
+        homepages and 360-search landings) were treated as authoritative
+        registry evidence; they fail fetch and hard-block review with
+        stale_or_failed_source (observed 2026-08-14). classify_source is
+        pure (url + employer surface), so re-running it is idempotent for
+        already-correct rows and only demotes the misclassified ones.
+        """
+        from apps.worker.web_research.classify import (
+            _CN_REGISTRY_DOMAINS,
+            classify_source,
+        )
+
+        employer_surface = employer_surface_for_search(proposal)
+        for candidate in candidates:
+            url = str(candidate.get("url") or "").strip()
+            host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+            if host not in _CN_REGISTRY_DOMAINS:
+                continue
+            verdict = classify_source(url, employer_surface)
+            candidate["sourceType"] = verdict["sourceType"]
+            candidate["trustTier"] = verdict["trustTier"]
+
     def _research_one_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
         """Research one exact proposal and return its governed outcome."""
         proposal_id = str(proposal.get("proposalId") or "")
@@ -1403,6 +1509,10 @@ class IndustryEvidenceMaintenanceJob:
         if not candidates and self.discovery_job is not None:
             discovered = self.discovery_job.discover_for_proposal(proposal)
             candidates = discovered.get("sources") or []
+        # Re-research path: stored rows keep their original classification;
+        # refresh CN registry-domain rows under the current rules so
+        # misclassified homepages/search landings are demoted before re-fetch.
+        self._refresh_cn_registry_classifications(proposal, candidates)
         # Relevance tightening also gates re-enrichment: recycled candidates
         # whose employer cannot be proven from existing content are demoted to
         # discovery tier before fetch/classify.
@@ -1549,11 +1659,21 @@ class IndustryEvidenceMaintenanceJob:
         # Pass proposal_limit * 3 (clamped to the Convex list's 500-row
         # safety cap) to give the sort/dedup enough headroom.
         scan_limit = min(500, self.proposal_limit * 3) if self.proposal_limit > 20 else None
-        for status in ("new", "researching", "needs_more_evidence"):
+        # ready_for_review proposals are included so unmapped ones re-run
+        # identity-candidate extraction (candidates are only built during
+        # research) and re-fetch their sources under the current
+        # classification rules. Mapped ready proposals are reviewable as-is
+        # and are skipped to avoid fetch churn every sweep round.
+        for status in ("new", "researching", "needs_more_evidence", "ready_for_review"):
             for proposal in self.client.list_industry_proposals(status, limit=scan_limit):
                 proposal_id = str(proposal.get("proposalId") or "")
-                if proposal_id:
-                    proposals_by_id[proposal_id] = proposal
+                if not proposal_id:
+                    continue
+                if status == "ready_for_review" and str(
+                    proposal.get("companyKey") or ""
+                ).strip():
+                    continue
+                proposals_by_id[proposal_id] = proposal
         proposals = self._plan_sweep_order(proposals_by_id)
         # P0.2: the sweep is fetch-bound, so proposals run with bounded
         # concurrency instead of strictly sequentially. A per-proposal

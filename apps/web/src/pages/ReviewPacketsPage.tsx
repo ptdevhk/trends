@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Download, FileUp, RefreshCw, Send, Sparkles } from 'lucide-react'
+import { Copy, Download, FileUp, RefreshCw, Send, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
 import { downloadReviewPacket } from '@/lib/raw-endpoints'
+import { clearReviewPacketHandoff, readReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
 type ReviewPacketRun = components['schemas']['ReviewPacketRun']
@@ -34,7 +35,7 @@ type ReviewPacketRunDetailResponse = {
   run: ReviewPacketRun
 }
 
-const REVIEW_PACKET_LIST_LIMIT = 20
+const REVIEW_PACKET_LIST_LIMIT = 100
 const DEFAULT_TEMPLATE_ID = 'review-packet-wechat'
 
 function buildRunApiPath(runId: string, suffix?: string): string {
@@ -87,6 +88,16 @@ function parseResumeIds(value: string): string[] {
     .filter(Boolean)
 
   return Array.from(new Set(tokens))
+}
+
+const INVALID_RESUME_IDS_PATTERN = /Unable to resolve resumes[^:]*:\s*(.+)$/
+
+function extractInvalidResumeIds(message: string): string[] | null {
+  const match = message.match(INVALID_RESUME_IDS_PATTERN)
+  if (!match?.[1]) {
+    return null
+  }
+  return parseResumeIds(match[1])
 }
 
 function formatTimestamp(value: string | undefined): string {
@@ -183,12 +194,27 @@ function getStatusBadgeVariant(status: ReviewPacketRunStatus): BadgeProps['varia
   return 'outline'
 }
 
-function getStatusLabel(status: ReviewPacketRunStatus): string {
-  return status.replace(/_/g, ' ')
+const REVIEW_PACKET_STATUS_LABEL_KEYS: Record<ReviewPacketRunStatus, string> = {
+  exported: 'reviewPackets.status.exported',
+  feedback_imported: 'reviewPackets.status.feedbackImported',
+  summary_sent: 'reviewPackets.status.summarySent',
+  failed: 'reviewPackets.status.failed',
 }
 
-function getSourceLabel(source: ReviewPacketSource): string {
-  return source === 'convex' ? 'Convex' : 'Sample'
+function getStatusLabel(
+  status: ReviewPacketRunStatus,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  return t(REVIEW_PACKET_STATUS_LABEL_KEYS[status], { defaultValue: status.replace(/_/g, ' ') })
+}
+
+function getSourceLabel(
+  source: ReviewPacketSource,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+): string {
+  return source === 'convex'
+    ? t('reviewPackets.sourceConvex', { defaultValue: 'Convex' })
+    : t('reviewPackets.sourceSample', { defaultValue: 'Sample' })
 }
 
 function isReviewPacketSource(value: string): value is ReviewPacketSource {
@@ -206,6 +232,7 @@ export function ReviewPacketsPage() {
   const selectedRunIdRef = useRef<string | null>(null)
 
   const [runs, setRuns] = useState<ReviewPacketRun[]>([])
+  const [statusFilter, setStatusFilter] = useState<ReviewPacketRunStatus | 'all'>('all')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<ReviewPacketRun | null>(null)
   const [summaryPreview, setSummaryPreview] = useState<ReviewPacketSummaryPreviewResponse | null>(null)
@@ -251,6 +278,17 @@ export function ReviewPacketsPage() {
     const resumeIdsParam = searchParams.get('resumeIds')
     setResumeIdsText(resumeIdsParam ? parseResumeIds(resumeIdsParam).join('\n') : '')
   }, [searchParams])
+
+  // Bulk-selection handoff takes precedence over the (usually absent) resumeIds param.
+  useEffect(() => {
+    const handedOffIds = readReviewPacketHandoff()
+    clearReviewPacketHandoff()
+    if (handedOffIds && handedOffIds.length > 0) {
+      setResumeIdsText(handedOffIds.join('\n'))
+    }
+  }, [])
+
+  const parsedResumeIdCount = parseResumeIds(resumeIdsText).length
 
   const loadRuns = useCallback(async (preferredRunId?: string) => {
     setRunsLoading(true)
@@ -348,25 +386,7 @@ export function ReviewPacketsPage() {
     void loadRunDetail(selectedRunId)
   }, [loadRunDetail, selectedRunId])
 
-  async function handleExportSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const resumeIds = parseResumeIds(resumeIdsText)
-    if (resumeIds.length === 0) {
-      toast.error(t('reviewPackets.resumeIdsRequired', { defaultValue: 'Enter at least one resume ID' }))
-      return
-    }
-
-    if (resumeIds.length > 2000) {
-      toast.error(t('reviewPackets.resumeIdsLimit', { defaultValue: 'Review packets support at most 2000 resume IDs per export' }))
-      return
-    }
-
-    if (source === 'sample' && !normalizeOptionalString(sampleName)) {
-      toast.error(t('reviewPackets.sampleRequired', { defaultValue: 'Sample name is required when source is sample' }))
-      return
-    }
-
+  async function runExport(resumeIds: string[]) {
     const payload: ReviewPacketExportRequest = {
       format,
       source,
@@ -419,10 +439,53 @@ export function ReviewPacketsPage() {
       const message = error instanceof Error && error.message.trim().length > 0
         ? error.message
         : t('reviewPackets.exportError', { defaultValue: 'Failed to create review packet export' })
+      const invalidIds = extractInvalidResumeIds(message)
+      if (invalidIds && invalidIds.length > 0) {
+        const invalidSet = new Set(invalidIds)
+        toast.error(
+          t('reviewPackets.exportInvalidIds', {
+            count: invalidIds.length,
+            defaultValue: '{{count}} invalid resume ID(s) blocked the export',
+          }),
+          {
+            action: {
+              label: t('reviewPackets.removeInvalidRetry', { defaultValue: 'Remove invalid IDs and retry' }),
+              onClick: () => {
+                const remaining = parseResumeIds(resumeIdsText).filter((id) => !invalidSet.has(id))
+                setResumeIdsText(remaining.join('\n'))
+                void runExport(remaining)
+              },
+            },
+          },
+        )
+        return
+      }
       toast.error(message)
     } finally {
       setExporting(false)
     }
+  }
+
+  async function handleExportSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const resumeIds = parseResumeIds(resumeIdsText)
+    if (resumeIds.length === 0) {
+      toast.error(t('reviewPackets.resumeIdsRequired', { defaultValue: 'Enter at least one resume ID' }))
+      return
+    }
+
+    if (resumeIds.length > 2000) {
+      toast.error(t('reviewPackets.resumeIdsLimit', { defaultValue: 'Review packets support at most 2000 resume IDs per export' }))
+      return
+    }
+
+    if (source === 'sample' && !normalizeOptionalString(sampleName)) {
+      toast.error(t('reviewPackets.sampleRequired', { defaultValue: 'Sample name is required when source is sample' }))
+      return
+    }
+
+    await runExport(resumeIds)
   }
 
   async function handleDownload(run: ReviewPacketRun) {
@@ -728,6 +791,14 @@ export function ReviewPacketsPage() {
                     defaultValue: 'Comma, space, and newline separators are all supported.',
                   })}
                 </p>
+                {parsedResumeIdCount > 0 ? (
+                  <p className="text-xs text-muted-foreground" data-testid="review-packets-parsed-count">
+                    {t('reviewPackets.resumeIdsParsed', {
+                      count: parsedResumeIdCount,
+                      defaultValue: '{{count}} IDs parsed',
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -788,41 +859,80 @@ export function ReviewPacketsPage() {
                 {t('reviewPackets.noRuns', { defaultValue: 'No tracked review packet runs yet.' })}
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('reviewPackets.runId', { defaultValue: 'Run' })}</TableHead>
-                    <TableHead>{t('reviewPackets.status', { defaultValue: 'Status' })}</TableHead>
-                    <TableHead>{t('reviewPackets.total', { defaultValue: 'Total' })}</TableHead>
-                    <TableHead>{t('reviewPackets.source', { defaultValue: 'Source' })}</TableHead>
-                    <TableHead>{t('reviewPackets.exportedAt', { defaultValue: 'Exported' })}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant={selectedRunId === run.id ? 'secondary' : 'ghost'}
-                          size="sm"
-                          onClick={() => setSelectedRunId(run.id)}
-                        >
-                          {run.id}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(run.status)}>
-                          {getStatusLabel(run.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{run.totalCount}</TableCell>
-                      <TableCell>{getSourceLabel(run.source)}</TableCell>
-                      <TableCell>{formatTimestamp(run.exportedAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <>
+                <div className="flex items-center gap-2">
+                  <Select
+                    data-testid="review-packets-status-filter"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as ReviewPacketRunStatus | 'all')}
+                    options={[
+                      { value: 'all', label: t('reviewPackets.filterAll', { defaultValue: 'All Statuses' }) },
+                      ...(['exported', 'feedback_imported', 'summary_sent', 'failed'] as const).map((status) => ({
+                        value: status,
+                        label: getStatusLabel(status, t),
+                      })),
+                    ]}
+                    className="w-48"
+                  />
+                </div>
+                {(statusFilter === 'all' ? runs : runs.filter((run) => run.status === statusFilter)).length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="review-packets-no-matching-runs">
+                    {t('reviewPackets.noMatchingRuns', { defaultValue: 'No review packet runs match this filter.' })}
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('reviewPackets.runId', { defaultValue: 'Run' })}</TableHead>
+                        <TableHead>{t('reviewPackets.status', { defaultValue: 'Status' })}</TableHead>
+                        <TableHead>{t('reviewPackets.total', { defaultValue: 'Total' })}</TableHead>
+                        <TableHead>{t('reviewPackets.source', { defaultValue: 'Source' })}</TableHead>
+                        <TableHead>{t('reviewPackets.exportedAt', { defaultValue: 'Exported' })}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(statusFilter === 'all' ? runs : runs.filter((run) => run.status === statusFilter)).map((run) => (
+                        <TableRow key={run.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant={selectedRunId === run.id ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setSelectedRunId(run.id)}
+                              >
+                                {run.id}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                data-testid={`copy-run-id-${run.id}`}
+                                aria-label={t('reviewPackets.copyRunId', { defaultValue: 'Copy Run ID' })}
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(run.id).then(() => {
+                                    toast.success(t('reviewPackets.runIdCopied', { defaultValue: 'Run ID copied to clipboard' }))
+                                  })
+                                }}
+                              >
+                                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(run.status)}>
+                              {getStatusLabel(run.status, t)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{run.totalCount}</TableCell>
+                          <TableCell>{getSourceLabel(run.source, t)}</TableCell>
+                          <TableCell>{formatTimestamp(run.exportedAt)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -867,7 +977,7 @@ export function ReviewPacketsPage() {
                   </p>
                   <div className="mt-2">
                     <Badge variant={getStatusBadgeVariant(selectedRun.status)}>
-                      {getStatusLabel(selectedRun.status)}
+                      {getStatusLabel(selectedRun.status, t)}
                     </Badge>
                   </div>
                 </div>
@@ -875,7 +985,7 @@ export function ReviewPacketsPage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     {t('reviewPackets.source', { defaultValue: 'Source' })}
                   </p>
-                  <p className="mt-2 font-medium">{getSourceLabel(selectedRun.source)}</p>
+                  <p className="mt-2 font-medium">{getSourceLabel(selectedRun.source, t)}</p>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">

@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { isImeComposition } from '@/lib/utils'
 import { createPortal } from 'react-dom'
 import { Star, MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -133,11 +134,16 @@ export function StarRating({
                 data-testid="rating-comment-input"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+                  if (isImeComposition(e)) {
+                    return
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
                     e.preventDefault()
                     handleSaveComment()
                   }
                   if (e.key === 'Escape') {
+                    e.preventDefault()
                     handleDismissComment()
                   }
                 }}
@@ -152,6 +158,7 @@ export function StarRating({
             )}
 
             <div className="flex justify-end gap-2 mt-2">
+              <span className="text-[10px] text-muted-foreground mr-auto" data-testid="rating-comment-shortcut-hint">{t('resumes.card.notesSaveShortcut')}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -198,14 +205,14 @@ export function StarRating({
       : null
 
   return (
-    <div ref={wrapperRef} className="relative flex items-center gap-0.5" role="group" aria-label="User rating">
+    <div ref={wrapperRef} className="relative flex items-center gap-0.5" role="group" aria-label={t('common.userRatingAria', { defaultValue: 'User rating' })}>
       {[1, 2, 3, 4, 5].map((star) => {
         const filled = typeof value === 'number' && star <= value
         return (
           <button
             key={star}
             type="button"
-            className="p-0 leading-none disabled:cursor-not-allowed disabled:opacity-70"
+            className="p-0 leading-none disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
             disabled={readOnly}
             onClick={(e) => {
               e.stopPropagation()
@@ -218,7 +225,7 @@ export function StarRating({
                 handleDismissComment()
               }
             }}
-            aria-label={`${star} star${star > 1 ? 's' : ''}`}
+            aria-label={t('resumes.rating.starValue', { count: star, defaultValue: '{{count}} star' })}
           >
             <Star
               size={size}

@@ -28,6 +28,7 @@ import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize, resolveDiagnosticsSourceKeyForResume } from "./resumes";
 import { doUpsertResumeAnalysis } from "./resumes_search";
+import type { RecomputeCompanyKeyProjectionResult } from "./company_key_projection.js";
 
 const JOB5156_HOST = "hr.job5156.com";
 const MANUAL_51JOB_SOURCE = "51job-manual";
@@ -1254,6 +1255,26 @@ export const reIngestStaleSkillsVersion = action({
             limit: args.limit,
             cursor: args.cursor,
             mode: args.mode,
+            dryRun: args.dryRun,
+        });
+    },
+});
+
+/**
+ * T3: recompute durable companyKey projection snapshots for stale resume
+ * docs. Public wrapper around the internal drain; dry-run scans and counts
+ * without scheduling any recompute work.
+ */
+export const recomputeCompanyKeyProjections = action({
+    args: {
+        limit: v.optional(v.number()),
+        cursor: v.optional(v.string()),
+        dryRun: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args): Promise<RecomputeCompanyKeyProjectionResult> => {
+        return await ctx.runAction(internal.company_key_projection.recomputeCompanyKeyProjections, {
+            limit: args.limit,
+            cursor: args.cursor,
             dryRun: args.dryRun,
         });
     },

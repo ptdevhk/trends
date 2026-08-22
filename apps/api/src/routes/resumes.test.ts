@@ -295,6 +295,11 @@ describe("resume routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       if (call.pathName !== "resumes:getResumeDetail") {
+        if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+        if (call.pathName === "companies:list") { return convexSuccess([]); }
+        if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+        if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
         throw new Error(`Unexpected convex path: ${call.pathName}`);
       }
       expect(call.args).toEqual({ resumeId: "resume-live-1" });
@@ -485,6 +490,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -586,6 +596,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -679,6 +694,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -727,6 +747,11 @@ describe("resume routes", () => {
         return convexSuccess([]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -740,11 +765,13 @@ describe("resume routes", () => {
     expect(response.status).toBe(200);
     const payload = await parseJsonBody<{ summary: Record<string, unknown> }>(response);
     expect(payload.summary.statusCounts).toBeUndefined();
-    expect(calls).toEqual([
+    expect(calls.filter((call) => call.pathName === "resumes:listWithIngestDataPage")).toEqual([
       expect.objectContaining({
         pathName: "resumes:listWithIngestDataPage",
       }),
     ]);
+    expect(calls.some((call) => call.pathName === "candidate_status:list")).toBe(false);
+    expect(calls.some((call) => call.pathName === "candidate_blocks:list")).toBe(false);
   });
 
   it("allows anonymous hr convex search with BFF AND-mode filters", async () => {
@@ -804,6 +831,11 @@ describe("resume routes", () => {
         throw new Error(`Anonymous search should not load operational overlays: ${call.pathName}`);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -821,7 +853,12 @@ describe("resume routes", () => {
     const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown> }>(response);
     expect(payload.success).toBe(true);
     expect(payload.summary.statusCounts).toBeUndefined();
-    expect(calls.map((call) => call.pathName)).toEqual([
+    const searchPaths = calls
+      .map((call) => call.pathName)
+      .filter(
+        (path) => path === "resumes_search:scanResumeDigestPage" || path === "resumes_search:getResumeDocsByIds",
+      );
+    expect(searchPaths).toEqual([
       "resumes_search:scanResumeDigestPage",
       "resumes_search:getResumeDocsByIds",
     ]);
@@ -887,6 +924,11 @@ describe("resume routes", () => {
           isDone: true,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -973,6 +1015,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1052,6 +1099,11 @@ describe("resume routes", () => {
         });
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1112,6 +1164,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1161,6 +1218,11 @@ describe("resume routes", () => {
           { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
         ]);
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1240,6 +1302,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1305,6 +1372,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1335,6 +1407,11 @@ describe("resume routes", () => {
           total: 2,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1368,6 +1445,11 @@ describe("resume routes", () => {
           total: 4,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1423,6 +1505,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1447,7 +1534,13 @@ describe("resume routes", () => {
       sortOrder: "desc",
     }));
     expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
-    expect(calls).toEqual([
+    const policyLoadPaths = new Set([
+      "companies:listVerifiedIndustryEmployerAliases",
+      "companies:list",
+      "companies:listPoliciesForScope",
+      "candidate_policy_overrides:list",
+    ]);
+    expect(calls.filter((call) => !policyLoadPaths.has(call.pathName))).toEqual([
       expect.objectContaining({
         pathName: "resumes:getByIdsForExport",
         args: expect.objectContaining({
@@ -1495,6 +1588,11 @@ describe("resume routes", () => {
           isDone: true,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1550,6 +1648,11 @@ describe("resume routes", () => {
           isDone: true,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1607,6 +1710,11 @@ describe("resume routes", () => {
           isDone: Boolean(call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"),
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1724,6 +1832,11 @@ describe("resume routes", () => {
         });
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1781,6 +1894,11 @@ describe("resume routes", () => {
         });
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1835,6 +1953,11 @@ describe("resume routes", () => {
           buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
         ]);
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -1891,6 +2014,11 @@ describe("resume routes", () => {
         ]);
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -1915,6 +2043,263 @@ describe("resume routes", () => {
       pathName: "resumes:getByIdsForExport",
       args: expect.objectContaining({ resumeIds: ["resume-live-2", "resume-live-4"] }),
     }));
+  });
+
+  it("applies minScore filter on the default convex search path (F5)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-1", { id: 1, score: 88 }),
+          buildStoredMatch("resume-live-2", { id: 2, score: 75 }),
+          buildStoredMatch("resume-live-3", { id: 3, score: 91 }),
+        ],
+        total: 3,
+      });
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexExportResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
+        ]);
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80&jobDescriptionId=jd-1");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    // The match-storage page is mocked WITHOUT SQL-side minScore filtering, so
+    // the route itself must drop the sub-80 match (F5).
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Carla"]);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      returned: 2,
+      source: "convex",
+    }));
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      minScore: 80,
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+    expect(calls.some((call) => call.pathName === "resumes:getByIdsForExport")).toBe(true);
+  });
+
+  it("keys score-sort and recommendation match lookups by resumeId when id derivation differs (key-space F5 follow-up)", async () => {
+    // Regression guard for the pre-existing key-space mismatch: the fallback
+    // working-set recommendation filter and score sort must look up matchMap by
+    // the Convex _id (candidate.resumeId), not by resolveResumeId(item) — those
+    // can differ when the content's platform resumeId (a short source id) is
+    // not the Convex document id. This exercises the non-pre-paged fallback
+    // path (no keyword, match filters present → prepareConvexCandidates path).
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("convex-id-1", { id: 1, score: 96, recommendation: "match" }),
+          buildStoredMatch("convex-id-2", { id: 2, score: 81, recommendation: "match" }),
+          buildStoredMatch("convex-id-3", { id: 3, score: 74, recommendation: "potential" }),
+        ],
+        total: 3,
+      });
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("convex-id-1", { name: "Alice" }),
+          buildConvexExportResumeRecord("convex-id-2", { name: "Bob" }),
+          buildConvexExportResumeRecord("convex-id-3", { name: "Carla" }),
+        ]);
+      }
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: [
+            // Content platform resumeId ("13467969") differs from the Convex _id
+            // ("convex-id-1") — exactly the divergence that broke the old
+            // item.id-based match lookups.
+            { resume: buildConvexResumeRecord("convex-id-1", { name: "Alice" }), provenance: [] },
+            { resume: buildConvexResumeRecord("convex-id-2", { name: "Bob" }), provenance: [] },
+            { resume: buildConvexResumeRecord("convex-id-3", { name: "Carla" }), provenance: [] },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    // recommendation=match should drop "potential" (score 74) Carla; score-sort
+    // should order Alice (96) before Bob (81). If lookups used the fallback id
+    // (which resolves to profileUrl here), matchMap lookups would miss and all
+    // rows would be dropped / sorted as -1.
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=5&jobDescriptionId=jd-1&recommendation=match&sortBy=score"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob"]);
+    // The pre-paged match-storage path is used (recommendation + score-sort),
+    // so getMatchesPageForJob runs; getMatchesByResumeIds is NOT called on the
+    // pre-paged path.
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      recommendation: ["match"],
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+  });
+
+  it("applies minScore filter on the convex keyword path (F5)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockImplementation((resumeIds) =>
+        resumeIds.flatMap((resumeId) => {
+          const score = resumeId === "resume-live-1" ? 88 : resumeId === "resume-live-2" ? 75 : resumeId === "resume-live-3" ? 91 : undefined;
+          return score !== undefined ? [buildStoredMatch(resumeId, { score })] : [];
+        })
+      );
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80&q=CNC&jobDescriptionId=jd-1");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Carla"]);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
+  });
+
+  it("treats minScore as a no-op without a JD on the convex path (F5 documented limitation)", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "candidate_blocks:list") {
+        return convexSuccess({ page: [], continueCursor: null, isDone: true });
+      }
+
+      if (call.pathName === "resumes:listWithIngestData") {
+        return convexSuccess([
+          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+        ]);
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&limit=5&minMatchScore=80");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    // Without a JD there are no match scores, so minScore cannot filter —
+    // documented as expected behavior (F5).
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob", "Carla"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
   });
 
   it("pages recommendation-filtered convex results through match storage", async () => {
@@ -1951,6 +2336,11 @@ describe("resume routes", () => {
           buildConvexExportResumeRecord("resume-live-5", { name: "Evelyn" }),
         ]);
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -2006,6 +2396,11 @@ describe("resume routes", () => {
           continuationCursor: null,
         });
       }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
@@ -2081,6 +2476,11 @@ describe("resume routes", () => {
         });
       }
 
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2127,6 +2527,11 @@ describe("resume routes", () => {
       if (call.pathName === "analysis_tasks:dispatch") {
         return convexSuccess({ queued: false, reason: "maintenance" });
       }
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2277,6 +2682,11 @@ describe("resume routes", () => {
           resumeIds: ["current-1", "current-2"],
         });
       }
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2338,6 +2748,11 @@ describe("resume routes", () => {
           resumeIds: ["current-1", "current-2"],
         });
       }
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2409,6 +2824,11 @@ describe("resume routes", () => {
         return convexSuccess(false);
       }
       convexCalls.push(call);
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
     const response = await createTestApp().request("/api/resumes/analyze", {
@@ -2504,6 +2924,11 @@ describe("resume routes", () => {
           reused: false,
         });
       }
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2546,6 +2971,11 @@ describe("resume routes", () => {
           ...(persistedResumeIds ? { resumeIds: persistedResumeIds } : {}),
         });
       }
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
@@ -2570,6 +3000,11 @@ describe("resume routes", () => {
       calls.push(call);
 
       if (call.pathName !== "resumes_mutations:clearAnalyses") {
+        if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+        if (call.pathName === "companies:list") { return convexSuccess([]); }
+        if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+        if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
         throw new Error(`Unexpected convex path: ${call.pathName}`);
       }
 
@@ -2619,6 +3054,11 @@ describe("resume routes", () => {
       calls.push(call);
 
       if (call.pathName !== "resumes_mutations:clearAnalyses") {
+        if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+        if (call.pathName === "companies:list") { return convexSuccess([]); }
+        if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+        if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
         throw new Error(`Unexpected convex path: ${call.pathName}`);
       }
 
@@ -2690,7 +3130,12 @@ describe("resume routes", () => {
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
         const call = parseConvexCall(input, init);
         if (call.pathName !== "audit:getExplanationForCandidate") {
-          throw new Error(`Unexpected convex path: ${call.pathName}`);
+          if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+        if (call.pathName === "companies:list") { return convexSuccess([]); }
+        if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+        if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
         }
         expect(call.args).toEqual({ resumeId: "r1", workspaceSlug: "ws1" });
         return convexSuccess({
@@ -2832,7 +3277,12 @@ describe("resume routes", () => {
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
         const call = parseConvexCall(input, init);
         if (call.pathName !== "audit:getAuditLogByWorkspace") {
-          throw new Error(`Unexpected convex path: ${call.pathName}`);
+          if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+        if (call.pathName === "companies:list") { return convexSuccess([]); }
+        if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+        if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
         }
         expect(call.args.workspaceSlug).toBe("ws1");
         return convexSuccess([

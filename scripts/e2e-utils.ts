@@ -1,9 +1,13 @@
 import { chromium, Page } from 'playwright';
 
+export type UatLocale = 'en' | 'zh-Hant' | 'zh-Hans';
+
 export interface E2EOptions {
     port: number;
     baseUrl: string;
     timeout: number;
+    /** Pin the app language via localStorage `i18nextLng` before each role walk. */
+    locale?: UatLocale;
 }
 
 export const COLLECTION_TASK_DISPATCHED_TOAST_PATTERN = /Collection task dispatched|采集任务已派发|採集任務已派發/i
@@ -22,19 +26,54 @@ export interface WebVitals {
 }
 
 /**
+ * Pin the app language for the rest of a session by setting localStorage
+ * `i18nextLng` (the key `apps/web/src/i18n/index.ts` reads on init).
+ * Installed via addInitScript so it survives page.goto navigations, with an
+ * immediate evaluate for the already-loaded document; a subsequent reload or
+ * navigation applies the locale. The tri-lingual locators stay in place —
+ * this only makes the initial language deterministic per role run.
+ * Opaque origins (about:blank) throw on localStorage access and are ignored;
+ * the next same-origin load applies the pin.
+ */
+export async function pinLocale(page: Page, locale: UatLocale): Promise<void> {
+    await page.addInitScript((lng) => {
+        try {
+            localStorage.setItem('i18nextLng', lng);
+        } catch {
+            // Opaque origins such as about:blank; the next same-origin load applies it.
+        }
+    }, locale);
+    await page.evaluate((lng) => {
+        localStorage.setItem('i18nextLng', lng);
+    }, locale).catch(() => {
+        // Same opaque-origin guard as above.
+    });
+}
+
+/**
  * Inject PerformanceObserver scripts and collect Core Web Vitals.
- * Must be called BEFORE navigation (observers need `buffered: true` to catch early entries).
+ * Observers are installed via addInitScript so they survive page.goto
+ * navigations — evaluate-installed observers die with the old document,
+ * which made every CWV measurement return all nulls (the nightly UAT
+ * observation). The window flag keeps repeated measureWebVitals calls in
+ * one session from stacking duplicate observer sets per document.
  * Call `collect()` after the page has settled to retrieve measured values.
  */
 export async function measureWebVitals(page: Page): Promise<{ collect: () => Promise<WebVitals> }> {
-    // Set up observers before navigation so they capture all entries
-    await page.evaluate(() => {
+    // Runs before page scripts on every navigation; `buffered: true`
+    // catches entries emitted before the observer installs.
+    await page.addInitScript(() => {
         const w = window as typeof window & {
+            __cwv_installed?: boolean;
             __cwv_ttfb?: number | null;
             __cwv_lcp?: number | null;
             __cwv_cls?: number | null;
             __cwv_fcp?: number | null;
         };
+        if (w.__cwv_installed) {
+            return;
+        }
+        w.__cwv_installed = true;
         w.__cwv_ttfb = null;
         w.__cwv_lcp = null;
         w.__cwv_cls = null;
@@ -134,6 +173,16 @@ export async function connectToChrome(options: E2EOptions = DEFAULT_OPTIONS) {
                 // one that needs the storage cleared before the app initializes.
             }
         }, 'trends.resume.');
+
+        if (options.locale) {
+            await page.addInitScript((lng) => {
+                try {
+                    localStorage.setItem('i18nextLng', lng);
+                } catch {
+                    // Opaque origins such as about:blank; the next same-origin load applies it.
+                }
+            }, options.locale);
+        }
 
         await page.goto(options.baseUrl);
         return { browser, context, page };

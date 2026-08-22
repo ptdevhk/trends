@@ -4,7 +4,12 @@
 #
 # fix_convex_export IN_ZIP SCHEMA_TS OUT_ZIP
 #   - strips screening_sessions.config.filters.showBlocked (v0.3.0+ schema drop)
-#   - removes system_settings/ (maintenance flag is environment-local)
+#   - keeps system_settings/ but drops environment-local rows
+#     (maintenanceMode, industryMaintenanceSchedulePaused) so env-local flags
+#     never propagate to the target, while search-affecting settings
+#     (resumeWorkHistoryLimit) DO — the target no longer reverts to defaults
+#     on every sync (previously the whole table was dropped, leaving it empty
+#     after --replace-all)
 #   - materializes schema tables missing from the export as EMPTY
 #     (import --replace-all would otherwise leave them absent)
 # Exits non-zero on failure; writes fixed zip to OUT_ZIP.
@@ -28,7 +33,7 @@ fix_convex_export() {
     ( cd "$work" && unzip -q "$in_zip" ) || return 1
 
     ( cd "$work" && python3 - "$schema_ts" <<'PY'
-import json, os, pathlib, re, shutil, sys
+import json, os, pathlib, re, sys
 
 schema_path = pathlib.Path(sys.argv[1])
 
@@ -64,11 +69,23 @@ for table in schema_tables:
 if created:
     print("Materialized missing schema tables as empty: " + ", ".join(created))
 
-# 3. Drop system_settings last so the drop wins over materialization above
-# (environment-local maintenance flag must not propagate to the target)
+# 3. Keep system_settings/ but drop environment-local rows last (so the
+# filtering wins over materialization above). Environment-local flags
+# (maintenanceMode, industryMaintenanceSchedulePaused) must not propagate to
+# the target; other settings (e.g. resumeWorkHistoryLimit) do, so the target
+# no longer reverts to defaults on every sync.
 if os.path.exists("system_settings"):
-    shutil.rmtree("system_settings")
-    print("Excluded system_settings/ from import")
+    path = "system_settings/documents.jsonl"
+    env_local = {"maintenanceMode", "industryMaintenanceSchedulePaused"}
+    if os.path.exists(path):
+        docs = [json.loads(line) for line in open(path) if line.strip()]
+        kept = [d for d in docs if not (isinstance(d, dict) and d.get("key") in env_local)]
+        dropped = len(docs) - len(kept)
+        with open(path, "w") as f:
+            f.write("".join(json.dumps(d, ensure_ascii=False, separators=(",", ":")) + "\n" for d in kept))
+        print(f"Excluded {dropped} environment-local system_settings row(s); kept {len(kept)}")
+    else:
+        print("system_settings/ has no documents.jsonl")
 PY
     ) || return 1
 

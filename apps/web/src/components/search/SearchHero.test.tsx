@@ -284,10 +284,10 @@ describe('SearchHero', () => {
     expect(screen.getByText('Quick Start')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /China · Job5156 · CNC 销售/i }),
-    ).toBeInTheDocument()
+    ).toHaveClass('focus-visible:ring-2')
     expect(
       screen.getByRole('button', { name: /Malaysia · SEEK · CNC Sales/i }),
-    ).toBeInTheDocument()
+    ).toHaveClass('focus-visible:ring-2')
     expect(screen.getByText('CNC, 销售 · China')).toBeInTheDocument()
     expect(screen.getByText('CNC, Sales · Malaysia')).toBeInTheDocument()
   })
@@ -304,8 +304,8 @@ describe('SearchHero', () => {
     })
 
     expect(screen.getByText('Hot Tags')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'CNC' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'China' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Search for CNC' })).toHaveClass('focus-visible:ring-2')
+    expect(screen.getByRole('button', { name: 'Search for China' })).toHaveClass('focus-visible:ring-2')
   })
 
   it('clicking a quick-start card calls onApplyQuickStart', async () => {
@@ -458,7 +458,7 @@ describe('SearchHero', () => {
       onToggleHotKeyword,
     })
 
-    await user.click(screen.getByRole('button', { name: 'CNC' }))
+    await user.click(screen.getByRole('button', { name: 'Search for CNC' }))
 
     expect(onToggleHotKeyword).toHaveBeenCalledWith('CNC')
   })
@@ -478,7 +478,7 @@ describe('SearchHero', () => {
       ],
     })
 
-    expect(screen.getAllByRole('button', { name: '销售' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Search for 销售' })).toHaveLength(1)
   })
 
   it('falls back to the title when a recent search has no location or job description id', () => {

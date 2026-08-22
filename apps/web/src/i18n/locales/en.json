@@ -2,7 +2,10 @@
   "app": {
     "title": "Trends",
     "subtitle": "Trends",
-    "description": "Multi-source data aggregation & AI screening platform"
+    "description": "Multi-source data aggregation & AI screening platform",
+    "adminAccessRequired": "Admin access required",
+    "industryReviewAccessRequired": "Industry review requires a {{workspaceSlug}} workspace admin or reviewer account.",
+    "industryOpsAccessRequired": "Industry operations require a {{workspaceSlug}} workspace admin account."
   },
   "nav": {
     "home": "Home",
@@ -38,6 +41,7 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "reset": "Reset",
+    "clear": "Clear",
     "apply": "Apply",
     "archive": "Archive",
     "delete": "Delete",
@@ -45,7 +49,32 @@
     "save": "Save",
     "saving": "Saving...",
     "deleting": "Deleting...",
-    "submitting": "Submitting…"
+    "submitting": "Submitting…",
+    "clearAll": "Clear All",
+    "removeFilter": "Remove {{filter}}",
+    "toggleMenu": "Toggle menu",
+    "workspaceSwitcherAria": "Workspace switcher",
+    "userRatingAria": "User rating",
+    "industryDataTabsAria": "Industry Data tabs",
+    "potentialLegalIdentitiesAria": "Potential legal identities",
+    "existingCanonicalCompanyAria": "Existing canonical company"
+  },
+  "outreach": {
+    "contactTitle": "Contact {{name}}",
+    "draftDescription": "Draft an outreach email for {{title}}.",
+    "subjectLabel": "Subject",
+    "subjectPlaceholder": "Email subject...",
+    "regenerateDraft": "Regenerate Draft",
+    "bodyLabel": "Message Body",
+    "bodyPlaceholder": "Write your message here...",
+    "cancel": "Cancel",
+    "sending": "Sending...",
+    "sendEmail": "Send Email",
+    "draftFailed": "Draft generation failed",
+    "sendFailed": "Sending failed",
+    "copyMessage": "Copy Message",
+    "copiedToClipboard": "Message copied to clipboard",
+    "shortcutHint": "Ctrl/⌘ + Enter to send"
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -109,7 +138,12 @@
     "manageBlocked": "Manage",
     "statusAll": "All statuses",
     "exportFormat": "Export format",
-    "export": "Export"
+    "export": "Export",
+    "confirmReject": "Reject {{count}} selected resume(s)?",
+    "confirmBlock": "Block {{count}} selected resume(s)?",
+    "successShortlist": "Shortlisted {{count}} resume(s)",
+    "successReject": "Rejected {{count}} resume(s)",
+    "successBlock": "Blocked {{count}} resume(s)"
   },
   "debugAi": {
     "title": "AI Debug",
@@ -255,6 +289,8 @@
       "title": "Import HR feedback",
       "description": "Paste id, name, comments rows to create candidate notes.",
       "parse": "Parse",
+      "clear": "Clear",
+      "shortcutHint": "Ctrl/⌘ + Enter to confirm import",
       "confirm": "Confirm import",
       "importing": "Importing...",
       "noRows": "No feedback rows found",
@@ -281,7 +317,9 @@
     },
     "jobDescription": {
       "placeholder": "Select job description",
-      "manage": "Manage JDs"
+      "manage": "Manage JDs",
+      "customLabel": "Custom",
+      "systemLabel": "System"
     },
     "selectJobDescriptionFirst": "Please select a Job Description first",
     "selectKeywordsOrJobDescription": "Please select keywords or a job description",
@@ -327,6 +365,11 @@
         "ageRange": "{{min}}-{{max}} years old",
         "minAge": "≥{{value}} years old",
         "maxAge": "≤{{value}} years old"
+      },
+      "experienceLevels": {
+        "senior": "Senior",
+        "mid": "Mid-level",
+        "junior": "Junior"
       }
     },
     "columns": {
@@ -347,7 +390,21 @@
       "star": "Star",
       "shortlist": "Shortlist",
       "reject": "Reject",
-      "contact": "Contact"
+      "contact": "Contact",
+      "actionSaved": "{{action}} saved",
+      "actionFailed": "Action failed. Please try again.",
+      "unblocked": "Unblocked",
+      "unblockFailed": "Failed to unblock. Please try again.",
+      "blocked": "Candidate blocked",
+      "blockFailed": "Failed to block. Please try again.",
+      "statusUpdateFailed": "Failed to update candidate status. Please try again.",
+      "contactDisabledHint": "Requires AI analysis to draft outreach"
+    },
+    "rating": {
+      "starValue": "{{count}} star",
+      "cleared": "Rating cleared",
+      "saved": "Rating saved: {{count}} stars",
+      "saveFailed": "Failed to save rating"
     },
     "ratingComment": {
       "title": "Add Rating Note",
@@ -394,7 +451,9 @@
       "industryVerified": "Industry verified",
       "aiScoreLabel": "AI score",
       "aiSummaryLabel": "AI summary",
-      "promptVersion": "Prompt v{{version}}"
+      "promptVersion": "Prompt v{{version}}",
+      "previousResume": "Previous resume",
+      "nextResume": "Next resume"
     },
     "experienceLevel": {
       "senior": "Senior",
@@ -425,6 +484,7 @@
       "notesTitle": "Notes",
       "notesViewTitle": "User Comment",
       "notesDescription": "Add a note for {{name}}.",
+      "notesSaveShortcut": "Ctrl/⌘ + Enter to save",
       "currentPosition": "Current Position",
       "pipelineActions": "Pipeline Actions"
     },
@@ -457,7 +517,15 @@
         "ageRange": "Age Range",
         "ageUnit": "years old",
         "custom": "Custom",
-        "idOrNamePlaceholder": "ID / Name / External ID"
+        "clearCustomRange": "Clear custom range",
+        "rangeMax": "Maximum",
+        "rangeMin": "Minimum",
+        "minRoleYearsInput": "Relevant experience (years)",
+        "idOrNamePlaceholder": "ID / Name / External ID",
+        "filterPlaceholder": "Filter options…",
+        "noFilterMatches": "No matching options",
+        "invalidValue": "Enter a valid number",
+        "minExceedsMax": "Minimum must not exceed maximum"
       },
       "hero": {
         "quickStart": "Quick Start",
@@ -466,7 +534,8 @@
         "loadingRecentSearches": "Loading recent searches...",
         "noSavedSearches": "No saved searches yet. Recent searches will appear here after you start exploring.",
         "collect": "Collect",
-        "editProfile": "Edit"
+        "editProfile": "Edit",
+        "searchKeyword": "Search for {{keyword}}"
       },
       "searchBar": {
         "placeholder": "Search resumes by keywords, brands, roles, or locations",
@@ -476,6 +545,19 @@
         "pasteJobDescription": "Paste job description",
         "clearSearch": "Clear search",
         "recentSearchCount": "{{count}} recent searches available"
+      },
+      "jdPaste": {
+        "title": "Paste JD to extract keywords",
+        "description": "We only extract search terms. Nothing is written back to the job description.",
+        "placeholder": "Paste the job description text here to extract role, product, and domain keywords.",
+        "tipPrefix": "Tip: use",
+        "tipSuffix": "to extract.",
+        "extract": "Extract keywords",
+        "extracting": "Extracting...",
+        "cancel": "Cancel",
+        "emptyError": "Paste a job description first",
+        "extractError": "Failed to extract keywords from the job description",
+        "noKeywordsError": "No useful keywords were extracted"
       },
       "header": {
         "results": "{{count}} results",
@@ -496,21 +578,39 @@
         "processedStatuses": "Processed {{count}}",
         "exportFormat": "Export format",
         "exporting": "Exporting...",
-        "export": "Export {{count}}"
+        "export": "Export {{count}}",
+        "clearJobDescription": "Clear job description"
       },
       "results": {
         "emptyTitle": "No resumes matched this search",
         "emptyDescription": "Try broader keywords or remove a few facet filters to widen the result set.",
+        "clearFilters": "Clear filters",
+        "failedTitle": "Search failed, please retry",
+        "failedDescription": "The search request did not complete. Results may still exist — please retry or refresh the page.",
         "loadingMore": "Loading more resumes...",
         "scrollForMore": "Scroll for more",
-        "endOfResults": "End of results"
+        "endOfResults": "End of results",
+        "keyboardHint": "J/K move · Enter expand · O detail · S star · A archive",
+        "industryQueue": {
+          "title": "Verify employer evidence for these results",
+          "description": "Queues exact resume identity targets only; {{detail}}",
+          "batchedDetail": "the first {{count}} loaded results are queued per batch limit.",
+          "loadingDetail": "more results are still loading.",
+          "allVisibleDetail": "all loaded results are visible.",
+          "queueButton": "Queue {{count}} exact targets",
+          "queueing": "Queueing…"
+        }
       },
       "analysis": {
         "title": "Resume AI analysis",
         "description": "Generate per-resume AI summaries and breakdowns for the loaded search results.",
         "analyzing": "Analyzing...",
         "analyzeLoaded": "Analyze loaded {{count}}",
-        "analyzeLoadedResults": "Analyze loaded results"
+        "analyzeLoadedResults": "Analyze loaded results",
+        "disabledRulesOnly": "Switch to AI Mode to analyze",
+        "disabledNoInput": "Add a JD or keywords to enable analysis",
+        "disabledNoPermission": "No permission to analyze candidates",
+        "disabledGeneric": "Select candidates to analyze"
       },
       "readOnly": {
         "loginRequired": "Sign in to rate, update status, add notes, block, export, or run bulk actions."
@@ -586,7 +686,11 @@
     "loadingMore": "Loading more...",
     "noResumes": "No resumes found",
     "noResumesDesc": "Try adjusting your filters or search keywords.",
-    "loadedCount": "Loaded {{loaded}} resumes so far"
+    "loadedCount": "Loaded {{loaded}} resumes so far",
+    "notes": {
+      "saveSuccess": "Note saved",
+      "saveFailed": "Failed to save note"
+    }
   },
   "aiTasks": {
     "dispatched": "Analysis task dispatched",
@@ -603,16 +707,28 @@
       "cancel": "Cancel",
       "cancelling": "Cancelling...",
       "progress": "Progress",
+      "runModeAi": "AI",
+      "runModeHybrid": "Hybrid",
+      "runModeRules": "Rules",
+      "runStatusPending": "Pending",
+      "runStatusProcessing": "Processing",
       "skipped": "Skipped",
       "analyzed": "Analyzed",
       "avgScore": "Avg Score",
       "highScore": "High Score (80+)",
       "failed": "Failed",
-      "historyDescription": "View active and completed AI analysis tasks."
+      "historyDescription": "View active and completed AI analysis tasks.",
+      "runStatusCompleted": "Completed",
+      "runStatusFailed": "Failed"
     },
     "noNewCandidates": "No new candidates to analyze among top matches.",
     "dispatchedTop": "Analyzing top {{count}} candidates...",
-    "lowKeywordMatch": "Keywords may not match displayed resumes. Consider collecting new resumes first."
+    "lowKeywordMatch": "Keywords may not match displayed resumes. Consider collecting new resumes first.",
+    "unavailableForAccount": "AI analysis is unavailable for this account.",
+    "noNewCandidatesLoaded": "No new candidates to analyze among loaded results.",
+    "analyzingCount": "Analyzing {{count}} resumes...",
+    "analyzingBatch": "Analyzing batch of {{count}} resumes ({{remaining}} more pending)...",
+    "dispatchFailedFull": "Failed to start AI analysis. Please try again."
   },
   "syncNotifications": {
     "success": "Synced {{submitted}} resumes ({{inserted}} new, {{updated}} updated)",
@@ -629,7 +745,7 @@
     "location": "Location",
     "locationPlaceholder": "e.g. Dongguan",
     "industryTags": "Industry Tags",
-    "customKeywords": "Custom Keywords:",
+    "customKeywords": "Custom Keywords",
     "relatedExp": "Related Experience",
     "minRelatedExp": "Min Exp (yrs)",
     "maxRelatedExp": "Max Exp (yrs)",
@@ -641,7 +757,12 @@
     "defaultSalary": "Unit: k (thousands)",
     "defaultExp": "Default: min 1 year",
     "ageNotSupportedBySource": "Age filters are not available for the selected sources",
-    "contentPlaceholder": "Paste or edit JD markdown content"
+    "contentPlaceholder": "Paste or edit JD markdown content",
+    "customKeywordsPlaceholder": "e.g. 机床 车床",
+    "titleRequired": "Job title is required",
+    "contentRequired": "Job description content is required",
+    "saveFailed": "Failed to save job description",
+    "shortcutHint": "Ctrl/⌘ + Enter to save"
   },
   "quickStart": {
     "quickFilters": "Filters",
@@ -693,7 +814,10 @@
       "noLocation": "No location",
       "saveSuccess": "Saved to search history",
       "saveError": "Failed to save search history",
-      "applySuccess": "Applied saved search"
+      "applySuccess": "Applied saved search",
+      "searchPlaceholder": "Search history by title, keyword, location...",
+      "noMatches": "No saved searches match your filter.",
+      "clearSearch": "Clear search"
     },
     "activeSession": "Current session",
     "activeSessionNote": "Context note",
@@ -738,7 +862,10 @@
     "shortcutsTitle": "Shortcuts",
     "workflows": "Landing quick starts",
     "collectJob51Hint": "Collecting up to {{effectiveLimit}} resumes across {{effectiveMaxPages}} page(s).",
-    "shellDescription": "Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower."
+    "shellDescription": "Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower.",
+    "hideLocationKeywords": "Hide location keywords",
+    "showLocationKeywords": "Show location keywords",
+    "clearLocations": "Clear locations"
   },
   "searchProfiles": {
     "nav": "Search Profiles",
@@ -821,8 +948,25 @@
       "enabledSchedule": "{{schedule}} (enabled)",
       "lastRun": "Last run:",
       "runStatus": "Run status:",
-      "runNow": "Run Now"
-    }
+      "runNow": "Run Now",
+      "duplicate": "Duplicate"
+    },
+    "schedule": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "roleFilterTypePlaceholder": "e.g. sales",
+    "searchPlaceholder": "Search profile by name, location, or keyword…",
+    "filterAll": "All Statuses",
+    "filterStatus": {
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "filterResultCount": "{{count}} / {{total}} shown",
+    "noMatches": "No search profiles match your filter.",
+    "clearFilter": "Clear filter",
+    "copySuffix": " (copy)"
   },
   "searchAnalytics": {
     "nav": "Search Analytics",
@@ -844,10 +988,14 @@
     "noTrend": "No trend data yet.",
     "zeroResults": "Zero-result Queries",
     "noZeroResults": "No zero-result queries recorded.",
+    "testQuery": "Test Search",
+    "clearFilter": "Clear filter",
     "table": {
       "query": "Query",
       "count": "Count",
-      "suggestion": "Suggestion"
+      "suggestion": "Suggestion",
+      "testSearch": "Test Search",
+      "filterPlaceholder": "Filter queries..."
     },
     "suggestSynonym": "Suggest Synonym",
     "savingSuggestion": "Saving...",
@@ -857,6 +1005,7 @@
   },
   "settings": {
     "searchSetup": {
+      "nav": "Search setup",
       "title": "Search setup",
       "description": "Configure the workspace keywords and location visibility that steer candidate discovery.",
       "locationsTitle": "Locations",
@@ -865,6 +1014,7 @@
       "brandKeywordsDescription": "Read-only brand reference data to help members align custom search keywords."
     },
     "setup": {
+      "nav": "Setup",
       "title": "Setup",
       "description": "Get started in 3 steps: install the extension, configure search setup, and launch your first collection from the resumes desk.",
       "goToSearchSetup": "Go to Search Setup",
@@ -881,6 +1031,9 @@
       "emptySearch": "No blocked candidates match your search.",
       "noReason": "-",
       "bulkUnblock": "Unblock Selected ({{count}})",
+      "unblockConfirm": "Unblock this candidate?",
+      "unblockConfirmYes": "Yes, unblock",
+      "clearSearch": "Clear search",
       "columns": {
         "candidate": "Candidate",
         "reason": "Reason",
@@ -889,7 +1042,8 @@
         "actions": "Actions"
       },
       "actions": {
-        "unblock": "Unblock"
+        "unblock": "Unblock",
+        "cancel": "Cancel"
       },
       "toasts": {
         "reasonUpdated": "Block reason updated",
@@ -911,14 +1065,23 @@
       },
       "companiesTitle": "Company registry & policy",
       "companiesDescription": "Manage known-good and no-hire companies for this workspace. Policy does not change AI score; search enforcement comes later.",
+      "companiesDescriptionMarket": "{{scope}} market policy beats the workspace policy for resumes sourced from this market. Policy does not change AI score.",
+      "scopeLabel": "Policy scope",
+      "scope": {
+        "workspace": "Workspace",
+        "cn": "CN",
+        "my": "MY"
+      },
       "searchPlaceholder": "Search company, alias, or key…",
       "seedCanonical": "Reset Pro-Technic + Polywell to no-hire",
       "seeding": "Seeding…",
       "empty": "No companies yet. Seed canonical companies or add one below.",
+      "emptyMarket": "No {{scope}} market policy yet. Set one to override the workspace policy for this market.",
       "noAliases": "No aliases",
       "aliasPlaceholder": "Add alias",
       "addAlias": "Add",
       "noPolicy": "No workspace policy yet",
+      "noPolicyMarket": "No {{scope}} market policy yet",
       "addCompanyTitle": "Add company",
       "addCompanyDescription": "Create a confirmed company entry. Keep 宝力机械 and 宝惠 as separate keys.",
       "companyKeyPlaceholder": "company-key (e.g. acme-cnc)",
@@ -935,6 +1098,7 @@
         "company": "Company",
         "aliases": "Aliases",
         "policy": "Workspace policy",
+        "policyMarket": "{{scope}} market policy",
         "actions": "Actions"
       },
       "toasts": {
@@ -966,7 +1130,23 @@
         "noHireShort": "No-hire",
         "knownGoodShort": "Known-good",
         "manageLink": "Manage",
-        "researchLink": "Research"
+        "researchLink": "Research",
+        "overrideBadge": "Override",
+        "overrideManage": "Policy override",
+        "overrideDialogTitle": "Override no-hire policy",
+        "overrideDialogDescription": "Grant an exception that lifts the no-hire advance gate for this candidate at a specific company. Visibility and ranking effects remain intact.",
+        "overrideCompanyBlocked": "Advance blocked by no-hire policy",
+        "overrideCompanyAllowed": "Override active — advance allowed",
+        "overrideReasonPlaceholder": "Required — explain why this candidate may advance for this company",
+        "overrideGrant": "Grant override",
+        "overrideRemove": "Remove",
+        "overrideEmpty": "No blocked companies to override.",
+        "overrideReasonRequired": "Reason is required to grant an override.",
+        "overrideSetSuccess": "Override granted",
+        "overrideSetFailed": "Failed to grant override",
+        "overrideRemoveSuccess": "Override removed",
+        "overrideRemoveFailed": "Failed to remove override",
+        "overrideAuthorizedBy": "By {{author}}"
       },
       "researchLink": "Research (HR)",
       "archive": "Archive",
@@ -989,7 +1169,9 @@
       "currentPasswordIncorrect": "Current password is incorrect",
       "passwordTooShort": "Password must be at least 8 characters",
       "passwordsDoNotMatch": "Passwords do not match",
-      "changeFailed": "Failed to change password"
+      "changeFailed": "Failed to change password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
     }
   },
   "debug": {
@@ -1072,6 +1254,11 @@
     "none": "None"
   },
   "debugConfig": {
+    "adminUsersColActions": "Actions",
+    "adminUsersColCreated": "Created",
+    "adminUsersColProvider": "Provider",
+    "adminUsersColReason": "Reason",
+    "adminUsersColUser": "User",
     "title": "System Configuration",
     "subtitle": "View and edit AI review runtime, custom keywords, and AI service settings",
     "aiStatus": "AI Service Status",
@@ -1103,6 +1290,8 @@
     "settingsNavKeywords": "Keywords",
     "settingsNavLocations": "Locations",
     "settingsNavExportFields": "Export Fields",
+    "settingsNavWorkspace": "Workspace",
+    "settingsNavResumeDedup": "Resume dedup review",
     "settingsOverviewLabel": "Settings overview",
     "settingsOverviewTitle": "Open each system settings area in its own page.",
     "settingsOverviewPageDescription": "Use the local settings navigation above to move directly to runtime, config, keyword, or location management without scrolling through one giant page.",
@@ -1135,6 +1324,10 @@
     "authAccessGrants": "Provider-derived grants",
     "authAccessEvents": "Recent auth events",
     "authAccessEventsDescription": "Latest events for the current workspace.",
+    "configSourceCopyParsed": "Copy parsed",
+    "configSourceCopyRaw": "Copy raw",
+    "configSourceCopyRawToast": "Raw config copied to clipboard",
+    "configSourceGroup": "Group",
     "runtimePageMeta": "{{count}} review stages",
     "configSourcesPageDescription": "Inspect read-only prompt and configuration sources.",
     "keywordsPageDescription": "Manage editable keywords and review derived brand data.",
@@ -1142,6 +1335,45 @@
     "exportFieldsTitle": "Column Selection",
     "exportFieldsDescription": "Select which fields to include in exports. Fields are exported in the order shown.",
     "exportFieldsPageDescription": "Configure which columns appear in resume CSV/XLSX exports.",
+    "workspacePageDescription": "Export and import portable workspace snapshots (same format as the CLI).",
+    "resumeDedupPageDescription": "Review suggested same-person matches across resume collection sources (advisory only — no merge action).",
+    "workspaceExportTitle": "Export snapshot",
+    "workspaceExportDescription": "Download candidate status, candidate blocks, and optionally search profiles and workspace config as a JSON snapshot. The resume corpus is never included.",
+    "workspaceExportProfileLabel": "Profile",
+    "workspaceExportProfileHrOps": "hr-ops (candidate status + blocks)",
+    "workspaceExportProfileFull": "full (+ search profiles + workspace config)",
+    "workspaceExportButton": "Export snapshot",
+    "workspaceExporting": "Exporting...",
+    "workspaceExportSuccess": "Snapshot exported",
+    "workspaceExportFailed": "Export failed",
+    "workspaceExportSummaryTitle": "Exported snapshot",
+    "workspaceExportSummaryWorkspace": "Workspace",
+    "workspaceExportSummaryExportedAt": "Exported at",
+    "workspaceDownloadButton": "Download file",
+    "workspaceImportTitle": "Import snapshot",
+    "workspaceImportDescription": "Restore a snapshot file produced by this page or the CLI into the current workspace.",
+    "workspaceImportFileLabel": "Snapshot file",
+    "workspaceImportFileInvalid": "Not a valid workspace snapshot file",
+    "workspaceImportPreviewTitle": "Snapshot preview",
+    "workspaceImportWorkspace": "Workspace",
+    "workspaceImportProfile": "Profile",
+    "workspaceImportSchemaVersion": "Schema version",
+    "workspaceImportModeLabel": "Mode",
+    "workspaceImportModeMerge": "merge — add or update rows, keep everything else",
+    "workspaceImportModeReplace": "replace — delete current rows for the included tables first",
+    "workspaceImportReplaceConfirm": "I understand replace deletes current rows before importing",
+    "workspaceImportButton": "Import snapshot",
+    "workspaceImporting": "Importing...",
+    "workspaceImportSuccess": "Snapshot imported",
+    "workspaceImportFailed": "Import failed",
+    "workspaceImportResultTitle": "Import result",
+    "workspaceImportResultApplied": "Applied",
+    "workspaceImportResultDeleted": "Deleted",
+    "workspaceTableCandidateStatus": "Candidate status",
+    "workspaceTableCandidateBlocks": "Candidate blocks",
+    "workspaceTableSearchProfiles": "Search profiles",
+    "workspaceTableWorkspaceConfig": "Workspace config",
+    "workspaceRows": "{{count}} rows",
     "exportFieldsResetDefaults": "Reset to defaults",
     "exportFieldsResetOrder": "Reset order",
     "exportFieldsIncludeDebug": "Include debug columns when debug mode is enabled",
@@ -1152,6 +1384,9 @@
     "exportFieldsAvailableTitle": "Available fields",
     "exportFieldsAvailableDescription": "Click + to add a field to the export order.",
     "exportFieldsAdd": "Add",
+    "exportFieldsFilterPlaceholder": "Filter available fields...",
+    "exportFieldsNoMatches": "No fields match your filter.",
+    "exportFieldsClearFilter": "Clear filter",
     "customKeywords": "Custom Keywords",
     "customKeywordsDescription": "Manage custom tags available in resume keyword chips",
     "addCustomKeyword": "Add Keyword",
@@ -1161,6 +1396,9 @@
     "customKeywordKeyword": "Keyword",
     "customKeywordEnglish": "English",
     "customKeywordCategory": "Category",
+    "customKeywordSearchPlaceholder": "Filter custom keywords...",
+    "categoryFilterAll": "All categories",
+    "customKeywordNoMatches": "No matching keywords",
     "configSources": "Config Sources",
     "configSourcesDescription": "Inspect allowlisted resume config files and prompt sources in read-only mode.",
     "resumeDisplayLimits": "Resume display limits",
@@ -1200,6 +1438,8 @@
     "brandKeywordNameEn": "English",
     "brandKeywordType": "Type",
     "brandKeywordOrigin": "Origin",
+    "brandKeywordSearchPlaceholder": "Search by CN/EN name…",
+    "brandKeywordNoMatches": "No matching entries",
     "presets": "Filter Presets",
     "presetsDescription": "Quick filter configurations for common search patterns",
     "addPreset": "Add Preset",
@@ -1217,6 +1457,13 @@
     "systemDiagnosticsDescription": "Backend task heartbeat and worker synchronization.",
     "live": "Live",
     "activeWorkers": "Active Workers",
+    "adminUsersColRole": "Role",
+    "adminUsersColStatus": "Status",
+    "adminUsersColType": "Type",
+    "adminUsersColWorkspaces": "Workspaces",
+    "adminUsersDisplayNameOptional": "Display name (optional)",
+    "adminUsersEmailOptional": "Email (optional)",
+    "adminUsersNone": "None",
     "total": "Total",
     "processing": "Processing",
     "pending": "Pending",
@@ -1225,6 +1472,8 @@
     "cronScheduler": "Cron Scheduler",
     "cronSchedulerDescription": "Automated crawling and analysis tasks.",
     "schedule": "Schedule",
+    "scheduleCron": "Cron: {{value}}",
+    "scheduleEvery": "Every {{value}}",
     "nextRun": "Next Run",
     "executed": "Executed",
     "lastSuccess": "Last Success",
@@ -1238,6 +1487,10 @@
     "scheduledJobs": "Scheduled Jobs",
     "job": "Job",
     "trigger": "Trigger",
+    "schedulerLoadFailed": "Failed to load scheduler status",
+    "schedulerOffline": "Scheduler Offline",
+    "schedulerStatus": "Scheduler Status",
+    "unknownError": "Unknown error",
     "resumeDataCollection": "Resume Data Collection",
     "resumeDataCollectionDescription": "Trigger heavy-lifting agent tasks to scrape resumes from external platforms.",
     "keyword": "Keyword",
@@ -1257,6 +1510,8 @@
     "settingsNavTaxonomy": "Taxonomy",
     "settingsNavIndustryVerification": "Industry verification",
     "settingsNavIndustryData": "Industry Data",
+    "settingsNavUnresolvedQueue": "Unresolved queue",
+    "unresolvedQueuePageDescription": "Review employer names that failed to resolve during capture and link or ignore them.",
     "workflowSeedHidden": "Hidden",
     "workflowSeedStatus": "Status",
     "workflowSeedVisible": "Visible",
@@ -1303,7 +1558,11 @@
       "confidence": "Confidence",
       "tagsHelp": "Separate tags with commas. Search facets will group any matching resume tag into this cluster.",
       "saveChanges": "Save Changes",
-      "createClusterButton": "Create Cluster"
+      "createClusterButton": "Create Cluster",
+      "namePlaceholder": "Backend Languages",
+      "tagsPlaceholder": "Go, Java, Rust",
+      "deleteConfirmTitle": "Delete taxonomy cluster?",
+      "deleteConfirmBody": "This permanently removes cluster {{name}} ({{slug}})."
     },
     "adminUsersTitle": "Users",
     "adminUsersDescription": "Manage local user accounts, memberships, and authentication state.",
@@ -1322,8 +1581,10 @@
     "adminUsersDisabled": "User disabled",
     "adminUsersEnabled": "User enabled",
     "adminUsersResetPassword": "Reset password",
+    "adminUsersResetPasswordTitle": "Reset User Password",
     "adminUsersResetPasswordConfirm": "Reset the password for this user?",
     "adminUsersUnlock": "Unlock",
+    "adminUsersUnlockTitle": "Unlock User Account",
     "adminUsersUnlockConfirm": "Unlock this user account?",
     "adminUsersUnlocked": "User unlocked",
     "adminUsersViewAudit": "Auth events",
@@ -1338,6 +1599,10 @@
     "adminUsersMembershipAddFailed": "Failed to add membership",
     "adminUsersMembershipRemoved": "Membership removed",
     "adminUsersMembershipRemoveFailed": "Failed to remove membership",
+    "adminUsersMembershipRemoveConfirm": "Remove this membership?",
+    "adminUsersMembershipRemoveLabel": "Remove membership for {{workspace}}",
+    "adminUsersMembershipRemove": "Remove",
+    "keywordToggleLabel": "Toggle custom keywords",
     "adminUsersMembershipAdd": "Add",
     "adminUsersTempPasswordTitle": "Temporary password",
     "adminUsersTempPasswordFor": "Password for {{username}}",
@@ -1346,6 +1611,10 @@
     "adminUsersTempPasswordWarning": "Copy this now. It will not be shown again after you close this dialog.",
     "adminUsersEmpty": "No users found.",
     "adminUsersLoading": "Loading users...",
+    "adminUsersUsername": "Username",
+    "adminUsersYou": "You",
+    "configSourceAudience": "Audience",
+    "configSourceCopyParsedToast": "Parsed config copied to clipboard",
     "hrDemoSilentTitle": "HR demo silent login",
     "hrDemoSilentDescription": "Shared desk bookmark token (AUTH_HR_DEMO_TOKEN). Append as ?auth=… on /hr/resumes deep links for passwordless full member desk access.",
     "hrDemoSilentTokenCopied": "Silent login token copied",
@@ -1365,6 +1634,8 @@
     "industryDataControlTitle": "Control center",
     "industryDataDelete": "Delete",
     "industryDataDeleteFailed": "Failed to delete entry",
+    "industryDataDeleteConfirmTitle": "Delete industry data entry?",
+    "industryDataDeleteConfirmBody": "This permanently removes entry {{entryId}}.",
     "industryDataDeleted": "Deleted ({{sha}})",
     "industryDataEmpty": "No entries. Seed from files or import JSON.",
     "industryDataExport": "Export",
@@ -1402,10 +1673,112 @@
     "industryDataTitle": "Industry Data",
     "industryDataTrigger": "Research",
     "industryDataTriggerFailed": "Scoped trigger failed",
-    "industryDataTriggerOk": "Triggered research for {{companyKey}} (run {{runId}})"
+    "industryDataTriggerOk": "Triggered research for {{companyKey}} (run {{runId}})",
+    "loading": "Loading...",
+    "authPolicyPrincipalAnonymous": "Everyone / anonymous",
+    "authPolicyPrincipalUsers": "Workspace users",
+    "authPolicyPrincipalAdmins": "Workspace admins",
+    "authPolicyNotGranted": "not granted",
+    "authPolicyLoginRequired": "login required",
+    "authPolicyColumnPrincipal": "Principal",
+    "authPolicyColumnRole": "Role",
+    "authPolicyColumnSearch": "Search",
+    "authPolicyColumnOperational": "Operational HR data",
+    "authPolicyColumnWrites": "Writes",
+    "authPolicyEmpty": "No policy rows",
+    "authPolicyProviderSubject": "Provider subject",
+    "authPolicyTenant": "Tenant",
+    "authPolicyWorkspace": "Workspace",
+    "authPolicyGrant": "Grant",
+    "authPolicyRevoke": "Revoke",
+    "authPolicyRefresh": "Refresh",
+    "authRoleWorkspaceAdmin": "Workspace admin",
+    "authRoleWorkspaceUser": "Workspace user",
+    "authRoleNone": "No workspace role",
+    "authSignedOut": "Signed out",
+    "authColumnUser": "User",
+    "authColumnProvider": "Provider",
+    "authColumnSubject": "Subject",
+    "authColumnEmail": "Email",
+    "authColumnStatus": "Status",
+    "authColumnUserId": "User ID",
+    "authColumnCreated": "Created",
+    "authColumnType": "Type",
+    "authEmptyIdentities": "No provider identities",
+    "authEmptyPreapprovals": "No preapprovals",
+    "authEmptyGrants": "No provider-derived grants",
+    "authEmptyEvents": "No auth events",
+    "industryDataFilterPlaceholder": "Filter companyKey"
+  },
+  "resumeDedup": {
+    "title": "Resume dedup review",
+    "description": "Suggested same-person matches across resume collection sources, scored from contact signals and content heuristics.",
+    "sectionTitle": "Suggested matches",
+    "sectionDescription": "Advisory only — nothing here merges resumes or changes identity keys. Pair scores start at 1.5 and accumulate per matching signal.",
+    "empty": "No suggested matches yet. Suggestions appear when resumes captured from different sources share contact signals (email, phone, LinkedIn) or strong content signals.",
+    "loading": "Loading merge suggestions…",
+    "scanned": "Blocking keys scanned",
+    "score": "Score",
+    "evidence": "Evidence",
+    "leftResume": "Resume A",
+    "rightResume": "Resume B",
+    "searchPlaceholder": "Search candidates by name, contact, or evidence...",
+    "allScores": "All Scores",
+    "minScoreLabel": "Score ≥ {{score}}",
+    "noMatches": "No duplicate suggestions match your filter.",
+    "clearFilter": "Clear filter",
+    "showingCount": "Showing {{shown}} of {{total}} candidate pairs"
+  },
+  "unresolvedQueue": {
+    "title": "Unresolved employer queue",
+    "description": "Employer names that failed to resolve to a company during capture. Link them to a canonical company key or ignore them.",
+    "statusTabs": {
+      "unresolved": "Unresolved",
+      "linked": "Linked",
+      "ignored": "Ignored",
+      "all": "All"
+    },
+    "searchPlaceholder": "Search employer names…",
+    "search": "Search",
+    "loading": "Loading unresolved employers…",
+    "loadFailed": "Failed to load the unresolved employer queue",
+    "retry": "Retry",
+    "empty": "No employer names match this filter.",
+    "sectionTitle": "Queue",
+    "sectionDescription": "Priority rows appear first (frequency, nearby score, or sell-brand misspelling). Linking records the canonical company key; ignoring records the decision so the row stops reappearing.",
+    "selected": "{{count}} selected",
+    "bulkTargetPlaceholder": "Company key for all selected…",
+    "bulkLink": "Link selected",
+    "bulkIgnore": "Ignore selected",
+    "selectAll": "Select all employers",
+    "deselectAll": "Deselect all employers",
+    "column": {
+      "select": "Select",
+      "employer": "Employer",
+      "count": "Count",
+      "score": "Nearby score",
+      "priority": "Priority",
+      "resolution": "Resolution",
+      "actions": "Actions"
+    },
+    "priorityBadge": "Priority",
+    "linkedTo": "Linked: {{companyKey}}",
+    "ignored": "Ignored",
+    "linkTargetPlaceholder": "Company key…",
+    "link": "Link",
+    "ignore": "Ignore",
+    "requiresTarget": "Enter a company key to link.",
+    "linkSuccess": "Linked {{count}} employer key(s)",
+    "ignoreSuccess": "Ignored {{count}} employer key(s)",
+    "resolveFailed": "Failed to update employer keys",
+    "unknownKeyHint": "Not in the company registry — verify the key before linking."
   },
   "industryEvidence": {
+    "actionApprove": "approve",
     "actionFilter": "Action",
+    "actionInspect": "inspect",
+    "actionNeedsEvidence": "needs evidence",
+    "actionReject": "reject",
     "advancedTools": "Advanced tools",
     "advancedToolsDescription": "Coverage, profile lookup, recompute, and maintenance history for deeper investigation.",
     "all": "All",
@@ -1466,6 +1839,9 @@
     "collapseAdvancedTools": "Hide advanced tools",
     "companyRequired": "Map this proposal to a canonical company first",
     "confidenceFilter": "Confidence",
+    "confidenceHigh": "high",
+    "confidenceLow": "low",
+    "confidenceMedium": "medium",
     "coverageDescription": "Pipeline counts, open proposals with candidate sources, resume card coverage, and last maintenance signal. Empty ready-for-review does not mean research is done.",
     "coverageEmptyEvidenceBody": "{{withSources}} / {{openTotal}} open proposals have sources. Research is not filling evidence (check WEB_RESEARCH_ENABLED / WEB_RESEARCH_MARKET and Operations → Run maintenance).",
     "coverageEmptyEvidenceTitle": "Bottleneck: open proposals have few candidate sources",
@@ -1552,6 +1928,7 @@
     "queueEmpty": "No proposals ready for review.",
     "queueFilters": "Queue filters",
     "queueLoadFailed": "Failed to load industry evidence queue",
+    "queueSkippedBanner": "{{count}} malformed proposals were skipped from this queue",
     "queueStatus": "Queue status",
     "recomputeFailed": "Failed to update targeted recompute",
     "recomputeStatus": "Targeted recompute",
@@ -1620,7 +1997,11 @@
     "riskAcknowledgementRequired": "Acknowledge every visible risk flag and provide a detailed reason before approving.",
     "riskAttestationDescription": "Approval remains a human decision. Acknowledge the visible evidence risks and record why the selected revision is still justified.",
     "riskAttestationTitle": "Evidence-risk acknowledgement",
+    "riskCncInferred": "CNC claim inferred",
     "riskFilter": "Risk",
+    "riskLowDiversity": "low source diversity",
+    "riskSourceConflict": "source conflict",
+    "riskStaleSource": "stale or failed source",
     "rowApproveFailed": "Approval failed. Retry this row.",
     "rowAttestationRequired": "Explicit acknowledgement is required",
     "rowCanonicalMissing": "Canonical company mapping is missing",
@@ -1656,7 +2037,131 @@
     "verifiedOnlyReviewAction": "Review industry evidence",
     "verifiedQuickPick": "Verified profiles",
     "viewRow": "View",
-    "visibleRiskFlags": "Visible risk flags"
+    "visibleRiskFlags": "Visible risk flags",
+    "detailCurrentVerdict": "Current verdict",
+    "detailNoApprovedRevision": "No approved revision",
+    "detailCurrentRevision": "Current revision",
+    "detailFreshness": "Freshness",
+    "detailNotRecorded": "Not recorded",
+    "recommendationTitle": "Review recommendation",
+    "recommendationAdvisory": "Advisory only. A human must confirm the exact evidence and verdict.",
+    "recommendationConfidence": "{{band}} confidence",
+    "recommendationInspectEvidence": "Inspect the attached evidence before deciding.",
+    "recommendationReviewFlags": "Review flags",
+    "recommendationSuggestedClass": "Suggested class",
+    "recommendationSuggestedSources": "Suggested sources",
+    "recommendationPacketFingerprint": "Packet fingerprint",
+    "acknowledgeRiskFlag": "Acknowledge {{flag}}",
+    "riskFlag.canonical_mapping_missing": "Canonical company mapping missing",
+    "riskFlag.only_discovery_sources": "Only discovery sources attached",
+    "riskFlag.source_conflict": "Sources conflict on industry class",
+    "riskFlag.weak_industry_signal": "Weak industry signal",
+    "riskFlag.cnc_claim_inferred": "CNC claim inferred from keywords",
+    "riskFlag.stale_or_failed_source": "Source stale, unreachable, or failed",
+    "riskFlag.low_source_diversity": "Low source diversity",
+    "riskFlag.worker_unreachable": "Evidence worker unreachable",
+    "riskFlag.recompute_pending": "Targeted recompute pending",
+    "recomputeEmpty": "No targeted recompute run yet.",
+    "recomputeAdvance": "Advance",
+    "recomputeRetry": "Retry",
+    "evidenceEmpty": "No evidence sources attached.",
+    "selectEvidenceSource": "Select evidence source {{title}}",
+    "sourceRecommended": "Recommended",
+    "fetchedOn": "Fetched {{date}}",
+    "revisionHistoryEmpty": "No immutable revisions yet.",
+    "terminalReadOnlyNotice": "This proposal is in terminal history. Its evidence and immutable revision history are read-only.",
+    "verdict": "Verdict",
+    "suggestedSuffix": "(Suggested)",
+    "industryClassLabel": "Industry class",
+    "evidenceSummaryLabel": "Evidence summary",
+    "decisionReasonLabel": "Decision reason",
+    "confirmImmutableTitle": "Confirm this immutable revision",
+    "approving": "You are approving {{industryClass}} as {{verificationLevel}} for {{company}}.",
+    "approvingSources": "Sources: {{sourceIds}} · this will create a new revision and start targeted recompute.",
+    "approvingFlagsRemain": "Review flags remain: {{flags}}",
+    "confirmApprove": "Confirm approve revision",
+    "taxonomyVersionLabel": "Taxonomy version",
+    "detailReviewNoteLabel": "Review note (for reject / more evidence)",
+    "approveRevision": "Approve revision",
+    "requestMoreEvidence": "Request more evidence",
+    "rejectProposal": "Reject proposal",
+    "requestMoreEvidenceNote": "“Request more evidence” records the human review disposition only. Use “Research & verify employer” above to queue the guarded worker.",
+    "sourceType.official_site": "Official",
+    "sourceType.registry": "SSM / MSIC",
+    "sourceType.taxonomy": "Taxonomy",
+    "sourceType.oem_partner": "OEM",
+    "sourceType.trade_body": "Trade body",
+    "sourceType.directory": "Directory",
+    "sourceType.reporting": "Reporting",
+    "sourceType.other": "Reviewed",
+    "trustTier.primary": "Trusted primary source",
+    "trustTier.authoritative": "Trusted authoritative source",
+    "trustTier.corroborating": "Reviewed corroborating source",
+    "sourceAccessibleName": "{{label}} source from {{domain}}",
+    "sourceTitleFallback": "{{label}} evidence",
+    "noExcerpt": "Reviewed source; no excerpt is available.",
+    "humanApproved": "Human approved",
+    "reviewedOn": "Reviewed {{date}}",
+    "openSource": "Open source",
+    "openOfficialWebsite": "Open official website for {{companyName}}",
+    "verifiedPathHuman": "Human-verified by {{reviewer}} based on {{count}} approved evidence source(s).",
+    "verifiedPathHumanWithDate": "Human-verified by {{reviewer}} based on {{count}} approved evidence source(s) on {{date}}.",
+    "verifiedPathAuto": "Auto-verified {{industry}} industry employer based on {{count}} corroborating evidence source(s).",
+    "filterByCompany": "Click to filter candidate search by this company",
+    "approvedEvidenceFor": "Approved industry evidence for {{companyName}}",
+    "industryVerifiedStatus": "{{industry}} Industry Verification Status",
+    "verificationStatusDescription": "Confirms registered manufacturing & enterprise capabilities for candidate search filtering.",
+    "industryField": "Industry:",
+    "approvedSourcesLabel": "Approved sources:",
+    "relevantRoles": "Relevant roles:",
+    "verifiedYears": "{{count}} verified years",
+    "verifiedYearsTitle": "Verified Experience Duration",
+    "verifiedYearsDescription": "Calculated from {{years}} years of candidate work history at this confirmed {{industry}} industry employer.",
+    "additionalSources": "+{{count}} sources",
+    "sourceCountLabel": "{{count}} approved {{sources}}",
+    "reviewedDateSuffix": " · reviewed {{date}}",
+    "additionalEmployers": "+{{count}} {{employers}}",
+    "verifiedEmployerOne": "verified employer",
+    "verifiedEmployerOther": "verified employers",
+    "detailHeading": "Approved industry evidence",
+    "detailDescription": "Human-reviewed evidence materialized with this resume. No live web research runs on this page.",
+    "verifiedBadge": "{{industry}} Industry Verification",
+    "requestRefresh": "Request refresh",
+    "requestRefreshFor": "Request refresh for {{companyName}}",
+    "requesting": "Requesting…",
+    "requested": "Requested",
+    "refreshRequested": "Refresh requested",
+    "refreshError": "Refresh request could not be submitted. The approved verdict remains unchanged.",
+    "detailApprovedRevision": "Approved revision",
+    "detailReviewed": "Reviewed",
+    "detailReviewer": "Reviewer",
+    "detailCurrentApproved": "Current approved evidence",
+    "detailCanonicalCompany": "Canonical company",
+    "detailRevisionId": "Revision ID",
+    "approvedSourcesTitle": "Approved sources",
+    "sourcePreviewsUnavailable": "Source previews are not available in this materialized projection.",
+    "additionalApprovedSources": "{{count}} additional approved {{sources}}",
+    "detailNoSourcesOnProfile": "No sources on this profile.",
+    "coverageTargetedQueue": "Targeted research queue",
+    "coveragePartialResult": "Partial result — review failed/timeout targets before retrying.",
+    "coveragePriorityLanes": "Priority lanes: {{lanes}}.",
+    "coverageNone": "none",
+    "queueActive": "active",
+    "queueQueued": "queued",
+    "queueResearching": "researching",
+    "queueIdentityReview": "identity review",
+    "queueFailed": "failed",
+    "queueLeased": "leased",
+    "queueHealthUnavailable": "Queue health is unavailable.",
+    "opsQueueDescription": "Exact user requests are leased and retried independently from broad maintenance sweeps.",
+    "queueStatusReadyReview": "Ready for review",
+    "queueStatusNew": "New",
+    "queueStatusResearching": "Researching",
+    "queueStatusNeedsEvidence": "Needs more evidence",
+    "noLedgerRows": "No ledger rows.",
+    "historyStatusApproved": "Approved",
+    "historyStatusRejected": "Rejected",
+    "historyStatusSuperseded": "Superseded"
   },
   "industryAudit": {
     "title": "Industry audit",
@@ -1762,6 +2267,12 @@
     "archivedAt": "Archived At",
     "archivedBadge": "Archived",
     "restore": "Restore",
+    "restoreConfirm": "Restore this resume?",
+    "restoreConfirmYes": "Yes, restore",
+    "restoreSelectedConfirmTitle": "Restore selected resumes?",
+    "restoreSelectedConfirmBody": "Restore {{count}} archived resume(s)? They will re-enter the active pool.",
+    "noResultsForSearch": "No archived resumes match your search",
+    "clearSearch": "Clear search",
     "noResults": "No archived resumes found",
     "restoreFailed": "Failed to restore resumes",
     "restoreNothing": "No resumes to restore",
@@ -1774,6 +2285,8 @@
     "columnRun": "Run",
     "columnStarted": "Started",
     "columnStatus": "Status",
+    "copyContent": "Copy content",
+    "copyContentToast": "Content copied to clipboard",
     "detailAccounts": "Telegram accounts",
     "detailBatches": "Planned batches",
     "detailComparison": "Comparison",
@@ -1825,6 +2338,8 @@
     "profileCreating": "Creating…",
     "profileDelete": "Delete profile",
     "profileDeleting": "Deleting…",
+    "profileDeleteConfirm": "Delete this profile permanently?",
+    "profileDeleteConfirmYes": "Yes, delete",
     "profileFormChannel": "Profile channel",
     "profileFormCron": "Cron expression",
     "profileFormCronHint": "Uses the global worker timezone.",
@@ -1871,9 +2386,78 @@
       "saveProfileFailed": "Failed to save summary profile",
       "createProfileFailed": "Failed to create summary profile",
       "deleteProfileFailed": "Failed to delete summary profile"
+    },
+    "period": {
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "channel": {
+      "telegram": "Telegram",
+      "wechatWork": "WeChat Work",
+      "feishu": "Feishu",
+      "email": "Email"
+    },
+    "delivery": {
+      "sentCount": "{{sent}}/{{total}} sent",
+      "batches": "{{count}} batches",
+      "override": "override",
+      "ok": "ok",
+      "available": "available"
+    },
+    "accountStatus": {
+      "sent": "sent",
+      "failed": "failed",
+      "skipped": "skipped"
+    },
+    "comparison": {
+      "sharedIngest": "shared ingest {{delta}} resumes",
+      "workspaceActivity": "workspace {{delta}} status",
+      "weekly": "Compared with previous week",
+      "daily": "Compared with previous day"
+    },
+    "profile": {
+      "emailRecipientRequired": "Email recipient required",
+      "envDefaults": "env defaults",
+      "enabled": "enabled",
+      "paused": "paused",
+      "dryRun": "dry run",
+      "send": "send"
     }
   },
   "footer": {},
+  "analysisTasks": {
+    "status": {
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "pending": "Pending"
+    },
+    "keywords": "Keywords: {{keywords}}",
+    "unknownTitle": "Unknown"
+  },
+  "taskMonitor": {
+    "allCompleted": "All tasks completed ({{count}})",
+    "hideHistory": "Hide History",
+    "showHistory": "Show History",
+    "viewHistory": "View History",
+    "activeTitle": "Active Collections",
+    "historyTitle": "Collection History",
+    "workerWarning": "Pending tasks detected but no healthy scraper worker heartbeat is visible.",
+    "noActiveTasks": "No active tasks.",
+    "cancelling": "Cancelling...",
+    "cancel": "Cancel",
+    "progress": "Progress: {{current}} / {{limit}}",
+    "page": "Page {{page}}",
+    "worker": "Worker:",
+    "status": {
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "pending": "Pending"
+    }
+  },
   "aiTagging": {
     "candidateLimit": "Candidate Limit",
     "configDesc": "Controls idempotencyKey (profileKey + evidenceHash + promptVersion + model).",
@@ -1929,7 +2513,9 @@
   },
   "feedback": {
     "failed": "Failed to save feedback",
-    "saved": "Feedback saved"
+    "saved": "Feedback saved",
+    "likeAria": "Like {{label}}",
+    "unlikeAria": "Unlike {{label}}"
   },
   "manualResumeImport": {
     "clearFiles": "Clear",
@@ -1953,6 +2539,7 @@
     "selectFiles": "Select files",
     "selectFilesFirst": "Select at least one file to import",
     "selectedFiles": "Selected files",
+    "selectedFilesSummary": "Selected files ({{count}} · {{size}})",
     "skipped": "Skipped",
     "submit": "Import resumes",
     "title": "Import resumes",
@@ -2051,7 +2638,14 @@
     "feedbackCardDescription": "Upload the reviewed spreadsheet to update statuses, actions, and notes on the tracked run.",
     "feedbackImportSuccess": "Imported {{count}} reviewed rows",
     "summaryCardDescription": "Generate the WeChat summary preview, then send it with the configured template and optional webhook override.",
-    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+    "webhookUrlPlaceholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***",
+    "resumeIdsParsed": "{{count}} IDs parsed",
+    "exportInvalidIds": "{{count}} invalid resume ID(s) blocked the export",
+    "removeInvalidRetry": "Remove invalid IDs and retry",
+    "filterAll": "All Statuses",
+    "copyRunId": "Copy Run ID",
+    "runIdCopied": "Run ID copied to clipboard",
+    "noMatchingRuns": "No review packet runs match this filter."
   },
   "auditCompliance": {
     "title": "Audit & Compliance",
@@ -2078,6 +2672,8 @@
       "empty": "No audit log entries found."
     },
     "filters": {
+      "allOutcomes": "All Outcomes",
+      "allTypes": "All Types",
       "decisionType": "Decision Type",
       "outcome": "Outcome",
       "all": "All"
@@ -2137,6 +2733,41 @@
       "threshold": "Threshold",
       "title": "Metric Breakdown",
       "value": "Value"
+    },
+    "decisionType": {
+      "confirm": "confirm",
+      "filter": "filter",
+      "rank": "rank",
+      "score": "score",
+      "tag": "tag"
+    },
+    "outcome": {
+      "accepted": "accepted",
+      "appealed": "appealed",
+      "overridden": "overridden",
+      "pending": "pending"
+    },
+    "time": {
+      "daysAgo": "{{count}}d ago",
+      "hoursAgo": "{{count}}h ago",
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago"
+    },
+    "status": {
+      "fail": "FAIL",
+      "pass": "PASS"
+    },
+    "anomaly": {
+      "false": "FALSE",
+      "true": "TRUE",
+      "yes": "Yes"
+    },
+    "alert": {
+      "disparityRatio": "Disparity Ratio: {{value}}",
+      "psi": "PSI: {{value}}"
+    },
+    "output": {
+      "score": "Score: {{value}}"
     }
   },
   "explanationPage": {
@@ -2189,7 +2820,8 @@
       "submitting": "Submitting...",
       "success": "Your appeal has been submitted. A qualified person will review your application.",
       "nextSteps": "You will be notified of the review outcome.",
-      "error": "Failed to submit appeal. Please try again."
+      "error": "Failed to submit appeal. Please try again.",
+      "shortcutHint": "Ctrl/⌘ + Enter to submit"
     },
     "footer": {
       "compliance": "This explanation is provided in compliance with EU AI Act Article 13."
@@ -2257,6 +2889,8 @@
     "backToPolicies": "企业策略",
     "companyTitle": "企业研究",
     "empty": "No research signals for this company yet.",
+    "copySignal": "Copy signal",
+    "signalCopied": "Signal copied to clipboard",
     "evidenceLink": "原文",
     "evidenceSeed": "种子证据（非外链）",
     "goldenEmpty": "暂无金色展示企业。",
@@ -2355,6 +2989,20 @@
     "hotlistLoading": "Loading…",
     "openHotlistTab": "View hotlist",
     "tabBrand": "Brand pulse",
-    "tabHotlist": "Hotlist"
+    "tabHotlist": "Hotlist",
+    "signalCountBadge": "{{count}} signals",
+    "seedMeta": "Seed id: {{id}}"
+  },
+  "publicShare": {
+    "queryAria": "Shared snapshot query",
+    "queryDefault": "Shared snapshot",
+    "inThisSnapshot": " in this public snapshot",
+    "snapshotBadge": "Snapshot",
+    "unavailableTitle": "Public share unavailable",
+    "expiredDescription": "This snapshot link has expired or was revoked.",
+    "notFoundTitle": "Public share not found",
+    "notFoundDescription": "The snapshot link does not exist.",
+    "errorDescription": "The snapshot could not be loaded.",
+    "backToApp": "Back to Trends"
   }
 }

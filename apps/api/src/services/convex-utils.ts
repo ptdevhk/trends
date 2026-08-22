@@ -16,6 +16,11 @@ export function isConvexPaginatedQueryPage(value: unknown): value is ConvexPagin
     && typeof value.isDone === "boolean";
 }
 
+export function isConvexResumeIdValidationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Path: .resumeId") && (message.includes('v.id("resumes")') || message.includes('v.id(\\"resumes\\")'));
+}
+
 const CONVEX_RETRY_COUNT = 3;
 const CONVEX_RETRY_DELAY_MS = 1000;
 

@@ -102,11 +102,23 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'dev' }),
 }))
 
-const mockT = (_key: string, fallback?: string) => fallback ?? _key;
+const mockT = (key: string, fallback?: string | Record<string, unknown>) => {
+  if (typeof fallback === 'string') {
+    return fallback
+  }
+  return typeof fallback?.defaultValue === 'string' ? fallback.defaultValue : key
+}
+
+const mockI18n = {
+  language: 'en',
+  languages: ['en', 'zh-Hans', 'zh-Hant'],
+  changeLanguage: () => Promise.resolve(),
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
+    i18n: mockI18n,
   }),
 }))
 

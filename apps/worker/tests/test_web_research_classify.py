@@ -16,6 +16,60 @@ def test_registry_domain():
     assert out["sourceType"] == "registry"
     assert out["trustTier"] == "authoritative"
 
+def test_cn_registry_record_pages_are_authoritative():
+    for url in [
+        "https://shuidi.cn/company-abc.html",
+        "https://shuidi.cn/company-fa1c2560bcf8ef08984e30f96c38966d.html?pa_pids=4489",
+        "https://shuidi.cn/company-fa1c2560bcf8ef08984e30f96c38966d/hall.html",
+        "https://xin.baidu.com/detail/compinfo?pid=abc",
+        "https://www.qcc.com/firm/abc.html",
+        "https://www.tianyancha.com/company/123",
+    ]:
+        out = classify_source(url, "深圳市新汉科技有限公司")
+        assert out == {"sourceType": "registry", "trustTier": "authoritative"}, url
+
+def test_cn_registry_homepages_and_search_landings_are_discovery():
+    # qcc.com/?utm_source=360zrkp is a 360-search landing, not a company
+    # record; fetching it fails and hard-blocks review with
+    # stale_or_failed_source (observed 2026-08-14).
+    for url in [
+        "https://www.qcc.com/?utm_source=360zrkp&utm_query=%E6%B5%8E%E5%8D%97",
+        "https://www.qcc.com/",
+        "https://shuidi.cn/",
+        "https://www.tianyancha.com/",
+        "https://xin.baidu.com/",
+        "https://shuidi.cn/search?key=%E6%B5%8E%E5%8D%97",
+        "https://www.qcc.com/company-list-1.html",
+    ]:
+        out = classify_source(url, "深圳市新汉科技有限公司")
+        assert out == {"sourceType": "search_result", "trustTier": "discovery"}, url
+
+def test_aiqicha_baidu_is_discovery_only():
+    # aiqicha rate-gates anonymous access (access-restriction pages), so it
+    # must never masquerade as an authoritative registry source.
+    out = classify_source(
+        "https://aiqicha.baidu.com/company_detail_123",
+        "深圳市新汉科技有限公司",
+    )
+    assert out == {"sourceType": "search_result", "trustTier": "discovery"}
+
+def test_cn_directory_domains_are_directory_corroborating():
+    for url in [
+        "https://www.jobui.com/company/12893733/",
+        "https://www.zhipin.com/gongsi/abc.html",
+    ]:
+        out = classify_source(url, "深圳市新汉科技有限公司")
+        assert out == {"sourceType": "directory", "trustTier": "corroborating"}, url
+
+def test_cn_reporting_domains_are_reporting_corroborating():
+    for url in [
+        "https://www.36kr.com/p/123",
+        "https://baike.so.com/doc/6301241-6514764.html",
+        "https://www.thepaper.cn/newsDetail_forward_123",
+    ]:
+        out = classify_source(url, "深圳市新汉科技有限公司")
+        assert out == {"sourceType": "reporting", "trustTier": "corroborating"}, url
+
 def test_unknown_domain_is_discovery_search_result():
     out = classify_source(
         "https://random-blog.example/post/123",

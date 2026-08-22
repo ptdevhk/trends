@@ -19,6 +19,7 @@ import {
 } from "@trends/shared";
 
 import {
+  getAdminAccessError,
   getAuthenticatedActorId,
   requireAdmin,
   requireIndustryReviewer,
@@ -27,8 +28,10 @@ import {
 import type { AuthContext } from "../services/auth-types.js";
 import {
   addCompanyAlias,
+  appendMarketPolicy,
   appendWorkspacePolicy,
   listCompanies,
+  listMarketPolicies,
   listWorkspacePolicies,
   seedCanonicalCompanies,
   setCompanyArchived,
@@ -70,7 +73,7 @@ import {
   retryIndustryEvidenceResearch,
 } from "../services/industry-evidence-research-service.js";
 import { callConvexQuery } from "../services/convex-utils.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { verifiedEmployerCatalog } from "../services/verified-employer-catalog-service.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
@@ -399,11 +402,22 @@ app.openapi(archiveCompanyRoute, async (c) => {
   return c.json({ success: true as const, ...result }, 200);
 });
 
+const MarketScopeEnum = z.enum(["cn", "my"]);
+const PolicyErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
+
 const listPoliciesRoute = createRoute({
   method: "get",
   path: "/api/company-policies",
   tags: ["companies"],
-  summary: "List effective workspace company policies",
+  summary: "List effective workspace or market company policies",
+  request: {
+    query: z.object({
+      market: MarketScopeEnum.optional(),
+    }),
+  },
   responses: {
     200: {
       content: {
@@ -411,13 +425,34 @@ const listPoliciesRoute = createRoute({
           schema: z.object({ success: z.literal(true), items: z.array(PolicySchema) }),
         },
       },
-      description: "Workspace company policies",
+      description: "Company policies for the requested scope",
+    },
+    401: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Authentication required",
+    },
+    403: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Admin access required for market scope",
     },
   },
 });
 
 app.openapi(listPoliciesRoute, async (c) => {
-  const items = await listWorkspacePolicies(c.var.workspaceSlug);
+  const { market } = c.req.valid("query");
+  if (market) {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+  }
+  const items = market
+    ? await listMarketPolicies(market)
+    : await listWorkspacePolicies(c.var.workspaceSlug);
   return c.json({ success: true as const, items }, 200);
 });
 
@@ -425,13 +460,14 @@ const appendPolicyRoute = createRoute({
   method: "post",
   path: "/api/company-policies",
   tags: ["companies"],
-  summary: "Append a workspace company policy revision",
+  summary: "Append a workspace or market company policy revision",
   request: {
     body: {
       content: {
         "application/json": {
           schema: z.object({
             companyKey: z.string().min(1),
+            market: MarketScopeEnum.optional(),
             preset: z.enum(["known_good", "no_hire", "none"]).optional(),
             visibility: z.enum(["default", "hide"]).optional(),
             workflow: z.enum(["default", "blocked"]).optional(),
@@ -454,23 +490,53 @@ const appendPolicyRoute = createRoute({
       },
       description: "Policy revision appended",
     },
+    401: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Authentication required",
+    },
+    403: {
+      content: {
+        "application/json": { schema: PolicyErrorResponseSchema },
+      },
+      description: "Admin access required for market scope",
+    },
   },
 });
 
 app.openapi(appendPolicyRoute, async (c) => {
   const body = c.req.valid("json");
+  if (body.market) {
+    const adminError = getAdminAccessError(c);
+    if (adminError) {
+      return c.json(adminError.body, adminError.status);
+    }
+  }
   const actorId = getAuthenticatedActorId(c);
-  const result = await appendWorkspacePolicy({
-    companyKey: body.companyKey,
-    workspaceSlug: c.var.workspaceSlug,
-    createdBy: actorId,
-    preset: body.preset,
-    visibility: body.visibility,
-    workflow: body.workflow,
-    rankingEffect: body.rankingEffect,
-    reasonCodes: body.reasonCodes,
-    summary: body.summary,
-  });
+  const result = body.market
+    ? await appendMarketPolicy({
+        companyKey: body.companyKey,
+        market: body.market,
+        createdBy: actorId,
+        preset: body.preset,
+        visibility: body.visibility,
+        workflow: body.workflow,
+        rankingEffect: body.rankingEffect,
+        reasonCodes: body.reasonCodes,
+        summary: body.summary,
+      })
+    : await appendWorkspacePolicy({
+        companyKey: body.companyKey,
+        workspaceSlug: c.var.workspaceSlug,
+        createdBy: actorId,
+        preset: body.preset,
+        visibility: body.visibility,
+        workflow: body.workflow,
+        rankingEffect: body.rankingEffect,
+        reasonCodes: body.reasonCodes,
+        summary: body.summary,
+      });
   return c.json({ success: true as const, revision: result.revision }, 200);
 });
 
@@ -771,6 +837,8 @@ const listIndustryProposalsRoute = createRoute({
             success: z.literal(true),
             items: z.array(IndustryProposalSchema),
             nextCursor: z.string().optional(),
+            skippedCount: z.number().optional(),
+            skippedProposalIds: z.array(z.string()).optional(),
           }),
         },
       },
@@ -787,6 +855,8 @@ app.openapi(listIndustryProposalsRoute, async (c) => {
       success: true as const,
       items: page.items,
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      skippedCount: page.skippedCount ?? 0,
+      skippedProposalIds: page.skippedProposalIds ?? [],
     },
     200,
   );
@@ -976,6 +1046,8 @@ const listIndustryReviewQueueRoute = createRoute({
             ),
             maintenance: IndustryReviewMaintenanceContextSchema,
             nextCursor: z.string().optional(),
+            skippedCount: z.number().optional(),
+            skippedProposalIds: z.array(z.string()).optional(),
           }),
         },
       },
@@ -1005,6 +1077,7 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
       confidenceBand,
       recommendedAction,
       workspaceSlug: c.var.workspaceSlug,
+      timing: (name, durMs) => c.var.serverTiming.add(name, durMs),
     });
     const companyKeys = Array.from(
       new Set(
@@ -1013,13 +1086,20 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
           .filter((key): key is string => Boolean(key?.trim())),
       ),
     ).slice(0, 200);
+    // CJK company keys (CN registry lanes) are legal Convex values but can
+    // never be object keys in a Convex JSON response, so the impact query
+    // runs on the ASCII-safe projection only. Missing keys resolve to 0 in
+    // the row mapping below.
+    const asciiCompanyKeys = companyKeys.filter((key) =>
+      /^[\x00-\x7F]+$/.test(key),
+    );
     const impact =
-      companyKeys.length > 0
+      asciiCompanyKeys.length > 0
         ? await callConvexQuery(
             "companies:getIndustryResumeImpactByCompanyKey",
             {
-              companyKeys,
-              writeSecret: config.auth.convexWriteSecret,
+              companyKeys: asciiCompanyKeys,
+              writeSecret: getConvexWriteSecret(),
             },
           )
         : {};
@@ -1033,7 +1113,15 @@ app.openapi(listIndustryReviewQueueRoute, async (c) => {
           : 0;
       return { ...item, resumeImpact };
     });
-    return c.json({ ...result, items }, 200);
+    return c.json(
+      {
+        ...result,
+        items,
+        skippedCount: result.skippedCount ?? 0,
+        skippedProposalIds: result.skippedProposalIds ?? [],
+      },
+      200,
+    );
   } catch (error) {
     if (
       error instanceof Error &&
@@ -1545,6 +1633,14 @@ const approveIndustryProposalRoute = createRoute({
       },
       description: "Approved immutable revision",
     },
+    404: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(false), error: z.string() }),
+        },
+      },
+      description: "Proposal not found",
+    },
     409: {
       content: {
         "application/json": { schema: IndustryReviewConflictSchema },
@@ -1578,7 +1674,7 @@ app.openapi(approveIndustryProposalRoute, async (c) => {
     );
     const packet = await getIndustryReviewPacket(proposalId, c.var.workspaceSlug);
     if (!packet) {
-      throw new Error("Industry proposal not found");
+      return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
     }
     const decision = buildIndustryApprovalDecision({
       workspaceSlug: c.var.workspaceSlug,
@@ -2068,7 +2164,7 @@ const startIndustryRecomputeRunRoute = createRoute({
 
 app.openapi(startIndustryRecomputeRunRoute, async (c) => {
   const { workspaceSlug, companyKey } = c.req.valid("json");
-  const proposals = await listIndustryProposals("approved");
+  const proposals = (await listIndustryProposals("approved")).items;
   const proposal = proposals.find(
     (item) =>
       item.companyKey?.toLowerCase() === companyKey.trim().toLowerCase() &&
@@ -2313,7 +2409,7 @@ app.openapi(listIndustryMaintenanceRunsRoute, async (c) => {
     workspaceSlug: c.var.workspaceSlug,
     ...(status ? { status } : {}),
     ...(limit ? { limit } : {}),
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });
@@ -2343,7 +2439,7 @@ app.openapi(getIndustryMaintenanceRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const item = await callConvexQuery("companies:getIndustryMaintenanceRun", {
     runId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, item: item ?? null }, 200);
 });
@@ -2373,7 +2469,7 @@ app.openapi(listIndustryMaintenanceLedgerByRunRoute, async (c) => {
   const { runId } = c.req.valid("param");
   const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
     runId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });
@@ -2403,7 +2499,7 @@ app.openapi(listIndustryMaintenanceLedgerByProposalRoute, async (c) => {
   const { proposalId } = c.req.valid("param");
   const items = await callConvexQuery("companies:listIndustryMaintenanceLedger", {
     proposalId,
-    writeSecret: config.auth.convexWriteSecret,
+    writeSecret: getConvexWriteSecret(),
   });
   return c.json({ success: true as const, items: (items as unknown[]) ?? [] }, 200);
 });

@@ -13,7 +13,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { cn } from '@/lib/utils'
-import { hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
+import { hasWorkspaceAdminAccess, hasWorkspaceIndustryReviewAccess } from '@/lib/workspace-access'
 
 type NavItem = SurfaceNavDefinition & {
   title: string
@@ -39,8 +39,9 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
   const location = useLocation()
-  const { slug, isAdmin } = useWorkspace()
+  const { slug } = useWorkspace()
   const { memberships } = useAuth()
+  const isAdmin = hasWorkspaceAdminAccess(memberships, slug)
   const canReviewIndustryEvidence = hasWorkspaceIndustryReviewAccess(memberships, slug)
   const { t } = useTranslation()
   const metadata = useSystemMetadata()

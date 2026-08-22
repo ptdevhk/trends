@@ -5,15 +5,75 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { changePassword } from '@/lib/auth'
-import { Key } from 'lucide-react'
+import { Eye, EyeOff, Key } from 'lucide-react'
 
 const MIN_PASSWORD_LENGTH = 8
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  showPassword,
+  onToggleShow,
+  ariaInvalid,
+  error,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  autoComplete: string
+  showPassword: boolean
+  onToggleShow: () => void
+  ariaInvalid?: boolean
+  error?: React.ReactNode
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={showPassword ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={ariaInvalid}
+          className="pr-10"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+          aria-label={
+            showPassword
+              ? t('settings.account.hidePassword', { defaultValue: 'Hide password' })
+              : t('settings.account.showPassword', { defaultValue: 'Show password' })
+          }
+          onClick={onToggleShow}
+        >
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
+      </div>
+      {error}
+    </div>
+  )
+}
 
 export function AccountPage() {
   const { t } = useTranslation()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null)
 
@@ -68,63 +128,52 @@ export function AccountPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4 max-w-sm">
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="current-password">
-                {t('settings.account.currentPassword', { defaultValue: 'Current password' })}
-              </label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => {
-                  setCurrentPassword(e.target.value)
-                  setCurrentPasswordError(null)
-                }}
-                aria-invalid={currentPasswordError !== null}
-              />
-              {currentPasswordError && (
-                <p className="text-sm text-destructive">{currentPasswordError}</p>
-              )}
-            </div>
+            <PasswordField
+              id="current-password"
+              label={t('settings.account.currentPassword', { defaultValue: 'Current password' })}
+              value={currentPassword}
+              onChange={(value) => {
+                setCurrentPassword(value)
+                setCurrentPasswordError(null)
+              }}
+              autoComplete="current-password"
+              showPassword={showCurrentPassword}
+              onToggleShow={() => setShowCurrentPassword((v) => !v)}
+              ariaInvalid={currentPasswordError !== null}
+              error={currentPasswordError && <p className="text-sm text-destructive">{currentPasswordError}</p>}
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="new-password">
-                {t('settings.account.newPassword', { defaultValue: 'New password' })}
-              </label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                aria-invalid={tooShort}
-              />
-              {tooShort && (
+            <PasswordField
+              id="new-password"
+              label={t('settings.account.newPassword', { defaultValue: 'New password' })}
+              value={newPassword}
+              onChange={setNewPassword}
+              autoComplete="new-password"
+              showPassword={showNewPassword}
+              onToggleShow={() => setShowNewPassword((v) => !v)}
+              ariaInvalid={tooShort}
+              error={tooShort && (
                 <p className="text-sm text-destructive">
                   {t('settings.account.passwordTooShort', { defaultValue: 'Password must be at least 8 characters' })}
                 </p>
               )}
-            </div>
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="confirm-password">
-                {t('settings.account.confirmPassword', { defaultValue: 'Confirm new password' })}
-              </label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                aria-invalid={mismatch}
-              />
-              {mismatch && (
+            <PasswordField
+              id="confirm-password"
+              label={t('settings.account.confirmPassword', { defaultValue: 'Confirm new password' })}
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              autoComplete="new-password"
+              showPassword={showConfirmPassword}
+              onToggleShow={() => setShowConfirmPassword((v) => !v)}
+              ariaInvalid={mismatch}
+              error={mismatch && (
                 <p className="text-sm text-destructive">
                   {t('settings.account.passwordsDoNotMatch', { defaultValue: 'Passwords do not match' })}
                 </p>
               )}
-            </div>
+            />
 
             <Button type="submit" disabled={!canSubmit}>
               <Key className="mr-2 h-4 w-4" />

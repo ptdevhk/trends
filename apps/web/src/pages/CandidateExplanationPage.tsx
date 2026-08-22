@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { rawApiClient } from '@/lib/api-helpers'
+import { isModEnterKey } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -116,10 +117,20 @@ function AppealForm({ resumeId, identityKey }: { resumeId: string; identityKey: 
         placeholder={t('appeal.placeholder', { defaultValue: 'Optional: explain why you believe this decision should be reviewed...' })}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
+        onKeyDown={(e) => {
+          if (isModEnterKey(e)) {
+            e.preventDefault()
+            void handleSubmit()
+          }
+        }}
         rows={3}
         maxLength={2000}
         data-testid="appeal-reason"
       />
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{t('appeal.shortcutHint', { defaultValue: 'Ctrl/⌘ + Enter to submit' })}</span>
+        <span data-testid="appeal-character-count">{reason.length}/2000</span>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button
         onClick={handleSubmit}
@@ -140,7 +151,7 @@ export function CandidateExplanationPage() {
   const [searchParams] = useSearchParams()
   const workspaceSlug = searchParams.get('workspace') ?? ''
 
-  const { data, loading, error } = useExplanation(resumeId, workspaceSlug)
+  const { data, loading, error, reload } = useExplanation(resumeId, workspaceSlug)
 
   if (!resumeId || !workspaceSlug) {
     return (
@@ -184,7 +195,7 @@ export function CandidateExplanationPage() {
                 defaultValue: 'We could not load the explanation for this application. Please try again later.',
               })}
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+            <Button variant="outline" className="mt-4" onClick={reload}>
               {t('common.retry', { defaultValue: 'Retry' })}
             </Button>
           </CardContent>

@@ -1,0 +1,23 @@
+{
+  "schema_version": "dev-loop-config-lint.v1",
+  "generated_at": "2026-08-18T01:07:54.780Z",
+  "read_only": true,
+  "project": {
+    "slug": "trends",
+    "repo": "/root/workspace"
+  },
+  "overall": {
+    "state": "healthy",
+    "errors": 0,
+    "warnings": 0
+  },
+  "config_path": "/root/workspace/.claude/dev-loop.config.md",
+  "findings": [],
+  "infos": [
+    {
+      "code": "template_missing",
+      "message": "project-config template not found in repo (skipped structural compare)"
+    }
+  ],
+  "recommendations": []
+}

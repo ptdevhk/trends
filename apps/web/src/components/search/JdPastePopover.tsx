@@ -1,5 +1,7 @@
 import { Loader2, WandSparkles } from 'lucide-react'
+import { isImeComposition } from '@/lib/utils'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -21,6 +23,7 @@ export function JdPastePopover({
   onApplyKeywords,
   onClose,
 }: JdPastePopoverProps) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -28,7 +31,7 @@ export function JdPastePopover({
   const submit = async () => {
     const trimmedValue = value.trim()
     if (!trimmedValue) {
-      setError('Paste a job description first')
+      setError(t('resumes.searchPage.jdPaste.emptyError', { defaultValue: 'Paste a job description first' }))
       return
     }
 
@@ -44,12 +47,12 @@ export function JdPastePopover({
     setLoading(false)
 
     if (requestError || !data?.success) {
-      setError('Failed to extract keywords from the job description')
+      setError(t('resumes.searchPage.jdPaste.extractError', { defaultValue: 'Failed to extract keywords from the job description' }))
       return
     }
 
     if (!data.keywords || data.keywords.length === 0) {
-      setError('No useful keywords were extracted')
+      setError(t('resumes.searchPage.jdPaste.noKeywordsError', { defaultValue: 'No useful keywords were extracted' }))
       return
     }
 
@@ -64,10 +67,10 @@ export function JdPastePopover({
       <div className="border-b px-5 py-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
           <WandSparkles className="h-4 w-4 text-amber-600" />
-          Paste JD to extract keywords
+          {t('resumes.searchPage.jdPaste.title', { defaultValue: 'Paste JD to extract keywords' })}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          We only extract search terms. Nothing is written back to the job description.
+          {t('resumes.searchPage.jdPaste.description', { defaultValue: 'We only extract search terms. Nothing is written back to the job description.' })}
         </p>
       </div>
 
@@ -76,9 +79,13 @@ export function JdPastePopover({
           autoFocus
           value={value}
           className={compact ? 'min-h-[180px]' : 'min-h-[220px]'}
-          placeholder="Paste the job description text here to extract role, product, and domain keywords."
+          placeholder={t('resumes.searchPage.jdPaste.placeholder', { defaultValue: 'Paste the job description text here to extract role, product, and domain keywords.' })}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
+            // Ignore IME composition key events (e.g. Enter confirming a Chinese candidate).
+            if (isImeComposition(event)) {
+              return
+            }
             if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
               event.preventDefault()
               void submit()
@@ -99,20 +106,22 @@ export function JdPastePopover({
 
         <div className="flex items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
-            Tip: use <span className="font-medium">Ctrl/Cmd + Enter</span> to extract.
+            {t('resumes.searchPage.jdPaste.tipPrefix', { defaultValue: 'Tip: use' })}{' '}
+            <span className="font-medium">Ctrl/Cmd + Enter</span>{' '}
+            {t('resumes.searchPage.jdPaste.tipSuffix', { defaultValue: 'to extract.' })}
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Cancel
+              {t('resumes.searchPage.jdPaste.cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button type="button" onClick={() => void submit()} disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Extracting...
+                  {t('resumes.searchPage.jdPaste.extracting', { defaultValue: 'Extracting...' })}
                 </>
               ) : (
-                'Extract keywords'
+                t('resumes.searchPage.jdPaste.extract', { defaultValue: 'Extract keywords' })
               )}
             </Button>
           </div>

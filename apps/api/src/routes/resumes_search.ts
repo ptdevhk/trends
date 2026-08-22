@@ -35,6 +35,8 @@ import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { listCandidateBlocks } from "../services/candidate-block-service.js";
+import { getIndustryReviewAccessError } from "../middleware/auth.js";
+import { ResumePolicyEnforcer } from "../services/resume-policy-enforcer.js";
 import {
   buildResumeIngestData,
   toOptionalNumber,
@@ -773,6 +775,7 @@ app.openapi(getResumesRoute, (c) => {
     minMatchScore,
     recommendation,
     showBlocked,
+    includeHidden,
     sortBy,
     sortOrder,
     sessionId,
@@ -1006,6 +1009,51 @@ app.openapi(getResumesRoute, (c) => {
         }
         } // end if (prepared.length === 0 && !hybridSearchMode)
 
+        // Load match context before local filtering so minScore can be
+        // enforced uniformly on every path below (F5).
+        const needsMatchContext = Boolean(
+          resolvedJobId
+          && (minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0 || sortBy === "score")
+        );
+
+        if (!matchMap && needsMatchContext && resolvedJobId) {
+          matchMap = loadResumeMatchContextMap(
+            matchStorage,
+            resolvedJobId,
+            prepared.map((item) => item.resumeId),
+          );
+        }
+
+        // F5: minScore must apply on all paths. The pre-paged match path
+        // (usesPrePagedMatchResults) skips the working-set filter below, so
+        // minScore is enforced here keyed by candidate resumeId, which matches
+        // the matchMap key space on every path. Idempotent when prep already
+        // filtered server-side. Without a resolved JD there are no scores, so
+        // minScore is a no-op by design (scores only exist against a JD).
+        if (minMatchScore !== undefined && matchMap) {
+          prepared = prepared.filter((candidate) => {
+            const match = matchMap?.get(candidate.resumeId);
+            return match && match.score >= minMatchScore;
+          });
+        }
+        // Same cross-path enforcement for recommendation filters: the pre-paged
+        // keyword/match-storage paths already filtered server-side, so this is
+        // idempotent there; it closes the gap on the fallback paths where the
+        // working-set filter is skipped.
+        if (normalizedRecommendations?.length && matchMap) {
+          const allowed = new Set(normalizedRecommendations);
+          prepared = prepared.filter((candidate) => {
+            const match = matchMap?.get(candidate.resumeId);
+            return match && allowed.has(match.recommendation);
+          });
+        }
+
+        const canReadHidden = includeHidden === true && getIndustryReviewAccessError(c) === null;
+        if (!canReadHidden && prepared.length > 0) {
+          const policyEnforcer = await ResumePolicyEnforcer.load(workspaceSlug);
+          prepared = prepared.filter((candidate) => !policyEnforcer.evaluate(candidate.resume).hidden);
+        }
+
         // When the cursor scan path already applied filters server-side via
         // Convex's matchesResumeListFilters, skip redundant local filtering
         // for those filter fields that Convex already handled. Local filtering
@@ -1021,33 +1069,15 @@ app.openapi(getResumesRoute, (c) => {
         const enriched = filtered.map((item, index) => ({
           resume: item,
           id: resolveResumeId(item, index),
+          resumeId: typeof item.resumeId === "string" ? item.resumeId : undefined,
         }));
-
-        const needsMatchContext = Boolean(
-          resolvedJobId
-          && (minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0 || sortBy === "score")
-        );
-
-        if (!matchMap && needsMatchContext && resolvedJobId) {
-          matchMap = loadResumeMatchContextMap(
-            matchStorage,
-            resolvedJobId,
-            prepared.map((item) => item.resumeId),
-          );
-        }
 
         let working = enriched;
         if (!usesPrePagedMatchResults && matchMap) {
-          if (minMatchScore !== undefined) {
-            working = working.filter((item) => {
-              const match = matchMap?.get(item.id);
-              return match && match.score >= minMatchScore;
-            });
-          }
           if (normalizedRecommendations?.length) {
             const allowed = new Set(normalizedRecommendations);
             working = working.filter((item) => {
-              const match = matchMap?.get(item.id);
+              const match = matchMap?.get(item.resumeId ?? item.id);
               return match && allowed.has(match.recommendation);
             });
           }
@@ -1059,8 +1089,8 @@ app.openapi(getResumesRoute, (c) => {
 
           working = [...working].sort((a, b) => {
             if (sortBy === "score") {
-              const scoreA = matchMap?.get(a.id)?.score ?? -1;
-              const scoreB = matchMap?.get(b.id)?.score ?? -1;
+              const scoreA = matchMap?.get(a.resumeId ?? a.id)?.score ?? -1;
+              const scoreB = matchMap?.get(b.resumeId ?? b.id)?.score ?? -1;
               return (scoreA - scoreB) * direction;
             }
             if (sortBy === "experience") {
@@ -1182,6 +1212,7 @@ app.openapi(getResumesRoute, (c) => {
     const enriched = filtered.map((item, index) => ({
       resume: item,
       id: resolveResumeId(item, index),
+      resumeId: typeof item.resumeId === "string" ? item.resumeId : undefined,
       relevanceScore: item.relevanceScore,
     }));
 
@@ -1193,7 +1224,7 @@ app.openapi(getResumesRoute, (c) => {
 
     if (needsMatchContext && resolvedJobId) {
       const matches = matchStorage.getMatchesByResumeIds(
-        enriched.map((item) => item.id),
+        enriched.map((item) => item.resumeId ?? item.id),
         resolvedJobId
       );
       matchMap = new Map(matches.map((match) => [match.resumeId, match]));
@@ -1203,14 +1234,14 @@ app.openapi(getResumesRoute, (c) => {
     if (matchMap) {
       if (minMatchScore !== undefined) {
         working = working.filter((item) => {
-          const match = matchMap?.get(item.id);
+          const match = matchMap?.get(item.resumeId ?? item.id);
           return match && match.score >= minMatchScore;
         });
       }
       if (recommendation?.length) {
         const allowed = new Set(recommendation);
         working = working.filter((item) => {
-          const match = matchMap?.get(item.id);
+          const match = matchMap?.get(item.resumeId ?? item.id);
           return match && allowed.has(match.recommendation);
         });
       }
@@ -1222,8 +1253,8 @@ app.openapi(getResumesRoute, (c) => {
 
       working = [...working].sort((a, b) => {
         if (sortBy === "score") {
-          const scoreA = matchMap?.get(a.id)?.score ?? -1;
-          const scoreB = matchMap?.get(b.id)?.score ?? -1;
+          const scoreA = matchMap?.get(a.resumeId ?? a.id)?.score ?? -1;
+          const scoreB = matchMap?.get(b.resumeId ?? b.id)?.score ?? -1;
           return (scoreA - scoreB) * direction;
         }
         if (sortBy === "experience") {

@@ -138,6 +138,9 @@ export function ResumeList() {
     getAiFeedback,
     ratingsByResume,
     commentsByResume,
+    overridesByKey,
+    setOverride,
+    removeOverride,
   } = useResumeListState(historyRequested)
   useEffect(() => {
     if (!activeLoading) {
@@ -152,19 +155,22 @@ export function ResumeList() {
   const resolveListResumeEmployers = useCallback(
     (entry: { resume: ResumeItem | ConvexResumeItem }) => {
       const ingest = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+      const resume = entry.resume as { workHistory?: ResumeItem['workHistory']; identityKey?: string; externalId?: string }
       return {
-        workHistory: entry.resume.workHistory,
+        workHistory: resume.workHistory,
         companyHits: ingest?.companyHits,
+        identityKey: resume.identityKey?.trim() || resume.externalId,
       }
     },
     [],
   )
+  const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
   const {
     visibleItems: displayedResumes,
     hiddenCount: companyPolicyHiddenCount,
     showHidden: showCompanyPolicyHidden,
     setShowHidden: setShowCompanyPolicyHidden,
-  } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers)
+  } = useCompanyPolicyListFilter(displayedResumesRaw, resolveListResumeEmployers, policyOverrides)
 
   const policyVisibleKeys = useMemo(
     () => new Set(displayedResumes.map((entry) => entry.key)),
@@ -183,6 +189,16 @@ export function ResumeList() {
     () => displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length,
     [displayedResumes],
   )
+  const hasActiveFilters = useMemo(() => {
+    if (activeTagFilters.size > 0) return true
+    if (activeCompanyFilters.size > 0) return true
+    if (selectedExperienceLevel) return true
+    return Object.entries(filters).some(([key, value]) => {
+      if (key === 'sortBy' || key === 'sortOrder' || key === 'showBlocked') return false
+      if (Array.isArray(value)) return value.length > 0
+      return value !== undefined && value !== null
+    })
+  }, [activeTagFilters, activeCompanyFilters, selectedExperienceLevel, filters])
   const handleSelectAllVisible = useCallback(() => {
     replaceSelection(displayedResumes.map((entry) => entry.key))
   }, [displayedResumes, replaceSelection])
@@ -209,6 +225,11 @@ export function ResumeList() {
     if (!detailResume) return undefined
     return buildResumeKey(detailResume, 0)
   }, [detailResume])
+
+  const detailIdentityKey = useMemo(() => {
+    if (!detailKey) return undefined
+    return displayedResumes.find((entry) => entry.key === detailKey)?.identityKey
+  }, [detailKey, displayedResumes])
 
   const detailMatch = useMemo(() => {
     if (!detailKey) return undefined
@@ -392,6 +413,8 @@ export function ResumeList() {
         isReviewed={reviewedIdsSet.has(entry.key)}
         aiScoreFeedback={getAiFeedback(entry.key, 'ai_score')}
         onAiFeedback={(target, sentiment) => handleAiFeedback(entry.key, target, sentiment)}
+        policyOverrides={policyOverrides}
+        resumeIdentity={entry.identityKey}
       />
     )
   }
@@ -601,6 +624,12 @@ export function ResumeList() {
             icon={FileText}
             title={t('resumes.noResumes', 'No resumes found')}
             description={t('resumes.noResumesDesc', 'Try adjusting your filters or search keywords.')}
+            action={hasActiveFilters ? (
+              <Button variant="outline" size="sm" onClick={handleResetAll} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                {t('resumes.searchPage.results.clearFilters', { defaultValue: '清除筛选' })}
+              </Button>
+            ) : undefined}
           />
         ) : (
           <>
@@ -682,6 +711,10 @@ export function ResumeList() {
             onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
             userRating={detailKey ? ratingsByResume[detailKey] : undefined}
             onRating={detailKey ? (rating) => handleRating(detailKey, rating) : undefined}
+            policyOverrides={policyOverrides}
+            resumeIdentity={detailIdentityKey}
+            onSetOverride={setOverride}
+            onRemoveOverride={removeOverride}
           />
         </Suspense>
       ) : null}

@@ -47,15 +47,27 @@ type ListResponse<T> = {
   items?: T[]
 }
 
+export type PolicyScope = 'workspace' | 'cn' | 'my'
+
 type CompanyPolicyCache = {
   companies: CompanyItem[]
   policies: CompanyPolicyItem[]
+  /** Market-scoped policy rows, keyed by lowercase market id (T5). */
+  marketPolicies: { cn: CompanyPolicyItem[]; my: CompanyPolicyItem[] }
   loadedAt: number
 }
 
-/** Module cache so list cards share one fetch per workspace session. */
-let cache: CompanyPolicyCache | null = null
-let inflight: Promise<CompanyPolicyCache | null> | null = null
+/**
+ * Module cache so list cards share one fetch per workspace session. Keyed by
+ * mode so a restricted (non-admin) load never pollutes the admin cache and
+ * vice versa — otherwise a role switch would surface stale market layers.
+ */
+type CacheMode = 'full' | 'restricted'
+const caches: Record<CacheMode, CompanyPolicyCache | null> = { full: null, restricted: null }
+const inflights: Record<CacheMode, Promise<CompanyPolicyCache | null> | null> = {
+  full: null,
+  restricted: null,
+}
 const listeners = new Set<() => void>()
 
 function notifyListeners() {
@@ -64,13 +76,38 @@ function notifyListeners() {
   }
 }
 
-async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
+async function fetchCompanyPolicyData(includeMarkets: boolean): Promise<CompanyPolicyCache | null> {
   try {
-    const [companiesResult, policiesResult] = await Promise.all([
+    if (!includeMarkets) {
+      const [companiesResult, policiesResult] = await Promise.all([
+        // Archived companies are hidden by default server-side; the companies
+        // tab opts in so operators can restore them.
+        rawApiClient.GET<ListResponse<CompanyItem>>('/api/companies?includeArchived=true'),
+        rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies'),
+      ])
+
+      if (companiesResult.error || !companiesResult.data?.success) {
+        return null
+      }
+      if (policiesResult.error || !policiesResult.data?.success) {
+        return null
+      }
+
+      return {
+        companies: Array.isArray(companiesResult.data.items) ? companiesResult.data.items : [],
+        policies: Array.isArray(policiesResult.data.items) ? policiesResult.data.items : [],
+        marketPolicies: { cn: [], my: [] },
+        loadedAt: Date.now(),
+      }
+    }
+
+    const [companiesResult, policiesResult, cnPoliciesResult, myPoliciesResult] = await Promise.all([
       // Archived companies are hidden by default server-side; the companies
       // tab opts in so operators can restore them.
       rawApiClient.GET<ListResponse<CompanyItem>>('/api/companies?includeArchived=true'),
       rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies'),
+      rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies?market=cn'),
+      rawApiClient.GET<ListResponse<CompanyPolicyItem>>('/api/company-policies?market=my'),
     ])
 
     if (companiesResult.error || !companiesResult.data?.success) {
@@ -79,10 +116,30 @@ async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
     if (policiesResult.error || !policiesResult.data?.success) {
       return null
     }
+    // Market-scope reads are admin-only (T5); non-admins get 403, which is
+    // treated as an empty market layer rather than a hard failure.
+    if (cnPoliciesResult.error && cnPoliciesResult.response?.status !== 403) {
+      return null
+    }
+    if (myPoliciesResult.error && myPoliciesResult.response?.status !== 403) {
+      return null
+    }
+
+    const cnPolicies = cnPoliciesResult.error
+      ? []
+      : Array.isArray(cnPoliciesResult.data?.items)
+        ? cnPoliciesResult.data.items
+        : []
+    const myPolicies = myPoliciesResult.error
+      ? []
+      : Array.isArray(myPoliciesResult.data?.items)
+        ? myPoliciesResult.data.items
+        : []
 
     return {
       companies: Array.isArray(companiesResult.data.items) ? companiesResult.data.items : [],
       policies: Array.isArray(policiesResult.data.items) ? policiesResult.data.items : [],
+      marketPolicies: { cn: cnPolicies, my: myPolicies },
       loadedAt: Date.now(),
     }
   } catch {
@@ -90,31 +147,37 @@ async function fetchCompanyPolicyData(): Promise<CompanyPolicyCache | null> {
   }
 }
 
-async function loadShared(force = false): Promise<CompanyPolicyCache | null> {
-  if (!force && cache) {
-    return cache
+async function loadShared(force = false, includeMarkets = true): Promise<CompanyPolicyCache | null> {
+  const mode: CacheMode = includeMarkets ? 'full' : 'restricted'
+  if (!force && caches[mode]) {
+    return caches[mode]
   }
-  if (!force && inflight) {
-    return inflight
+  if (!force && inflights[mode]) {
+    return inflights[mode]
   }
 
-  inflight = (async () => {
-    const next = await fetchCompanyPolicyData()
+  inflights[mode] = (async () => {
+    const next = await fetchCompanyPolicyData(includeMarkets)
     if (next) {
-      cache = next
+      caches[mode] = next
       notifyListeners()
     }
-    inflight = null
+    inflights[mode] = null
     return next
   })()
 
-  return inflight
+  return inflights[mode]
 }
 
-export function useCompanyPolicies(enabled: boolean = true) {
-  const [companies, setCompanies] = useState<CompanyItem[]>(cache?.companies ?? [])
-  const [policies, setPolicies] = useState<CompanyPolicyItem[]>(cache?.policies ?? [])
-  const [loading, setLoading] = useState(enabled && !cache)
+export function useCompanyPolicies(enabled: boolean = true, includeMarkets: boolean = true) {
+  const mode: CacheMode = includeMarkets ? 'full' : 'restricted'
+  const [companies, setCompanies] = useState<CompanyItem[]>(caches[mode]?.companies ?? [])
+  const [policies, setPolicies] = useState<CompanyPolicyItem[]>(caches[mode]?.policies ?? [])
+  const [marketPolicies, setMarketPolicies] = useState<{
+    cn: CompanyPolicyItem[]
+    my: CompanyPolicyItem[]
+  }>(caches[mode]?.marketPolicies ?? { cn: [], my: [] })
+  const [loading, setLoading] = useState(enabled && !caches[mode])
   const [error, setError] = useState<string | null>(null)
 
   const applyCache = useCallback((next: CompanyPolicyCache | null) => {
@@ -123,6 +186,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
     }
     setCompanies(next.companies)
     setPolicies(next.policies)
+    setMarketPolicies(next.marketPolicies)
   }, [])
 
   const load = useCallback(async (force = false) => {
@@ -133,7 +197,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
     }
     setLoading(true)
     setError(null)
-    const next = await loadShared(force)
+    const next = await loadShared(force, includeMarkets)
     if (!next) {
       setError('Failed to load company policies')
       setLoading(false)
@@ -141,15 +205,16 @@ export function useCompanyPolicies(enabled: boolean = true) {
     }
     applyCache(next)
     setLoading(false)
-  }, [applyCache, enabled])
+  }, [applyCache, enabled, includeMarkets])
 
   useEffect(() => {
     if (!enabled) {
       return
     }
     const listener = () => {
-      if (cache) {
-        applyCache(cache)
+      const current = caches[includeMarkets ? 'full' : 'restricted']
+      if (current) {
+        applyCache(current)
       }
     }
     listeners.add(listener)
@@ -157,7 +222,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
     return () => {
       listeners.delete(listener)
     }
-  }, [applyCache, enabled, load])
+  }, [applyCache, enabled, includeMarkets, load])
 
   const seedCanonical = useCallback(
     async (seedNoHireForWorkspace: boolean = true) => {
@@ -243,7 +308,12 @@ export function useCompanyPolicies(enabled: boolean = true) {
   )
 
   const setPolicyPreset = useCallback(
-    async (companyKey: string, preset: CompanyPolicyPreset, summary?: string) => {
+    async (
+      companyKey: string,
+      preset: CompanyPolicyPreset,
+      summary?: string,
+      scope: PolicyScope = 'workspace',
+    ) => {
       const { data, error: apiError } = await rawApiClient.POST<{
         success: boolean
         revision?: number
@@ -252,6 +322,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
           companyKey,
           preset,
           ...(summary ? { summary } : {}),
+          ...(scope === 'cn' || scope === 'my' ? { market: scope } : {}),
         },
       })
       if (apiError || !data?.success) {
@@ -267,6 +338,7 @@ export function useCompanyPolicies(enabled: boolean = true) {
   return {
     companies,
     policies,
+    marketPolicies,
     loading,
     error,
     load: () => load(true),

@@ -107,7 +107,8 @@ WEB_RESEARCH_ENABLED=1
 
 Provider keys are optional. The provider chain and query pack depend on the target market, selected with `WEB_RESEARCH_MARKET` in `.env` (default `cn` — internal users are China users; CN is the product core):
 
-- **CN (product core)** — the default; operators may set `WEB_RESEARCH_MARKET=cn` explicitly to confirm. Internal users are China users, so this is the market for attended employer-discovery runs. The chain is NewsNow (ourongxing/newsnow-compatible upstream, `https://newsnow.busiyi.world/api/s?id=<platform>&latest` with a browser UA + Referer) → DuckDuckGo → Google News RSS. NewsNow hotlists (zhihu, weibo, baidu, toutiao, thepaper) are not keyword-searchable upstream: the worker fetches each platform's hotlist and filters items client-side by employer tokens, so recall is hotlist-bounded — a hot employer story surfaces the same day, but a cold employer may return nothing. The CN query pack is `<surface> 公司` / `<surface> 机床` / `<surface> 数控`.
+- **CN (product core)** — the default; operators may set `WEB_RESEARCH_MARKET=cn` explicitly to confirm. Internal users are China users, so this is the market for attended employer-discovery runs. The chain is So360 (`so.com` keyword search, `WEB_RESEARCH_360_ENABLED=1` default-on) → NewsNow (ourongxing/newsnow-compatible upstream, `https://newsnow.busiyi.world/api/s?id=<platform>&latest` with a browser UA + Referer) → DuckDuckGo → Google News RSS. So360 is the primary CN provider: it parses `so.com` result pages, resolves meta-refresh redirects, and feeds shuidi.cn company-record pages into the registry lane. NewsNow hotlists (zhihu, weibo, baidu, toutiao, thepaper) are not keyword-searchable upstream: the worker fetches each platform's hotlist and filters items client-side by employer tokens, so recall is hotlist-bounded — a hot employer story surfaces the same day, but a cold employer may return nothing. The CN query pack is `<surface> 公司` / `<surface> 机床` / `<surface> 数控`.
+- **CN registry lane** — shuidi.cn, qcc.com, tianyancha.com, and xin.baidu.com are classified as `registry`/`authoritative` **only** for company-record URLs (path patterns: `/company-<hex>.html`, `/firm/`, `/company/<id>`, `/detail/compinfo`). Homepages and 360-search landings (e.g. `qcc.com/?utm_source=360zrkp`) are `search_result`/`discovery` — they fail fetch and would hard-block review with `stale_or_failed_source` if misclassified (observed and fixed 2026-08-14). aiqicha.baidu.com is always discovery (rate-gates anonymous access).
 - **MY (additional case)** — opt in with `WEB_RESEARCH_MARKET=my`. Without keys, the chain is the free DuckDuckGo HTML endpoint followed by the Google News RSS search endpoint — both zero-key dev defaults, use them gently. DuckDuckGo may be bot-walled (CAPTCHA) from some networks, in which case it returns zero results and the chain soft-fails onward to Google News RSS, which returns reporting-tier news hits classified against MY/SG and global business press domains. The MY query pack is `<surface> Malaysia` / `<surface> CNC machine` / `<surface> machinery`.
 
 The NewsNow upstream base URL is the same `RESEARCH_HOTLIST_API_URL` override used by hotlist news ingest — point it at a self-hosted newsnow / TrendRadar instance to change both in one place; no second env var.
@@ -243,9 +244,12 @@ bun run verify:industry-review-uat -- --base-url http://localhost:3000
 
 # Namespaced local setup only. This refuses non-loopback Convex URLs and requires
 # CONVEX_WRITE_SECRET; it writes an ignored before-snapshot under tmp/.
+# --workspace overrides the default 'dev' fixture workspace (e.g. --workspace hr).
 bun --env-file=.env.local run setup:industry-review-uat -- --allow-local-write
 
 # Browser path reaches confirmation but intercepts approval, so it cannot mutate truth.
+# --workspace defaults to 'hr' (the reviewer workspace route); pass --workspace dev to
+# run against the dev workspace. Row selection uses data-testid (locale-independent).
 bun run verify:industry-review-browser-uat -- --storage-state tmp/industry-review/browser-state.json
 
 # After one attended approval in the authenticated local UI, verify coverage,
@@ -258,6 +262,34 @@ fixture. There is no setup reset or cleanup command: preserve the namespaced evi
 the before-snapshot, and the post-UAT report for review. The CLI remains read-only;
 `trends industry recommend` consumes the recommendation-only endpoint and cannot
 approve, reject, or bulk-mutate industry truth.
+
+#### Fixture company mapping (CN, 2026-08-14)
+
+The `companyKeyByCase` block in `scripts/industry-review/fixtures/cnc-review-cases.json`
+is a local-environment binding: it must point at companies that already exist in the
+local Convex registry with no open proposal. The mapping was rebound from the original
+MY bootstrap companies (adastream-sdn-bhd, airtac-industrial-malaysia-sdn-bhd,
+alps-electric, amerix-metal-machining-technology, anoz-aluminiumsuzhoucoltd,
+autoveyor-malaysia-sdn-bhd) to the CN registry lane:
+
+| Case | Local company | Why |
+|---|---|---|
+| explicit-cnc (manual approval) | `polywell` | Zero resume links + zero prior verdict revisions → recompute reaches terminal and verified-profile delta is exactly +1 |
+| keyword-only | `pro-technic-machinery` | Canonical CNC machine-tool distributor |
+| discovery-only | `candidate-a863a82c…` (济南创开电气) | Provisional electrical-equipment company |
+| stale-source | `上海易初电线电缆有限公司` | Already-verified industrial; "previous catalog unavailable" narrative |
+| conflict | `candidate-493dce82…` (宁波中大力德) | Reducer/transmission maker sits between CNC and automation |
+| worker-failure | `米思米中国精密机械贸易有限公司` | Maintenance-only case; carries corpus links (unused by this case) |
+
+Rebinding rules of thumb (enforced by the harness): the mapped company must (1) exist
+in `companies:list`, (2) have no open proposal with a different proposalId
+(`setup-local-uat.ts` fails otherwise), (3) have **no verified industry profile** for
+the manual-approval case (approval patches the profile in place, so a pre-existing
+profile makes the post-UAT verified-profile delta 0), and (4) be findable by the
+browser UAT (row selection now uses the row's `data-testid`; a company with zero
+corpus links keeps the recompute run clean). Avoid companies whose resumes carry
+real corpus links for the manual case — the recompute re-ingest can stall on
+`industry_evidence_company_link_missing` targets.
 
 ### Reading the ledger to debug "why didn't employer X surface?"
 
@@ -450,6 +482,23 @@ hint explicitly on action failure instead of a bare 500.
 scanned window and `scanComplete = !hasMore` — an incomplete window
 understates the true stale population and is called out in doctor messages and
 by `deploy/search-freshness-gate.sh`.
+
+**Shared-corpus workspace routing (2026-08-14):** shared-corpus resumes
+(collected via 51job/job5156/seek crawlers) carry no `workspaceSlug` — their
+owning workspace lives in `resume_digest_statuses` (the workspace-scoped
+candidate status overlay). The link writers (`upsertCompanyResumeLinkForCompany`
+and `replaceCompanyResumeLinksForResume`) resolve owning workspace(s) from that
+table when the resume doc has none, and write one link per owning workspace.
+Without this, links for shared-corpus resumes always landed in the default
+workspace (`dev`) and per-workspace recomputes no-oped for every other
+workspace — observed on the CN lane: hr-workspace approvals showed
+`affectedCount: 0` and `withVerifiedEvidence` never advanced.
+
+**Sweep includes unmapped ready proposals (2026-08-14):** the maintenance sweep
+researches `ready_for_review` proposals that have no `companyKey`, so
+identity-candidate extraction runs against stored evidence on every sweep
+(candidates are only built during research). Mapped ready proposals are
+reviewable as-is and are skipped to avoid fetch churn every round.
 
 ## Rollback
 

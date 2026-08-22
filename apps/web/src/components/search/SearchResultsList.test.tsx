@@ -179,6 +179,142 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
   })
 
+  it('shows the keyboard hint when results exist', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resume-keyboard-hint')).toHaveTextContent(/J\/K|J\/K move/i)
+    expect(screen.getByTestId('resume-keyboard-hint')).toHaveTextContent(/O detail/i)
+  })
+
+  it('omits the keyboard hint when there are no results', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('resume-keyboard-hint')).not.toBeInTheDocument()
+  })
+
+  it('renders empty-state quick reset actions that clear the query and filters', () => {
+    const onClearQuery = vi.fn()
+    const onClearFilters = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        onClearQuery={onClearQuery}
+        onClearFilters={onClearFilters}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /清除搜索|Clear search/i }))
+    expect(onClearQuery).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /清除筛选|Clear filters/i }))
+    expect(onClearFilters).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders active-filter chip row above results when onClearQuery/onClearFilters provided', () => {
+    const onClearQuery = vi.fn()
+    const onClearFilters = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        onClearQuery={onClearQuery}
+        onClearFilters={onClearFilters}
+      />
+    )
+    expect(screen.getByTestId('resume-active-filter-chips')).toBeInTheDocument()
+    expect(screen.getByTestId('resume-clear-query-chip')).toBeInTheDocument()
+    expect(screen.getByTestId('resume-clear-filters-chip')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('resume-clear-query-chip'))
+    expect(onClearQuery).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByTestId('resume-clear-filters-chip'))
+    expect(onClearFilters).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits active-filter chip row when no handlers provided', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+    expect(screen.queryByTestId('resume-active-filter-chips')).not.toBeInTheDocument()
+  })
+
+  it('omits the empty-state quick reset actions when no handlers are provided', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /清除搜索|Clear search/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /清除筛选|Clear filters/i })).not.toBeInTheDocument()
+  })
+
+  it('renders an explicit search-failure panel with retry instead of the empty state', () => {
+    const onRetrySearch = vi.fn()
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        searchFailed
+        onRetrySearch={onRetrySearch}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('没有符合该搜索条件的简历')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resume-search-failed-panel')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /重试|Retry|retry/i }))
+    expect(onRetrySearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the empty state when searchFailed but results exist', () => {
+    const { container } = render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[createItem(0)]}
+        searchFailed
+        onRetrySearch={vi.fn()}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('resume-search-failed-panel')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-result-index="0"]')).not.toBeNull()
+  })
+
   it('guides a system admin to attended evidence review when results contain legacy rules signals', () => {
     useAuthMock.mockReturnValue({
       memberships: [{ workspaceSlug: 'dev', role: 'admin' }],
@@ -433,6 +569,55 @@ describe('SearchResultsList', () => {
     await waitFor(() => {
       expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
     })
+  })
+
+  it('opens the detail pane with the O key after focusing a result', async () => {
+    const item = createItem(0)
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[item]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'o' })
+    await waitFor(() => {
+      expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
+    })
+  })
+
+  it('does not open the detail pane when O is pressed while typing in an input', async () => {
+    const item = createItem(0)
+    vi.mocked(useConvexResumeDetail).mockReturnValue({
+      resume: item.resume as unknown as ReturnType<typeof useConvexResumeDetail>['resume'],
+      loading: false,
+    })
+
+    render(
+      <div>
+        <input data-testid="typing-input" />
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[item]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+        />
+      </div>,
+    )
+
+    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(screen.getByTestId('typing-input'), { key: 'o' })
+    expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
   })
 
   it('opens a URL-selected result and delegates close back to the parent route', async () => {

@@ -1,5 +1,5 @@
-import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
-import { BriefcaseBusiness, Bug, ChevronDown, Copy, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
+import { buildWorkHistoryDisplayDateLine, isAdvancingCandidateStatus, sanitizeResumeRecordForSurface, selectLatestWorkHistory, type CandidatePolicyOverride } from '@trends/shared'
+import { Ban, BriefcaseBusiness, Bug, CheckCircle, ChevronDown, Copy, ExternalLink, MapPin, MessageSquare, School, Sparkles, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +29,8 @@ type SnippetCardExpandedProps = {
   onNoteTrigger?: () => void
   userRating?: number
   showIndustryEvidence?: boolean
+  policyOverrides?: CandidatePolicyOverride[]
+  resumeIdentity?: string
 }
 
 function formatSnakeCaseLabel(value: string): string {
@@ -113,6 +115,8 @@ export function SnippetCardExpanded({
   onNoteTrigger,
   userRating,
   showIndustryEvidence = true,
+  policyOverrides,
+  resumeIdentity,
 }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
@@ -128,8 +132,10 @@ export function SnippetCardExpanded({
           companyHits: item.resume.ingestData?.companyHits,
         },
         matchResume,
+        policyOverrides,
+        resumeIdentity ?? item.identityKey,
       ),
-    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume],
+    [item.resume.ingestData?.companyHits, item.resume.workHistory, matchResume, policyOverrides, resumeIdentity],
   )
   const workflowBlocked = companyPolicyState.workflowBlocked
   const guardWorkflowAdvance = (fn: () => void) => {
@@ -427,6 +433,11 @@ export function SnippetCardExpanded({
               {(item.resume.ingestData?.companyHits ?? []).slice(0, 5).map((company) => (
                 <Badge key={company} variant="outline">{company}</Badge>
               ))}
+              {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                  {t('settings.policies.runtime.overrideBadge', { defaultValue: 'Override' })}
+                </Badge>
+              ) : null}
               {brandSummary.map((brand) => (
                 <Badge key={`brand-${brand}`} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{resolveBrand(brand)}</Badge>
               ))}
@@ -488,8 +499,9 @@ export function SnippetCardExpanded({
                       guardWorkflowAdvance(() => onCandidateStatusChange(item.identityKey, 'shortlisted'))
                     }
                     data-testid="snippet-shortlist"
+                    aria-label={t('resumes.actions.shortlist', { defaultValue: '入选' })}
                   >
-                    <BriefcaseBusiness className="h-3.5 w-3.5" />
+                    <CheckCircle className="h-3.5 w-3.5" />
                     {t('resumes.actions.shortlist', { defaultValue: '入选' })}
                   </Button>
                   <Button
@@ -497,8 +509,9 @@ export function SnippetCardExpanded({
                     size="sm"
                     className="justify-start gap-2"
                     onClick={() => onCandidateStatusChange(item.identityKey, 'rejected')}
+                    aria-label={t('resumes.actions.reject', { defaultValue: '淘汰' })}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <XCircle className="h-3.5 w-3.5" />
                     {t('resumes.actions.reject', { defaultValue: '淘汰' })}
                   </Button>
                   <Button
@@ -525,15 +538,15 @@ export function SnippetCardExpanded({
               ) : null}
 
               {onNoteTrigger ? (
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger}>
-                  <School className="h-3.5 w-3.5" />
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger} aria-label={t('resumes.status.notes', { defaultValue: '备注' })}>
+                  <MessageSquare className="h-3.5 w-3.5" />
                   {t('resumes.status.notes', { defaultValue: '备注' })}
                 </Button>
               ) : null}
 
               {onBlockTrigger ? (
-                <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2" onClick={onBlockTrigger}>
-                  <MapPin className="h-3.5 w-3.5" />
+                <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2" onClick={onBlockTrigger} aria-label={item.blocked ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' }) : t('resumes.card.block', { defaultValue: '屏蔽' })}>
+                  <Ban className="h-3.5 w-3.5" />
                   {item.blocked
                     ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' })
                     : t('resumes.card.block', { defaultValue: '屏蔽' })}

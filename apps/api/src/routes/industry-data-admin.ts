@@ -18,8 +18,19 @@ import {
 import { seedIndustryDataFromFiles } from "../services/industry-data-seed.js";
 import { EntryTypeSchema } from "../services/industry-data-validators.js";
 import { enqueueIndustryMaintenance } from "../services/industry-maintenance-pipeline-service.js";
+import {
+  applyResolutionsToAggregates,
+  defaultUnresolvedResolutionsPath,
+  readUnresolvedResolutions,
+  resolveUnresolvedKeys,
+} from "../services/industry-unresolved-resolutions.js";
+import { filterAggregates } from "../services/industry-unresolved-queue.js";
+import {
+  defaultUnresolvedQueuePath,
+  readUnresolvedQueue,
+} from "../services/industry-unresolved-store.js";
 import { callConvexMutation } from "../services/convex-utils.js";
-import { config } from "../services/config.js";
+import { getConvexWriteSecret, config } from "../services/config.js";
 import { logger } from "../services/logger.js";
 
 const app = new OpenAPIHono();
@@ -484,12 +495,163 @@ app.openapi(seedRoute, async (c) => {
         data: entry.data,
         sortOrder: entry.sortOrder,
         actor,
-        writeSecret: config.auth.convexWriteSecret,
+        writeSecret: getConvexWriteSecret(),
       });
       return { entryId: entry.entryId };
     },
   });
   return c.json({ success: true as const, imported: result.imported }, 200);
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/industry-data/unresolved
+// ---------------------------------------------------------------------------
+const listUnresolvedRoute = createRoute({
+  method: "get",
+  path: "/api/industry-data/unresolved",
+  tags: ["industry-data"],
+  request: {
+    query: z.object({
+      minCount: z.coerce.number().int().min(1).optional(),
+      priorityOnly: z.coerce.boolean().optional(),
+      search: z.string().trim().max(200).optional(),
+      status: z
+        .enum(["unresolved", "linked", "ignored", "all"])
+        .default("unresolved"),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            items: z.array(z.unknown()),
+            total: z.number(),
+            counts: z.object({
+              unresolved: z.number(),
+              linked: z.number(),
+              ignored: z.number(),
+              total: z.number(),
+            }),
+          }),
+        },
+      },
+      description: "Unresolved employer queue with admin resolutions",
+    },
+    401: { content: { "application/json": { schema: ErrorSchema } }, description: "Auth required" },
+    403: { content: { "application/json": { schema: ErrorSchema } }, description: "Admin required" },
+  },
+});
+
+app.openapi(listUnresolvedRoute, async (c) => {
+  const { minCount, priorityOnly, search, status } = c.req.valid("query");
+  const queueFile = readUnresolvedQueue(
+    defaultUnresolvedQueuePath(config.projectRoot)
+  );
+  const resolutionsFile = readUnresolvedResolutions(
+    defaultUnresolvedResolutionsPath(config.projectRoot)
+  );
+  let items = applyResolutionsToAggregates(
+    filterAggregates(queueFile.aggregates, { minCount, priorityOnly }),
+    resolutionsFile.resolutions
+  );
+  if (search) {
+    const needle = search.toLowerCase();
+    items = items.filter(
+      (i) =>
+        i.normalizedKey.toLowerCase().includes(needle) ||
+        i.examples.some((e) => e.toLowerCase().includes(needle)) ||
+        (i.resolution?.targetCompanyKey ?? "").toLowerCase().includes(needle)
+    );
+  }
+  const counts = {
+    unresolved: items.filter((i) => !i.resolution).length,
+    linked: items.filter((i) => i.resolution?.action === "link").length,
+    ignored: items.filter((i) => i.resolution?.action === "ignore").length,
+    total: items.length,
+  };
+  if (status === "unresolved") {
+    items = items.filter((i) => !i.resolution);
+  } else if (status === "linked") {
+    items = items.filter((i) => i.resolution?.action === "link");
+  } else if (status === "ignored") {
+    items = items.filter((i) => i.resolution?.action === "ignore");
+  }
+  return c.json(
+    { success: true as const, items, total: items.length, counts },
+    200
+  );
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/industry-data/unresolved/resolve  (link or ignore, single + bulk)
+// ---------------------------------------------------------------------------
+const resolveUnresolvedBodySchema = z
+  .object({
+    keys: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+    action: z.enum(["link", "ignore"]),
+    targetCompanyKey: z.string().trim().min(1).max(200).optional(),
+    actor: z.string().trim().max(200).optional(),
+  })
+  .refine((v) => v.action !== "link" || Boolean(v.targetCompanyKey), {
+    message: "link requires targetCompanyKey",
+  });
+
+const resolveUnresolvedRoute = createRoute({
+  method: "post",
+  path: "/api/industry-data/unresolved/resolve",
+  tags: ["industry-data"],
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: resolveUnresolvedBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            resolved: z.array(z.unknown()),
+            updatedAt: z.string(),
+          }),
+        },
+      },
+      description: "Resolve unresolved employer keys",
+    },
+    400: { content: { "application/json": { schema: ErrorSchema } }, description: "Validation failed" },
+    401: { content: { "application/json": { schema: ErrorSchema } }, description: "Auth required" },
+    403: { content: { "application/json": { schema: ErrorSchema } }, description: "Admin required" },
+  },
+});
+
+app.openapi(resolveUnresolvedRoute, async (c) => {
+  const body = c.req.valid("json");
+  try {
+    const result = resolveUnresolvedKeys(
+      defaultUnresolvedResolutionsPath(config.projectRoot),
+      {
+        keys: body.keys,
+        action: body.action,
+        ...(body.targetCompanyKey ? { targetCompanyKey: body.targetCompanyKey } : {}),
+        resolvedBy: actorFrom(c, body),
+      }
+    );
+    return c.json(
+      {
+        success: true as const,
+        resolved: result.resolved,
+        updatedAt: result.updatedAt,
+      },
+      200
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ success: false as const, error: message }, 400);
+  }
 });
 
 export default app;

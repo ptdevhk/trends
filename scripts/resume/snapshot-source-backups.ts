@@ -759,6 +759,12 @@ export async function runSnapshotSourceBackups(
       outFile,
       ...(alias === "seek" ? { allowShortfall: true } : {}),
     });
+    if (snapshotCount !== sourceCount) {
+      runtime.log(
+        `[${alias}] shortfall: requested ${sourceCount} resumes, collected ${snapshotCount} ` +
+          `(file is named top${sourceCount})`,
+      );
+    }
 
     results.push({
       alias,

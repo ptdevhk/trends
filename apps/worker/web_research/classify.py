@@ -4,11 +4,35 @@ import re
 from urllib.parse import urlparse
 
 _REGISTRY_DOMAINS = {"ssm.com.my", "mydata-ssm.com.my", "dosm.gov.my"}
+# CN structured company-registry surfaces. Shuidi/xin.baidu/qcc/tianyancha
+# are the CN equivalents of the MY SSM registry lane: machine-verifiable
+# company records whose evidence excerpt carries the employer's registered
+# name. aiqicha.baidu.com is the same lane but rate-gates anon access, so it
+# stays discovery-only.
+_CN_REGISTRY_DOMAINS = {
+    "shuidi.cn",
+    "xin.baidu.com",
+    "qcc.com",
+    "tianyancha.com",
+    "aiqicha.baidu.com",
+}
+# Company-record path patterns per CN registry domain. Only these are
+# machine-verifiable registration records; homepages and 360-search
+# landings (e.g. qcc.com/?utm_source=360zrkp) are unvetted web hits that
+# fail fetch and hard-block review (observed 2026-08-14 on the CN lane).
+_CN_REGISTRY_RECORD_PATHS = {
+    # shuidi record: /company-<hex-id>.html, hall: /company-<hex-id>/hall.html
+    "shuidi.cn": re.compile(r"^/company-[0-9a-fA-F]+(?:/|\.html)"),
+    "qcc.com": re.compile(r"^/firm/"),
+    "tianyancha.com": re.compile(r"^/company/\d+"),
+    "xin.baidu.com": re.compile(r"^/detail/compinfo"),
+}
 _DIRECTORY_DOMAINS = {
     "yellowpages.com.my", "yellowpages.com", "kompass.com",
     "alibaba.com", "made-in-china.com", "industrydirectory.com.my",
     "tradingview.com", "klsescreener.com", "i3investor.com",
     "edgeprop.my", "bursamalaysia.com", "marketwatch.com",
+    "jobui.com", "zhipin.com", "job51.com", "liepin.com", "51job.com",
 }
 _REPORTING_DOMAINS = {
     "thestar.com.my", "nst.com.my", "theedgemalaysia.com",
@@ -16,6 +40,9 @@ _REPORTING_DOMAINS = {
     "themalaysianreserve.com", "theborneopost.com", "malaymail.com",
     "freemalaysiatoday.com", "bernama.com", "thepeakmagazine.com.sg",
     "straitstimes.com", "channelnewsasia.com", "yahoo.com",
+    "36kr.com", "ifeng.com", "sohu.com", "163.com", "sina.com.cn",
+    "jiemian.com", "thepaper.cn", "cls.cn", "caixin.com", "21jingji.com",
+    "baike.so.com", "baike.baidu.com",
 }
 
 def _employer_tokens(employer_surface: str) -> set[str]:
@@ -67,6 +94,18 @@ def classify_source(url: str, employer_surface: str) -> dict:
     if host == "news.google.com" or host.endswith(".news.google.com"):
         return {"sourceType": "reporting", "trustTier": "corroborating"}
     if host in _REGISTRY_DOMAINS:
+        return {"sourceType": "registry", "trustTier": "authoritative"}
+    if host in _CN_REGISTRY_DOMAINS:
+        # CN registry lane: authoritative only for real company-record
+        # URLs. Homepages, search landings, and list pages are unvetted web
+        # hits — they fail fetch or carry boilerplate classes, so they are
+        # discovery-tier (never approval-safe). aiqicha (which rate-gates
+        # anonymous access) is discovery-only regardless.
+        record_path = _CN_REGISTRY_RECORD_PATHS.get(host)
+        if host == "aiqicha.baidu.com" or not (
+            record_path and record_path.match(urlparse(url).path)
+        ):
+            return {"sourceType": "search_result", "trustTier": "discovery"}
         return {"sourceType": "registry", "trustTier": "authoritative"}
     if host in _DIRECTORY_DOMAINS:
         return {"sourceType": "directory", "trustTier": "corroborating"}

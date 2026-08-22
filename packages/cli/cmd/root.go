@@ -77,6 +77,7 @@ func init() {
 		newIndustryCmd(),
 		newMigrateCmd(),
 		newMCPCmd(),
+		newWorkspaceCmd(),
 	)
 }
 

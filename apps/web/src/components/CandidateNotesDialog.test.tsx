@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { fireEvent } from '@testing-library/react'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
 
 describe('CandidateNotesDialog', () => {
@@ -57,5 +58,77 @@ describe('CandidateNotesDialog', () => {
     await user.click(screen.getByTestId('candidate-notes-save'))
     expect(onSave).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('shows the shortcut hint in edit mode', () => {
+    render(
+      <CandidateNotesDialog
+        open
+        onOpenChange={vi.fn()}
+        candidateName="Test"
+        notes=""
+        onSave={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('candidate-notes-shortcut-hint')).toBeInTheDocument()
+  })
+
+  it('plain Enter inserts newline and does not save', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <CandidateNotesDialog
+        open
+        onOpenChange={vi.fn()}
+        candidateName="Test"
+        notes=""
+        onSave={onSave}
+      />,
+    )
+    const input = screen.getByTestId('candidate-notes-input')
+    await user.type(input, 'line1{Enter}line2')
+    expect(onSave).not.toHaveBeenCalled()
+    expect(input).toHaveValue('line1\nline2')
+  })
+
+  it('Ctrl+Enter saves the draft', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <CandidateNotesDialog
+        open
+        onOpenChange={vi.fn()}
+        candidateName="Test"
+        notes=""
+        onSave={onSave}
+      />,
+    )
+    const input = screen.getByTestId('candidate-notes-input')
+    await user.type(input, 'my note')
+    await user.keyboard('{Control>}{Enter}{/Control}')
+    expect(onSave).toHaveBeenCalledWith('my note')
+  })
+
+  it('IME composition Enter does not save', () => {
+    const onSave = vi.fn()
+    render(
+      <CandidateNotesDialog
+        open
+        onOpenChange={vi.fn()}
+        candidateName="Test"
+        notes=""
+        onSave={onSave}
+      />,
+    )
+    const input = screen.getByTestId('candidate-notes-input')
+    const keyDownEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      keyCode: 229,
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    fireEvent(input, keyDownEvent)
+    expect(onSave).not.toHaveBeenCalled()
   })
 })

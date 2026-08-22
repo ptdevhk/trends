@@ -78,11 +78,21 @@ describe("ingest-compute-epoch", () => {
 
   it("appends epoch 3 for revision-backed evidence projections", () => {
     expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(3);
+    expect(INGEST_COMPUTE_EPOCH_HISTORY).toContainEqual(
+      expect.objectContaining({
+        epoch: 3,
+        introduced: "2026-07-29",
+      }),
+    );
+  });
+
+  it("appends epoch 4 for CJK search digest materialization", () => {
+    expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(4);
     expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)).toMatchObject({
-      epoch: 3,
-      introduced: "2026-07-29",
+      epoch: 4,
+      introduced: "2026-08-19",
     });
-    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("Revision-backed");
+    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("CJK");
   });
 
   it("tracks evidence projection freshness independently from compute and skills versions", () => {
