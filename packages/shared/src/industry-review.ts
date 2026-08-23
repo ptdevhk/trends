@@ -369,6 +369,17 @@ export interface IndustryReviewRecommendation {
   decisionReasonDraft: string;
   requiresHumanReview: true;
   /**
+   * AI-suggested machine origin at proposal creation / research time.
+   * Always human-gated: the suggestion is only committed to verified
+   * profiles when a reviewer approves with an explicit machineOrigin.
+   */
+  suggestedMachineOrigin?: "international" | "domestic" | "unknown";
+  machineOriginSuggestionConfidence?: number;
+  machineOriginSuggestionEvidence?: string;
+  machineOriginSuggestionSourceUrl?: string;
+  machineOriginSuggestionSourceTitle?: string;
+  machineOriginSuggestionModel?: string;
+  /**
    * Lane A (governed auto-verify) eligibility: true only when the proposal
    * has a canonical companyKey, the recommendation is a high-confidence
    * approve with zero risk flags, and every eligible source is a structured

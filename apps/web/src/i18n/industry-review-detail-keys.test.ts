@@ -72,6 +72,11 @@ const KEYS: Record<string, string> = {
   'industryEvidence.industryClassLabel': 'Industry class',
   'industryEvidence.evidenceSummaryLabel': 'Evidence summary',
   'industryEvidence.decisionReasonLabel': 'Decision reason',
+  'industryEvidence.machineOriginSuggestionTitle': 'AI-suggested machine origin',
+  'industryEvidence.machineOriginSuggestionConfidence': '{{percent}}% confidence',
+  'industryEvidence.machineOriginSuggestionEvidenceLabel': 'Evidence',
+  'industryEvidence.machineOriginSuggestionSourceLabel': 'Source',
+  'industryEvidence.machineOriginSuggestionHumanGate': 'This is an AI suggestion only — a reviewer must approve the machine origin explicitly before it is committed to the verified profile.',
   'industryEvidence.confirmImmutableTitle': 'Confirm this immutable revision',
   'industryEvidence.approving':
     'You are approving {{industryClass}} as {{verificationLevel}} for {{company}}.',

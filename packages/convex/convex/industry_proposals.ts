@@ -10,6 +10,7 @@ import {
 import {
   findIndustryProposal,
   industryClassValidator,
+  machineOriginValidator,
   normalizeCompanyKey,
   normalizeWorkspaceSlug,
   OPEN_INDUSTRY_PROPOSAL_STATUSES,
@@ -86,6 +87,73 @@ function mergeSampleReferences(
     .map(([, reference]) => reference);
 }
 
+const MACHINE_ORIGIN_SUGGESTION_CAP: Record<
+  "evidence" | "sourceUrl" | "sourceTitle" | "model",
+  number
+> = {
+  evidence: 600,
+  sourceUrl: 500,
+  sourceTitle: 300,
+  model: 200,
+};
+
+interface MachineOriginSuggestionInput {
+  suggestedMachineOrigin?: "international" | "domestic" | "unknown";
+  machineOriginSuggestionConfidence?: number;
+  machineOriginSuggestionEvidence?: string;
+  machineOriginSuggestionSourceUrl?: string;
+  machineOriginSuggestionSourceTitle?: string;
+  machineOriginSuggestionModel?: string;
+}
+
+function machineOriginSuggestionPatch(
+  args: MachineOriginSuggestionInput,
+): Record<string, unknown> {
+  return {
+    ...(args.suggestedMachineOrigin !== undefined
+      ? { suggestedMachineOrigin: args.suggestedMachineOrigin }
+      : {}),
+    ...(args.machineOriginSuggestionConfidence !== undefined
+      ? { machineOriginSuggestionConfidence: args.machineOriginSuggestionConfidence }
+      : {}),
+    ...(args.machineOriginSuggestionEvidence?.trim()
+      ? {
+          machineOriginSuggestionEvidence:
+            args.machineOriginSuggestionEvidence.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.evidence,
+            ),
+        }
+      : {}),
+    ...(args.machineOriginSuggestionSourceUrl?.trim()
+      ? {
+          machineOriginSuggestionSourceUrl:
+            args.machineOriginSuggestionSourceUrl.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.sourceUrl,
+            ),
+        }
+      : {}),
+    ...(args.machineOriginSuggestionSourceTitle?.trim()
+      ? {
+          machineOriginSuggestionSourceTitle:
+            args.machineOriginSuggestionSourceTitle.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.sourceTitle,
+            ),
+        }
+      : {}),
+    ...(args.machineOriginSuggestionModel?.trim()
+      ? {
+          machineOriginSuggestionModel: args.machineOriginSuggestionModel.trim().slice(
+            0,
+            MACHINE_ORIGIN_SUGGESTION_CAP.model,
+          ),
+        }
+      : {}),
+  };
+}
+
 export const upsertIndustryProposal = mutation({
   args: {
     writeSecret: v.optional(v.string()),
@@ -98,6 +166,12 @@ export const upsertIndustryProposal = mutation({
     currentRevisionId: v.optional(v.string()),
     suggestedIndustryClass: v.optional(industryClassValidator),
     suggestedVerificationLevel: v.optional(verificationLevelValidator),
+    suggestedMachineOrigin: v.optional(machineOriginValidator),
+    machineOriginSuggestionConfidence: v.optional(v.number()),
+    machineOriginSuggestionEvidence: v.optional(v.string()),
+    machineOriginSuggestionSourceUrl: v.optional(v.string()),
+    machineOriginSuggestionSourceTitle: v.optional(v.string()),
+    machineOriginSuggestionModel: v.optional(v.string()),
     materialChangeSummary: v.optional(v.string()),
     requestedBy: v.optional(v.string()),
   },
@@ -200,6 +274,7 @@ export const upsertIndustryProposal = mutation({
         ...(args.suggestedVerificationLevel !== undefined
           ? { suggestedVerificationLevel: args.suggestedVerificationLevel }
           : {}),
+        ...machineOriginSuggestionPatch(args),
         ...(args.materialChangeSummary !== undefined
           ? { materialChangeSummary: args.materialChangeSummary.trim() }
           : {}),
@@ -236,6 +311,7 @@ export const upsertIndustryProposal = mutation({
       ...(args.suggestedVerificationLevel !== undefined
         ? { suggestedVerificationLevel: args.suggestedVerificationLevel }
         : {}),
+      ...machineOriginSuggestionPatch(args),
       ...(args.materialChangeSummary !== undefined
         ? { materialChangeSummary: args.materialChangeSummary.trim() }
         : {}),
@@ -562,6 +638,12 @@ export const setIndustryProposalResearchState = mutation({
     ),
     suggestedIndustryClass: v.optional(industryClassValidator),
     suggestedVerificationLevel: v.optional(verificationLevelValidator),
+    suggestedMachineOrigin: v.optional(machineOriginValidator),
+    machineOriginSuggestionConfidence: v.optional(v.number()),
+    machineOriginSuggestionEvidence: v.optional(v.string()),
+    machineOriginSuggestionSourceUrl: v.optional(v.string()),
+    machineOriginSuggestionSourceTitle: v.optional(v.string()),
+    machineOriginSuggestionModel: v.optional(v.string()),
     materialChangeSummary: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -588,6 +670,7 @@ export const setIndustryProposalResearchState = mutation({
       ...(args.suggestedVerificationLevel !== undefined
         ? { suggestedVerificationLevel: args.suggestedVerificationLevel }
         : {}),
+      ...machineOriginSuggestionPatch(args),
       ...(args.materialChangeSummary?.trim()
         ? { materialChangeSummary: args.materialChangeSummary.trim().slice(0, 800) }
         : {}),
@@ -598,5 +681,67 @@ export const setIndustryProposalResearchState = mutation({
       status: args.status,
       companyKey: proposal.companyKey,
     };
+  },
+});
+
+export const setIndustryProposalMachineOriginSuggestion = mutation({
+  args: {
+    writeSecret: v.optional(v.string()),
+    proposalId: v.string(),
+    suggestedMachineOrigin: machineOriginValidator,
+    confidence: v.number(),
+    evidenceExcerpt: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    sourceTitle: v.optional(v.string()),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    requireWriteSecret(args.writeSecret);
+    const proposal = await findIndustryProposal(ctx, args.proposalId.trim());
+    if (!proposal) {
+      throw new Error(`Unknown proposalId: ${args.proposalId}`);
+    }
+    if (!OPEN_INDUSTRY_PROPOSAL_STATUSES.has(proposal.status)) {
+      throw new Error(`Proposal is not open for research: ${proposal.status}`);
+    }
+    const now = Date.now();
+    await ctx.db.patch(proposal._id, {
+      suggestedMachineOrigin: args.suggestedMachineOrigin,
+      machineOriginSuggestionConfidence: args.confidence,
+      ...(args.evidenceExcerpt?.trim()
+        ? {
+            machineOriginSuggestionEvidence: args.evidenceExcerpt.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.evidence,
+            ),
+          }
+        : {}),
+      ...(args.sourceUrl?.trim()
+        ? {
+            machineOriginSuggestionSourceUrl: args.sourceUrl.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.sourceUrl,
+            ),
+          }
+        : {}),
+      ...(args.sourceTitle?.trim()
+        ? {
+            machineOriginSuggestionSourceTitle: args.sourceTitle.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.sourceTitle,
+            ),
+          }
+        : {}),
+      ...(args.model?.trim()
+        ? {
+            machineOriginSuggestionModel: args.model.trim().slice(
+              0,
+              MACHINE_ORIGIN_SUGGESTION_CAP.model,
+            ),
+          }
+        : {}),
+      updatedAt: now,
+    });
+    return { proposalId: proposal.proposalId, status: proposal.status };
   },
 });

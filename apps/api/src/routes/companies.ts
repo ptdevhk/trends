@@ -77,6 +77,7 @@ import {
 import { callConvexQuery } from "../services/convex-utils.js";
 import { getConvexWriteSecret, config } from "../services/config.js";
 import { verifiedEmployerCatalog } from "../services/verified-employer-catalog-service.js";
+import { refreshMachineOriginSuggestion } from "../services/machine-origin-suggestion-service.js";
 import type { IndustryReviewPacket } from "../services/company-industry-review-service.js";
 import {
   INDUSTRY_REVIEW_STALE_CODE,
@@ -904,6 +905,14 @@ const IndustryReviewRecommendationSchema = z.object({
   evidenceSummaryDraft: z.string(),
   decisionReasonDraft: z.string(),
   requiresHumanReview: z.literal(true),
+  suggestedMachineOrigin: z
+    .enum(["international", "domestic", "unknown"])
+    .optional(),
+  machineOriginSuggestionConfidence: z.number().optional(),
+  machineOriginSuggestionEvidence: z.string().optional(),
+  machineOriginSuggestionSourceUrl: z.string().optional(),
+  machineOriginSuggestionSourceTitle: z.string().optional(),
+  machineOriginSuggestionModel: z.string().optional(),
 });
 const IndustryReviewMaintenanceRunSchema = z.object({
   runId: z.string(),
@@ -1269,6 +1278,12 @@ app.openapi(getIndustryReviewPacketRoute, async (c) => {
   if (!packet) {
     return c.json({ success: false as const, error: "Industry proposal not found" }, 404);
   }
+  // Lazy refresh: when the proposal has evidence sources but no AI
+  // machine-origin suggestion yet, classify in the background so the next
+  // packet open shows the suggestion. Never blocks this route.
+  if (!packet.proposal.suggestedMachineOrigin && packet.sources.length > 0) {
+    void refreshMachineOriginSuggestion(proposalId, { sourcesOnly: true });
+  }
   return c.json(packet, 200);
 });
 
@@ -1399,6 +1414,9 @@ app.openapi(retryIndustryResearchRequestRoute, async (c) => {
   const { proposalId, requestId } = c.req.valid("param");
   try {
     await retryIndustryEvidenceResearch({ workspaceSlug: c.var.workspaceSlug, proposalId, requestId });
+    // Fire-and-forget: refresh the AI suggestion with existing sources after
+    // the research request is requeued.
+    void refreshMachineOriginSuggestion(proposalId, { sourcesOnly: true });
     return c.json({ success: true as const }, 200);
   } catch (error) {
     if (error instanceof IndustryEvidenceResearchError) {
@@ -1559,6 +1577,8 @@ app.openapi(upsertIndustryProposalRoute, async (c) => {
     ...c.req.valid("json"),
     requestedBy: getAuthenticatedActorId(c),
   });
+  // Fire-and-forget AI machine-origin prefill; non-fatal, never blocks.
+  void refreshMachineOriginSuggestion(result.proposalId);
   return c.json({ success: true as const, ...result }, 200);
 });
 

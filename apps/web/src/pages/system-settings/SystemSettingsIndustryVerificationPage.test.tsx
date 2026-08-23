@@ -1375,6 +1375,85 @@ describe('SystemSettingsIndustryVerificationPage', () => {
     expect(screen.getByRole('combobox', { name: 'Machine origin' })).toHaveValue('unknown')
   })
 
+  it('prefills machineOrigin from AI suggestion when profile origin is absent', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-proposals/proposal-with-suggestion/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          proposal: { ...proposal, proposalId: 'proposal-with-suggestion' },
+          recommendation: {
+            ...recommendation,
+            suggestedMachineOrigin: 'domestic' as const,
+            machineOriginSuggestionConfidence: 0.82,
+            machineOriginSuggestionEvidence: 'Official catalog lists domestic brand',
+            machineOriginSuggestionSourceUrl: 'https://example.com/catalog',
+            machineOriginSuggestionSourceTitle: 'Company Catalog',
+            machineOriginSuggestionModel: 'openai/deepseek-v4-flash-e',
+          },
+          // profile has no machineOrigin — suggestion should prefill
+          bundle: {
+            ...reviewPacket.bundle,
+            profile: { ...reviewPacket.bundle.profile },
+          },
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-with-suggestion')
+    const machineOriginSelect = await screen.findByRole('combobox', { name: /Machine origin/ })
+    await waitFor(() => expect(machineOriginSelect).toHaveValue('domestic'))
+
+    // The AI-suggestion banner renders with evidence and source link
+    const banner = screen.getByTestId('industry-review-machine-origin-suggestion')
+    expect(banner).toHaveTextContent('domestic')
+    expect(banner).toHaveTextContent('82%')
+    expect(banner).toHaveTextContent('Official catalog lists domestic brand')
+    const sourceLink = screen.getByRole('link', { name: /Company Catalog/i })
+    expect(sourceLink).toHaveAttribute('href', 'https://example.com/catalog')
+    expect(banner).toHaveTextContent('This is an AI suggestion only')
+  })
+
+  it('profile origin takes precedence over AI suggestion', async () => {
+    const defaultRequestJson = requestJsonMock.getMockImplementation()
+    requestJsonMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/company-industry-proposals/proposal-with-both/review-packet') {
+        return Promise.resolve({
+          ...reviewPacket,
+          proposal: { ...proposal, proposalId: 'proposal-with-both' },
+          recommendation: {
+            ...recommendation,
+            suggestedMachineOrigin: 'domestic' as const,
+          },
+          // Profile has a verified 'international' origin — profile wins
+          bundle: {
+            ...reviewPacket.bundle,
+            profile: {
+              ...reviewPacket.bundle.profile,
+              machineOrigin: 'international' as const,
+            },
+          },
+        })
+      }
+      return defaultRequestJson?.(path, init) ?? Promise.resolve({ success: true })
+    })
+
+    renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-with-both')
+    const machineOriginSelect = await screen.findByRole('combobox', { name: /Machine origin/ })
+    await waitFor(() => expect(machineOriginSelect).toHaveValue('international'))
+
+    // Banner still renders because the suggestion exists
+    expect(screen.getByTestId('industry-review-machine-origin-suggestion')).toBeInTheDocument()
+  })
+
+  it('does not render the AI-suggestion banner when no suggestion exists', async () => {
+    renderPageAtRoute('/hr/system/settings/industry-verification/proposals/proposal-1')
+    await screen.findAllByText('ACME CNC')
+    // Standard proposal-1 fixture has no suggestion fields → no banner
+    expect(screen.queryByTestId('industry-review-machine-origin-suggestion')).not.toBeInTheDocument()
+  })
+
   it('registers a detail-pane approval into the session registry (counter, badge, Undo)', async () => {
     const user = userEvent.setup()
     installCleanInboxMock()

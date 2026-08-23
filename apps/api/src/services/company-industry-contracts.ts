@@ -126,6 +126,12 @@ export interface IndustryProposal {
   currentRevisionId?: string;
   suggestedIndustryClass?: IndustryClass;
   suggestedVerificationLevel?: "verified" | "candidate" | "rejected";
+  suggestedMachineOrigin?: MachineOrigin;
+  machineOriginSuggestionConfidence?: number;
+  machineOriginSuggestionEvidence?: string;
+  machineOriginSuggestionSourceUrl?: string;
+  machineOriginSuggestionSourceTitle?: string;
+  machineOriginSuggestionModel?: string;
   materialChangeSummary?: string;
   status: IndustryProposalStatus;
   requestedBy?: string;
@@ -396,6 +402,49 @@ export function parseIndustryProposal(value: unknown): IndustryProposal | null {
     value.suggestedVerificationLevel === "candidate" ||
     value.suggestedVerificationLevel === "rejected"
       ? { suggestedVerificationLevel: value.suggestedVerificationLevel }
+      : {}),
+    ...(nonEmptyString(value.suggestedMachineOrigin) &&
+    machineOriginSet.has(nonEmptyString(value.suggestedMachineOrigin)!)
+      ? {
+          suggestedMachineOrigin: nonEmptyString(
+            value.suggestedMachineOrigin,
+          ) as MachineOrigin,
+        }
+      : {}),
+    ...(finiteNumber(value.machineOriginSuggestionConfidence) !== undefined
+      ? {
+          machineOriginSuggestionConfidence: finiteNumber(
+            value.machineOriginSuggestionConfidence,
+          )!,
+        }
+      : {}),
+    ...(nonEmptyString(value.machineOriginSuggestionEvidence)
+      ? {
+          machineOriginSuggestionEvidence: nonEmptyString(
+            value.machineOriginSuggestionEvidence,
+          )!,
+        }
+      : {}),
+    ...(nonEmptyString(value.machineOriginSuggestionSourceUrl)
+      ? {
+          machineOriginSuggestionSourceUrl: nonEmptyString(
+            value.machineOriginSuggestionSourceUrl,
+          )!,
+        }
+      : {}),
+    ...(nonEmptyString(value.machineOriginSuggestionSourceTitle)
+      ? {
+          machineOriginSuggestionSourceTitle: nonEmptyString(
+            value.machineOriginSuggestionSourceTitle,
+          )!,
+        }
+      : {}),
+    ...(nonEmptyString(value.machineOriginSuggestionModel)
+      ? {
+          machineOriginSuggestionModel: nonEmptyString(
+            value.machineOriginSuggestionModel,
+          )!,
+        }
       : {}),
     ...(nonEmptyString(value.materialChangeSummary)
       ? { materialChangeSummary: nonEmptyString(value.materialChangeSummary)! }

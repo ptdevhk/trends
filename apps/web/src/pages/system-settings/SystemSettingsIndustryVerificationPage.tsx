@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { ExternalLink, ShieldCheck, Sparkles } from 'lucide-react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -222,7 +222,12 @@ export function SystemSettingsIndustryVerificationPage() {
           .map((source) => source.sourceId),
     )
     setIndustryClass(packet.recommendation.recommendedIndustryClass ?? selectedProposal.suggestedIndustryClass ?? nextBundle.profile?.industryClass ?? 'unknown')
-    setMachineOrigin(nextBundle.profile?.machineOrigin ?? 'unknown')
+    const profileOrigin = nextBundle.profile?.machineOrigin
+    const suggestedOrigin = packet.recommendation.suggestedMachineOrigin
+    // A verified profile origin wins; the AI suggestion only prefills when the
+    // profile has no committed origin. The reviewer can still change the value
+    // and the suggestion is never auto-committed to the profile.
+    setMachineOrigin(profileOrigin && profileOrigin !== 'unknown' ? profileOrigin : suggestedOrigin ?? profileOrigin ?? 'unknown')
     setVerificationLevel(
       packet.recommendation.recommendedVerificationLevel === 'rejected' ? 'rejected' : 'verified',
     )
@@ -598,7 +603,8 @@ export function SystemSettingsIndustryVerificationPage() {
                       </select>
                     </label>
                     <label className="space-y-2 text-sm font-medium">
-                      {t('industryEvidence.machineOriginLabel', { defaultValue: 'Machine origin' })}
+                      {t('industryEvidence.machineOriginLabel', { defaultValue: 'Machine origin' })}{' '}
+                      {recommendation?.suggestedMachineOrigin && <span className="text-xs font-normal text-muted-foreground">{t('industryEvidence.suggestedSuffix', { defaultValue: '(Suggested)' })}</span>}
                       <select
                         name="machineOrigin"
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
@@ -613,6 +619,59 @@ export function SystemSettingsIndustryVerificationPage() {
                         ))}
                       </select>
                     </label>
+                    {recommendation?.suggestedMachineOrigin && (
+                      <div
+                        data-testid="industry-review-machine-origin-suggestion"
+                        className="rounded-md border bg-muted/40 px-3 py-2.5 text-sm"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          <div className="space-y-1">
+                            <p className="font-medium">
+                              {t('industryEvidence.machineOriginSuggestionTitle', { defaultValue: 'AI-suggested machine origin' })}
+                            </p>
+                            <p>
+                              {t(`industryEvidence.machineOriginOptions.${recommendation.suggestedMachineOrigin}`, { defaultValue: recommendation.suggestedMachineOrigin })}
+                              {typeof recommendation.machineOriginSuggestionConfidence === 'number' && (
+                                <span className="text-muted-foreground">
+                                  {' '}
+                                  ·{' '}
+                                  {t('industryEvidence.machineOriginSuggestionConfidence', {
+                                    defaultValue: '{{percent}}% confidence',
+                                    percent: Math.round(recommendation.machineOriginSuggestionConfidence * 100),
+                                  })}
+                                </span>
+                              )}
+                            </p>
+                            {recommendation.machineOriginSuggestionEvidence && (
+                              <p className="text-muted-foreground">
+                                {t('industryEvidence.machineOriginSuggestionEvidenceLabel', { defaultValue: 'Evidence' })}:{' '}
+                                {recommendation.machineOriginSuggestionEvidence}
+                              </p>
+                            )}
+                            {recommendation.machineOriginSuggestionSourceUrl && (
+                              <p className="text-muted-foreground">
+                                {t('industryEvidence.machineOriginSuggestionSourceLabel', { defaultValue: 'Source' })}:{' '}
+                                <a
+                                  href={recommendation.machineOriginSuggestionSourceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-primary underline underline-offset-2"
+                                >
+                                  {recommendation.machineOriginSuggestionSourceTitle ?? recommendation.machineOriginSuggestionSourceUrl}
+                                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                </a>
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {t('industryEvidence.machineOriginSuggestionHumanGate', {
+                                defaultValue: 'This is an AI suggestion only — a reviewer must approve the machine origin explicitly before it is committed to the verified profile.',
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <label className="block space-y-2 text-sm font-medium">
                     {t('industryEvidence.evidenceSummaryLabel', { defaultValue: 'Evidence summary' })}{' '}

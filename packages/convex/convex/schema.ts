@@ -1004,6 +1004,19 @@ export default defineSchema({
             v.literal("candidate"),
             v.literal("rejected"),
         )),
+        // AI-suggested machine origin at proposal creation / research time.
+        // Always human-gated: the suggestion is only committed to verified
+        // profiles when a reviewer approves with an explicit machineOrigin.
+        suggestedMachineOrigin: v.optional(v.union(
+            v.literal("international"),
+            v.literal("domestic"),
+            v.literal("unknown"),
+        )),
+        machineOriginSuggestionConfidence: v.optional(v.number()),
+        machineOriginSuggestionEvidence: v.optional(v.string()),
+        machineOriginSuggestionSourceUrl: v.optional(v.string()),
+        machineOriginSuggestionSourceTitle: v.optional(v.string()),
+        machineOriginSuggestionModel: v.optional(v.string()),
         materialChangeSummary: v.optional(v.string()),
         status: v.union(
             v.literal("new"),

@@ -103,6 +103,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "industry_proposals.ts", name: "upsertIndustryProposal", quiesceAware: true, reason: "Industry maintenance proposal write via write-secret and BFF middleware" },
     { file: "industry_proposals.ts", name: "recordIndustryRefreshRequest", quiesceAware: true, reason: "Authenticated workspace refresh request ledger via write-secret and BFF maintenance guard" },
     { file: "industry_proposals.ts", name: "setIndustryProposalResearchState", quiesceAware: true, reason: "Industry maintenance worker state via write-secret and BFF maintenance guard" },
+    { file: "industry_proposals.ts", name: "setIndustryProposalMachineOriginSuggestion", quiesceAware: true, reason: "AI suggestion via write-secret and BFF maintenance guard" },
     { file: "industry_evidence_sources.ts", name: "upsertIndustryEvidenceSource", quiesceAware: true, reason: "Industry evidence write via write-secret and BFF/worker maintenance guard" },
     { file: "industry_evidence_sources.ts", name: "markIndustryEvidenceProfilesChecking", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },
     { file: "industry_evidence_sources.ts", name: "recordIndustryEvidenceFreshnessCheck", quiesceAware: true, reason: "Industry freshness maintenance via write-secret and BFF/worker maintenance guard" },

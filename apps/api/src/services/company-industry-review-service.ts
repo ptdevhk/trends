@@ -527,6 +527,14 @@ function buildRecommendation(input: {
           ? "The proposed change does not meet the current evidence policy; confirm the rejection reason."
           : "Additional evidence or canonical-company review is required before changing verified truth.",
     requiresHumanReview: true,
+    suggestedMachineOrigin: proposal.suggestedMachineOrigin,
+    machineOriginSuggestionConfidence:
+      proposal.machineOriginSuggestionConfidence,
+    machineOriginSuggestionEvidence: proposal.machineOriginSuggestionEvidence,
+    machineOriginSuggestionSourceUrl: proposal.machineOriginSuggestionSourceUrl,
+    machineOriginSuggestionSourceTitle:
+      proposal.machineOriginSuggestionSourceTitle,
+    machineOriginSuggestionModel: proposal.machineOriginSuggestionModel,
     autoApprovable: isAutoApprovableProposal({
       proposal,
       recommendedAction,
