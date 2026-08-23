@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -130,7 +130,7 @@ describe('SystemSettingsIndustryDataPage', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(screen.getByText('Delete industry data entry?')).toBeInTheDocument()
-    expect(screen.getByText(/brand-1/)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText(/brand-1/)).toBeInTheDocument()
 
     await user.click(screen.getByTestId('industry-data-delete-cancel'))
 
