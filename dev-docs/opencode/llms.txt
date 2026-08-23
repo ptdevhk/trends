@@ -151,18 +151,6 @@ scoop install opencode
 
 --------------------------------
 
-### Install OpenCode on Windows using NPM
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using NPM.
-
-```bash
-npm install -g opencode-ai
-```
-
---------------------------------
-
 ### Advanced configuration example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -174,6 +162,18 @@ const config = {
   performance: { cache: true, timeout: 30000 },
   security: { encryption: 'AES-256' }
 };
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using NPM
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using NPM.
+
+```bash
+npm install -g opencode-ai
 ```
 
 --------------------------------
@@ -206,18 +206,6 @@ API_KEY=your_api_key_here
 
 --------------------------------
 
-### Install OpenCode on Windows using Chocolatey
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using Chocolatey.
-
-```bash
-choco install opencode
-```
-
---------------------------------
-
 ### Install dependencies (macOS)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -227,6 +215,18 @@ Commands to install Node.js and a package on macOS using Homebrew.
 ```bash
 brew install node
 npm install -g package-name
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using Chocolatey
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Chocolatey.
+
+```bash
+choco install opencode
 ```
 
 --------------------------------
@@ -251,6 +251,21 @@ Install the opencode SDK from npm.
 
 ```bash
 npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
+### Required YAML frontmatter
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of the YAML frontmatter required at the beginning of every documentation page.
+
+```yaml
+---
+title: "Clear, specific, keyword-rich title"
+description: "Concise description explaining page purpose and value"
+---
 ```
 
 --------------------------------
@@ -440,18 +455,6 @@ const apiConfig = {
 
 --------------------------------
 
-### Run Development Server
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Command to start the local development server for Mintlify documentation.
-
-```bash
-mint dev
-```
-
---------------------------------
-
 ### Install Claude Code globally
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
@@ -460,6 +463,18 @@ Command to install the Claude Code CLI tool using npm.
 
 ```bash
 npm install -g @anthropic-ai/claude-code
+```
+
+--------------------------------
+
+### Run Development Server
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
+
+Command to start the local development server for Mintlify documentation.
+
+```bash
+mint dev
 ```
 
 --------------------------------
@@ -549,18 +564,6 @@ From this screen, the user can undelete a note or permanently delete it.
 
 --------------------------------
 
-### tmpdir with Git repository
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example of initializing a temporary directory as a Git repository.
-
-```typescript
-await using tmp = await tmpdir({ git: true })
-```
-
---------------------------------
-
 ### Run Web App
 
 Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
@@ -573,17 +576,14 @@ bun run --cwd packages/app dev
 
 --------------------------------
 
-### Paste API key
+### tmpdir with Git repository
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
 
-Example of the prompt to paste your API key.
+Example of initializing a temporary directory as a Git repository.
 
-```txt
-┌ API key
-│
-│
-└ enter
+```typescript
+await using tmp = await tmpdir({ git: true })
 ```
 
 --------------------------------
@@ -600,6 +600,21 @@ gh pr view $ARGUMENTS
 
 ```bash
 gh pr diff $ARGUMENTS
+```
+
+--------------------------------
+
+### Paste API key
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of the prompt to paste your API key.
+
+```txt
+┌ API key
+│
+│
+└ enter
 ```
 
 --------------------------------
@@ -635,21 +650,6 @@ scoop bucket add extras; scoop install extras/opencode-desktop
 
 --------------------------------
 
-### Required YAML frontmatter
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
-
-Example of the YAML frontmatter required at the beginning of every documentation page.
-
-```yaml
----
-title: "Clear, specific, keyword-rich title"
-description: "Concise description explaining page purpose and value"
----
-```
-
---------------------------------
-
 ### tmpdir with config file
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -680,18 +680,6 @@ const currentProject = await client.project.current()
 
 --------------------------------
 
-### Example: Run OpenCode with a Specific Prompt
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-This example demonstrates how to pass a specific question directly to the `opencode run` command.
-
-```bash
-opencode run Explain the use of context in Go
-```
-
---------------------------------
-
 ### Code group with multiple languages
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -713,6 +701,18 @@ response = requests.get('/api/endpoint',
 ```curl
 curl -X GET '/api/endpoint' \
   -H 'Authorization: Bearer YOUR_API_KEY'
+```
+
+--------------------------------
+
+### Example: Run OpenCode with a Specific Prompt
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+This example demonstrates how to pass a specific question directly to the `opencode run` command.
+
+```bash
+opencode run Explain the use of context in Go
 ```
 
 --------------------------------
