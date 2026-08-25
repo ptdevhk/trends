@@ -1,12 +1,13 @@
-export const DEFAULT_PRIMARY_CHAT_MODEL = "openai/deepseek-v4-flash-e";
-/** Tracked known bug: Poe deepseek-v4-flash rejects response_format json_object. */
-export const DEFAULT_FALLBACK_CHAT_MODEL = "openai/deepseek-v4-flash";
+export const DEFAULT_PRIMARY_CHAT_MODEL = "openai/deepseek-v4-flash";
+/** Fallback when the primary model is unavailable or returns incomplete output. */
+export const DEFAULT_FALLBACK_CHAT_MODEL = "openai/deepseek-v4-flash-e";
 
 export const POE_DEEPSEEK_V4_FLASH_KNOWN_BUG = {
     model: "openai/deepseek-v4-flash",
-    issue: "Poe rejects response_format json_object with HTTP 400 Invalid input / invalid_request_error",
-    status: "open",
+    issue: "Poe rejected response_format json_object with HTTP 400 Invalid input / invalid_request_error",
+    status: "closed",
     observed: "2026-08-17",
+    closed: "2026-08-25",
 } as const;
 
 export type ChatCompletionCapability = "full" | "incomplete";

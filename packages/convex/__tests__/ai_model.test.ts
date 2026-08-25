@@ -75,12 +75,12 @@ describe("warnUnknownModel", () => {
 });
 
 describe("chat-completion capability + analyze model select", () => {
-    it("names first-class primary deepseek-v4-flash-e and tracks deepseek-v4-flash as known-bug fallback", () => {
-        expect(DEFAULT_PRIMARY_CHAT_MODEL).toBe("openai/deepseek-v4-flash-e");
-        expect(DEFAULT_FALLBACK_CHAT_MODEL).toBe("openai/deepseek-v4-flash");
+    it("names first-class primary deepseek-v4-flash and keeps deepseek-v4-flash-e as fallback", () => {
+        expect(DEFAULT_PRIMARY_CHAT_MODEL).toBe("openai/deepseek-v4-flash");
+        expect(DEFAULT_FALLBACK_CHAT_MODEL).toBe("openai/deepseek-v4-flash-e");
         expect(POE_DEEPSEEK_V4_FLASH_KNOWN_BUG.model).toBe("openai/deepseek-v4-flash");
-        expect(POE_DEEPSEEK_V4_FLASH_KNOWN_BUG.status).toBe("open");
-        expect(DEFAULT_FALLBACK_CHAT_MODEL).toBe(POE_DEEPSEEK_V4_FLASH_KNOWN_BUG.model);
+        expect(POE_DEEPSEEK_V4_FLASH_KNOWN_BUG.status).toBe("closed");
+        expect(DEFAULT_FALLBACK_CHAT_MODEL).toBe("openai/deepseek-v4-flash-e");
     });
 
     it("classifies a Poe 400 response_format invalid_input as incomplete", () => {
@@ -119,12 +119,12 @@ describe("chat-completion capability + analyze model select", () => {
             primary: DEFAULT_PRIMARY_CHAT_MODEL,
             fallback: DEFAULT_FALLBACK_CHAT_MODEL,
             capability: "full",
-        })).toBe("openai/deepseek-v4-flash-e");
+        })).toBe("openai/deepseek-v4-flash");
         expect(selectAnalyzeChatModel({
             primary: DEFAULT_PRIMARY_CHAT_MODEL,
             fallback: DEFAULT_FALLBACK_CHAT_MODEL,
             capability: "incomplete",
-        })).toBe("openai/deepseek-v4-flash");
+        })).toBe("openai/deepseek-v4-flash-e");
     });
 
     it("builds a probe request that includes response_format json_object", () => {

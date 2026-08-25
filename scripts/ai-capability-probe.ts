@@ -4,7 +4,7 @@
  */
 import { probeChatCompletionCapability, resolveChatCompletionModel } from "../packages/convex/convex/lib/ai_model.ts";
 
-const model = process.argv[2] || process.env.AI_MODEL || "openai/deepseek-v4-flash-e";
+const model = process.argv[2] || process.env.AI_MODEL || "openai/deepseek-v4-flash";
 const apiBase = process.env.AI_API_BASE || process.env.OPENAI_API_BASE || "https://api.poe.com/v1";
 const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || "";
 const stripped = resolveChatCompletionModel(apiBase, model);

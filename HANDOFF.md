@@ -269,4 +269,5 @@ false` retained). Unblock = MY HR/product reviewer provides a scored cohort.
 - Vault: `/root/wiki/projects/trends/` (index: `projects/trends/index.md`)
 - Repo policy: `AGENTS.md`, `docs/agent-runbook.md`, `CLAUDE.md` (repo root)
 - AI model policy: `docs/runbooks/llm-api-provider-fallback.md`; default
-  `openai/deepseek-v4-flash-e` (Poe `AI_API_BASE=https://api.poe.com/v1`)
+  `openai/deepseek-v4-flash` (Poe `AI_API_BASE=https://api.poe.com/v1`); fallback
+  `openai/deepseek-v4-flash-e`

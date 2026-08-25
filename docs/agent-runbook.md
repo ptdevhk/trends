@@ -257,7 +257,7 @@ Gotchas (all observed; F-numbers reference the nightly report):
 - Notifications are integrated extension points.
 - Dev flow is TDD-first.
 - Embedding/RAG search remains disabled; use BM25 + tag expansion.
-- LLM scoring provider is Convex `callLLM` (not the BFF `aiConfig` snapshot). Default/basic model is Poe `openai/deepseek-v4-flash-e`. `openai/deepseek-v4-flash` is a **tracked known bug** (Poe rejects `response_format`) and remains the fallback only. See `docs/runbooks/llm-api-provider-fallback.md`.
+- LLM scoring provider is Convex `callLLM` (not the BFF `aiConfig` snapshot). Default/basic model is Poe `openai/deepseek-v4-flash`. `openai/deepseek-v4-flash-e` is the fallback. The former Poe `response_format` rejection bug on `deepseek-v4-flash` was confirmed fixed 2026-08-25 (see `docs/runbooks/llm-api-provider-fallback.md`).
 
 ## Migrations & Environment Policy
 - Do not keep temporary migration checklists in root `CLAUDE.md`.

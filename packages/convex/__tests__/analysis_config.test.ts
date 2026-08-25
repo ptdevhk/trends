@@ -223,8 +223,8 @@ describe("getAiModel", () => {
     expect(getAiModel()).toBe("gpt-4o-mini");
   });
 
-  it("defaults to openai/deepseek-v4-flash-e", () => {
-    expect(getAiModel()).toBe("openai/deepseek-v4-flash-e");
+  it("defaults to openai/deepseek-v4-flash", () => {
+    expect(getAiModel()).toBe("openai/deepseek-v4-flash");
   });
 });
 
@@ -238,9 +238,9 @@ describe("getAiFallbackModel", () => {
     expect(getAiFallbackModel()).toBe("openai/deepseek-v4-flash");
   });
 
-  it("defaults to openai/deepseek-v4-flash (known Poe response_format bug, tracked)", () => {
+  it("defaults to openai/deepseek-v4-flash-e (fallback)", () => {
     delete process.env.AI_FALLBACK_MODEL;
-    expect(getAiFallbackModel()).toBe("openai/deepseek-v4-flash");
+    expect(getAiFallbackModel()).toBe("openai/deepseek-v4-flash-e");
   });
 });
 

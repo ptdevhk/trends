@@ -7,7 +7,7 @@
  * committed to verified profiles when a reviewer approves with an explicit
  * machineOrigin.
  *
- * Cost: ~<US$0.0001/call with deepseek-v4-flash-e (default model); verified via
+ * Cost: ~<US$0.0001/call with deepseek-v4-flash (default model); verified via
  * MY-27 live run (2026-08-22): 27 calls, maxTokens=1000, 0 nulls, total
  * ~$0.0027 at ~$0.0001/1K output tokens — per-call cost stays under the
  * cap. Model cost structure: <US$0.0001/1K output tokens, negligible input

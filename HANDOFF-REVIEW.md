@@ -82,7 +82,7 @@ All under `/root/wiki/projects/trends/`. **Review/discuss; do NOT auto-claim:**
 - **Vault lint baseline**: 80 pre-existing errors (sensitive_content 41 + broken_wikilinks 39, false positives). Target: lint-delta 0 (no NEW errors). Baseline errors reference only `2026-07-29-my-industry-evidence-self-maintenance-search-ux` and `2026-07-30-industry-maintenance-ops-automation`.
 - **Vault push flow**: `bash /root/.grok/installed-plugins/vault-sync-ae1287d3/skills/vault-presync/wiki-sync.sh --execute`, then in `/root/wiki`: `git add -A && git commit -m "..." && git push`.
 - **Convex local backend**: heap grows ~1 GB per UAT pass; at <4 GB available restart via `scripts/dev.sh --convex-only --no-seed`. Kill by port-derived PID, never `pkill -f "convex dev --local"` (self-matches the invoking shell).
-- **AI model policy**: default `openai/deepseek-v4-flash-e` (Poe `AI_API_BASE=https://api.poe.com/v1`); see `docs/runbooks/llm-api-provider-fallback.md`. Poe `deepseek-v4-flash` has a known `response_format` bug (HTTP 400) — stays `AI_FALLBACK_MODEL`, do not promote.
+- **AI model policy**: default `openai/deepseek-v4-flash` (Poe `AI_API_BASE=https://api.poe.com/v1`); see `docs/runbooks/llm-api-provider-fallback.md`. The former Poe `deepseek-v4-flash` `response_format` bug (HTTP 400) was confirmed fixed 2026-08-25; fallback is now `openai/deepseek-v4-flash-e`.
 
 ## 8. Session References
 

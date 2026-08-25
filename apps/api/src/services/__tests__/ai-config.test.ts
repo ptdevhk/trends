@@ -51,8 +51,8 @@ describe("loadAIConfig", () => {
     const config = loadAIConfig();
     expect(config.enabled).toBe(false);
     expect(config.resumesEnabled).toBe(true);
-    expect(config.model).toBe("openai/deepseek-v4-flash-e");
-    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash");
+    expect(config.model).toBe("openai/deepseek-v4-flash");
+    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash-e");
     expect(config.apiKey).toBe("");
     expect(config.apiBase).toBeUndefined();
     expect(config.temperature).toBe(0);
@@ -107,9 +107,9 @@ describe("loadAIConfig", () => {
 
   it("parses AI_FALLBACK_MODEL", () => {
     clearAIEnv();
-    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash";
+    process.env.AI_FALLBACK_MODEL = "openai/deepseek-v4-flash-e";
     const config = loadAIConfig();
-    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash");
+    expect(config.fallbackModel).toBe("openai/deepseek-v4-flash-e");
     expect(config.bonded).toContain("AI_FALLBACK_MODEL");
   });
 
@@ -240,7 +240,7 @@ describe("validateAIConfig", () => {
     const { validateAIConfig } = await importWithEnv();
     expect(validateAIConfig()).toEqual({
       valid: false,
-      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash-e')",
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')",
     });
   });
 
@@ -321,7 +321,7 @@ describe("validateResumeAIConfig", () => {
     const { validateResumeAIConfig } = await importWithEnv();
     expect(validateResumeAIConfig()).toEqual({
       valid: false,
-      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash-e')",
+      error: "Invalid model format: gpt-4o-mini. Should be 'provider/model' (e.g., 'openai/deepseek-v4-flash')",
     });
   });
 

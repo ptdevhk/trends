@@ -1,21 +1,21 @@
-# LLM API provider: Poe defaults + capability probe + known-bug fallback
+# LLM API provider: Poe defaults + capability probe + fallback (former known bug closed 2026-08-25)
 
 Live resume scoring does **not** go through the BFF `aiConfig` snapshot.
 Gate A / Analyze All runs in **Convex**: `analysis_tasks.dispatch` →
 `packages/convex/convex/analyze.ts` `callLLM`.
 
-## Result (2026-08-17, after full probe)
+## Result (2026-08-25, bug confirmed fixed and model re-promoted)
 
 | Item | Value |
 |------|--------|
 | Provider | Poe OpenAI-compatible chat completions (`AI_API_BASE=https://api.poe.com/v1`) |
-| **Default / basic model (all basic services)** | `openai/deepseek-v4-flash-e` |
-| Tracked fallback | `openai/deepseek-v4-flash` |
-| **Known bug (keep tracking)** | Poe `deepseek-v4-flash` rejects `response_format: { type: "json_object" }` with HTTP 400 `Invalid input` / `invalid_request_error`. That caused Gate A `analyzed=0 / failed=10`. **Do not promote it back to default** until this is closed. |
-| Live probe | `deepseek-v4-flash-e`: 200, capability `full`. `deepseek-v4-flash`: 400, capability `incomplete`. |
+| **Default / basic model (all basic services)** | `openai/deepseek-v4-flash` |
+| Fallback | `openai/deepseek-v4-flash-e` |
+| **Former known bug (closed)** | Poe `deepseek-v4-flash` rejected `response_format: { type: "json_object" }` with HTTP 400 `Invalid input` / `invalid_request_error` (observed 2026-08-17; caused Gate A `analyzed=0 / failed=10`). Fixed upstream: 2026-08-25 live probe returned 200 for `response_format`, `tools`, and `response_format`+`tools` combined. |
+| Live probe (2026-08-25) | `deepseek-v4-flash`: 200, capability `full` (JSON + tool calls). `deepseek-v4-flash-e`: 200, capability `full`. |
 
 Code tracker: `POE_DEEPSEEK_V4_FLASH_KNOWN_BUG` in
-`packages/convex/convex/lib/ai_model.ts` (`status: open`).
+`packages/convex/convex/lib/ai_model.ts` (`status: closed`, `closed: "2026-08-25"`).
 
 ## Runtime change (no rebuild)
 
@@ -26,8 +26,8 @@ process `.env` does **not** move Convex. Push keys with:
 ```bash
 ./scripts/sync-convex-env.sh
 # or
-npx convex env set AI_MODEL openai/deepseek-v4-flash-e
-npx convex env set AI_FALLBACK_MODEL openai/deepseek-v4-flash
+npx convex env set AI_MODEL openai/deepseek-v4-flash
+npx convex env set AI_FALLBACK_MODEL openai/deepseek-v4-flash-e
 npx convex env set AI_API_BASE https://api.poe.com/v1
 ```
 
@@ -41,13 +41,13 @@ That path is not the Convex analyze caller.
 | Key | Role | Default |
 |-----|------|---------|
 | `AI_API_BASE` | Provider base | Poe in local `.env`; Convex accessor falls back to `https://api.openai.com/v1` if unset |
-| `AI_MODEL` | Primary `provider/model` | `openai/deepseek-v4-flash-e` |
-| `AI_FALLBACK_MODEL` | Known-bug fallback | `openai/deepseek-v4-flash` |
+| `AI_MODEL` | Primary `provider/model` | `openai/deepseek-v4-flash` |
+| `AI_FALLBACK_MODEL` | Fallback when the primary model is unavailable | `openai/deepseek-v4-flash-e` |
 | `AI_API_KEY` | Bearer token | required when AI enabled |
 
 ## Implementation map
 
-- Classify + select + probe + known-bug constant: `packages/convex/convex/lib/ai_model.ts`
+- Classify + select + probe + (formerly known-bug) constant: `packages/convex/convex/lib/ai_model.ts`
 - Call-time resolver: `packages/convex/convex/lib/analysis_config.ts` `resolveAnalyzeLlmRuntimeConfig`
 - Analyze caller: `packages/convex/convex/analyze.ts` `callLLM` — try primary with `response_format`; on incomplete 400, retry fallback
 - BFF names: `apps/api/src/services/ai-config.ts`
@@ -57,6 +57,6 @@ That path is not the Convex analyze caller.
 
 ```bash
 set -a && source .env && set +a
-bunx tsx scripts/ai-capability-probe.ts openai/deepseek-v4-flash-e
 bunx tsx scripts/ai-capability-probe.ts openai/deepseek-v4-flash
+bunx tsx scripts/ai-capability-probe.ts openai/deepseek-v4-flash-e
 ```
