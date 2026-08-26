@@ -1236,6 +1236,8 @@ app.openapi(getResumesRoute, (c) => {
       minSalary,
       maxSalary,
       machineOrigin,
+      roleFilterType: effectiveRoleFilterType,
+      minRoleYears,
     });
 
     const enriched = filtered.map((item, index) => ({

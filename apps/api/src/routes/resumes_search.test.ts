@@ -185,3 +185,134 @@ describe("ResumesQuerySchema semantic search params", () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe("source=sample role-filter parity", () => {
+  const sampleItems = [
+    {
+      name: "Unverified Sales",
+      profileUrl: "https://example.com/unverified-sales",
+      activityStatus: "Active",
+      age: "28",
+      experience: "7 years",
+      education: "Bachelor",
+      location: "Shenzhen",
+      selfIntro: "",
+      jobIntention: "Sales",
+      expectedSalary: "",
+      workHistory: [],
+      ingestData: {
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["电话销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 6.75,
+            roleRelevantYears: 6.75,
+            industryVerifiedRelevantYears: 0,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                companyName: "Example Trading",
+                jobTitle: "电话销售",
+                years: 6.75,
+                industryVerified: false,
+                directRoleMatch: true,
+                matchedSignals: ["电话销售"],
+              },
+            ],
+          },
+        ],
+      },
+      extractedAt: "2026-03-20T00:00:00.000Z",
+    },
+    {
+      name: "Verified Sales",
+      profileUrl: "https://example.com/verified-sales",
+      activityStatus: "Active",
+      age: "30",
+      experience: "6 years",
+      education: "Bachelor",
+      location: "Shenzhen",
+      selfIntro: "",
+      jobIntention: "Sales",
+      expectedSalary: "",
+      workHistory: [],
+      ingestData: {
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售工程师"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3,
+            roleRelevantYears: 6,
+            industryVerifiedRelevantYears: 3,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                companyName: "Example Machine Tools",
+                jobTitle: "销售工程师",
+                years: 3,
+                industryVerified: true,
+                directRoleMatch: true,
+                matchedSignals: ["销售工程师"],
+              },
+            ],
+          },
+        ],
+      },
+      extractedAt: "2026-03-20T00:00:00.000Z",
+    },
+  ];
+
+  it("passes roleFilterType and minRoleYears to filterResumes", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: sampleItems,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+    vi.spyOn(ResumeService.prototype, "expandSearchQuery").mockReturnValue(undefined as any);
+    vi.spyOn(ResumeService.prototype, "searchResumes").mockImplementation((items) =>
+      items.map((item, index) => ({ ...item, relevanceScore: index }))
+    );
+    const filterSpy = vi.spyOn(ResumeService.prototype, "filterResumes").mockImplementation((items) => items);
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request("/api/resumes?source=sample&minRoleYears=1&roleFilterType=sales", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(filterSpy.mock.calls[0][1]).toMatchObject({
+      roleFilterType: "sales",
+      minRoleYears: 1,
+    });
+  });
+
+  it("normalizes legacy roleType alias to roleFilterType in filterResumes", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: sampleItems,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+    vi.spyOn(ResumeService.prototype, "expandSearchQuery").mockReturnValue(undefined as any);
+    vi.spyOn(ResumeService.prototype, "searchResumes").mockImplementation((items) =>
+      items.map((item, index) => ({ ...item, relevanceScore: index }))
+    );
+    const filterSpy = vi.spyOn(ResumeService.prototype, "filterResumes").mockImplementation((items) => items);
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request("/api/resumes?source=sample&minRoleYears=1&roleType=sales", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(filterSpy.mock.calls[0][1]).toMatchObject({
+      roleFilterType: "sales",
+      minRoleYears: 1,
+    });
+  });
+});
