@@ -40,6 +40,9 @@ import {
 } from "./company-industry-proposal-service.js";
 import { listIndustryVerdictRevisions } from "./company-industry-revision-service.js";
 import { logger } from "./logger.js";
+import {
+  listIndustryReviewQueue,
+} from "./company-industry-review-service.js";
 
 const reviewedSnapshot = {
   companyKey: "acme-cnc",
@@ -593,5 +596,86 @@ describe("company industry API services", () => {
       skippedCount: 1,
       skippedProposalIds: ["legacy-active-proposal"],
     });
+  });
+
+  it("shares the evidence-source/profile corpus across status keys in the review queue", async () => {
+    const proposal = (proposalId: string, status: string) => ({
+      _id: `${proposalId}-row`,
+      proposalId,
+      companyKey: "acme-cnc",
+      triggerReasons: ["scheduled_freshness"],
+      priority: 20,
+      status,
+      createdAt: 1,
+      updatedAt: 2,
+    });
+    const source = {
+      _id: "source-row",
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example/products/cnc",
+      sourceDomain: "acme.example",
+      sourceType: "official_site",
+      trustTier: "primary",
+      fetchStatus: "fetched",
+      reviewStatus: "approved",
+      sourceState: "active",
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    const profile = {
+      _id: "profile-row",
+      companyKey: "acme-cnc",
+      industryClass: "cnc",
+      verificationLevel: "candidate",
+      evidenceSource: "seed",
+      updatedAt: 2,
+    };
+    const coverageSummary = {
+      maintenance: { latest: null, lastFailed: null },
+    };
+    mocks.query.mockImplementation(async (pathName: string) => {
+      switch (pathName) {
+        case "companies:getIndustryCoverageSummary":
+          return coverageSummary;
+        case "companies:listIndustryProposalsPage":
+          return {
+            items: [proposal("proposal-1", "ready_for_review")],
+            nextCursor: undefined,
+          };
+        case "companies:listIndustryEvidenceSources":
+          return [source];
+        case "companies:listIndustryProfiles":
+          return [profile];
+        default:
+          throw new Error(`Unexpected path ${pathName}`);
+      }
+    });
+
+    const first = await listIndustryReviewQueue({
+      status: "ready_for_review",
+      workspaceSlug: "hr",
+    });
+    expect(first.items).toHaveLength(1);
+    expect(first.items[0]?.proposal.proposalId).toBe("proposal-1");
+
+    const second = await listIndustryReviewQueue({
+      status: "new",
+      workspaceSlug: "hr",
+    });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]?.proposal.proposalId).toBe("proposal-1");
+
+    const callPaths = mocks.query.mock.calls.map((call) => call[0] as string);
+    expect(
+      callPaths.filter((path) => path === "companies:listIndustryEvidenceSources"),
+    ).toHaveLength(1);
+    expect(
+      callPaths.filter((path) => path === "companies:listIndustryProfiles"),
+    ).toHaveLength(1);
+    expect(
+      callPaths.filter((path) => path === "companies:listIndustryProposalsPage"),
+    ).toHaveLength(2);
   });
 });

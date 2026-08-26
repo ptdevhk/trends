@@ -55,6 +55,7 @@ import {
 import {
   getCachedIndustryReviewIndex,
   getCachedIndustryReviewIndexSkip,
+  getIndustryReviewCorpusOrLoad,
   paginateIndustryReviewIndex,
   setCachedIndustryReviewIndex,
   type IndustryReviewIndexEntry,
@@ -741,23 +742,30 @@ export async function listIndustryReviewQueue(input: {
     skippedCount = cachedSkip?.skippedCount ?? 0;
     skippedProposalIds = cachedSkip?.skippedProposalIds ?? [];
   } else {
-    const [proposalsResult, allSources, profiles] = await Promise.all([
+    const [proposalsResult, corpus] = await Promise.all([
       listIndustryProposals(input.status),
-      listIndustryEvidenceSources(),
-      listIndustryProfiles(),
+      // The evidence-source and profile tables are key-independent across
+      // queue cache keys; load them once per maintenance window and share.
+      getIndustryReviewCorpusOrLoad(maintenanceFingerprint, async () => {
+        const [sources, profiles] = await Promise.all([
+          listIndustryEvidenceSources(),
+          listIndustryProfiles(),
+        ]);
+        return { sources, profiles };
+      }),
     ]);
     const proposals = proposalsResult.items;
     skippedCount = proposalsResult.skippedCount;
     skippedProposalIds = proposalsResult.skippedProposalIds;
     const sourcesByProposal = new Map<string, IndustryEvidenceSource[]>();
-    for (const source of allSources) {
+    for (const source of corpus?.sources ?? []) {
       if (!source.proposalId) continue;
       const proposalSources = sourcesByProposal.get(source.proposalId) ?? [];
       proposalSources.push(source);
       sourcesByProposal.set(source.proposalId, proposalSources);
     }
     const profilesByCompany = new Map(
-      profiles.map((profile) => [profile.companyKey, profile]),
+      (corpus?.profiles ?? []).map((profile) => [profile.companyKey, profile]),
     );
     const items = await mapWithConcurrency(proposals, 8, async (proposal) => {
       const sources = sourcesByProposal.get(proposal.proposalId) ?? [];

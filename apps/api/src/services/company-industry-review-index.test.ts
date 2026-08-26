@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createIndustryReviewCursor,
   getCachedIndustryReviewIndex,
+  getIndustryReviewCorpusOrLoad,
   invalidateIndustryReviewIndex,
   paginateIndustryReviewIndex,
   setCachedIndustryReviewIndex,
+  type IndustryReviewCorpus,
   type IndustryReviewIndexEntry,
 } from "./company-industry-review-index.js";
 
@@ -73,5 +75,90 @@ describe("industry review index pagination", () => {
     setCachedIndustryReviewIndex("dev:ready_for_review", first, "maintenance-a", 100);
     invalidateIndustryReviewIndex("dev:ready_for_review");
     expect(getCachedIndustryReviewIndex("dev:ready_for_review", "maintenance-a", 101)).toBeUndefined();
+  });
+});
+
+describe("industry review corpus cache", () => {
+  const corpus = (): IndustryReviewCorpus => ({
+    sources: [
+      {
+        _id: "source-row",
+        sourceId: "source-1",
+        proposalId: "proposal-1",
+        url: "https://example.com",
+        sourceDomain: "example.com",
+        sourceType: "official_site",
+        trustTier: "primary",
+        fetchStatus: "fetched",
+        reviewStatus: "approved",
+        sourceState: "active",
+        createdAt: 100,
+        updatedAt: 100,
+      },
+    ],
+    profiles: [
+      {
+        _id: "profile-row",
+        companyKey: "polywell",
+        industryClass: "cnc",
+        verificationLevel: "verified",
+        evidenceSource: "seed",
+        updatedAt: 100,
+      },
+    ],
+  });
+
+  it("loads once and reuses across calls within the freshness window", async () => {
+    const loader = vi.fn(async () => corpus());
+    const first = await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    const second = await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    expect(first).toEqual(corpus());
+    expect(second).toEqual(corpus());
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("forces a reload when the maintenance fingerprint changes", async () => {
+    const loader = vi.fn(async () => corpus());
+    await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    await getIndustryReviewCorpusOrLoad("maintenance-b", loader);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("deduplicates concurrent loads through the in-flight guard", async () => {
+    let resolveLoad: (value: IndustryReviewCorpus) => void = () => {};
+    const loader = vi.fn(
+      () =>
+        new Promise<IndustryReviewCorpus>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    const first = getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    const second = getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    resolveLoad(corpus());
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult).toEqual(corpus());
+    expect(secondResult).toEqual(corpus());
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache a failed load and retries on the next call", async () => {
+    const loader = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("convex down"))
+      .mockResolvedValueOnce(corpus());
+    await expect(
+      getIndustryReviewCorpusOrLoad("maintenance-a", loader),
+    ).rejects.toThrow("convex down");
+    const result = await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    expect(result).toEqual(corpus());
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("is cleared by a full index invalidation", async () => {
+    const loader = vi.fn(async () => corpus());
+    await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    invalidateIndustryReviewIndex();
+    await getIndustryReviewCorpusOrLoad("maintenance-a", loader);
+    expect(loader).toHaveBeenCalledTimes(2);
   });
 });

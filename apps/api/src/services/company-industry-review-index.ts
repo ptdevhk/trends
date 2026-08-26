@@ -6,6 +6,13 @@ import type {
   IndustryReviewRiskFlag,
 } from "@trends/shared";
 
+import type {
+  CompanyIndustryProfile,
+} from "./company-industry-profile-service.js";
+import type {
+  IndustryEvidenceSource,
+} from "./company-industry-contracts.js";
+
 export interface IndustryReviewIndexEntry {
   proposalId: string;
   inputFingerprint: string;
@@ -77,6 +84,89 @@ const REVIEW_INDEX_CACHE_TTL_MS = 15_000;
 const REVIEW_INDEX_CACHE_MAX_KEYS = 8;
 const reviewIndexCache = new Map<string, CachedIndustryReviewIndex>();
 
+export interface IndustryReviewCorpus {
+  sources: IndustryEvidenceSource[];
+  profiles: CompanyIndustryProfile[];
+}
+
+interface CachedIndustryReviewCorpus extends IndustryReviewCorpus {
+  maintenanceFingerprint: string;
+  expiresAt: number;
+}
+
+/**
+ * The evidence-source and profile tables are key-independent across review
+ * queue cache keys (`${workspaceSlug}:${status}`), so a miss on any key loads
+ * them once and shares them for the same freshness window. This avoids
+ * reloading the two large tables for every status key per TTL expiry.
+ */
+const corpusCache = new Map<string, CachedIndustryReviewCorpus>();
+let corpusInFlight:
+  | Promise<IndustryReviewCorpus | null>
+  | null = null;
+
+export function getCachedIndustryReviewCorpus(
+  maintenanceFingerprint: string,
+  now = Date.now(),
+): IndustryReviewCorpus | undefined {
+  const cached = corpusCache.get(maintenanceFingerprint);
+  if (!cached || cached.expiresAt <= now) {
+    if (cached) corpusCache.delete(maintenanceFingerprint);
+    return undefined;
+  }
+  return { sources: cached.sources, profiles: cached.profiles };
+}
+
+export function setCachedIndustryReviewCorpus(
+  maintenanceFingerprint: string,
+  corpus: IndustryReviewCorpus,
+  now = Date.now(),
+): void {
+  corpusCache.delete(maintenanceFingerprint);
+  corpusCache.set(maintenanceFingerprint, {
+    ...corpus,
+    maintenanceFingerprint,
+    expiresAt: now + REVIEW_INDEX_CACHE_TTL_MS,
+  });
+}
+
+/**
+ * Returns the shared sources/profiles corpus, loading it once per
+ * maintenance-fingerprint window. Concurrent callers await the same load
+ * (stampede guard); failures are not cached.
+ */
+export async function getIndustryReviewCorpusOrLoad(
+  maintenanceFingerprint: string,
+  loader: () => Promise<IndustryReviewCorpus>,
+): Promise<IndustryReviewCorpus | null> {
+  const cached = getCachedIndustryReviewCorpus(maintenanceFingerprint);
+  if (cached) return cached;
+  if (corpusInFlight) {
+    const corpus = await corpusInFlight;
+    if (corpus) return corpus;
+  }
+  const load = loader()
+    .then((corpus) => {
+      setCachedIndustryReviewCorpus(maintenanceFingerprint, corpus);
+      return corpus;
+    })
+    .catch((error: unknown) => {
+      corpusInFlight = null;
+      throw error;
+    });
+  corpusInFlight = load;
+  try {
+    return await load;
+  } finally {
+    corpusInFlight = null;
+  }
+}
+
+export function clearIndustryReviewCorpus(): void {
+  corpusCache.clear();
+  corpusInFlight = null;
+}
+
 /**
  * The queue index is advisory only. It is deliberately bounded and disposable:
  * the source/profile/proposal reads remain the authority, while this cache keeps
@@ -142,6 +232,7 @@ export function invalidateIndustryReviewIndex(key?: string): void {
     return;
   }
   reviewIndexCache.clear();
+  clearIndustryReviewCorpus();
 }
 
 export function createIndustryReviewCursor(input: IndustryReviewCursor): string {
@@ -223,5 +314,6 @@ export const industryReviewIndexInternals = {
   indexSnapshot,
   decodeIndustryReviewCursor,
   cacheSize: () => reviewIndexCache.size,
+  corpusCacheSize: () => corpusCache.size,
   clearCache: () => invalidateIndustryReviewIndex(),
 };
