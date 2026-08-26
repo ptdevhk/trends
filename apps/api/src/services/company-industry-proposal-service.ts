@@ -40,37 +40,56 @@ export interface IndustryProposalListResult {
   skippedProposalIds: string[];
 }
 
+const PROPOSAL_LIST_MAX_PAGES = 100;
+
+/**
+ * Walk every proposal (optionally filtered by status) via the cursor-paginated
+ * page query, removing the 500-row cap of the legacy list query. Bounded by
+ * PROPOSAL_LIST_MAX_PAGES × page size (default 100 → 10,000 rows) to protect
+ * system-op ceilings; the review queue additionally filters per page.
+ */
 export async function listIndustryProposals(
   status?: IndustryProposalStatus,
 ): Promise<IndustryProposalListResult> {
-  const value = await callConvexQuery("companies:listIndustryProposals", {
-    writeSecret: config.auth.convexWriteSecret,
-    ...(status ? { status } : {}),
-  });
-  if (!Array.isArray(value)) {
-    throw new Error("Invalid companies:listIndustryProposals response");
-  }
-
-  const parsedItems: IndustryProposal[] = [];
+  const items: IndustryProposal[] = [];
   const skippedProposalIds: string[] = [];
-  for (const item of value) {
-    const parsed = parseIndustryProposal(item);
-    if (parsed) {
-      parsedItems.push(parsed);
-      continue;
-    }
-    const proposalId =
-      isRecord(item) && typeof item.proposalId === "string"
-        ? item.proposalId
-        : "unknown";
-    skippedProposalIds.push(proposalId);
-    logger.warn("Skipping invalid industry proposal record", {
-      status: status ?? "all",
-      proposalId,
+  let cursor: string | undefined;
+  for (let page = 0; page < PROPOSAL_LIST_MAX_PAGES; page += 1) {
+    const value = await callConvexQuery("companies:listIndustryProposalsPage", {
+      writeSecret: config.auth.convexWriteSecret,
+      ...(status ? { status } : {}),
+      limit: 100,
+      ...(cursor ? { cursor } : {}),
     });
+    if (!isRecord(value) || !Array.isArray(value.items)) {
+      throw new Error("Invalid companies:listIndustryProposalsPage response");
+    }
+    for (const item of value.items) {
+      const parsed = parseIndustryProposal(item);
+      if (parsed) {
+        items.push(parsed);
+        continue;
+      }
+      const proposalId =
+        isRecord(item) && typeof item.proposalId === "string"
+          ? item.proposalId
+          : "unknown";
+      skippedProposalIds.push(proposalId);
+      logger.warn("Skipping invalid industry proposal record", {
+        status: status ?? "all",
+        proposalId,
+      });
+    }
+    const nextCursor = typeof value.nextCursor === "string"
+      ? value.nextCursor
+      : undefined;
+    if (!nextCursor || value.items.length === 0) {
+      break;
+    }
+    cursor = nextCursor;
   }
   return {
-    items: parsedItems,
+    items,
     skippedCount: skippedProposalIds.length,
     skippedProposalIds,
   };

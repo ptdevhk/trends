@@ -2848,21 +2848,24 @@ describe("companies routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
-      if (call.pathName === "companies:listIndustryProposals") {
+      if (call.pathName === "companies:listIndustryProposalsPage") {
         expect(call.args.status).toBe("approved");
-        return convexSuccess([
-          {
-            _id: "proposal-row",
-            proposalId: "proposal-1",
-            companyKey: "acme-cnc",
-            triggerReasons: ["manual"],
-            priority: 80,
-            status: "approved",
-            approvedRevisionId: "revision-2",
-            createdAt: 1,
-            updatedAt: 2,
-          },
-        ]);
+        return convexSuccess({
+          items: [
+            {
+              _id: "proposal-row",
+              proposalId: "proposal-1",
+              companyKey: "acme-cnc",
+              triggerReasons: ["manual"],
+              priority: 80,
+              status: "approved",
+              approvedRevisionId: "revision-2",
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ],
+          nextCursor: undefined,
+        });
       }
       if (call.pathName === "companies:startIndustryRecomputeRun") {
         expect(call.args).toMatchObject({
@@ -2950,8 +2953,8 @@ describe("companies routes", () => {
     const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
-      if (call.pathName === "companies:listIndustryProposals") {
-        return convexSuccess([]);
+      if (call.pathName === "companies:listIndustryProposalsPage") {
+        return convexSuccess({ items: [], nextCursor: undefined });
       }
       throw new Error(`Unexpected path ${call.pathName}`);
     });

@@ -415,25 +415,28 @@ describe("company industry API services", () => {
 
   it("strictly parses proposal and revision lists", async () => {
     mocks.query
-      .mockResolvedValueOnce([
-        {
-          _id: "proposal-row",
-          proposalId: "proposal-1",
-          companyKey: "acme-cnc",
-          triggerReasons: ["unknown_employer"],
-          priority: 50,
-          sampleReferences: [
-            {
-              workspaceSlug: "my",
-              resumeIdentity: "resume-1",
-              workEntryFingerprint: "work-1",
-            },
-          ],
-          status: "ready_for_review",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ])
+      .mockResolvedValueOnce({
+        items: [
+          {
+            _id: "proposal-row",
+            proposalId: "proposal-1",
+            companyKey: "acme-cnc",
+            triggerReasons: ["unknown_employer"],
+            priority: 50,
+            sampleReferences: [
+              {
+                workspaceSlug: "my",
+                resumeIdentity: "resume-1",
+                workEntryFingerprint: "work-1",
+              },
+            ],
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nextCursor: undefined,
+      })
       .mockResolvedValueOnce([
         {
           _id: "revision-row",
@@ -474,28 +477,31 @@ describe("company industry API services", () => {
   it("skips malformed terminal proposal rows without failing the history list", async () => {
     const warning = vi.spyOn(logger, "warn").mockImplementation(() => {});
     try {
-      mocks.query.mockResolvedValueOnce([
-        {
-          _id: "valid-row",
-          proposalId: "valid-superseded-proposal",
-          companyKey: "valid-company",
-          triggerReasons: ["scheduled_freshness"],
-          priority: 20,
-          status: "superseded",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-        {
-          _id: "legacy-row",
-          proposalId: "probe-nonexistent-xyz",
-          companyKey: "legacy-company",
-          triggerReasons: ["probe"],
-          priority: 1,
-          status: "superseded",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ]);
+      mocks.query.mockResolvedValueOnce({
+        items: [
+          {
+            _id: "valid-row",
+            proposalId: "valid-superseded-proposal",
+            companyKey: "valid-company",
+            triggerReasons: ["scheduled_freshness"],
+            priority: 20,
+            status: "superseded",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+          {
+            _id: "legacy-row",
+            proposalId: "probe-nonexistent-xyz",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "superseded",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nextCursor: undefined,
+      });
 
       await expect(listIndustryProposals("superseded")).resolves.toEqual({
         items: [
@@ -519,18 +525,21 @@ describe("company industry API services", () => {
   it("skips malformed active proposal rows without failing the live queue", async () => {
     const warning = vi.spyOn(logger, "warn").mockImplementation(() => {});
     try {
-      mocks.query.mockResolvedValueOnce([
-        {
-          _id: "legacy-row",
-          proposalId: "legacy-active-proposal",
-          companyKey: "legacy-company",
-          triggerReasons: ["probe"],
-          priority: 1,
-          status: "ready_for_review",
-          createdAt: 1,
-          updatedAt: 2,
-        },
-      ]);
+      mocks.query.mockResolvedValueOnce({
+        items: [
+          {
+            _id: "legacy-row",
+            proposalId: "legacy-active-proposal",
+            companyKey: "legacy-company",
+            triggerReasons: ["probe"],
+            priority: 1,
+            status: "ready_for_review",
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ],
+        nextCursor: undefined,
+      });
 
       await expect(listIndustryProposals("ready_for_review")).resolves.toEqual({
         items: [],

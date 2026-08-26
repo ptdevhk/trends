@@ -318,56 +318,80 @@ function collectRoleYearsByType(
     const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
     const rawRoleSignals = Array.isArray(raw.roleSignals) ? raw.roleSignals : [];
 
-    if (strictEvidenceProjection) {
-        // Approved evidence revisions govern every role with a revisioned
-        // entry: affirmed roles get the revision-checked years, governed roles
-        // without revision-checked support are revoked outright. Roles with no
-        // revisioned entries at all (catalog not yet reviewed) keep their
-        // legacy verified aggregates below.
-        const governedRoles = new Set<string>();
-        const affirmed = new Map<string, number>();
-        for (const rawSignal of rawRoleSignals) {
-            if (!isRecord(rawSignal) || typeof rawSignal.type !== "string") continue;
-            const key = rawSignal.type.trim().toLowerCase();
-            if (!key || !Array.isArray(rawSignal.matchedWorkEntries)) continue;
-            for (const entry of rawSignal.matchedWorkEntries) {
-                if (!isRecord(entry)) continue;
-                const companyKey = typeof entry.companyKey === "string"
-                    ? entry.companyKey.trim().toLowerCase()
-                    : "";
-                const revisionId = typeof entry.verdictRevisionId === "string"
-                    ? entry.verdictRevisionId.trim()
-                    : "";
-                if (entry.industryVerified === true && companyKey && revisionId) {
-                    governedRoles.add(key);
-                }
-            }
-        }
-        for (const [key, years] of Object.entries(strictEvidenceProjection.roleYearsByType)) {
-            if (years > 0) affirmed.set(key, years);
-        }
-
-        if (governedRoles.size === 0 && affirmed.size === 0) {
-            // No revision-backed evidence anywhere (empty catalog): keep the
-            // legacy verified aggregates so unreviewed resumes still pass the
-            // minRoleYears gate.
-        } else {
-            const result: Record<string, number> = {};
-            for (const [key, years] of affirmed) {
-                result[key] = years;
-            }
-            // Evidence mode is active: only revision-checked years may pass
-            // the gate. Legacy aggregates (verifiedRoleYears, pre-evidence
-            // industryVerified entries) are never trusted in this mode — that
-            // is the guard that keeps superseded-revision totals from
-            // satisfying minRoleYears.
-            return result;
-        }
+    // Evidence mode: any revision-backed entry (governed role) or affirmed
+    // revision-checked year makes the projection authoritative. If the
+    // projection is present but empty (catalog not yet reviewed), fall back
+    // to the legacy verified aggregates so unreviewed resumes still pass the
+    // minRoleYears gate.
+    const evidenceMode = collectEvidenceMode(
+        strictEvidenceProjection,
+        rawRoleSignals,
+    );
+    if (evidenceMode === "strict-active" && strictEvidenceProjection) {
+        return collectStrictEvidenceRoleYears(strictEvidenceProjection);
     }
+    return collectLegacyRoleYears(roleSignals, raw.verifiedRoleYears);
+}
 
+/**
+ * Classify which gate-years mode applies to a resume's digest.
+ *
+ * - "strict-active": revision-backed evidence exists (the projection carries
+ *   affirmed years, or a governed role has a revisioned entry) — only
+ *   revision-checked years may pass the gate.
+ * - "strict-empty-catalog": the projection is present but empty (no company
+ *   reviewed yet) — legacy aggregates remain the only gate source.
+ * - "legacy": no projection at all (pre-evidence ingest) — legacy aggregates.
+ */
+function collectEvidenceMode(
+    strictEvidenceProjection: ReturnType<typeof collectStrictEvidenceProjection> | undefined,
+    rawRoleSignals: Array<Record<string, unknown>>,
+): "strict-active" | "strict-empty-catalog" | "legacy" {
+    if (!strictEvidenceProjection) return "legacy";
+    const affirmed = Object.keys(strictEvidenceProjection.roleYearsByType).length > 0;
+    if (affirmed) return "strict-active";
+    const hasGovernedRole = rawRoleSignals.some((rawSignal) => {
+        if (!isRecord(rawSignal) || typeof rawSignal.type !== "string") return false;
+        if (!Array.isArray(rawSignal.matchedWorkEntries)) return false;
+        return rawSignal.matchedWorkEntries.some((entry) =>
+            isRecord(entry)
+            && entry.industryVerified === true
+            && typeof entry.companyKey === "string"
+            && entry.companyKey.trim()
+            && typeof entry.verdictRevisionId === "string"
+            && entry.verdictRevisionId.trim()
+        );
+    });
+    return hasGovernedRole ? "strict-active" : "strict-empty-catalog";
+}
+
+/**
+ * Strict gate years: only revision-checked years from the projection may
+ * pass. Legacy aggregates (verifiedRoleYears, pre-evidence industryVerified
+ * entries) are never trusted here — that is the guard that keeps
+ * superseded-revision totals from satisfying minRoleYears.
+ */
+function collectStrictEvidenceRoleYears(
+    strictEvidenceProjection: ReturnType<typeof collectStrictEvidenceProjection>,
+): Record<string, number> {
     const result: Record<string, number> = {};
+    for (const [key, years] of Object.entries(strictEvidenceProjection.roleYearsByType)) {
+        if (years > 0) result[key] = years;
+    }
+    return result;
+}
 
-    const verifiedRoleYears = raw.verifiedRoleYears as Record<string, unknown> | null | undefined;
+/**
+ * Legacy gate years: precomputed verifiedRoleYears plus verified role-signal
+ * years. Used when no revision-backed evidence exists anywhere (unreviewed
+ * catalog or pre-evidence ingest).
+ */
+function collectLegacyRoleYears(
+    roleSignals: AnalysisRoleSignalLike[],
+    verifiedRoleYearsValue: unknown,
+): Record<string, number> {
+    const result: Record<string, number> = {};
+    const verifiedRoleYears = verifiedRoleYearsValue as Record<string, unknown> | null | undefined;
     if (isRecord(verifiedRoleYears)) {
         for (const [key, value] of Object.entries(verifiedRoleYears)) {
             const normalizedKey = key.trim().toLowerCase();

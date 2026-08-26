@@ -25,6 +25,7 @@ import {
   policyOverridesRoutes,
   workspaceSnapshotRoutes,
   companiesRoutes,
+  companyIndustryRoutes,
   researchRoutes,
   candidateStatusRoutes,
   searchProfilesRoutes,
@@ -263,6 +264,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/", policyOverridesRoutes);
   app.route("/", workspaceSnapshotRoutes);
   app.route("/", companiesRoutes);
+  app.route("/", companyIndustryRoutes);
   app.route("/", researchRoutes);
   app.route("/", candidateStatusRoutes);
   app.route("/worker", workerRoutes);

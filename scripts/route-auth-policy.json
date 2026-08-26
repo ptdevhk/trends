@@ -23,6 +23,10 @@
     "class": "workspace-write",
     "reason": "Company registry and company-policy routes require authenticated workspace membership through requireWorkspaceUser."
   },
+  "company-industry.ts": {
+    "class": "admin",
+    "reason": "Governed industry-evidence routes gate per endpoint: profiles/verified-count/bundles/refresh-requests requireWorkspaceUser; proposals/evidence-sources/revisions requireIndustryReviewer; recompute-runs/link-backfill/maintenance-runs/coverage requireAdmin. Strongest gate (admin) recorded."
+  },
   "config.ts": {
     "class": "admin",
     "reason": "Runtime configuration reads and writes are admin-only through getAdminAccessError checks."
