@@ -1,3 +1,5 @@
+import type { MachineOrigin } from "../industry-evidence.js";
+
 /**
  * Structured brand signals for Phase 2 of the CN HR scoring audit.
  *
@@ -26,6 +28,12 @@ const INDUSTRIAL_COMPONENT_RE =
  * Distinct from normalizeBrandOrigin which collapses unknowns to "unknown".
  */
 export function parseBrandOrigin(value: unknown): BrandOrigin | undefined {
+  return value === "international" || value === "domestic" || value === "unknown"
+    ? value
+    : undefined;
+}
+
+export function parseMachineOrigin(value: unknown): MachineOrigin | undefined {
   return value === "international" || value === "domestic" || value === "unknown"
     ? value
     : undefined;

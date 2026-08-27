@@ -43,6 +43,7 @@ describe("ingestData validator sync", () => {
         "synonymHits",
         "brandHits",
         "brandOrigin",
+        "machineOrigin",
         "productClass",
         "companyHits",
         "industryDbV2Raw",

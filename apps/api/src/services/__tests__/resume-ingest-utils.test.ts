@@ -263,6 +263,13 @@ describe("resume-ingest-utils", () => {
 
   // ── buildResumeIngestData ──────────────────────────────────────────────
   describe("buildResumeIngestData", () => {
+    it("parses machineOrigin and survives the emptiness guard as a lone field", () => {
+      expect(buildResumeIngestData({ machineOrigin: "international" })).toEqual({ machineOrigin: "international" });
+      expect(buildResumeIngestData({ machineOrigin: "bogus" })).toBeUndefined();
+      const full = buildResumeIngestData({ industryTags: ["cnc"], machineOrigin: "domestic" });
+      expect(full).toMatchObject({ industryTags: ["cnc"], machineOrigin: "domestic" });
+    });
+
     it("returns undefined for null and undefined input", () => {
       expect(buildResumeIngestData(null)).toBeUndefined();
       expect(buildResumeIngestData(undefined)).toBeUndefined();

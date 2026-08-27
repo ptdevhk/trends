@@ -1212,131 +1212,146 @@ app.openapi(getResumesRoute, (c) => {
     const session = sessionId ? sessionManager.getSession(sessionId) : null;
     const resolvedJobId = jobDescriptionId?.trim() || session?.jobDescriptionId;
 
-    let ruleScoreMap: Map<string, number> | undefined;
-    if (resolvedJobId) {
-      try {
-        const context = ruleScoringService.buildContext(resolvedJobId);
-        const preparedForScores = prepareSampleCandidates({
-          items,
-          indexMap: indexes,
-        });
-        const scored = scorePreparedCandidates(preparedForScores, context);
-        ruleScoreMap = new Map(scored.map((entry) => [entry.resumeId, entry.result.score]));
-      } catch (error) {
-        logger.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error, { route: "resumes_search" });
+    return (async () => {
+      let ruleScoreMap: Map<string, number> | undefined;
+      if (resolvedJobId) {
+        try {
+          const context = ruleScoringService.buildContext(resolvedJobId);
+          const preparedForScores = prepareSampleCandidates({
+            items,
+            indexMap: indexes,
+          });
+          const scored = scorePreparedCandidates(preparedForScores, context);
+          ruleScoreMap = new Map(scored.map((entry) => [entry.resumeId, entry.result.score]));
+        } catch (error) {
+          logger.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error, { route: "resumes_search" });
+        }
       }
-    }
 
-    let filtered = resumeService.searchResumes(items, keyword, indexes, ruleScoreMap);
-    filtered = resumeService.filterResumes(filtered, {
-      education,
-      skills,
-      requiredKeywords: normalizeKeywords(requiredKeywords),
-      locations: effectiveLocations,
-      minSalary,
-      maxSalary,
-      machineOrigin,
-      roleFilterType: effectiveRoleFilterType,
-      minRoleYears,
-    });
+      let filtered = resumeService.searchResumes(items, keyword, indexes, ruleScoreMap);
 
-    const enriched = filtered.map((item, index) => ({
-      resume: item,
-      id: resolveResumeId(item, index),
-      resumeId: typeof item.resumeId === "string" ? item.resumeId : undefined,
-      relevanceScore: item.relevanceScore,
-    }));
+      // machineOrigin filtering is Tier-1 verified-profile aware: preload
+      // verified company records for the sample set, matching the convex path.
+      let sampleVerifiedProfilesMap: Map<string, VerifiedCompanyProfileSummary> | undefined;
+      if (machineOrigin) {
+        const companyKeys = Array.from(new Set(
+          filtered.flatMap((item) => item.companyKeyProjection?.companyKeys ?? []),
+        ));
+        if (companyKeys.length > 0) {
+          sampleVerifiedProfilesMap = await resumeService.loadVerifiedCompanyProfiles(companyKeys);
+        }
+      }
 
-    let matchMap: Map<string, { score: number; recommendation: MatchingResult["recommendation"] }> | null = null;
-    const needsMatchContext = Boolean(
-      resolvedJobId
-      && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
-    );
+      filtered = resumeService.filterResumes(filtered, {
+        education,
+        skills,
+        requiredKeywords: normalizeKeywords(requiredKeywords),
+        locations: effectiveLocations,
+        minSalary,
+        maxSalary,
+        machineOrigin,
+        roleFilterType: effectiveRoleFilterType,
+        minRoleYears,
+      }, sampleVerifiedProfilesMap);
 
-    if (needsMatchContext && resolvedJobId) {
-      const matches = matchStorage.getMatchesByResumeIds(
-        enriched.map((item) => item.resumeId ?? item.id),
+      const enriched = filtered.map((item, index) => ({
+        resume: item,
+        id: resolveResumeId(item, index),
+        resumeId: typeof item.resumeId === "string" ? item.resumeId : undefined,
+        relevanceScore: item.relevanceScore,
+      }));
+
+      let matchMap: Map<string, { score: number; recommendation: MatchingResult["recommendation"] }> | null = null;
+      const needsMatchContext = Boolean(
         resolvedJobId
+        && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
       );
-      matchMap = new Map(matches.map((match) => [match.resumeId, match]));
-    }
 
-    let working = enriched;
-    if (matchMap) {
-      if (minMatchScore !== undefined) {
-        working = working.filter((item) => {
-          const match = matchMap?.get(item.resumeId ?? item.id);
-          return match && match.score >= minMatchScore;
+      if (needsMatchContext && resolvedJobId) {
+        const matches = matchStorage.getMatchesByResumeIds(
+          enriched.map((item) => item.resumeId ?? item.id),
+          resolvedJobId
+        );
+        matchMap = new Map(matches.map((match) => [match.resumeId, match]));
+      }
+
+      let working = enriched;
+      if (matchMap) {
+        if (minMatchScore !== undefined) {
+          working = working.filter((item) => {
+            const match = matchMap?.get(item.resumeId ?? item.id);
+            return match && match.score >= minMatchScore;
+          });
+        }
+        if (recommendation?.length) {
+          const allowed = new Set(recommendation);
+          working = working.filter((item) => {
+            const match = matchMap?.get(item.resumeId ?? item.id);
+            return match && allowed.has(match.recommendation);
+          });
+        }
+      }
+
+      if (sortBy) {
+        const order = sortOrder || (sortBy === "score" ? "desc" : "asc");
+        const direction = order === "desc" ? -1 : 1;
+
+        working = [...working].sort((a, b) => {
+          if (sortBy === "score") {
+            const scoreA = matchMap?.get(a.resumeId ?? a.id)?.score ?? -1;
+            const scoreB = matchMap?.get(b.resumeId ?? b.id)?.score ?? -1;
+            return (scoreA - scoreB) * direction;
+          }
+          if (sortBy === "experience") {
+            const expA = parseExperienceYears(a.resume.experience) ?? -1;
+            const expB = parseExperienceYears(b.resume.experience) ?? -1;
+            return (expA - expB) * direction;
+          }
+          if (sortBy === "extractedAt") {
+            const timeA = Date.parse(a.resume.extractedAt || "") || 0;
+            const timeB = Date.parse(b.resume.extractedAt || "") || 0;
+            return (timeA - timeB) * direction;
+          }
+          const nameA = a.resume.name?.toLowerCase() ?? "";
+          const nameB = b.resume.name?.toLowerCase() ?? "";
+          return nameA.localeCompare(nameB) * direction;
+        });
+      } else if (keyword) {
+        // Default sort by relevance if keyword is present but no explicit sortBy
+        working = [...working].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+      }
+
+      const start = offset ?? 0;
+      const end = typeof limit === "number" ? start + limit : undefined;
+      const paged = end ? working.slice(start, end) : working.slice(start);
+      const limited = paged.map((item) => item.resume);
+
+      if (keyword) {
+        const topScore = working[0]?.relevanceScore;
+        searchEventLogger.logSearchQuery({
+          query: keyword,
+          resultCount: working.length,
+          topScore: typeof topScore === "number" ? topScore : undefined,
         });
       }
-      if (recommendation?.length) {
-        const allowed = new Set(recommendation);
-        working = working.filter((item) => {
-          const match = matchMap?.get(item.resumeId ?? item.id);
-          return match && allowed.has(match.recommendation);
-        });
-      }
-    }
 
-    if (sortBy) {
-      const order = sortOrder || (sortBy === "score" ? "desc" : "asc");
-      const direction = order === "desc" ? -1 : 1;
-
-      working = [...working].sort((a, b) => {
-        if (sortBy === "score") {
-          const scoreA = matchMap?.get(a.resumeId ?? a.id)?.score ?? -1;
-          const scoreB = matchMap?.get(b.resumeId ?? b.id)?.score ?? -1;
-          return (scoreA - scoreB) * direction;
-        }
-        if (sortBy === "experience") {
-          const expA = parseExperienceYears(a.resume.experience) ?? -1;
-          const expB = parseExperienceYears(b.resume.experience) ?? -1;
-          return (expA - expB) * direction;
-        }
-        if (sortBy === "extractedAt") {
-          const timeA = Date.parse(a.resume.extractedAt || "") || 0;
-          const timeB = Date.parse(b.resume.extractedAt || "") || 0;
-          return (timeA - timeB) * direction;
-        }
-        const nameA = a.resume.name?.toLowerCase() ?? "";
-        const nameB = b.resume.name?.toLowerCase() ?? "";
-        return nameA.localeCompare(nameB) * direction;
-      });
-    } else if (keyword) {
-      // Default sort by relevance if keyword is present but no explicit sortBy
-      working = [...working].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
-    }
-
-    const start = offset ?? 0;
-    const end = typeof limit === "number" ? start + limit : undefined;
-    const paged = end ? working.slice(start, end) : working.slice(start);
-    const limited = paged.map((item) => item.resume);
-
-    if (keyword) {
-      const topScore = working[0]?.relevanceScore;
-      searchEventLogger.logSearchQuery({
-        query: keyword,
-        resultCount: working.length,
-        topScore: typeof topScore === "number" ? topScore : undefined,
-      });
-    }
-
-    return c.json({
-      success: true as const,
-      sample: sampleInfo,
-      metadata: metadata ?? undefined,
-      summary: {
-        total: working.length,
-        returned: limited.length,
-        query: keyword,
-        source,
-        expandedTo: keywordExpansion?.flatTerms,
-        mode: keywordExpansion?.mode,
-        keywordGroups: keywordExpansion?.groups,
-        sourceMapping: keywordExpansion?.sourceMapping,
-      },
-      data: limited,
-    }, 200);
+      return c.json({
+        success: true as const,
+        sample: sampleInfo,
+        metadata: metadata ?? undefined,
+        summary: {
+          total: working.length,
+          returned: limited.length,
+          query: keyword,
+          source,
+          expandedTo: keywordExpansion?.flatTerms,
+          mode: keywordExpansion?.mode,
+          keywordGroups: keywordExpansion?.groups,
+          sourceMapping: keywordExpansion?.sourceMapping,
+        },
+        data: limited,
+      }, 200);
+    })();
   } catch (error) {
     if (error instanceof DataNotFoundError) {
       return c.json({

@@ -11,6 +11,7 @@ import {
   normalizeSharedResumeFields,
   parseBrandOrigin,
   parseExperienceYears,
+  parseMachineOrigin,
   parseProductClass,
   parseRawSalaryRange,
   parseVerifiedIndustryEvidenceSummary,
@@ -259,6 +260,7 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
   const roleSignals = normalizeRoleSignals(value.roleSignals);
   const verifiedRoleYears = normalizeNumberRecord(value.verifiedRoleYears);
   const brandOrigin = parseBrandOrigin(value.brandOrigin);
+  const machineOrigin = parseMachineOrigin(value.machineOrigin);
   const productClass = parseProductClass(value.productClass);
   const evidenceProjectionVersion = toOptionalNumber(
     value.evidenceProjectionVersion,
@@ -283,6 +285,7 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     && roleSignals === undefined
     && verifiedRoleYears === undefined
     && brandOrigin === undefined
+    && machineOrigin === undefined
     && productClass === undefined
     && evidenceProjectionVersion === undefined
     && !verifiedIndustryEvidenceSummaries?.length
@@ -294,6 +297,7 @@ export function normalizeIngestData(value: unknown): ResumeIngestData | undefine
     ...(industryTags.length > 0 ? { industryTags } : {}),
     ...(brandHits ? { brandHits } : {}),
     ...(brandOrigin ? { brandOrigin } : {}),
+    ...(machineOrigin ? { machineOrigin } : {}),
     ...(productClass ? { productClass } : {}),
     ...(companyHits.length > 0 ? { companyHits } : {}),
     ...(roleSignals ? { roleSignals } : {}),

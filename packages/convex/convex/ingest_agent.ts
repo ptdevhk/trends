@@ -11,6 +11,7 @@ import {
   resolveBffApiUrl,
   shouldSelectForReingest,
   type BrandOrigin,
+  type MachineOrigin,
   type ProductClass,
   type StaleSelectionMode,
 } from "@trends/shared";
@@ -810,6 +811,7 @@ export const processNewResumes = internalAction({
           synonymHits: item.synonymHits as string[],
           brandHits: (item.brandHits as BrandHit[]) || [],
           brandOrigin: item.brandOrigin as BrandOrigin | undefined,
+          machineOrigin: item.machineOrigin as MachineOrigin | undefined,
           productClass: item.productClass as ProductClass | undefined,
           companyHits: (item.companyHits as string[]) || [],
           industryDbV2Raw: item.industryDbV2Raw as number | undefined,

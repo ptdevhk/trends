@@ -187,6 +187,10 @@ describe("ResumesQuerySchema semantic search params", () => {
 });
 
 describe("source=sample role-filter parity", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const sampleItems = [
     {
       name: "Unverified Sales",
@@ -314,5 +318,49 @@ describe("source=sample role-filter parity", () => {
       roleFilterType: "sales",
       minRoleYears: 1,
     });
+  });
+
+  it("preloads verified company profiles and passes them to filterResumes when machineOrigin is set", async () => {
+    const itemsWithCompanyKeys = [
+      {
+        ...sampleItems[0],
+        companyKeyProjection: {
+          epoch: 1,
+          companyKeys: ["haas-automation"],
+          companyTokens: [],
+        },
+      },
+    ];
+
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: itemsWithCompanyKeys,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+    vi.spyOn(ResumeService.prototype, "expandSearchQuery").mockReturnValue(undefined as any);
+    vi.spyOn(ResumeService.prototype, "searchResumes").mockImplementation((items) =>
+      items.map((item, index) => ({ ...item, relevanceScore: index }))
+    );
+    const verifiedProfilesMap = new Map([
+      ["haas-automation", { companyKey: "haas-automation", machineOrigin: "international" as const }],
+    ]);
+    const loadVerifiedProfilesSpy = vi
+      .spyOn(ResumeService.prototype, "loadVerifiedCompanyProfiles")
+      .mockResolvedValue(verifiedProfilesMap);
+    const filterSpy = vi.spyOn(ResumeService.prototype, "filterResumes").mockImplementation((items) => items);
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request("/api/resumes?source=sample&machineOrigin=domestic", {
+      headers: { "X-Workspace-Slug": "hr" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(loadVerifiedProfilesSpy).toHaveBeenCalledWith(["haas-automation"]);
+    expect(filterSpy).toHaveBeenCalledTimes(1);
+    expect(filterSpy.mock.calls[0][1]).toMatchObject({
+      machineOrigin: "domestic",
+    });
+    expect(filterSpy.mock.calls[0][2]).toBe(verifiedProfilesMap);
   });
 });

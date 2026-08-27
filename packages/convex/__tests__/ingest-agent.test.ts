@@ -178,6 +178,7 @@ describe("processNewResumes", () => {
               productClass: "complete_machine",
             }],
             brandOrigin: "international",
+            machineOrigin: "international",
             productClass: "complete_machine",
             companyHits: [],
             ruleScores: { tech: 0.9 },
@@ -233,6 +234,7 @@ describe("processNewResumes", () => {
     expect((update0.ingestData as Record<string, unknown>).market).toBe("tech")
     expect((update0.ingestData as Record<string, unknown>).skillsVersion).toBe(2)
     expect((update0.ingestData as Record<string, unknown>).brandOrigin).toBe("international")
+    expect((update0.ingestData as Record<string, unknown>).machineOrigin).toBe("international")
     expect((update0.ingestData as Record<string, unknown>).productClass).toBe("complete_machine")
     expect((update0.ingestData as Record<string, unknown>).brandHits).toEqual([{
       brand: "FANUC",

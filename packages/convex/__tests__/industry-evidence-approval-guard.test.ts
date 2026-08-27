@@ -208,6 +208,79 @@ describe("approveIndustryProposal evidence-source guard", () => {
     expect(revisions[0].reviewedBy).toBe("reviewer@example.com");
     expect(revisions[0].reviewedByRole).toBe("reviewer");
   });
+
+  it("persists explicit machineOrigin on the verdict revision and the company profile", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs({ machineOrigin: "international" }),
+    );
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0].machineOrigin).toBe("international");
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).not.toBeNull();
+    expect(profile?.machineOrigin).toBe("international");
+    expect(profile?.verificationLevel).toBe("verified");
+  });
+
+  it("defaults machineOrigin to unknown when the approval omits it", async () => {
+    const t = createTest();
+    await seedCompanyAndProposal(t, "proposal-1");
+    await t.mutation(api.companies.upsertIndustryEvidenceSource, {
+      sourceId: "source-1",
+      proposalId: "proposal-1",
+      companyKey: "acme-cnc",
+      url: "https://acme.example.com/products",
+      sourceType: "official_site",
+      trustTier: "primary",
+      title: "CNC machine tools",
+      evidenceExcerpt: "Official CNC machining product catalog.",
+      fetchStatus: "fetched",
+      writeSecret: WRITE_SECRET,
+    });
+
+    await t.mutation(
+      api.companies.approveIndustryProposal,
+      approvalArgs(),
+    );
+
+    const revisions = await t.query(api.companies.listIndustryVerdictRevisions, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0].machineOrigin).toBe("unknown");
+
+    const profile = await t.query(api.companies.getIndustryProfile, {
+      companyKey: "acme-cnc",
+      writeSecret: WRITE_SECRET,
+    });
+    expect(profile).not.toBeNull();
+    expect(profile?.machineOrigin).toBe("unknown");
+  });
 });
 
 describe("listVerifiedIndustryEmployerAliases", () => {

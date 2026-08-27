@@ -116,6 +116,7 @@ export const ingestDataValidator = v.object({
         productClass: v.optional(productClassValidator),
     }))),
     brandOrigin: v.optional(brandOriginValidator),
+    machineOrigin: v.optional(machineOriginValidator),
     productClass: v.optional(productClassValidator),
     companyHits: v.optional(v.array(v.string())),
     industryDbV2Raw: v.optional(v.number()),

@@ -8,6 +8,7 @@ import type { ResumeItem } from "../types/resume.js";
 import {
   isRecord,
   parseBrandOrigin,
+  parseMachineOrigin,
   parseProductClass,
   parseVerifiedIndustryEvidenceSummary,
   type VerifiedIndustryEvidenceSummary,
@@ -191,6 +192,7 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
   const experienceLevel = toStringValue(value.experienceLevel) || undefined;
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase();
   const meaningfulExperienceLevel = normalizedExperienceLevel && normalizedExperienceLevel !== "unknown" ? experienceLevel : undefined;
+  const machineOrigin = parseMachineOrigin(value.machineOrigin);
   const market = toStringValue(value.market) || undefined;
   const ruleScores = isRecord(value.ruleScores)
     ? Object.fromEntries(
@@ -228,6 +230,7 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     && brandHits.length === 0
     && roleSignals.length === 0
     && industryDbV2Raw === undefined
+    && machineOrigin === undefined
     && !meaningfulExperienceLevel
     && !market
     && (!ruleScores || Object.keys(ruleScores).length === 0)
@@ -255,6 +258,7 @@ export function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] 
     ...(meaningfulExperienceLevel ? { experienceLevel: meaningfulExperienceLevel } : {}),
     ...(verifiedRoleYears && Object.keys(verifiedRoleYears).length > 0 ? { verifiedRoleYears } : {}),
     ...(ruleScores && Object.keys(ruleScores).length > 0 ? { ruleScores } : {}),
+    ...(machineOrigin ? { machineOrigin } : {}),
     ...(market ? { market } : {}),
     ...(computedAt !== undefined ? { computedAt } : {}),
     ...(skillsVersion !== undefined ? { skillsVersion } : {}),
