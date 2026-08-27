@@ -4,28 +4,16 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { isRecord } from '@trends/shared'
 import { Button } from '@/components/ui/button'
 import {
-  buildCleanApprovalRequest,
   errorMessage,
-  errorStatus,
   filterHistoryForSession,
-  getOneClickEligibility,
   isTerminalIndustryProposalStatus,
   parseBatchReviewResults,
-  parseCleanPacket,
-  parseHistory,
-  parseReviewInboxFilter,
-  parseReviewInboxItems,
-  parseReviewQueueSkippedCount,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
-  rowErrorKind,
   TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
-  type CleanReviewPacket,
   type IndustryHistoryItem,
-  type InboxErrorKind,
   type ReviewInboxItem,
   type ReviewInboxFilter,
   type ReviewInboxProposal,
@@ -35,8 +23,6 @@ import {
 import { IndustryHistoryList } from './IndustryHistoryList'
 import {
   IndustryReviewRow,
-  type ReviewRowAction,
-  type ReviewRowError,
 } from './IndustryReviewRow'
 import {
   IndustryBatchActionBar,
@@ -49,21 +35,16 @@ import {
 } from './IndustryBatchReview'
 import {
   IndustryIdentityResolutionDialog,
-  type IdentityDialogPacket,
-  type IdentityResolutionAction,
-  type RegistryCompany,
 } from './IndustryIdentityResolutionDialog'
 import {
   requiresIdentityResolution,
 } from './industry-review-inbox-model'
 import {
-  createRevisionId,
-  displayCompany,
-} from './industry-verification-model'
-
-type ReviewQueueStatus = ReviewInboxProposal['status']
-
-type InboxPolicyError = Error & { kind: 'policy' }
+  useIndustryReviewQueue,
+  useIndustrySessionRegistry,
+  useIndustryIdentityResolution,
+  type ReviewQueueStatus,
+} from './use-industry-review-hooks'
 
 type IndustryReviewInboxProps = {
   requestJson: (path: string, init?: RequestInit) => Promise<unknown>
@@ -90,25 +71,10 @@ type IndustryReviewInboxProps = {
   onSessionApprovalsChange?: Dispatch<SetStateAction<Map<string, SessionApproval>>>
 }
 
-function parseQueue(value: unknown): ReviewInboxItem[] {
-  return parseReviewInboxItems(value)
-}
-
-
 function focusRow(proposalId: string) {
   window.setTimeout(() => {
     document.querySelector<HTMLElement>(`[data-testid="industry-review-row-${proposalId}"]`)?.focus()
   }, 0)
-}
-
-function uniqueHistory(items: IndustryHistoryItem[]): IndustryHistoryItem[] {
-  const byId = new Map<string, IndustryHistoryItem>()
-  for (const item of items) {
-    if (!byId.has(item.proposalId)) byId.set(item.proposalId, item)
-  }
-  return [...byId.values()].sort((left, right) => (
-    (right.reviewedAt ?? right.updatedAt) - (left.reviewedAt ?? left.updatedAt)
-  ))
 }
 
 export function IndustryReviewInbox({
@@ -128,179 +94,109 @@ export function IndustryReviewInbox({
 }: IndustryReviewInboxProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeFilter = parseReviewInboxFilter(searchParams.get('filter'))
-  const [queueStatus, setQueueStatus] = useState<ReviewQueueStatus>(initialStatus)
-  const [riskFilter, setRiskFilter] = useState('')
-  const [confidenceFilter, setConfidenceFilter] = useState('')
-  const [actionFilter, setActionFilter] = useState('')
-  const [items, setItems] = useState<ReviewInboxItem[]>([])
-  const [nextCursor, setNextCursor] = useState<string>()
-  const [skippedCount, setSkippedCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [queueError, setQueueError] = useState<string>()
-  const [historyItems, setHistoryItems] = useState<IndustryHistoryItem[]>([])
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyError, setHistoryError] = useState<string>()
-  const [historyPartial, setHistoryPartial] = useState(false)
-  const [sessionApprovals, setSessionApprovals] = useState<Map<string, SessionApproval>>(new Map())
-  // Controlled-lift: when the parent supplies the registry (and its setter),
-  // use those instead of the internal state. Both fallbacks are stable
-  // identities, so the effective registry/setter stay stable across renders.
-  const registry = sessionApprovalsProp ?? sessionApprovals
-  const setRegistry = onSessionApprovalsChange ?? setSessionApprovals
-  const [pendingActions, setPendingActions] = useState<Map<string, ReviewRowAction>>(new Map())
-  const [rowErrors, setRowErrors] = useState<Map<string, ReviewRowError>>(new Map())
-  const [forcedNeedsReview, setForcedNeedsReview] = useState<Set<string>>(new Set())
-  const [undoBlocked, setUndoBlocked] = useState<Set<string>>(new Set())
-  const [packetCache, setPacketCache] = useState<Map<string, CleanReviewPacket>>(new Map())
-  const [announcement, setAnnouncement] = useState('')
+
+  const sessionProposalIds = useMemo(
+    () => new Set(sessionApprovalsProp?.keys()),
+    [sessionApprovalsProp],
+  )
+
+  const {
+    effectiveQueueStatus,
+    activeFilter,
+    items,
+    setItems,
+    nextCursor,
+    skippedCount,
+    loading,
+    refreshing,
+    setRefreshing,
+    queueError,
+    riskFilter,
+    confidenceFilter,
+    actionFilter,
+    setRiskFilter,
+    setConfidenceFilter,
+    setActionFilter,
+    changeQueueStatus,
+    selectFilter,
+    loadActiveQueue,
+    historyItems,
+    historyLoading,
+    historyError,
+    historyPartial,
+    historyLoaded,
+    loadHistory,
+  } = useIndustryReviewQueue(
+    requestJson,
+    initialStatus,
+    searchParams,
+    setSearchParams,
+    onQueueStatusChange,
+    sessionProposalIds,
+    { targetItem, targetPending },
+  )
+
+  const {
+    sessionApprovals: registry,
+    setSessionApprovals: setRegistry,
+    pendingActions,
+    rowErrors,
+    setRowError,
+    forcedNeedsReview,
+    undoBlocked,
+    loadPacket,
+    invalidatePacketCache,
+    announcement,
+    setAnnouncement,
+    handleApprove,
+    handleUndo,
+    handleRowRetry,
+    resetSession,
+  } = useIndustrySessionRegistry(requestJson, {
+    sessionApprovals: sessionApprovalsProp,
+    onSessionApprovalsChange,
+    onFocusRow: focusRow,
+  })
+
   const [batchSelection, setBatchSelection] = useState<Set<string>>(new Set())
   const [batchDialog, setBatchDialog] = useState<BatchDialogKind | null>(null)
   const [batchSubmitting, setBatchSubmitting] = useState(false)
-  const [identityDialogOpen, setIdentityDialogOpen] = useState(false)
-  const [identityDialogItems, setIdentityDialogItems] = useState<ReviewInboxItem[]>([])
-  const [identityPackets, setIdentityPackets] = useState<Map<string, IdentityDialogPacket>>(new Map())
-  const [identityPreparing, setIdentityPreparing] = useState(false)
-  const [identitySubmitting, setIdentitySubmitting] = useState(false)
-  const [registryCompanies, setRegistryCompanies] = useState<RegistryCompany[]>([])
-  const [registryCompaniesLoading, setRegistryCompaniesLoading] = useState(false)
-  const [identityTarget, setIdentityTarget] = useState<ReviewInboxItem>()
-  const syncedTargetStatusRef = useRef<string | undefined>(undefined)
+
+  const {
+    identityDialogOpen,
+    setIdentityDialogOpen,
+    identityDialogItems,
+    identityPackets,
+    identityPreparing,
+    identitySubmitting,
+    registryCompanies,
+    companiesLoading: registryCompaniesLoading,
+    identityTarget,
+    setIdentityTarget,
+    handleRowResolveIdentity,
+    handleBatchResolveIdentity,
+    handleResolveIdentitySubmit,
+  } = useIndustryIdentityResolution(requestJson, {
+    loadPacket,
+    invalidatePacketCache,
+    setRowError,
+    setAnnouncement,
+    onSuccess: (succeeded) => {
+      setBatchSelection((current) => {
+        const next = new Set(current)
+        for (const proposalId of succeeded) next.delete(proposalId)
+        return next
+      })
+    },
+    onReloadQueue: () => {
+      void loadActiveQueue()
+    },
+  })
+
   const focusedTargetRef = useRef<string | undefined>(undefined)
   const targetIsTerminal = targetItem
     ? isTerminalIndustryProposalStatus(targetItem.proposal.status)
     : false
-  const targetStatusNeedsInitialSync = Boolean(
-    targetItem
-    && !targetIsTerminal
-    && syncedTargetStatusRef.current !== targetItem.proposal.proposalId,
-  )
-  const effectiveQueueStatus = targetStatusNeedsInitialSync
-    ? targetItem!.proposal.status
-    : queueStatus
-  const hasExplicitFilter = searchParams.has('filter')
-
-  const updatePending = useCallback((proposalId: string, action?: ReviewRowAction) => {
-    setPendingActions((current) => {
-      const next = new Map(current)
-      if (action) next.set(proposalId, action)
-      else next.delete(proposalId)
-      return next
-    })
-  }, [])
-
-  const clearRowError = useCallback((proposalId: string) => {
-    setRowErrors((current) => {
-      const next = new Map(current)
-      next.delete(proposalId)
-      return next
-    })
-  }, [])
-
-  const setRowError = useCallback((proposalId: string, error: ReviewRowError) => {
-    setRowErrors((current) => new Map(current).set(proposalId, error))
-  }, [])
-
-  const loadActiveQueue = useCallback(async (cursor?: string, append = false): Promise<ReviewInboxItem[] | null> => {
-    setLoading(true)
-    if (!append) setQueueError(undefined)
-    try {
-      const query = new URLSearchParams({ status: effectiveQueueStatus, limit: '100' })
-      if (cursor) query.set('cursor', cursor)
-      if (riskFilter) query.set('riskFlag', riskFilter)
-      if (confidenceFilter) query.set('confidenceBand', confidenceFilter)
-      if (actionFilter) query.set('recommendedAction', actionFilter)
-      const payload = await requestJson(`/api/company-industry-proposals/review-queue?${query.toString()}`)
-      const next = parseQueue(payload)
-      setItems((current) => append
-        ? [...current, ...next.filter((item) => !current.some((existing) => existing.proposal.proposalId === item.proposal.proposalId))]
-        : next)
-      setNextCursor(isRecord(payload) && typeof payload.nextCursor === 'string' ? payload.nextCursor : undefined)
-      setSkippedCount(parseReviewQueueSkippedCount(isRecord(payload) ? payload.skippedCount : undefined))
-      return next
-    } catch (error) {
-      const message = errorMessage(error, t('industryEvidence.queueLoadFailed', { defaultValue: 'Failed to load industry review queue' }))
-      setQueueError(message)
-      if (!append) toast.error(message)
-      return null
-    } finally {
-      setLoading(false)
-    }
-  }, [actionFilter, confidenceFilter, effectiveQueueStatus, requestJson, riskFilter, t])
-
-  const loadHistory = useCallback(async (): Promise<IndustryHistoryItem[] | null> => {
-    setHistoryLoading(true)
-    setHistoryError(undefined)
-    setHistoryPartial(false)
-    try {
-      const paths = TERMINAL_INDUSTRY_PROPOSAL_STATUSES.map(
-        (status) => `/api/company-industry-proposals?status=${status}`,
-      )
-      const results = await Promise.allSettled(paths.map((path) => requestJson(path)))
-      const fulfilledResponses = results.flatMap((result) => (
-        result.status === 'fulfilled' ? [result.value] : []
-      ))
-      const hasFailedRequests = results.some((result) => result.status === 'rejected')
-      const fetchedItems = fulfilledResponses.flatMap(parseHistory)
-
-      if (!hasFailedRequests) {
-        const next = uniqueHistory(fetchedItems)
-        setHistoryItems(next)
-        setHistoryLoaded(true)
-        return next
-      }
-
-      setHistoryItems((current) => uniqueHistory([...fetchedItems, ...current]))
-      if (fulfilledResponses.length > 0) {
-        setHistoryLoaded(true)
-        setHistoryPartial(true)
-        setHistoryError(t('industryEvidence.historyPartialLoadFailed', {
-          defaultValue: 'Some History records could not be loaded. Available records remain visible.',
-        }))
-      } else {
-        setHistoryError(t('industryEvidence.historyUnavailable', {
-          defaultValue: 'History is temporarily unavailable. The live review queue is still available.',
-        }))
-      }
-      return null
-    } catch (error) {
-      setHistoryError(errorMessage(error, t('industryEvidence.historyUnavailable', {
-        defaultValue: 'History is temporarily unavailable. The live review queue is still available.',
-      })))
-      return null
-    } finally {
-      setHistoryLoading(false)
-    }
-  }, [requestJson, t])
-
-  useEffect(() => {
-    if (targetPending || (targetIsTerminal && (activeFilter === 'history' || !hasExplicitFilter))) return
-    void loadActiveQueue()
-  }, [activeFilter, hasExplicitFilter, loadActiveQueue, targetIsTerminal, targetPending])
-
-  useEffect(() => {
-    if (!targetItem || targetIsTerminal) {
-      syncedTargetStatusRef.current = undefined
-      return
-    }
-    const targetKey = targetItem.proposal.proposalId
-    if (syncedTargetStatusRef.current === targetKey) return
-    syncedTargetStatusRef.current = targetKey
-    setQueueStatus(targetItem.proposal.status)
-    onQueueStatusChange(targetItem.proposal.status)
-  }, [onQueueStatusChange, targetIsTerminal, targetItem])
-
-  useEffect(() => {
-    if (!targetItem || !targetIsTerminal || searchParams.has('filter')) return
-    // A terminal target that was approved in this session stays in the queue
-    // view (Undo affordance) until refresh — do not auto-redirect to History.
-    if (registry.has(targetItem.proposal.proposalId)) return
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('filter', 'history')
-    setSearchParams(nextParams, { replace: true })
-  }, [registry, searchParams, setSearchParams, targetIsTerminal, targetItem])
 
   useEffect(() => {
     if (!requestedProposalId) return
@@ -326,9 +222,6 @@ export function IndustryReviewInbox({
   useEffect(() => {
     // Report the QUEUE order (not the target-prepended display order) so the
     // detail header's Previous/Next can move to the adjacent queue rows.
-    // The prepended `itemsWithTarget` view would put the selected target at
-    // index 0, making Previous wrap to the queue tail and Next jump to the
-    // queue head instead of the real neighbors.
     onLoadedProposalsChange?.(items.map((item) => item.proposal))
   }, [items, onLoadedProposalsChange])
 
@@ -377,23 +270,6 @@ export function IndustryReviewInbox({
       : partition.needsReview
   const sessionApprovalCount = registry.size
 
-  const changeQueueStatus = useCallback((status: ReviewQueueStatus) => {
-    setQueueStatus(status)
-    onQueueStatusChange(status)
-  }, [onQueueStatusChange])
-
-  const selectFilter = useCallback((filter: ReviewInboxFilter) => {
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('filter', reviewInboxFilterToSlug(filter))
-    setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams])
-
-  useEffect(() => {
-    if (activeFilter === 'history' && !historyLoaded && !historyLoading) {
-      void loadHistory()
-    }
-  }, [activeFilter, historyLoaded, historyLoading, loadHistory])
-
   const filterTabs: Array<{ filter: ReviewInboxFilter; label: string; count: number }> = [
     {
       filter: 'all',
@@ -417,173 +293,13 @@ export function IndustryReviewInbox({
     },
   ]
 
-  const loadPacket = useCallback(async (item: ReviewInboxItem): Promise<CleanReviewPacket> => {
-    const cached = packetCache.get(item.proposal.proposalId)
-    if (cached) return cached
-    const payload = await requestJson(
-      `/api/company-industry-proposals/${encodeURIComponent(item.proposal.proposalId)}/review-packet`,
-    )
-    const packet = parseCleanPacket(payload)
-    if (!packet) throw new Error('The review packet response was incomplete.')
-    setPacketCache((current) => new Map(current).set(item.proposal.proposalId, packet))
-    return packet
-  }, [packetCache, requestJson])
-
-  const handleApprove = useCallback(async (item: ReviewInboxItem) => {
-    const proposalId = item.proposal.proposalId
-    const currentEligibility = getOneClickEligibility(item)
-    if (!currentEligibility.eligible) return
-    updatePending(proposalId, 'approve')
-    clearRowError(proposalId)
-    try {
-      const packet = await loadPacket(item)
-      const revisionId = createRevisionId(item.proposal.companyKey ?? proposalId)
-      const request = buildCleanApprovalRequest(item, packet, revisionId)
-      if (!request.ok) {
-        const policyError = new Error(request.message) as InboxPolicyError
-        policyError.kind = 'policy'
-        throw policyError
-      }
-      const response = await requestJson(
-        `/api/company-industry-proposals/${encodeURIComponent(proposalId)}/approve`,
-        { method: 'POST', body: JSON.stringify(request.body) },
-      )
-      if (!isRecord(response) || typeof response.revisionId !== 'string') {
-        throw new Error('Approval response did not include a revision.')
-      }
-      const recompute = isRecord(response.recompute) && typeof response.recompute.runId === 'string'
-        ? response.recompute.runId
-        : undefined
-      const approvedAt = Date.now()
-      setRegistry((current) => new Map(current).set(proposalId, {
-        proposalId,
-        approvedRevisionId: response.revisionId as string,
-        ...(recompute ? { recomputeRunId: recompute } : {}),
-        approvedAt,
-      }))
-      setPacketCache((current) => {
-        const next = new Map(current)
-        next.delete(proposalId)
-        return next
-      })
-      setForcedNeedsReview((current) => {
-        const next = new Set(current)
-        next.delete(proposalId)
-        return next
-      })
-      setUndoBlocked((current) => {
-        const next = new Set(current)
-        next.delete(proposalId)
-        return next
-      })
-      setAnnouncement(t('industryEvidence.undoAvailableAnnouncement', {
-        defaultValue: '{{company}} approved. Undo remains available until refresh.',
-        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
-      }))
-      toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
-      focusRow(proposalId)
-    } catch (error) {
-      const status = error instanceof (Error) && 'kind' in error && (error as InboxPolicyError).kind === 'policy'
-        ? 422
-        : errorStatus(error)
-      const kind = rowErrorKind(status)
-      const fallback = kind === 'conflict'
-        ? t('industryEvidence.refreshRequired', { defaultValue: 'Review changed. Refresh before approving.' })
-        : kind === 'policy'
-          ? t('industryEvidence.rowPolicyRejected', { defaultValue: 'This row no longer meets the one-click approval policy. Open it for review.' })
-          : t('industryEvidence.rowApproveFailed', { defaultValue: 'Approval failed. Retry this row.' })
-      const message = errorMessage(error, fallback)
-      if (kind === 'policy') {
-        setForcedNeedsReview((current) => new Set(current).add(proposalId))
-      }
-      setRowError(proposalId, { kind, message })
-      setAnnouncement(message)
-      if (kind !== 'conflict') toast.error(message)
-    } finally {
-      updatePending(proposalId)
-    }
-  }, [clearRowError, loadPacket, requestJson, setRegistry, setRowError, t, updatePending])
-
-  const handleUndo = useCallback(async (item: ReviewInboxItem) => {
-    const proposalId = item.proposal.proposalId
-    const approval = registry.get(proposalId)
-    if (!approval || undoBlocked.has(proposalId)) return
-    updatePending(proposalId, 'undo')
-    clearRowError(proposalId)
-    try {
-      const packet = await loadPacket(item)
-      const body = {
-        approvedRevisionId: approval.approvedRevisionId,
-        expectedCurrentRevisionId: approval.approvedRevisionId,
-        expectedProposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
-        ...(approval.recomputeRunId ? { recomputeRunId: approval.recomputeRunId } : {}),
-      }
-      await requestJson(
-        `/api/company-industry-proposals/${encodeURIComponent(proposalId)}/undo-approval`,
-        { method: 'POST', body: JSON.stringify(body) },
-      )
-      setRegistry((current) => {
-        const next = new Map(current)
-        next.delete(proposalId)
-        return next
-      })
-      setForcedNeedsReview((current) => {
-        const next = new Set(current)
-        next.delete(proposalId)
-        return next
-      })
-      setUndoBlocked((current) => {
-        const next = new Set(current)
-        next.delete(proposalId)
-        return next
-      })
-      setPacketCache((current) => {
-        const next = new Map(current)
-        next.delete(proposalId)
-        return next
-      })
-      setAnnouncement(t('industryEvidence.undoSuccess', {
-        defaultValue: '{{company}} restored to pending review.',
-        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
-      }))
-      toast.success(t('industryEvidence.undoSuccess', {
-        defaultValue: 'Approval undone; proposal is ready for review again.',
-        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
-      }))
-      focusRow(proposalId)
-    } catch (error) {
-      const status = errorStatus(error)
-      const kind = rowErrorKind(status)
-      const fallback = kind === 'conflict'
-        ? t('industryEvidence.undoConflict', { defaultValue: 'Undo is no longer safe. Refresh before trying again.' })
-        : kind === 'policy'
-          ? t('industryEvidence.undoPolicyRejected', { defaultValue: 'Undo was rejected by the current evidence policy. Review the row.' })
-          : t('industryEvidence.undoFailed', { defaultValue: 'Undo failed. Retry or refresh to reconcile.' })
-      const message = errorMessage(error, fallback)
-      if (kind === 'conflict' || kind === 'policy') {
-        setUndoBlocked((current) => new Set(current).add(proposalId))
-      }
-      if (kind === 'policy') {
-        setForcedNeedsReview((current) => new Set(current).add(proposalId))
-      }
-      setRowError(proposalId, { kind, message })
-      setAnnouncement(message)
-    } finally {
-      updatePending(proposalId)
-    }
-  }, [clearRowError, loadPacket, requestJson, registry, setRegistry, setRowError, t, undoBlocked, updatePending])
-
   const refreshInbox = useCallback(async () => {
     setRefreshing(true)
     const previousSessionIds = new Set(registry.keys())
     const [nextItems, nextHistory] = await Promise.all([loadActiveQueue(), loadHistory()])
     if (nextItems && nextHistory) {
       setItems((current) => current.filter((item) => !previousSessionIds.has(item.proposal.proposalId)))
-      setRegistry(new Map())
-      setPendingActions(new Map())
-      setRowErrors(new Map())
-      setForcedNeedsReview(new Set())
-      setUndoBlocked(new Set())
+      resetSession()
       setAnnouncement(t('industryEvidence.refreshReconciled', {
         defaultValue: 'Refresh complete. Approved rows are now reconciled into History.',
       }))
@@ -597,12 +313,7 @@ export function IndustryReviewInbox({
       toast.error(message)
     }
     setRefreshing(false)
-  }, [loadActiveQueue, loadHistory, onSelectProposal, registry, selectedProposalId, setRegistry, t])
-
-  const handleRowRetry = useCallback((row: ReviewInboxRow) => {
-    if (row.sessionApproval) void handleUndo(row.item)
-    else void handleApprove(row.item)
-  }, [handleApprove, handleUndo])
+  }, [loadActiveQueue, loadHistory, onSelectProposal, registry, resetSession, selectedProposalId, setAnnouncement, setItems, setRefreshing, t])
 
   const toggleBatchSelect = useCallback((proposalId: string) => {
     setBatchSelection((current) => {
@@ -676,7 +387,7 @@ export function IndustryReviewInbox({
     } finally {
       setBatchSubmitting(false)
     }
-  }, [loadActiveQueue, requestJson, t])
+  }, [loadActiveQueue, requestJson, setAnnouncement, setRegistry, t])
 
   const handleBatchReject = useCallback(async (actions: BatchRejectAction[]) => {
     if (actions.length === 0) return
@@ -713,110 +424,7 @@ export function IndustryReviewInbox({
     } finally {
       setBatchSubmitting(false)
     }
-  }, [loadActiveQueue, requestJson, setRegistry, t])
-
-  const openIdentityDialog = useCallback(async (items: ReviewInboxItem[]) => {
-    if (items.length === 0) return
-    setIdentityPreparing(true)
-    const packetMap = new Map<string, IdentityDialogPacket>()
-    await Promise.allSettled(items.map(async (item) => {
-      try {
-        const packet = await loadPacket(item)
-        packetMap.set(item.proposal.proposalId, {
-          candidates: packet.identityCandidates,
-          proposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
-        })
-      } catch {
-        // Items without a loadable packet stay in the excluded group.
-      }
-    }))
-    setIdentityPackets(packetMap)
-    setIdentityDialogItems(items)
-    setIdentityDialogOpen(true)
-    setIdentityPreparing(false)
-  }, [loadPacket])
-
-  const openRegistryCompanies = useCallback(async () => {
-    setRegistryCompaniesLoading(true)
-    try {
-      const payload = await requestJson('/api/companies')
-      if (!isRecord(payload) || !Array.isArray(payload.items)) return
-      setRegistryCompanies(payload.items.filter((item): item is RegistryCompany => (
-        isRecord(item)
-        && typeof item.companyKey === 'string'
-        && typeof item.displayName === 'string'
-        && item.status !== 'merged'
-      )))
-    } catch {
-      // The provisional path remains available if the registry is degraded.
-    } finally {
-      setRegistryCompaniesLoading(false)
-    }
-  }, [requestJson])
-
-  const openIdentityDialogFromRows = useCallback(async (items: ReviewInboxItem[]) => {
-    void openIdentityDialog(items)
-    void openRegistryCompanies()
-  }, [openIdentityDialog, openRegistryCompanies])
-
-  const handleRowResolveIdentity = useCallback(async (item: ReviewInboxItem) => {
-    setIdentityTarget(item)
-    await openIdentityDialogFromRows([item])
-  }, [openIdentityDialogFromRows])
-
-  const handleBatchResolveIdentity = useCallback(async () => {
-    setIdentityTarget(undefined)
-    await openIdentityDialogFromRows(batchSelectedItems)
-  }, [batchSelectedItems, openIdentityDialogFromRows])
-
-  const handleResolveIdentitySubmit = useCallback(async (actions: IdentityResolutionAction[]) => {
-    if (actions.length === 0) return
-    setIdentitySubmitting(true)
-    const succeeded: string[] = []
-    const failed: Array<{ proposalId: string; kind: InboxErrorKind; message: string }> = []
-    for (const action of actions) {
-      try {
-        await requestJson(`/api/company-industry-proposals/${encodeURIComponent(action.proposalId)}/identity-resolution`, {
-          method: 'POST',
-          body: JSON.stringify(action),
-        })
-        succeeded.push(action.proposalId)
-        setPacketCache((current) => {
-          const next = new Map(current)
-          next.delete(action.proposalId)
-          return next
-        })
-      } catch (error) {
-        failed.push({
-          proposalId: action.proposalId,
-          kind: rowErrorKind(errorStatus(error)),
-          message: errorMessage(error, t('industryEvidence.identityResolveFailed', {
-            defaultValue: 'Identity resolution failed.',
-          })),
-        })
-      }
-    }
-    setBatchSelection((current) => {
-      const next = new Set(current)
-      for (const proposalId of succeeded) next.delete(proposalId)
-      return next
-    })
-    setIdentityTarget(undefined)
-    const summary = t('industryEvidence.identityResolveDone', {
-      defaultValue: 'Identity resolution complete: {{resolved}} mapped, {{failed}} failed.',
-      resolved: succeeded.length,
-      failed: failed.length,
-    })
-    setAnnouncement(summary)
-    if (failed.length > 0) {
-      toast.warning(summary)
-      for (const failure of failed) setRowError(failure.proposalId, { kind: failure.kind, message: failure.message })
-    } else {
-      toast.success(summary)
-    }
-    setIdentityDialogOpen(false)
-    void loadActiveQueue()
-  }, [loadActiveQueue, requestJson, setRowError, t])
+  }, [loadActiveQueue, requestJson, setAnnouncement, t])
 
   useEffect(() => {
     const proposalId = targetItem?.proposal.proposalId
@@ -1015,7 +623,7 @@ export function IndustryReviewInbox({
             disabled={batchSubmitting || identityPreparing}
             onApprove={() => setBatchDialog('approve')}
             onReject={() => setBatchDialog('reject')}
-            onResolveIdentity={() => void handleBatchResolveIdentity()}
+            onResolveIdentity={() => void handleBatchResolveIdentity(batchSelectedItems)}
             resolveIdentityDisabled={!batchSelectedItems.some((item) => requiresIdentityResolution(item))}
             onClear={clearBatchSelection}
           />
