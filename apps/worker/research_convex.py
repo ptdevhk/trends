@@ -79,10 +79,10 @@ def resolve_write_secret() -> Optional[str]:
     return None
 
 
-def convex_mutation(convex_url: str, mutation_path: str, args: Dict[str, Any]) -> Any:
-    """POST to Convex /api/mutation. Does not go through BFF."""
-    api_url = f"{convex_url.rstrip('/')}/api/mutation"
-    payload = json.dumps({"path": mutation_path, "args": args}).encode("utf-8")
+def _convex_post(convex_url: str, endpoint_type: str, path: str, args: Dict[str, Any]) -> Any:
+    """POST to Convex /api/{endpoint_type}. Does not go through BFF."""
+    api_url = f"{convex_url.rstrip('/')}/api/{endpoint_type}"
+    payload = json.dumps({"path": path, "args": args}).encode("utf-8")
     request = Request(
         api_url,
         data=payload,
@@ -97,44 +97,23 @@ def convex_mutation(convex_url: str, mutation_path: str, args: Dict[str, Any]) -
             body = response.read().decode("utf-8")
     except HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace") if error.fp else str(error)
-        raise RuntimeError(f"Convex mutation failed ({error.code}): {detail}") from error
+        raise RuntimeError(f"Convex {endpoint_type} failed ({error.code}): {detail}") from error
     except URLError as error:
-        raise RuntimeError(f"Convex mutation network error: {error}") from error
+        raise RuntimeError(f"Convex {endpoint_type} network error: {error}") from error
 
     data = json.loads(body)
     if data.get("status") != "success":
-        message = data.get("errorMessage") or "Unknown Convex mutation error"
+        message = data.get("errorMessage") or f"Unknown Convex {endpoint_type} error"
         raise RuntimeError(message)
     return data.get("value")
 
+def convex_mutation(convex_url: str, mutation_path: str, args: Dict[str, Any]) -> Any:
+    """POST to Convex /api/mutation. Does not go through BFF."""
+    return _convex_post(convex_url, "mutation", mutation_path, args)
 
 def convex_query(convex_url: str, query_path: str, args: Dict[str, Any]) -> Any:
     """POST to Convex /api/query. Does not go through BFF."""
-    api_url = f"{convex_url.rstrip('/')}/api/query"
-    payload = json.dumps({"path": query_path, "args": args}).encode("utf-8")
-    request = Request(
-        api_url,
-        data=payload,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace") if error.fp else str(error)
-        raise RuntimeError(f"Convex query failed ({error.code}): {detail}") from error
-    except URLError as error:
-        raise RuntimeError(f"Convex query network error: {error}") from error
-
-    data = json.loads(body)
-    if data.get("status") != "success":
-        message = data.get("errorMessage") or "Unknown Convex query error"
-        raise RuntimeError(message)
-    return data.get("value")
+    return _convex_post(convex_url, "query", query_path, args)
 
 
 class ResearchConvexClient:

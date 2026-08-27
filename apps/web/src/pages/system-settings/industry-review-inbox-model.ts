@@ -1,5 +1,6 @@
 import { isRecord, requiresReviewAttestation, selectApprovalSafeSources } from '@trends/shared'
 import type { paths } from '@/lib/api-types'
+import { SettingsRequestError } from '@/pages/system-settings/lib'
 
 type ReviewQueueResponse = paths['/api/company-industry-proposals/review-queue']['get']['responses'][200]['content']['application/json']
 
@@ -295,4 +296,156 @@ export function filterHistoryForSession<T extends { proposalId: string }>(
   sessionProposalIds: ReadonlySet<string>,
 ): T[] {
   return items.filter((item) => !sessionProposalIds.has(item.proposalId))
+}
+
+// --- V4: business logic extracted from IndustryReviewInbox.tsx ---
+
+export type BatchReviewResult = {
+  proposalId: string
+  kind: 'approve' | 'reject'
+  ok: boolean
+  revisionId?: string
+  companyKey?: string
+  status?: string
+  code?: string
+  error?: string
+}
+
+export function parseBatchReviewResults(value: unknown): BatchReviewResult[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  return value.items.filter((item): item is BatchReviewResult => (
+    isRecord(item)
+    && typeof item.proposalId === 'string'
+    && (item.kind === 'approve' || item.kind === 'reject')
+    && typeof item.ok === 'boolean'
+  ))
+}
+
+type ProposalListResponse = paths['/api/company-industry-proposals']['get']['responses'][200]['content']['application/json']
+export type IndustryHistoryItem = ProposalListResponse['items'][number]
+
+export function parseHistory(value: unknown): IndustryHistoryItem[] {
+  if (!isRecord(value) || !Array.isArray(value.items)) return []
+  return value.items.filter((item): item is IndustryHistoryItem => (
+    isRecord(item) && typeof item.proposalId === 'string'
+  )) as IndustryHistoryItem[]
+}
+
+export type InboxErrorKind = 'conflict' | 'policy' | 'network'
+
+export function rowErrorKind(status: number | undefined): InboxErrorKind {
+  if (status === 409) return 'conflict'
+  if (status === 422) return 'policy'
+  return 'network'
+}
+
+export function errorStatus(error: unknown): number | undefined {
+  return error instanceof SettingsRequestError ? error.status : undefined
+}
+
+export function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof SettingsRequestError && isRecord(error.body)) {
+    const bodyMessage = error.body.error ?? error.body.message
+    if (typeof bodyMessage === 'string' && bodyMessage.trim()) return bodyMessage
+  }
+  if (error instanceof Error && error.message && !/^HTTP \d+$/.test(error.message)) {
+    return error.message
+  }
+  return fallback
+}
+
+export type CleanReviewPacket = {
+  proposal: ReviewInboxProposal
+  recommendation: ReviewInboxRecommendation
+  dataset: {
+    inputFingerprint: string
+    proposalUpdatedAt: number
+    sourceVersions: Array<{ sourceId: string; updatedAt: number }>
+  }
+  reviewContext: {
+    profile: { currentRevisionId?: string } | null
+  }
+  identityCandidates: IdentityCandidate[]
+}
+
+type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
+export type IdentityCandidate = ReviewPacketResponse['identityCandidates'][number]
+
+export function parseIdentityCandidates(value: unknown): IdentityCandidate[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is IdentityCandidate => (
+    isRecord(item)
+    && typeof item.candidateFingerprint === 'string'
+    && typeof item.normalizedLegalName === 'string'
+    && Array.isArray(item.sourceIds)
+    && typeof item.confidence === 'number'
+    && Array.isArray(item.conflictCodes)
+  ))
+}
+
+export function parseCleanPacket(value: unknown): CleanReviewPacket | null {
+  if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
+  if (!isRecord(value.dataset) || typeof value.dataset.inputFingerprint !== 'string') return null
+  const reviewContextValue = isRecord(value.reviewContext)
+    ? value.reviewContext
+    : isRecord(value.bundle)
+      ? value.bundle
+      : {}
+  const profile = isRecord(reviewContextValue.profile)
+    ? { currentRevisionId: typeof reviewContextValue.profile.currentRevisionId === 'string' ? reviewContextValue.profile.currentRevisionId : undefined }
+    : null
+  return {
+    proposal: value.proposal as ReviewInboxProposal,
+    recommendation: value.recommendation as ReviewInboxRecommendation,
+    dataset: {
+      inputFingerprint: value.dataset.inputFingerprint,
+      proposalUpdatedAt: typeof value.dataset.proposalUpdatedAt === 'number'
+        ? value.dataset.proposalUpdatedAt
+        : 0,
+      sourceVersions: Array.isArray(value.dataset.sourceVersions)
+        ? value.dataset.sourceVersions.filter((item): item is { sourceId: string; updatedAt: number } => (
+          isRecord(item) && typeof item.sourceId === 'string' && typeof item.updatedAt === 'number'
+        ))
+        : [],
+    },
+    reviewContext: { profile },
+    identityCandidates: parseIdentityCandidates(value.identityCandidates),
+  }
+}
+
+export function buildCleanApprovalRequest(
+  item: ReviewInboxItem,
+  packet: CleanReviewPacket,
+  revisionId: string,
+): { ok: true; body: Record<string, unknown> } | { ok: false; message: string } {
+  const packetItem: ReviewInboxItem = {
+    ...item,
+    proposal: packet.proposal,
+    recommendation: packet.recommendation,
+  }
+  const eligibility = getOneClickEligibility(packetItem)
+  if (!eligibility.eligible) {
+    return {
+      ok: false,
+      message: 'The review packet is no longer eligible for one-click approval.',
+    }
+  }
+  return {
+    ok: true,
+    body: {
+      revisionId,
+      ...(packet.reviewContext.profile?.currentRevisionId
+        ? { expectedCurrentRevisionId: packet.reviewContext.profile.currentRevisionId }
+        : {}),
+      expectedProposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
+      expectedInputFingerprint: packet.dataset.inputFingerprint,
+      expectedSourceVersions: packet.dataset.sourceVersions,
+      verificationLevel: packet.recommendation.recommendedVerificationLevel,
+      industryClass: packet.recommendation.recommendedIndustryClass,
+      approvedSourceIds: eligibility.safeSourceIds,
+      evidenceSummary: packet.recommendation.evidenceSummaryDraft.trim(),
+      decisionReason: packet.recommendation.decisionReasonDraft.trim(),
+      taxonomyVersion: 'industry-v1',
+    },
+  }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { paths } from '@/lib/api-types'
+import { displayCompany } from './industry-verification-model'
 
 type ProposalListResponse = paths['/api/company-industry-proposals']['get']['responses'][200]['content']['application/json']
 export type IndustryHistoryItem = ProposalListResponse['items'][number]
@@ -18,15 +19,6 @@ type IndustryHistoryListProps = {
   selectedProposalId?: string
   onRetry: () => void
   onSelect: (item: IndustryHistoryItem) => void
-}
-
-function companyLabel(value: string | undefined): string {
-  if (!value) return 'Unresolved employer'
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.toUpperCase())
-    .join(' ')
 }
 
 export function IndustryHistoryList({
@@ -115,7 +107,7 @@ export function IndustryHistoryList({
         </div>
       ) : null}
       {visibleItems.map((item) => {
-        const company = companyLabel(item.companyKey ?? item.normalizedEmployerSurface)
+        const company = displayCompany(item.companyKey ?? item.normalizedEmployerSurface)
         const selected = item.proposalId === selectedProposalId
         const targeted = targetItem?.proposalId === item.proposalId
         return (

@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { ReviewInboxItem } from './industry-review-inbox-model'
+import { displayCompany } from './industry-verification-model'
 
 type ReviewPacketResponse = paths['/api/company-industry-proposals/:proposalId/review-packet']['get']['responses'][200]['content']['application/json']
 
@@ -67,14 +68,7 @@ type IndustryIdentityResolutionDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
-function companyLabel(value: string | undefined): string {
-  if (!value) return 'Unresolved employer'
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.toUpperCase())
-    .join(' ')
-}
+
 
 export function pickBestIdentityCandidate(candidates: readonly IdentityCandidate[]): IdentityCandidate | undefined {
   return [...candidates]
@@ -231,7 +225,7 @@ export function IndustryIdentityResolutionDialog({
                 <ul className="mt-1 list-inside list-disc">
                   {excludedItems.map((item) => (
                     <li key={item.proposal.proposalId}>
-                      {companyLabel(item.proposal.normalizedEmployerSurface)}
+                      {displayCompany(item.proposal.normalizedEmployerSurface)}
                     </li>
                   ))}
                 </ul>
@@ -253,7 +247,7 @@ export function IndustryIdentityResolutionDialog({
               <div key={proposalId} className="rounded-lg border p-3" data-testid={`industry-identity-item-${proposalId}`}>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold">
-                    {companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
+                    {displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
                   </p>
                   <Badge variant="secondary" className="text-[10px]">{item.proposal.status}</Badge>
                 </div>

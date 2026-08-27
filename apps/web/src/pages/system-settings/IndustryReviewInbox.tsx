@@ -4,29 +4,35 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { isRecord } from '@trends/shared'
 import { Button } from '@/components/ui/button'
-import { SettingsRequestError } from '@/pages/system-settings/lib'
 import {
+  buildCleanApprovalRequest,
+  errorMessage,
+  errorStatus,
   filterHistoryForSession,
   getOneClickEligibility,
   isTerminalIndustryProposalStatus,
+  parseBatchReviewResults,
+  parseCleanPacket,
+  parseHistory,
   parseReviewInboxFilter,
   parseReviewInboxItems,
   parseReviewQueueSkippedCount,
   partitionReviewQueue,
   reviewInboxFilterToSlug,
+  rowErrorKind,
   TERMINAL_INDUSTRY_PROPOSAL_STATUSES,
+  type CleanReviewPacket,
+  type IndustryHistoryItem,
+  type InboxErrorKind,
   type ReviewInboxItem,
   type ReviewInboxFilter,
   type ReviewInboxProposal,
-  type ReviewInboxRecommendation,
   type ReviewInboxRow,
   type SessionApproval,
 } from './industry-review-inbox-model'
-import {
-  IndustryHistoryList,
-  type IndustryHistoryItem,
-} from './IndustryHistoryList'
+import { IndustryHistoryList } from './IndustryHistoryList'
 import {
   IndustryReviewRow,
   type ReviewRowAction,
@@ -50,23 +56,12 @@ import {
 import {
   requiresIdentityResolution,
 } from './industry-review-inbox-model'
+import {
+  createRevisionId,
+  displayCompany,
+} from './industry-verification-model'
 
 type ReviewQueueStatus = ReviewInboxProposal['status']
-type CleanReviewPacket = {
-  proposal: ReviewInboxProposal
-  recommendation: ReviewInboxRecommendation
-  dataset: {
-    inputFingerprint: string
-    proposalUpdatedAt: number
-    sourceVersions: Array<{ sourceId: string; updatedAt: number }>
-  }
-  reviewContext: {
-    profile: { currentRevisionId?: string } | null
-  }
-  identityCandidates: IdentityDialogPacket['candidates']
-}
-
-type InboxErrorKind = ReviewRowError['kind']
 
 type InboxPolicyError = Error & { kind: 'policy' }
 
@@ -95,164 +90,10 @@ type IndustryReviewInboxProps = {
   onSessionApprovalsChange?: Dispatch<SetStateAction<Map<string, SessionApproval>>>
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function parseQueue(value: unknown): ReviewInboxItem[] {
   return parseReviewInboxItems(value)
 }
 
-function parseBatchReviewResults(value: unknown): Array<{
-  proposalId: string
-  kind: 'approve' | 'reject'
-  ok: boolean
-  revisionId?: string
-  companyKey?: string
-  status?: string
-  code?: string
-  error?: string
-}> {
-  if (!isRecord(value) || !Array.isArray(value.items)) return []
-  return value.items.filter((item): item is {
-    proposalId: string
-    kind: 'approve' | 'reject'
-    ok: boolean
-    revisionId?: string
-    companyKey?: string
-    status?: string
-    code?: string
-    error?: string
-  } => (
-    isRecord(item)
-    && typeof item.proposalId === 'string'
-    && (item.kind === 'approve' || item.kind === 'reject')
-    && typeof item.ok === 'boolean'
-  ))
-}
-
-function parseHistory(value: unknown): IndustryHistoryItem[] {
-  if (!isRecord(value) || !Array.isArray(value.items)) return []
-  return value.items.filter((item): item is IndustryHistoryItem => (
-    isRecord(item) && typeof item.proposalId === 'string'
-  )) as IndustryHistoryItem[]
-}
-
-function parseIdentityCandidates(value: unknown): IdentityDialogPacket['candidates'] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is IdentityDialogPacket['candidates'][number] => (
-    isRecord(item)
-    && typeof item.candidateFingerprint === 'string'
-    && typeof item.normalizedLegalName === 'string'
-    && Array.isArray(item.sourceIds)
-    && typeof item.confidence === 'number'
-    && Array.isArray(item.conflictCodes)
-  ))
-}
-
-function parseCleanPacket(value: unknown): CleanReviewPacket | null {
-  if (!isRecord(value) || !isRecord(value.proposal) || !isRecord(value.recommendation)) return null
-  if (!isRecord(value.dataset) || typeof value.dataset.inputFingerprint !== 'string') return null
-  const reviewContextValue = isRecord(value.reviewContext)
-    ? value.reviewContext
-    : isRecord(value.bundle)
-      ? value.bundle
-      : {}
-  const profile = isRecord(reviewContextValue.profile)
-    ? { currentRevisionId: typeof reviewContextValue.profile.currentRevisionId === 'string' ? reviewContextValue.profile.currentRevisionId : undefined }
-    : null
-  return {
-    proposal: value.proposal as ReviewInboxProposal,
-    recommendation: value.recommendation as ReviewInboxRecommendation,
-    dataset: {
-      inputFingerprint: value.dataset.inputFingerprint,
-      proposalUpdatedAt: typeof value.dataset.proposalUpdatedAt === 'number'
-        ? value.dataset.proposalUpdatedAt
-        : 0,
-      sourceVersions: Array.isArray(value.dataset.sourceVersions)
-        ? value.dataset.sourceVersions.filter((item): item is { sourceId: string; updatedAt: number } => (
-          isRecord(item) && typeof item.sourceId === 'string' && typeof item.updatedAt === 'number'
-        ))
-        : [],
-    },
-    reviewContext: { profile },
-    identityCandidates: parseIdentityCandidates(value.identityCandidates),
-  }
-}
-
-function createRevisionId(companyKey: string): string {
-  const suffix = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  return `industry-${companyKey}-${suffix}`
-}
-
-function errorStatus(error: unknown): number | undefined {
-  return error instanceof SettingsRequestError ? error.status : undefined
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof SettingsRequestError && isRecord(error.body)) {
-    const bodyMessage = error.body.error ?? error.body.message
-    if (typeof bodyMessage === 'string' && bodyMessage.trim()) return bodyMessage
-  }
-  if (error instanceof Error && error.message && !/^HTTP \d+$/.test(error.message)) {
-    return error.message
-  }
-  return fallback
-}
-
-function rowErrorKind(status: number | undefined): InboxErrorKind {
-  if (status === 409) return 'conflict'
-  if (status === 422) return 'policy'
-  return 'network'
-}
-
-function buildCleanApprovalRequest(
-  item: ReviewInboxItem,
-  packet: CleanReviewPacket,
-  revisionId: string,
-): { ok: true; body: Record<string, unknown> } | { ok: false; message: string } {
-  const packetItem: ReviewInboxItem = {
-    ...item,
-    proposal: packet.proposal,
-    recommendation: packet.recommendation,
-  }
-  const eligibility = getOneClickEligibility(packetItem)
-  if (!eligibility.eligible) {
-    return {
-      ok: false,
-      message: 'The review packet is no longer eligible for one-click approval.',
-    }
-  }
-  return {
-    ok: true,
-    body: {
-      revisionId,
-      ...(packet.reviewContext.profile?.currentRevisionId
-        ? { expectedCurrentRevisionId: packet.reviewContext.profile.currentRevisionId }
-        : {}),
-      expectedProposalUpdatedAt: packet.dataset.proposalUpdatedAt || item.proposal.updatedAt,
-      expectedInputFingerprint: packet.dataset.inputFingerprint,
-      expectedSourceVersions: packet.dataset.sourceVersions,
-      verificationLevel: packet.recommendation.recommendedVerificationLevel,
-      industryClass: packet.recommendation.recommendedIndustryClass,
-      approvedSourceIds: eligibility.safeSourceIds,
-      evidenceSummary: packet.recommendation.evidenceSummaryDraft.trim(),
-      decisionReason: packet.recommendation.decisionReasonDraft.trim(),
-      taxonomyVersion: 'industry-v1',
-    },
-  }
-}
-
-function companyLabel(value: string | undefined): string {
-  if (!value) return 'Unresolved employer'
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.toUpperCase())
-    .join(' ')
-}
 
 function focusRow(proposalId: string) {
   window.setTimeout(() => {
@@ -637,7 +478,7 @@ export function IndustryReviewInbox({
       })
       setAnnouncement(t('industryEvidence.undoAvailableAnnouncement', {
         defaultValue: '{{company}} approved. Undo remains available until refresh.',
-        company: companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
+        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
       }))
       toast.success(t('industryEvidence.approved', { defaultValue: 'Industry verdict revision approved' }))
       focusRow(proposalId)
@@ -703,11 +544,11 @@ export function IndustryReviewInbox({
       })
       setAnnouncement(t('industryEvidence.undoSuccess', {
         defaultValue: '{{company}} restored to pending review.',
-        company: companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
+        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
       }))
       toast.success(t('industryEvidence.undoSuccess', {
         defaultValue: 'Approval undone; proposal is ready for review again.',
-        company: companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
+        company: displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface),
       }))
       focusRow(proposalId)
     } catch (error) {

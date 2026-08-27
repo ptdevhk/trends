@@ -23,6 +23,7 @@ import {
   type BatchApproveEligibility,
   type ReviewInboxItem,
 } from './industry-review-inbox-model'
+import { displayCompany } from './industry-verification-model'
 
 export type BatchApproveAction = {
   kind: 'approve'
@@ -136,14 +137,7 @@ export function IndustryBatchActionBar({
   )
 }
 
-function companyLabel(value: string | undefined): string {
-  if (!value) return 'Unresolved employer'
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.toUpperCase())
-    .join(' ')
-}
+
 
 type IndustryBatchApproveDialogProps = {
   open: boolean
@@ -248,7 +242,7 @@ export function IndustryBatchApproveDialog({
                 <ul className="mt-1 list-inside list-disc">
                   {excludedItems.map((item) => (
                     <li key={item.proposal.proposalId}>
-                      {companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
+                      {displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
                       {' — '}
                       {excludedReasonLabel(getBatchApproveEligibility(item), t)}
                     </li>
@@ -267,7 +261,7 @@ export function IndustryBatchApproveDialog({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
-                        {companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
+                        {displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {t('industryEvidence.batchSourcesCount', {
@@ -489,7 +483,7 @@ export function IndustryBatchRejectDialog({
             {items.map((item) => (
               <li key={item.proposal.proposalId} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
                 <span className="truncate font-medium">
-                  {companyLabel(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
+                  {displayCompany(item.proposal.companyKey ?? item.proposal.normalizedEmployerSurface)}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">{item.proposal.status}</span>
               </li>

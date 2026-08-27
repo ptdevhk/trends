@@ -764,6 +764,7 @@ class GuardedEvidenceFetcher:
         domain_limiter: Optional[DomainConcurrencyLimiter] = None,
         circuit_breaker: Optional[HostCircuitBreaker] = None,
         evidence_cache: Optional[Dict[str, Dict[str, Any]]] = None,
+        opener: Optional[Callable[..., Any]] = None,
     ):
         self.timeout_seconds = max(1, min(30, int(timeout_seconds)))
         self.max_attempts = max(1, min(3, int(max_attempts)))
@@ -777,6 +778,7 @@ class GuardedEvidenceFetcher:
             evidence_cache if evidence_cache is not None else {}
         )
         self._cache_lock = threading.Lock()
+        self._opener = opener
 
     def _cache_get(self, key: str) -> Optional[Dict[str, Any]]:
         with self._cache_lock:
@@ -830,7 +832,7 @@ class GuardedEvidenceFetcher:
                                 "User-Agent": "TrendsIndustryEvidenceBot/1.0",
                             },
                         )
-                        with urlopen(request, timeout=self.timeout_seconds) as response:
+                        with (self._opener or urlopen)(request, timeout=self.timeout_seconds) as response:
                             final_url = response.geturl()
                             if not safe_public_evidence_url(final_url):
                                 raise ValueError("unsafe_redirect")

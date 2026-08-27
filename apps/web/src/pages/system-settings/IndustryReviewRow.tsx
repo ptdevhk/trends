@@ -7,6 +7,7 @@ import type {
   OneClickEligibility,
   ReviewInboxRow as ReviewRow,
 } from './industry-review-inbox-model'
+import { displayCompany } from './industry-verification-model'
 
 export type ReviewRowAction = 'approve' | 'undo'
 
@@ -35,14 +36,7 @@ type IndustryReviewRowProps = {
   resolveIdentityPending?: boolean
 }
 
-function companyLabel(value: string | undefined): string {
-  if (!value) return 'Unresolved employer'
-  return value
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.toUpperCase())
-    .join(' ')
-}
+
 
 function reasonLabel(
   eligibility: OneClickEligibility,
@@ -96,7 +90,7 @@ export function IndustryReviewRow({
   const { item, eligibility, sessionApproval } = row
   const proposal = item.proposal
   const recommendation = item.recommendation
-  const name = companyLabel(proposal.companyKey ?? proposal.normalizedEmployerSurface)
+  const name = displayCompany(proposal.companyKey ?? proposal.normalizedEmployerSurface)
   const approval = sessionApproval
   const isApproved = approval !== undefined
   const isApproving = pendingAction === 'approve'
