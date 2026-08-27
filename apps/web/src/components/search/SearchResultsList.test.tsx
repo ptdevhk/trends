@@ -679,6 +679,66 @@ describe('SearchResultsList', () => {
       expect(notice).toHaveTextContent('42')
     })
 
+    it('renders a legacy-evidence suffix when evidenceMode is legacy-seed', () => {
+      render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{
+            minRoleYears: 3,
+            roleFilterType: null,
+            verifiedEmployerCount: 27,
+            evidenceMode: 'legacy-seed',
+          }}
+        />,
+      )
+
+      const notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).toHaveTextContent('Legacy catalog evidence')
+    })
+
+    it('does not render a legacy-evidence suffix for strict-reviewed mode or an absent mode', () => {
+      const { rerender } = render(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{
+            minRoleYears: 3,
+            roleFilterType: null,
+            verifiedEmployerCount: 27,
+            evidenceMode: 'strict-reviewed',
+          }}
+        />,
+      )
+
+      let notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).not.toHaveTextContent('Legacy catalog evidence')
+
+      rerender(
+        <SearchResultsList
+          expandedIds={new Set()}
+          hasMore={false}
+          items={[createItem(0)]}
+          onLoadMore={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          verifiedOnlyNotice={{
+            minRoleYears: 3,
+            roleFilterType: null,
+            verifiedEmployerCount: 27,
+          }}
+        />,
+      )
+
+      notice = screen.getByTestId('resume-verified-only-notice')
+      expect(notice).not.toHaveTextContent('Legacy catalog evidence')
+    })
+
     it('renders a review inbox link when the workspace user may attend the evidence queue', () => {
       render(
         <SearchResultsList

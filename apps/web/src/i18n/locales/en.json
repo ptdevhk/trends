@@ -2031,6 +2031,7 @@
     "runHistoryDescription": "Recent industry-evidence maintenance runs. Expand a row to see why each employer did or did not surface.",
     "runHistoryEmpty": "No maintenance runs recorded yet.",
     "searchVerifiedOnlyNotice": "Results limited to industry-verified employers · {{count}} verified employers in catalog",
+    "searchVerifiedOnlyLegacySuffix": "· Legacy catalog evidence (no revision-backed stamps on resumes yet)",
     "selectProposal": "Select a proposal to review its evidence.",
     "sessionApproved": "Approved in this session",
     "sessionApprovedCount": "Approved this session",

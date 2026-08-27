@@ -2031,6 +2031,7 @@
     "runHistoryDescription": "最近的產業證據維護執行。展開列可查看每個雇主為何出現或未出現。",
     "runHistoryEmpty": "尚未記錄維護執行。",
     "searchVerifiedOnlyNotice": "結果僅限行業認證雇主 · 目錄中 {{count}} 家認證雇主",
+    "searchVerifiedOnlyLegacySuffix": "· 舊版目錄證據（履歷上尚無修訂版本戳記）",
     "selectProposal": "選取一個提案以審查其證據。",
     "sessionApproved": "本次工作階段已核准",
     "sessionApprovedCount": "本次工作階段已核准",

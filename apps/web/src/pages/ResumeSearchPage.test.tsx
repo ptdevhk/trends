@@ -401,6 +401,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
       minRoleYears?: number
       roleFilterType?: string | null
       verifiedEmployerCount?: number
+      evidenceMode?: 'legacy-seed' | 'strict-reviewed'
     }
     verifiedOnlyReviewHref?: string
     onAction?: () => void
@@ -687,7 +688,7 @@ describe('ResumeSearchPage', () => {
       },
     })
     apiGetMock.mockResolvedValue({
-      data: { success: true, count: 128 },
+      data: { success: true, count: 128, evidenceMode: 'legacy-seed' },
       response: { status: 200 },
     })
     featureFlagsMock.resumeAiSummaryEnabled = false
@@ -1343,6 +1344,7 @@ describe('ResumeSearchPage', () => {
       expect(notice).toHaveTextContent('"minRoleYears":3')
       expect(notice).toHaveTextContent('"roleFilterType":"sales"')
       expect(notice).toHaveTextContent('"verifiedEmployerCount":128')
+      expect(notice).toHaveTextContent('"evidenceMode":"legacy-seed"')
     })
   })
 

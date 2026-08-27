@@ -3067,7 +3067,50 @@ describe("companies routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await parseJsonBody(response)).toEqual({ success: true, count: 2 });
+    expect(await parseJsonBody(response)).toEqual({
+      success: true,
+      count: 2,
+      evidenceMode: "legacy-seed",
+    });
+  });
+
+  it("reports strict-reviewed evidence mode when INDUSTRY_EVIDENCE_COMPATIBILITY_MODE is strict-reviewed", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
+    const { verifiedEmployerCatalog } = await import(
+      "../services/verified-employer-catalog-service.js"
+    );
+    vi.spyOn(verifiedEmployerCatalog, "getVerifiedEmployers").mockReturnValue([
+      {
+        companyKey: "acme-cnc",
+        industryClass: "cnc",
+        displayName: "Acme CNC",
+        aliases: ["acme"],
+        updatedAt: 1,
+      },
+    ]);
+    const previous = process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE;
+    process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE = "strict-reviewed";
+
+    try {
+      const app = createApp({ authStorage: auth.storage });
+      const response = await app.request(
+        "/api/company-industry-verified-employer-count",
+        { headers: auth.headers },
+      );
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual({
+        success: true,
+        count: 1,
+        evidenceMode: "strict-reviewed",
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE;
+      } else {
+        process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE = previous;
+      }
+    }
   });
 
   it("serves the verified employer count to any authenticated workspace user", async () => {
@@ -3107,7 +3150,7 @@ describe("companies routes", () => {
       { headers: userAuth.headers },
     );
     expect(userResponse.status).toBe(200);
-    expect(await parseJsonBody(userResponse)).toEqual({ success: true, count: 2 });
+    expect(await parseJsonBody(userResponse)).toEqual({ success: true, count: 2, evidenceMode: "legacy-seed" });
 
     // workspace admin → 200 with count
     const adminAuth = createAuthHeaders({ workspaceSlug: "hr", role: "admin" });
@@ -3117,7 +3160,7 @@ describe("companies routes", () => {
       { headers: adminAuth.headers },
     );
     expect(adminResponse.status).toBe(200);
-    expect(await parseJsonBody(adminResponse)).toEqual({ success: true, count: 2 });
+    expect(await parseJsonBody(adminResponse)).toEqual({ success: true, count: 2, evidenceMode: "legacy-seed" });
 
     // authenticated but outside the requested workspace → 403
     const crossAuth = createAuthHeaders({

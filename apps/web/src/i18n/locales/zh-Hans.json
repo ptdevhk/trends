@@ -1511,6 +1511,7 @@
     "runHistoryDescription": "最近的行业证据维护运行。展开一行可查看每个雇主为何出现或未出现。",
     "runHistoryEmpty": "尚未记录维护运行。",
     "searchVerifiedOnlyNotice": "结果仅限行业认证雇主 · 目录中 {{count}} 家认证雇主",
+    "searchVerifiedOnlyLegacySuffix": "· 旧版目录证据（简历上尚无修订版本戳记）",
     "selectProposal": "选择一个提案以审核其证据。",
     "sessionApproved": "本次会话已批准",
     "sessionApprovedCount": "本次会话已批准",

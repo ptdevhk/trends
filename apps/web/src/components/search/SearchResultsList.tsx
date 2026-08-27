@@ -41,6 +41,10 @@ export type VerifiedOnlyNotice = {
   minRoleYears?: number
   roleFilterType?: string | null
   verifiedEmployerCount?: number
+  /** How resume-side evidence is resolved: strict-reviewed (revision-backed)
+   * or legacy-seed (inferred from old industry-verified booleans). Undefined
+   * when the endpoint did not report a mode (older API). */
+  evidenceMode?: 'legacy-seed' | 'strict-reviewed'
 }
 
 type SearchResultsListProps = {
@@ -640,6 +644,16 @@ export function SearchResultsList({
             defaultValue: 'Results limited to industry-verified employers · {{count}} verified employers in catalog',
             count: verifiedOnlyNotice.verifiedEmployerCount,
           })}
+          {verifiedOnlyNotice.evidenceMode === 'legacy-seed' ? (
+            <span
+              className="ml-1 inline-flex items-center gap-1 font-medium text-muted-foreground"
+              data-testid="verified-only-legacy-suffix"
+            >
+              {t('industryEvidence.searchVerifiedOnlyLegacySuffix', {
+                defaultValue: '· Legacy catalog evidence (no revision-backed stamps on resumes yet)',
+              })}
+            </span>
+          ) : null}
           {verifiedOnlyReviewHref ? (
             <a
               className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

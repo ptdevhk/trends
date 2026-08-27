@@ -1850,6 +1850,7 @@ const getVerifiedEmployerCountRoute = createRoute({
           schema: z.object({
             success: z.literal(true),
             count: z.number(),
+            evidenceMode: z.enum(["legacy-seed", "strict-reviewed"]),
           }),
         },
       },
@@ -1860,7 +1861,11 @@ const getVerifiedEmployerCountRoute = createRoute({
 
 app.openapi(getVerifiedEmployerCountRoute, async (c) => {
   const count = verifiedEmployerCatalog.getVerifiedEmployers().length;
-  return c.json({ success: true as const, count }, 200);
+  const evidenceMode =
+    process.env.INDUSTRY_EVIDENCE_COMPATIBILITY_MODE === "strict-reviewed"
+      ? "strict-reviewed"
+      : "legacy-seed";
+  return c.json({ success: true as const, count, evidenceMode }, 200);
 });
 
 const getIndustryRecomputeRunRoute = createRoute({

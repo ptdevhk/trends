@@ -55,7 +55,7 @@ export function ResumeSearchPage() {
   const industryResearchQueueEnabled = isIndustryEvidenceTargetedQueueEnabled() && hasSystemAdminAccess(memberships)
   // Public share surfaces have no admin session; the hook skips the fetch
   // there and the notice prop stays undefined.
-  const verifiedEmployerCount = useVerifiedEmployerCount(!isPublicSurface)
+  const verifiedEmployerInfo = useVerifiedEmployerCount(!isPublicSurface)
   // Only workspace admins and reviewers may attend the evidence queue; the
   // verified-only notice gains a review link only for them.
   const verifiedOnlyReviewHref = !isPublicSurface
@@ -740,11 +740,12 @@ export function ResumeSearchPage() {
                   onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
                   industryResearchQueueEnabled={industryResearchQueueEnabled}
                   verifiedOnlyNotice={
-                    verifiedEmployerCount !== undefined
+                    verifiedEmployerInfo !== undefined
                       ? {
                           minRoleYears: parsedState.filters.minRoleYears,
                           roleFilterType: parsedState.filters.roleFilterType ?? null,
-                          verifiedEmployerCount,
+                          verifiedEmployerCount: verifiedEmployerInfo.count,
+                          evidenceMode: verifiedEmployerInfo.evidenceMode,
                         }
                       : undefined
                   }

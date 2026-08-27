@@ -11517,6 +11517,8 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             count: number;
+                            /** @enum {string} */
+                            evidenceMode: "legacy-seed" | "strict-reviewed";
                         };
                     };
                 };
