@@ -14,7 +14,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
-import apps.worker.industry_evidence_research as _shim
 from apps.worker.evidence_classifier import (
     SOURCE_ORDER,
     TRUST_ORDER,
@@ -364,7 +363,11 @@ class IndustryEvidenceMaintenanceJob:
         target_proposal_ids: Optional[Sequence[str]] = None,
         claimed_requests: Optional[Sequence[Dict[str, Any]]] = None,
     ):
-        convex_client_cls = getattr(_shim, "ResearchConvexClient", ResearchConvexClient)
+        import apps.worker.industry_evidence_research as _job_shim
+
+        convex_client_cls = getattr(
+            _job_shim, "ResearchConvexClient", ResearchConvexClient
+        )
         self.client = client or convex_client_cls()
         self.now_ms = now_ms or (lambda: int(time.time() * 1000))
         # P0.2: one per-domain limiter shared across every fetcher in this
@@ -1225,7 +1228,14 @@ def run_industry_evidence_maintenance(
 
     The ``trigger`` labels the run source when self-registering.
     """
-    convex_client_cls = getattr(_shim, "ResearchConvexClient", ResearchConvexClient)
+    # Tests patch the shim module's class seams; resolve them lazily at call
+    # time so monkeypatch("apps.worker.industry_evidence_research.X") keeps
+    # working without a direct import cycle.
+    import apps.worker.industry_evidence_research as _runner_shim
+
+    convex_client_cls = getattr(
+        _runner_shim, "ResearchConvexClient", ResearchConvexClient
+    )
     client = convex_client_cls()
 
     if not industry_evidence_maintenance_enabled():
@@ -1334,8 +1344,12 @@ def run_industry_evidence_maintenance(
             if isinstance(item, dict)
         ]
 
+    import apps.worker.industry_evidence_research as _runner_shim
+
     build_discovery_job_fn = getattr(
-        _shim, "build_discovery_job_from_env", build_discovery_job_from_env
+        _runner_shim,
+        "build_discovery_job_from_env",
+        build_discovery_job_from_env,
     )
     discovery_job = build_discovery_job_fn()
     # Allow operators to scale the per-run proposal batch via env var.
@@ -1344,7 +1358,9 @@ def run_industry_evidence_maintenance(
     # under the Convex list cap of 500). Lower (e.g., 20) for scheduled runs.
     proposal_limit = int(os.environ.get("INDUSTRY_PROPOSAL_LIMIT", "200"))
     maintenance_job_cls = getattr(
-        _shim, "IndustryEvidenceMaintenanceJob", IndustryEvidenceMaintenanceJob
+        _runner_shim,
+        "IndustryEvidenceMaintenanceJob",
+        IndustryEvidenceMaintenanceJob,
     )
     return maintenance_job_cls(
         client=client,

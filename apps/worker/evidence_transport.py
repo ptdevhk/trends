@@ -19,7 +19,6 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 from urllib.request import urlopen as _urllib_urlopen
 
-import apps.worker.industry_evidence_research as _shim
 from apps.worker.evidence_nlp import (
     MAX_EXCERPT_LENGTH,
     _excerpt_with_legal_name,
@@ -370,8 +369,15 @@ class GuardedEvidenceFetcher:
         *,
         use_cache: bool = True,
     ) -> Dict[str, Any]:
-        resolved_host_is_public = getattr(_shim, "_resolved_host_is_public", _resolved_host_is_public)
-        urlopen_fn = self._opener or getattr(_shim, "urlopen", urlopen)
+        # Tests patch the shim module's urlopen seam; keep resolving it at
+        # call time so patch("apps.worker.industry_evidence_research.urlopen")
+        # keeps working without a direct import cycle.
+        import apps.worker.industry_evidence_research as _transport_shim
+
+        resolved_host_is_public = getattr(
+            _transport_shim, "_resolved_host_is_public", _resolved_host_is_public
+        )
+        urlopen_fn = self._opener or getattr(_transport_shim, "urlopen", urlopen)
         cache_key = _normalize_evidence_url(url) if use_cache else None
         if cache_key is not None:
             cached = self._cache_get(cache_key)
