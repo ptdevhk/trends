@@ -13,6 +13,7 @@ import {
   isAdjacentProductWork,
 } from "./adjacent-product-cap.js";
 import { computeFinalAiScore } from "./resume-score-semantics.js";
+import { CN_ADJACENT_PRODUCT_SCORE_CAP_RULE } from "./score-cap-rules.js";
 
 const OVERSCORE_RELATED_EXP = 60;
 const OVERSCORE_INDUSTRY_DB = 40;
@@ -60,6 +61,21 @@ describe("applyAdjacentProductScoreCap", () => {
     expect(result.reason).toBe(ADJACENT_PRODUCT_SCORE_CAP_REASON);
     expect(result.relatedExp).toBeLessThanOrEqual(ADJACENT_PRODUCT_RELATED_EXP_CAP);
     expect(result.industryDb).toBeLessThanOrEqual(ADJACENT_PRODUCT_INDUSTRY_DB_CAP);
+    expect(computeFinalAiScore(result.relatedExp, result.industryDb)).toBeLessThan(OVERSCORE_BAND_MIN);
+  });
+
+  it.each([
+    { label: "注塑机", text: "注塑机销售工程师，负责华东区域经销商" },
+    { label: "齿轮机", text: "齿轮机区域销售，跟进经销商订单" },
+    { label: "刀具配件电气气动", text: "刀具、配件、电气柜与气动元件销售" },
+  ])("caps $label so the combined score leaves the mid-60s/70 overscore band", ({ text }) => {
+    const result = applyAdjacentProductScoreCap({
+      relatedExp: OVERSCORE_RELATED_EXP,
+      industryDb: OVERSCORE_INDUSTRY_DB,
+      evidenceText: text,
+      market: "CN",
+    });
+    expect(result.applied).toBe(true);
     expect(computeFinalAiScore(result.relatedExp, result.industryDb)).toBeLessThan(OVERSCORE_BAND_MIN);
   });
 
@@ -114,15 +130,17 @@ describe("applyAdjacentProductScoreCap", () => {
   });
 
   it("leaves MY/TH markets unchanged", () => {
-    const myResult = applyAdjacentProductScoreCap({
-      relatedExp: 80,
-      industryDb: 50,
-      evidenceText: "注塑机销售",
-      market: "MY",
-    });
-    expect(myResult.applied).toBe(false);
-    expect(myResult.relatedExp).toBe(80);
-    expect(myResult.industryDb).toBe(50);
+    for (const market of ["MY", "TH"] as const) {
+      const result = applyAdjacentProductScoreCap({
+        relatedExp: 80,
+        industryDb: 50,
+        evidenceText: "注塑机销售",
+        market,
+      });
+      expect(result.applied).toBe(false);
+      expect(result.relatedExp).toBe(80);
+      expect(result.industryDb).toBe(50);
+    }
   });
 });
 
@@ -131,5 +149,13 @@ describe("collectAdjacentProductEvidenceText", () => {
     expect(collectAdjacentProductEvidenceText(["注塑机销售", "  ", undefined, "华东"])).toBe(
       "注塑机销售 华东",
     );
+  });
+});
+
+describe("adjacent-product formula reads the shared registry", () => {
+  it("uses the registry cap values and reason code", () => {
+    expect(ADJACENT_PRODUCT_RELATED_EXP_CAP).toBe(CN_ADJACENT_PRODUCT_SCORE_CAP_RULE.relatedExpCap);
+    expect(ADJACENT_PRODUCT_INDUSTRY_DB_CAP).toBe(CN_ADJACENT_PRODUCT_SCORE_CAP_RULE.industryDbCap);
+    expect(ADJACENT_PRODUCT_SCORE_CAP_REASON).toBe(CN_ADJACENT_PRODUCT_SCORE_CAP_RULE.reason);
   });
 });

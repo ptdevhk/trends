@@ -7,30 +7,32 @@
  *
  * Filters (不考虑 / 薪资 / 地区无需求 / 电话微信) and gender stay out of the
  * numeric score.
+ *
+ * Keywords and caps come from SCORE_CAP_RULES so admin sees the same rule.
  */
 
-export const ADJACENT_PRODUCT_RELATED_EXP_CAP = 45;
-export const ADJACENT_PRODUCT_INDUSTRY_DB_CAP = 20;
-export const ADJACENT_PRODUCT_SCORE_CAP_REASON = "cn_adjacent_product_score_cap_v1";
+import {
+  ADJACENT_PRODUCT_SCORE_CAP_RULE_ID,
+  getScoreCapRule,
+  type ScoreCapRule,
+} from "./score-cap-rules.js";
 
-const ADJACENT_PRODUCT_KEYWORDS = [
-  "刀具",
-  "配件",
-  "电气",
-  "气动",
-  "注塑",
-  "齿轮机",
-] as const;
+function requireAdjacentProductRule(): ScoreCapRule {
+  const rule = getScoreCapRule(ADJACENT_PRODUCT_SCORE_CAP_RULE_ID);
+  if (!rule) {
+    throw new Error(`Missing score-cap rule ${ADJACENT_PRODUCT_SCORE_CAP_RULE_ID}`);
+  }
+  return rule;
+}
 
-const WHOLE_MACHINE_CNC_SALES_KEYWORDS = [
-  "整机数控",
-  "机床整机",
-  "整机机床",
-  "整机销售",
-  "数控机床销售",
-  "加工中心销售",
-  "cnc机床销售",
-] as const;
+const ADJACENT_PRODUCT_RULE = requireAdjacentProductRule();
+
+export const ADJACENT_PRODUCT_RELATED_EXP_CAP = ADJACENT_PRODUCT_RULE.relatedExpCap;
+export const ADJACENT_PRODUCT_INDUSTRY_DB_CAP = ADJACENT_PRODUCT_RULE.industryDbCap;
+export const ADJACENT_PRODUCT_SCORE_CAP_REASON = ADJACENT_PRODUCT_RULE.reason;
+
+const ADJACENT_PRODUCT_KEYWORDS = ADJACENT_PRODUCT_RULE.matchKeywords;
+const WHOLE_MACHINE_CNC_SALES_KEYWORDS = ADJACENT_PRODUCT_RULE.excludeKeywords;
 
 export type AdjacentProductCapInput = {
   relatedExp: number;
@@ -96,7 +98,7 @@ export function applyAdjacentProductScoreCap(
     };
   }
 
-  if (!isAdjacentProductWork(input.evidenceText)) {
+  if (!ADJACENT_PRODUCT_RULE.active || !isAdjacentProductWork(input.evidenceText)) {
     return {
       relatedExp: input.relatedExp,
       industryDb: input.industryDb,
