@@ -88,11 +88,15 @@ services:
       - PREVIEW_PUBLIC_HOST=${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}
       - BFF_API_URL=${BFF_API_URL:-https://${PREVIEW_PUBLIC_HOST:-preview.pt-mes.com}}
     command: ["sh", "/app/start-convex.sh"]
+    # Probe the real BFF path (POST /api/query on 3210), not GET /version.
+    # /version can stay up (or the failing streak can climb for 90 retries)
+    # while the API listener is already ECONNRESET. 3 retries × 15s makes
+    # degradation visible in ~45s instead of ~15 min of silent "healthy".
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3210/version', r => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 10s
+      test: ["CMD", "node", "-e", "const req=require('http').request({hostname:'127.0.0.1',port:3210,path:'/api/query',method:'POST',headers:{'Content-Type':'application/json'},timeout:4000},r=>{r.resume();process.exit(r.statusCode&&r.statusCode<500?0:1)});req.on('error',()=>process.exit(1));req.on('timeout',()=>{req.destroy();process.exit(1)});req.end(JSON.stringify({path:'version',args:{},format:'json'}));"]
+      interval: 15s
       timeout: 5s
-      retries: 90
+      retries: 3
       start_period: 180s
 
   mcp:

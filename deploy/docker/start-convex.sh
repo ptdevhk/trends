@@ -31,7 +31,8 @@ n=0
 while [ "$n" -lt "$MAX" ]; do
   n=$((n + 1))
   echo "Convex dev attempt $n/$MAX..."
-  npx convex dev && break || {
+  # --tail-logs disable: CLI 1.39.1+; stops the "Failed to fetch logs" retry storm.
+  npx convex dev --tail-logs disable && break || {
     echo "Attempt $n failed, retrying in 10s..."
     sleep 10
   }
