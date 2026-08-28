@@ -417,8 +417,8 @@ fi
 log_step "Search-data freshness gate (code deploy ≠ computed role years)"
 # GATE_STRICT=0 for lag after schedule: upgrade succeeds but golden floor hard-fails.
 # Operators re-run gate after reingest. Set PREVIEW_FRESHNESS_STRICT=1 to fail upgrade on floor miss.
-FRESHNESS_SCRIPT="$SCRIPT_DIR/search-freshness-gate.sh"
-[[ -x "$FRESHNESS_SCRIPT" ]] || FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"
+FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"
+[[ -x "$FRESHNESS_SCRIPT" ]] || FRESHNESS_SCRIPT="$SCRIPT_DIR/search-freshness-gate.sh"
 if [[ -x "$FRESHNESS_SCRIPT" ]]; then
     set +e
     PREVIEW_DIR="$PREVIEW_DIR" PREVIEW_ENV_FILE="$PREVIEW_ENV_FILE" \

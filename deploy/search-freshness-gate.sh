@@ -84,6 +84,7 @@ if [[ -z "$API_URL" ]]; then
     API_URL="${PROD_API_URL}"
   fi
 fi
+if [[ "$ROLE" == "preview" && -n "${PREVIEW_DIR:-}" && -d "$PREVIEW_DIR" ]]; then REPO_ROOT="$PREVIEW_DIR"; fi
 
 # Preview auth cookies are Secure, so protected scheduling calls must use the
 # public HTTPS origin even when the read-only doctor uses host loopback.
@@ -210,7 +211,7 @@ fi
 DOCTOR_ARGS+=(--json)
 
 set +e
-DOCTOR_OUT="$(cd "$(dirname "$DOCTOR")/.." && TRENDS_AUTH_USERNAME="$TRENDS_AUTH_USERNAME" TRENDS_AUTH_PASSWORD="$TRENDS_AUTH_PASSWORD" \
+DOCTOR_OUT="$(cd "$REPO_ROOT" && TRENDS_AUTH_USERNAME="$TRENDS_AUTH_USERNAME" TRENDS_AUTH_PASSWORD="$TRENDS_AUTH_PASSWORD" \
   npx tsx "$DOCTOR" "${DOCTOR_ARGS[@]}" 2>&1)"
 DOCTOR_RC=$?
 set -e

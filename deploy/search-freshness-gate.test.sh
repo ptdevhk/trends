@@ -38,6 +38,9 @@ grep -q '^TRENDS_DEPLOYMENT_ROLE=production' "$ROOT/deploy/env.production" && pa
 
 # Upgrade hooks
 grep -q 'search-freshness-gate' "$ROOT/deploy/preview-upgrade.sh" && pass "preview-upgrade invokes freshness gate" || fail "preview-upgrade missing gate"
+grep -q 'FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"' "$ROOT/deploy/preview-upgrade.sh" && pass "preview-upgrade prefers PREVIEW_DIR gate" || fail "upgrade still prefers SCRIPT_DIR gate"
+grep -q 'REPO_ROOT="$PREVIEW_DIR"' "$ROOT/deploy/search-freshness-gate.sh" && pass "gate pins REPO_ROOT to PREVIEW_DIR" || fail "gate missing PREVIEW_DIR pin"
+grep -q 'cd "$REPO_ROOT"' "$ROOT/deploy/search-freshness-gate.sh" && pass "doctor cds to REPO_ROOT" || fail "doctor still cds to dirname DOCTOR"
 grep -q 'run_search_freshness_gate_production' "$ROOT/scripts/install.sh" && pass "install.sh prod freshness gate" || fail "install.sh missing gate"
 grep -q 'BFF_API_URL' "$ROOT/deploy/sync-preview-convex-env.sh" && pass "sync-preview-convex-env syncs BFF" || fail "sync missing BFF"
 grep -q 'BFF_API_URL' "$ROOT/deploy/preview-doctor.sh" && pass "preview-doctor checks BFF" || fail "doctor missing BFF check"
