@@ -155,8 +155,8 @@ rsync -a --delete \
     --exclude 'packages/convex/.env.local' \
     --exclude 'packages/convex/.convex' \
     --exclude 'apps/web/dist' \
-    --exclude 'docker-compose.preview.yml' \
-    --exclude 'start-convex.sh' \
+    --exclude '/docker-compose.preview.yml' \
+    --exclude '/start-convex.sh' \
     --exclude 'prod-convex-export.zip' \
     --exclude '.digest-restore-epoch' \
     "$REPO_MIRROR/" "$PREVIEW_DIR/"
@@ -166,9 +166,13 @@ cp -a "$ENV_BACKUP" "$PREVIEW_ENV_FILE"
 chown "$PREVIEW_SERVICE_USER:$PREVIEW_SERVICE_USER" "$PREVIEW_ENV_FILE"
 chmod 600 "$PREVIEW_ENV_FILE"
 
-# Refresh compose helpers from tree
-cp "$PREVIEW_DIR/deploy/docker/docker-compose.preview.yml" "$PREVIEW_DIR/docker-compose.preview.yml"
-cp "$PREVIEW_DIR/deploy/docker/start-convex.sh" "$PREVIEW_DIR/start-convex.sh"
+# Refresh compose helpers from the mirror. Bare rsync excludes of
+# start-convex.sh / docker-compose.preview.yml also skipped deploy/docker/,
+# so copying from $PREVIEW_DIR/deploy/docker/ re-shipped the old GET /version
+# healthcheck. Leading-/ excludes keep only the live root files; the copies
+# below always come from the upgraded mirror.
+cp "$REPO_MIRROR/deploy/docker/docker-compose.preview.yml" "$PREVIEW_DIR/docker-compose.preview.yml"
+cp "$REPO_MIRROR/deploy/docker/start-convex.sh" "$PREVIEW_DIR/start-convex.sh"
 chmod +x "$PREVIEW_DIR/start-convex.sh"
 chown -R "$PREVIEW_SERVICE_USER:$PREVIEW_SERVICE_USER" "$PREVIEW_DIR"
 
