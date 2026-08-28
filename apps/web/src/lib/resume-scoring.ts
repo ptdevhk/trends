@@ -1,5 +1,7 @@
 import {
+  applyAdjacentProductScoreCap,
   applyMarketIndustryDbFloor,
+  collectAdjacentProductEvidenceText,
   computeIndustryDbDirectHitScore,
   buildLatestWorkHistoryEvidence,
   computeFinalAiScore,
@@ -539,16 +541,49 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
   return createBatchNormalizer(stats)(raw)
 }
 
+export function collectResumeAdjacentProductEvidenceText(resume: {
+  workHistory?: Array<{
+    companyName?: string
+    jobTitle?: string
+    description?: string
+    raw?: string
+  } | string>
+  ingestData?: {
+    evidenceText?: string
+  }
+}): string {
+  const workHistory = Array.isArray(resume.workHistory) ? resume.workHistory : []
+  const workParts = workHistory.flatMap((entry) => {
+    if (typeof entry === 'string') {
+      return [entry]
+    }
+    return [entry.companyName, entry.jobTitle, entry.description, entry.raw]
+  })
+  return collectAdjacentProductEvidenceText([
+    ...workParts,
+    resume.ingestData?.evidenceText,
+  ])
+}
+
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   industryDb: number,
   market?: string,
+  evidenceText?: string,
 ): ConvexResumeAnalysis {
-  const effectiveIndustryDb = applyMarketIndustryDbFloor(market, industryDb)
+  const flooredIndustryDb = applyMarketIndustryDbFloor(market, industryDb)
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
   // effectiveRelatedExp = factor after recommendation ceiling (and evidence ceiling if stored)
-  const cappedRelatedExp = clamp(Math.min(rawRelatedExp, recommendationCeiling), 0, 100)
+  const recommendationCappedRelatedExp = clamp(Math.min(rawRelatedExp, recommendationCeiling), 0, 100)
+  const adjacentCap = applyAdjacentProductScoreCap({
+    relatedExp: recommendationCappedRelatedExp,
+    industryDb: flooredIndustryDb,
+    evidenceText,
+    market,
+  })
+  const cappedRelatedExp = adjacentCap.relatedExp
+  const effectiveIndustryDb = adjacentCap.industryDb
   // Production composite: score = round(effectiveRelatedExp * 0.5) + industryDb
   // breakdown.related_exp = cappedRelatedExp (factor, for audit/display)
   // breakdown.industry_db = effectiveIndustryDb (database signal, for display/sort)

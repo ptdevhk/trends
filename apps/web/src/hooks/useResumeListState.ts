@@ -84,6 +84,7 @@ import {
   getNameSortLocale,
   hasIngestData,
   isAutoFilteredAnalysis,
+  collectResumeAdjacentProductEvidenceText,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
   toMatchBreakdown,
@@ -1266,6 +1267,7 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasCompanyHits,
               ),
               ingestData?.market ?? deriveMarketFromSourceKey(analysisSourceKey),
+              collectResumeAdjacentProductEvidenceText(resume),
             )
           : undefined
 

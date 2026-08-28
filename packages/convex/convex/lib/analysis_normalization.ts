@@ -5,7 +5,9 @@
  * signals, computing industry DB scores, and ensuring summary consistency.
  */
 import {
+    applyAdjacentProductScoreCap,
     applyMarketIndustryDbFloor,
+    collectAdjacentProductEvidenceText,
     computeIndustryDbDirectHitScore,
     deriveMarketFromSourceKey,
     INDUSTRY_DB_DISPLAY_CAP,
@@ -442,6 +444,24 @@ function getPrimarySalesSignal(resume: unknown): NormalizedRoleSignal | undefine
     })[0];
 }
 
+
+function collectResumeAdjacentProductEvidenceText(resume: unknown): string {
+    const ingestData = getResumeIngestData(resume);
+    const salesSignal = getPrimarySalesSignal(resume);
+    const workHistoryText = getResumeWorkHistory(resume).map((entry) => buildWorkHistoryEntryDomainText(entry));
+    const matchedEntryText = (salesSignal?.matchedWorkEntries ?? []).flatMap((entry) => [
+        entry.companyName,
+        entry.jobTitle,
+        ...entry.matchedSignals,
+    ]);
+    const evidenceText = typeof ingestData.evidenceText === "string" ? ingestData.evidenceText : undefined;
+    return collectAdjacentProductEvidenceText([
+        ...workHistoryText,
+        ...matchedEntryText,
+        evidenceText,
+    ]);
+}
+
 function inferCnMachineToolCompanyVerifiedSalesFloor(
     resume: unknown,
     relatedExpCtx: {
@@ -760,13 +780,29 @@ export function normalizeAnalysisResult(
         }
     }
 
+    const adjacentCap = applyAdjacentProductScoreCap({
+        relatedExp: clamp(effectiveRelatedExp, 0, 100),
+        industryDb,
+        evidenceText: collectResumeAdjacentProductEvidenceText(resume),
+        market,
+    });
+    if (adjacentCap.applied && relatedExpEvidence) {
+        relatedExpEvidence = {
+            ...relatedExpEvidence,
+            baseEffectiveRaw: relatedExpEvidence.baseEffectiveRaw ?? effectiveRelatedExp,
+            effectiveRaw: adjacentCap.relatedExp,
+            adjustmentReason: adjacentCap.reason,
+        };
+    }
+    effectiveRelatedExp = adjacentCap.relatedExp;
+    const cappedIndustryDb = adjacentCap.industryDb;
+
     // relatedExpAuditFactor = the effective related-exp factor (0-100) after
-    // recommendation ceiling and optional evidence ceiling. This is the audit/debug
-    // factor, NOT the final product AI score.
+    // recommendation ceiling, optional evidence ceiling, and adjacent-product cap.
     const relatedExpAuditFactor = clamp(effectiveRelatedExp, 0, 100);
 
     // Final AI Score = round(relatedExp * 0.5) + industryDb
-    let score = computeFinalAiScore(relatedExpAuditFactor, industryDb);
+    let score = computeFinalAiScore(relatedExpAuditFactor, cappedIndustryDb);
 
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
@@ -805,7 +841,7 @@ export function normalizeAnalysisResult(
         breakdown: {
             ...(breakdown ?? {}),
             related_exp: relatedExpAuditFactor,
-            industry_db: industryDb,
+            industry_db: cappedIndustryDb,
         },
         keyFactors: parseKeyFactors(result.keyFactors),
         ...(relatedExpEvidence ? { relatedExpEvidence } : {}),

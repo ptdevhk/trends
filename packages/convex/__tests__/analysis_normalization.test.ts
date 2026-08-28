@@ -983,7 +983,7 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
             {
                 ingestData: {
                     industryDbV2Raw: 10,
-                    companyHits: ["nachi不二越中国有限公司"],
+                    companyHits: ["example-tooling-cn"],
                     roleSignals: [
                         {
                             type: "sales",
@@ -996,7 +996,7 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
                             industryVerifiedRelevantYears: 5.42,
                             matchedWorkEntries: [
                                 {
-                                    companyName: "喜威一（北京）刀具有限公司",
+                                    companyName: "华北示例刀具有限公司",
                                     jobTitle: "销售工程师",
                                     years: 5.42,
                                     industryVerified: true,
@@ -1010,12 +1010,12 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
                 },
                 workHistory: [
                     {
-                        companyName: "喜威一（北京）刀具有限公司",
+                        companyName: "华北示例刀具有限公司",
                         jobTitle: "销售工程师",
                         description: "负责重庆地区刀具业务开发，配合代理商开发选型试切，促成订单。",
                     },
                     {
-                        companyName: "重庆丰利工具有限公司",
+                        companyName: "西南示例工具有限公司",
                         jobTitle: "客户代表",
                         description: "公司主要经营各类进口、国产数控刀具，以及刀具整体方案设计。",
                     },
@@ -1026,15 +1026,120 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
                 ingestEvidence: {
                     directRoleMatch: true,
                     industryVerifiedRelevantYears: 5.42,
-                    matchedWorkEntries: ["销售工程师 @ 喜威一（北京）刀具有限公司 (5.42y)"],
+                    matchedWorkEntries: ["销售工程师 @ 华北示例刀具有限公司 (5.42y)"],
                 },
             },
         );
 
         expect(result.breakdown.related_exp).toBe(36);
-        expect(result.score).toBe(58);
-        expect(result.recommendation).toBe("potential");
+        expect(result.breakdown.industry_db).toBeLessThanOrEqual(20);
+        expect(result.score).toBeLessThan(50);
+        expect(result.relatedExpEvidence?.adjustmentReason).toBe("cn_adjacent_product_score_cap_v1");
+    });
+});
+
+describe("normalizeAnalysisResult adjacent-product score cap", () => {
+    const overscoreLlm = {
+        recommendation: "match" as const,
+        summary: "相关销售经验较完整。",
+        breakdown: { related_exp: 60 },
+    };
+    const relatedExpCtx = {
+        context: { roleFilterType: "sales", minRoleYears: 1, market: "CN", locale: "zh" },
+        ingestEvidence: {
+            directRoleMatch: true,
+            industryVerifiedRelevantYears: 6,
+            matchedWorkEntries: ["销售工程师 @ 华东示例机械有限公司 (6y)"],
+        },
+    };
+
+    function inventedSalesResume(description: string) {
+        return {
+            ingestData: {
+                market: "CN",
+                industryDbV2Raw: 40,
+                companyHits: ["华东示例机械有限公司"],
+                brandHits: [{ context: "client", brand: "ExampleBrand" }],
+                roleSignals: [
+                    {
+                        type: "sales",
+                        matchedSignals: ["销售"],
+                        signalCount: 2,
+                        occurrences: 1,
+                        years: 6,
+                        industryVerifiedYears: 6,
+                        industryVerifiedRelevantYears: 6,
+                        matchedWorkEntries: [
+                            {
+                                companyName: "华东示例机械有限公司",
+                                jobTitle: "销售工程师",
+                                years: 6,
+                                industryVerified: true,
+                                matchedSignals: ["销售"],
+                                directRoleMatch: true,
+                            },
+                        ],
+                        verifyIn: "workHistory",
+                    },
+                ],
+            },
+            workHistory: [
+                {
+                    companyName: "华东示例机械有限公司",
+                    jobTitle: "销售工程师",
+                    description,
+                },
+            ],
+        };
+    }
+
+    it.each([
+        { label: "injection-molding", description: "负责华东注塑机销售与经销商开发" },
+        { label: "gear-machine", description: "齿轮机区域销售，跟进渠道订单" },
+        { label: "tools-parts-electrical-pneumatic", description: "刀具、配件、电气柜与气动元件销售" },
+    ])("caps $label adjacent product out of the whole-machine overscore band", ({ description }) => {
+        const result = normalizeAnalysisResult(overscoreLlm, inventedSalesResume(description), relatedExpCtx);
+        expect(result.breakdown.related_exp).toBeLessThanOrEqual(45);
+        expect(result.breakdown.industry_db).toBeLessThanOrEqual(20);
+        expect(result.score).toBeLessThan(60);
+        expect(result.relatedExpEvidence?.adjustmentReason).toBe("cn_adjacent_product_score_cap_v1");
+    });
+
+    it("does not cap a real 整机数控机床销售 profile", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", summary: "整机销售经验完整。", breakdown: { related_exp: 80 } },
+            inventedSalesResume("负责进口数控机床整机销售与加工中心客户开发"),
+            relatedExpCtx,
+        );
+        expect(result.breakdown.related_exp).toBe(80);
+        expect(result.breakdown.industry_db).toBe(50);
+        expect(result.score).toBe(90);
         expect(result.relatedExpEvidence?.adjustmentReason).toBeUndefined();
+    });
+
+    it("does not let pay / location / 不考虑 / wechat-phone change the numeric score", () => {
+        const work = "齿轮机销售，覆盖华东经销渠道";
+        const base = normalizeAnalysisResult(overscoreLlm, inventedSalesResume(work), relatedExpCtx);
+        const filtered = normalizeAnalysisResult(
+            overscoreLlm,
+            inventedSalesResume(`${work}。不考虑出差，期望薪资面议，地区无需求，电话微信同号`),
+            relatedExpCtx,
+        );
+        expect(filtered.score).toBe(base.score);
+        expect(filtered.breakdown.related_exp).toBe(base.breakdown.related_exp);
+        expect(filtered.breakdown.industry_db).toBe(base.breakdown.industry_db);
+    });
+
+    it("does not add a 女性 scoring feature", () => {
+        const work = "电气配件销售";
+        const base = normalizeAnalysisResult(overscoreLlm, inventedSalesResume(work), relatedExpCtx);
+        const gendered = normalizeAnalysisResult(
+            overscoreLlm,
+            inventedSalesResume(`${work}，女性`),
+            relatedExpCtx,
+        );
+        expect(gendered.score).toBe(base.score);
+        expect(gendered.breakdown).toEqual(base.breakdown);
     });
 });
 

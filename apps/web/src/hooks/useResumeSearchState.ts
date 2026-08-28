@@ -45,6 +45,7 @@ import {
   getAnalysisForJob,
   computeDirectIndustryDb,
   normalizeExperienceLevel,
+  collectResumeAdjacentProductEvidenceText,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
   toIndustryDbV2Stats,
@@ -983,6 +984,7 @@ export function useResumeSearchState() {
                 source: resume.source,
               }),
             ),
+          collectResumeAdjacentProductEvidenceText(resume),
         )
         : undefined
       const score = resolveScore(
