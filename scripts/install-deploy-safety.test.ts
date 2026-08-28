@@ -600,6 +600,26 @@ describe("preview release helpers", () => {
     expect(upgradeScript).toMatch(/RESTORE_EPOCH_MARKER=.*\.digest-restore-epoch/);
   });
 
+  it("preview-upgrade refreshes compose helpers from the mirror, not stale preview copies", () => {
+    const deleteSyncStart = upgradeScript.indexOf("rsync -a --delete");
+    expect(deleteSyncStart).toBeGreaterThan(-1);
+    const deleteSyncEnd = upgradeScript.indexOf('"$REPO_MIRROR/" "$PREVIEW_DIR/"', deleteSyncStart);
+    expect(deleteSyncEnd).toBeGreaterThan(deleteSyncStart);
+    const deleteSyncBlock = upgradeScript.slice(deleteSyncStart, deleteSyncEnd);
+    // Root-only excludes: a bare filename also skipped deploy/docker/ copies,
+    // so the later cp from PREVIEW_DIR/deploy/docker/ re-shipped GET /version.
+    expect(deleteSyncBlock).toContain("--exclude '/docker-compose.preview.yml'");
+    expect(deleteSyncBlock).toContain("--exclude '/start-convex.sh'");
+    expect(deleteSyncBlock).not.toContain("--exclude 'docker-compose.preview.yml'");
+    expect(deleteSyncBlock).not.toContain("--exclude 'start-convex.sh'");
+    expect(upgradeScript).toContain(
+      'cp "$REPO_MIRROR/deploy/docker/docker-compose.preview.yml" "$PREVIEW_DIR/docker-compose.preview.yml"',
+    );
+    expect(upgradeScript).toContain(
+      'cp "$REPO_MIRROR/deploy/docker/start-convex.sh" "$PREVIEW_DIR/start-convex.sh"',
+    );
+  });
+
   it("search-freshness-gate uses capacity-safe reingest defaults", () => {
     const gateScript = readFileSync(new URL("../deploy/search-freshness-gate.sh", import.meta.url), "utf8");
     expect(gateScript).toContain("REINGEST_BATCH");
