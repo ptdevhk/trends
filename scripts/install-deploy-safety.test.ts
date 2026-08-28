@@ -20,6 +20,7 @@ const previewDoctorScript = readFileSync(new URL("../deploy/preview-doctor.sh", 
 const previewMcpDockerfile = readFileSync(new URL("../deploy/docker/Dockerfile.mcp", import.meta.url), "utf8");
 const previewCompose = readFileSync(new URL("../deploy/docker/docker-compose.preview.yml", import.meta.url), "utf8");
 const previewConvexStartScript = readFileSync(new URL("../deploy/docker/start-convex.sh", import.meta.url), "utf8");
+const previewConvexRestartScript = readFileSync(new URL("../deploy/preview-convex-restart.sh", import.meta.url), "utf8");
 const productionConvexService = readFileSync(new URL("../deploy/systemd/trends-convex.service", import.meta.url), "utf8");
 const rehearsalOrchestrator = readFileSync(new URL("../deploy/preview-rehearse-backup.sh", import.meta.url), "utf8");
 const completeBackupLibrary = readFileSync(new URL("../deploy/lib-complete-backup.sh", import.meta.url), "utf8");
@@ -686,5 +687,25 @@ describe("preview Convex container", () => {
     expect(match).not.toBeNull();
     const memLimitGiB = Number(match![1]!);
     expect(memLimitGiB).toBeGreaterThanOrEqual(12);
+  });
+
+  it("healthchecks the real 3210 POST /api/query path with few silent retries", () => {
+    expect(previewCompose).toContain("path:'/api/query'");
+    expect(previewCompose).toContain("method:'POST'");
+    expect(previewCompose).toContain("retries: 3");
+    expect(previewCompose).not.toMatch(/require\('http'\)\.get\('http:\/\/localhost:3210\/version'/);
+    expect(previewCompose).not.toMatch(/retries:\s*90/);
+  });
+
+  it("disables Convex CLI log tailing on preview start", () => {
+    expect(previewConvexStartScript).toContain("convex dev --tail-logs disable");
+  });
+
+  it("restarts preview Convex only via docker restart after query failures", () => {
+    expect(previewConvexRestartScript).toContain("docker restart");
+    expect(previewConvexRestartScript).toContain("trends-preview-convex");
+    expect(previewConvexRestartScript).toContain("/api/query");
+    expect(previewConvexRestartScript).toMatch(/Refusing to probe or restart production Convex/);
+    expect(previewConvexRestartScript).not.toMatch(/^\s*pkill/m);
   });
 });
