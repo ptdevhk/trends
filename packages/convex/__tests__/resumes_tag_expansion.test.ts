@@ -10,6 +10,7 @@ import {
     collectSearchTextProvenance,
     selectTagExpansionAnchorGroup,
     collectExpandedTerms,
+    buildAnchorScanSearchQuery,
 } from "../convex/lib/resumes_tag_expansion.js";
 
 // ---------------------------------------------------------------------------
@@ -227,5 +228,44 @@ describe("collectSearchTextProvenance", () => {
         ];
         const result = collectSearchTextProvenance("cnc", groups, {});
         expect(result).toHaveLength(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// buildAnchorScanSearchQuery (capped anchor join for the scan-page path)
+// ---------------------------------------------------------------------------
+describe("buildAnchorScanSearchQuery", () => {
+    const makeGroup = (n: number) => ({
+        original: "cnc",
+        variants: Array.from({ length: n }, (_, i) => `variant${i}`),
+    });
+
+    it("caps the joined anchor variants at the 16-term index limit", () => {
+        const group = makeGroup(25);
+        const q = buildAnchorScanSearchQuery(group);
+        const terms = q.split(" ");
+        expect(terms).toHaveLength(16);
+        expect(terms[0]).toBe("variant0");
+        expect(terms[15]).toBe("variant15");
+        expect(q).not.toContain("variant16");
+    });
+
+    it("returns all variants unchanged when under the cap", () => {
+        const q = buildAnchorScanSearchQuery(makeGroup(5));
+        expect(q.split(" ")).toHaveLength(5);
+    });
+
+    it("matches buildTagExpansionSearchQuery AND-mode cap semantics", () => {
+        const big = makeGroup(25);
+        const small = makeGroup(3);
+        // AND mode selects the small group as anchor and caps at 16 (3 < 16, no truncation)
+        const viaBuilder = buildTagExpansionSearchQuery([big, small], "AND");
+        expect(viaBuilder.split(" ")).toHaveLength(3);
+        expect(viaBuilder).toBe(buildAnchorScanSearchQuery(small));
+    });
+    it("caps a large anchor the same way the builder would", () => {
+        const big = makeGroup(25);
+        // single-group input → that group IS the anchor → builder caps at 16
+        expect(buildTagExpansionSearchQuery([big], "AND")).toBe(buildAnchorScanSearchQuery(big));
     });
 });

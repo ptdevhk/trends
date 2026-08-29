@@ -17,6 +17,7 @@ import {
     buildTagExpansionSearchQuery,
     matchesTagExpansionSearchText,
     collectSearchTextProvenance,
+    buildAnchorScanSearchQuery,
     type TagExpansionKeywordGroup,
     type SearchProvenance,
 } from "./lib/resumes_tag_expansion.js";
@@ -752,7 +753,7 @@ export const searchWithTagExpansionAndMode = action({
         // the anchor terms may be missed.  The BFF AND-mode path handles
         // the full-table-scan case for complete results.
         const anchorGroup = selectTagExpansionAnchorGroup(keywordGroups);
-        const anchorSearchQuery = anchorGroup.variants.join(" ");
+        const anchorSearchQuery = buildAnchorScanSearchQuery(anchorGroup);
         const anchorIds: string[] = [];
         let cursor: string | undefined;
 

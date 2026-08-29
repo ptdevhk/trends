@@ -725,7 +725,8 @@
           "fetchedAt": 1786029574922,
           "contentFingerprint": "corpus-work-7848fdb7"
         }
-      ]
+      ],
+      "aliasSeedNote": "Intentional two-key pair with newbillion-precision-metal (same employer, historical keys). The shared base alias 'Newbillion Precision Metal' belongs to the canonical key; alias seeding for THIS key must skip the bare base alias."
     },
     {
       "companyKey": "nsk-bearings-malaysia-sdn-bhd",
