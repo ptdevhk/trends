@@ -70,8 +70,11 @@ npm run debug
 ```
 
 The script prefers Chrome for Testing or Chromium (supports `--load-extension`). If only branded
-Chrome 137+ is available, it will warn and you must load the extension manually via
+Chrome 137+ (152 still ignores the unpack flag) is available, it will warn and you must load the extension manually via
 `chrome://extensions`.
+
+setup-profile.sh refuses on darwin. Container seed stays container-only. CDP loadUnpacked is pipe-only, not :9222.
+On macOS run macos:load-unpacked Running: print only. Quit: no start, no seed.
 
 ### Cmux container environment
 

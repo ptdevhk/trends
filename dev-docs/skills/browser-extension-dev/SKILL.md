@@ -24,7 +24,11 @@ Use this skill for work under `apps/browser-extension/` and any workflow that de
 ## Rules
 
 - Run scripts from repo root unless a script explicitly documents otherwise.
-- Do not rely on `--load-extension` inside the container; use the profile seeding workflow.
+- Branded builds dropped the unpack flag in 137, not 152; 152 still ignores it. CFT/Chromium still accept it.
+- Do not rely on the unpack flag inside the container; use the profile seeding workflow.
+- Do not run setup-profile.sh on darwin. Container seed stays container-only.
+- CDP loadUnpacked is pipe-only, not :9222.
+- darwin helper: macos:load-unpacked Running: print only. Quit: no start, no seed.
 - Keep changes MV3-compatible and avoid inline injection patterns blocked by CSP (prefer `web_accessible_resources` patterns already in the codebase).
 
 ## References

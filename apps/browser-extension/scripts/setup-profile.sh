@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Apply pre-loaded Chrome profile files so the extension auto-loads.
+# Container-only. Refuses on darwin so the seed never lands on macOS Default.
 # Usage: ./scripts/setup-profile.sh
 set -euo pipefail
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  echo refuse-darwin
+  echo "Error: setup-profile.sh is container-only and refuses on darwin."
   exit 1
 fi
 
