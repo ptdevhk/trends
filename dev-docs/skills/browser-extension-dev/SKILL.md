@@ -28,6 +28,9 @@ Use this skill for work under `apps/browser-extension/` and any workflow that de
 - Do not rely on the unpack flag inside the container; use the profile seeding workflow.
 - Do not run setup-profile.sh on darwin. Container seed stays container-only.
 - CDP loadUnpacked is pipe-only, not :9222.
+- Pipe helper: debug:pipe / load-unpacked:cli
+- Pipe helper cannot attach to a live :9222 session.
+- Collect on :9222 still uses the extensions page Load unpacked once.
 - darwin helper: macos:load-unpacked Running: print only. Quit: no start, no seed.
 - Keep changes MV3-compatible and avoid inline injection patterns blocked by CSP (prefer `web_accessible_resources` patterns already in the codebase).
 

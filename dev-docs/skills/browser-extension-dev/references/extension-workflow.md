@@ -19,6 +19,11 @@ Manual fallback: `chrome://extensions` → Developer mode → Load unpacked → 
 Use `npm run debug` from `apps/browser-extension/` to launch a debug profile without always passing that flag. CFT/Chromium still accept the unpack flag. Branded builds dropped it in 137, not 152; 152 still ignores it. Branded 137+ never gets the unpack flag (dropped in 137; 152 still ignores it). setup-profile.sh refuses on darwin. Container seed stays container-only. CDP loadUnpacked is pipe-only, not :9222. See also the helper script in package.json.
 On macOS run macos:load-unpacked Running: print only. Quit: no start, no seed.
 
+Unattended debug/dev uses debug:pipe / load-unpacked:cli.
+It starts a new browser over pipe transport and CDP Extensions.loadUnpacked.
+It cannot attach to an existing :9222 session.
+Collect on :9222 still uses the extensions page Load unpacked once.
+
 ## Auto Export (quick verification)
 
 Enable via URL query or localStorage:

@@ -76,6 +76,18 @@ Chrome 137+ (152 still ignores the unpack flag) is available, it will warn and y
 setup-profile.sh refuses on darwin. Container seed stays container-only. CDP loadUnpacked is pipe-only, not :9222.
 On macOS run macos:load-unpacked Running: print only. Quit: no start, no seed.
 
+
+### Unattended pipe loader (local debug/dev)
+
+Use the package.json pipe script and its cli alias.
+Scripts: debug:pipe / load-unpacked:cli
+It starts a new browser over pipe transport and sends CDP Extensions.loadUnpacked for this folder.
+
+- Dedicated profile: apps/browser-extension/.chrome-debug-profile (never macOS Default, never profile-seed).
+- Pipe-only. It does not open a TCP debug port and cannot attach to a live :9222 employer session.
+- Collect on :9222 still uses the extensions page Load unpacked once.
+- Prefers CFT / Chromium (same detect order as debug.sh). Branded-only still uses the pipe method.
+
 ### Cmux container environment
 
 Chrome is managed by systemd (`cmux-devtools.service`) and uses a branded build. Since Chrome 137+,
