@@ -288,6 +288,17 @@ set -a; source .env; set +a
 bunx tsx scripts/cjk-measurement-spike.ts   # writes scripts/output/cjk-measurement-results.json
 ```
 
+## Known gotcha: `maximumBytesRead` does not bound search-index queries
+
+Convex table-read limits (`maximumBytesRead` / `maximumRowsRead` on
+`.paginate()`) do **not** apply to `withSearchIndex` queries. A search-index
+query is bounded by the Tantivy posting-list window (≤1024 matching docs per
+query, BM25-ranked) rather than the byte/row budget of the underlying table.
+Marking a paginated search "done" at a small `numItems` therefore only bounds
+rows returned, never bytes scanned by the index. Any reasoning about
+"expensive" search paths must use the posting-list window plus the
+16-term expression cap (`MAX_SEARCH_INDEX_TERMS`), not `maximumBytesRead`.
+
 ## Sources
 
 - Local repo: `scripts/cjk-measurement-spike.ts`,

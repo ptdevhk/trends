@@ -87,6 +87,15 @@ export function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] 
     return deduped;
 }
 
+/**
+ * Capped anchor-group join for the scan-page path: the same 16-term
+ * Convex search-index limit the AND query builder applies, shared by
+ * both call sites so neither can emit an over-limit query string.
+ */
+export function buildAnchorScanSearchQuery(anchor: TagExpansionKeywordGroup): string {
+    return anchor.variants.slice(0, MAX_SEARCH_INDEX_TERMS).join(" ");
+}
+
 export function buildTagExpansionSearchQuery(
     keywordGroups: TagExpansionKeywordGroup[],
     mode: "AND" | "OR"
@@ -99,9 +108,7 @@ export function buildTagExpansionSearchQuery(
         // The anchor group is the one with the fewest variants; cap the
         // expression at the Convex 16-term limit so oversized variant lists
         // cannot produce a runtime-rejected query string.
-        return selectTagExpansionAnchorGroup(keywordGroups).variants
-            .slice(0, MAX_SEARCH_INDEX_TERMS)
-            .join(" ");
+        return buildAnchorScanSearchQuery(selectTagExpansionAnchorGroup(keywordGroups));
     }
 
     return collectExpandedTerms(keywordGroups)
