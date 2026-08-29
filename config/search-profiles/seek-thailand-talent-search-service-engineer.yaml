@@ -1,0 +1,48 @@
+id: seek-thailand-talent-search-service-engineer
+name: SEEK Thailand CNC Service Engineer — Talent Search
+description: Thailand SEEK Talent Search for CNC Service Engineer (วิศวกรบริการ / 售後工程師). YAML-only this cut (no TH market enum). Same hk.employer.seek.com entry, market=TH. CNC is a score, not a reject pile. Company-industry DB remains the accuracy target vs CN.
+createdAt: "2026-08-29"
+updatedAt: "2026-08-29"
+status: active
+workspaceSlug: [dev, hr]
+seedLastRunOffsetMs: 1800000
+
+location: Thailand
+keywords:
+  - CNC
+  - Service Engineer
+
+jobDescription: seek-thailand-service-engineer
+
+filters:
+  minRoleYears: 1
+  roleFilterType: technical
+  maxExperience: null
+  locations:
+    - Thailand
+
+schedule:
+  enabled: false
+  timezone: Asia/Bangkok
+  maxCandidates: 50
+
+sources:
+  - type: seek
+    mode: talentsearch
+    enabled: true
+    priority: 1
+    jobUrl: https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE
+    collectLimit: 50
+    maxPages: 25
+
+session:
+  scope: per-position
+  retention:
+    mode: until-closed
+    archiveAfterDays: 90
+
+quickStart:
+  enabled: true
+  rank: 6
+  label: Thailand · SEEK · CNC Service Engineer (Talent Search)
+  description: CNC, Service Engineer · Thailand · Talent Search lane

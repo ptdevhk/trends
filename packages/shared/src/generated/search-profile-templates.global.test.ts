@@ -43,3 +43,54 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
     }
   })
 })
+
+
+describe('MY/TH CNC Service Engineer talent-search profiles', () => {
+  const ROLE_STACK = [
+    'Services Engineer',
+    'Service Technician',
+    'Service Manager',
+    'Service Coordinator',
+    'Service Supervisor',
+  ]
+
+  it('seeds two location-split Seek talent-search profiles without sales titles', () => {
+    const hr = getWorkspaceSearchProfileTemplates('hr')
+    const my = hr.find((t) => t.profile.id === 'seek-malaysia-talent-search-service-engineer')
+    const th = hr.find((t) => t.profile.id === 'seek-thailand-talent-search-service-engineer')
+
+    expect(my).toBeDefined()
+    expect(th).toBeDefined()
+    expect(my?.profile.location).toBe('Malaysia')
+    expect(th?.profile.location).toBe('Thailand')
+    expect(my?.profile.jobDescription).toBe('seek-malaysia-service-engineer')
+    expect(th?.profile.jobDescription).toBe('seek-thailand-service-engineer')
+    expect(my?.profile.filters?.roleFilterType).toBe('technical')
+    expect(th?.profile.filters?.roleFilterType).toBe('technical')
+    expect(my?.profile.keywords).not.toContain('Sales')
+    expect(th?.profile.keywords).not.toContain('Sales')
+
+    const myUrl = my?.profile.sources?.[0]?.jobUrl ?? ''
+    const thUrl = th?.profile.sources?.[0]?.jobUrl ?? ''
+    expect(my?.profile.sources?.[0]?.mode).toBe('talentsearch')
+    expect(th?.profile.sources?.[0]?.mode).toBe('talentsearch')
+    expect(myUrl.startsWith('https://hk.employer.seek.com/talentsearch?')).toBe(true)
+    expect(thUrl.startsWith('https://hk.employer.seek.com/talentsearch?')).toBe(true)
+    expect(myUrl).toContain('market=MY')
+    expect(thUrl).toContain('market=TH')
+    expect(myUrl).not.toContain('th.employer.seek.com')
+    expect(thUrl).not.toContain('th.employer.seek.com')
+    expect(myUrl).toContain('searchQuery=CNC')
+    expect(myUrl).toContain('keywords=CNC')
+    expect(myUrl).toContain('matchAll=false')
+
+    const decodedMy = decodeURIComponent(myUrl).replace(/\+/g, ' ')
+    const decodedTh = decodeURIComponent(thUrl).replace(/\+/g, ' ')
+    for (const title of ROLE_STACK) {
+      expect(decodedMy).toContain(title)
+      expect(decodedTh).toContain(title)
+    }
+    expect(decodedMy).not.toContain('Sales Engineer')
+    expect(decodedTh).not.toContain('Sales Engineer')
+  })
+})
