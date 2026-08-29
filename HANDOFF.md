@@ -268,6 +268,61 @@ false` retained). Unblock = MY HR/product reviewer provides a scored cohort.
 
 - Vault: `/root/wiki/projects/trends/` (index: `projects/trends/index.md`)
 - Repo policy: `AGENTS.md`, `docs/agent-runbook.md`, `CLAUDE.md` (repo root)
-- AI model policy: `docs/runbooks/llm-api-provider-fallback.md`; default
-  `openai/deepseek-v4-flash` (Poe `AI_API_BASE=https://api.poe.com/v1`); fallback
-  `openai/deepseek-v4-flash-e`
+- AI model policy: `docs/runbooks/llm-api-provider-fallback.md` + CPA ops
+  `docs/runbooks/ptcloud-cpa.md`; default `openai/deepseek-v4-flash` via CPA
+  (`https://cpa.pt-mes.com/v1` local, `http://127.0.0.1:8317/v1` on ptcloud);
+  fallback `openai/deepseek-v4-flash-e`
+
+## 9. CPA official layout on ptcloud (2026-08-28)
+
+Migrated live CPA to the **official installer layout** so this is the whole
+upgrade:
+
+```bash
+ssh ptcloud
+cliproxyapi-installer upgrade
+```
+
+- Tree: `/home/ubuntu/cliproxyapi` (ubuntu user systemd, linger=yes)
+- Installer: `/home/ubuntu/cliproxyapi-installer` → `/usr/local/bin/cliproxyapi-installer`
+  (official bytes, sha256 `8e440762…`)
+- Version **7.2.144**. System unit **removed** (dual-bind hazard). Root tree
+  snapshotted at `/root/cliproxyapi.bak-pre-official-home-20260828T073247Z`.
+- Trends BFF still `AI_API_BASE=http://127.0.0.1:8317/v1`. `:8317` HTTP 200.
+- Host runbook: `/home/ubuntu/cliproxyapi/UPGRADE-RUNBOOK.md`
+- **Forbidden:** recreate `/etc/systemd/system/cliproxyapi.service`; run the
+  installer as root; disable linger for ubuntu.
+
+Vault: `projects/trends/work/2026-08-28-cpa-official-upgrade-helper/`.
+
+## 10. chrome-debug loadUnpacked unattended extension install (2026-08-29, macos-dev)
+
+Collect extension install is now **fully unattended** on the live collect
+Chrome. Human picker gate resolved without the picker (spec human_gate: RESOLVED).
+
+- **Contract:** branded Chrome 137+ removed `--load-extension`; the official
+  unattended path is CDP `Extensions.loadUnpacked` (or WebDriver BiDi). Chrome
+  152.0.7977.64 accepts it over the plain TCP debug port when launched with
+  `--enable-unsafe-extension-debugging`.
+- **Patched (one line, two copies — re-apply if overwritten):**
+  `build_chrome_args()` adds `--enable-unsafe-extension-debugging` after
+  `--remote-allow-origins=*` in (1)
+  `~/.claude/plugins/cache/karlorz-agent-skills/playwright-cli/1.3.2/scripts/chrome-debug.sh`
+  (active plugin version) and (2)
+  `~/.local/share/playwright-cli/chrome-debug.sh` (user-path payload behind
+  `~/.local/bin/chrome-debug`). Rerunning `setup-playwright-cli.sh` or a plugin
+  marketplace update can overwrite → re-apply.
+- **Live state:** collect Chrome on :9222 (profile clone
+  `chrome-debug-profile-from-default`, Seek cookies preserved) has 智通直聘
+  Resume Collector **v1.3.7** loaded from
+  `/Users/karlchow/Desktop/code/trends-ext-load-unpacked/apps/browser-extension`
+  (`id pafaiemddagkegcjcaihcomblnpjfmkf`, service worker running).
+- **Re-install rule:** persists across restarts; only a `--refresh-from-default`
+  profile re-sync wipes it — one CDP call re-installs.
+- **Next:** reopen TH Talent Search tab in the collect window and collect.
+
+Vault: `projects/trends/work/2026-08-29-chrome-debug-loadunpacked-unattended-install/`
+(evidence `evidence.md`) + `queries/2026-08-29-chrome-unpacked-launch-unattended-install.md`
++ `concepts/chrome-unpacked-extension-install-contract.md` + experiment log
+`raw/transcripts/2026-08-29-note-cdp-loadunpacked-experiments.md`.
+No ingest. Prod off. #1365 hold-merge.
