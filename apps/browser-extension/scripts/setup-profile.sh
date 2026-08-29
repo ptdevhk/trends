@@ -3,6 +3,11 @@
 # Usage: ./scripts/setup-profile.sh
 set -euo pipefail
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  echo refuse-darwin
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_DIR="$(dirname "$SCRIPT_DIR")"
 PROFILE_SEED_DIR="${EXT_DIR}/profile-seed"

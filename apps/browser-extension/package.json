@@ -12,7 +12,8 @@
     "build": "node esbuild.config.mjs",
     "build:watch": "node esbuild.config.mjs --watch",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "macos:load-unpacked": "./scripts/macos-load-unpacked.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
