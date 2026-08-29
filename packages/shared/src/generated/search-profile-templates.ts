@@ -536,6 +536,226 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         }
       }
     }
+  },
+  {
+    "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-malaysia-talent-search-service-engineer",
+      "name": "SEEK Malaysia CNC Service Engineer — Talent Search",
+      "description": "Malaysia SEEK Talent Search for CNC Service Engineer (售後工程師). CNC is a score (brands + machining-center / FANUC / Mazak / Haas / Makino), not a reject pile. Company-industry DB remains the accuracy target vs CN.",
+      "createdAt": "2026-08-29",
+      "updatedAt": "2026-08-29",
+      "status": "active",
+      "location": "Malaysia",
+      "keywords": [
+        "CNC",
+        "Service Engineer"
+      ],
+      "jobDescription": "seek-malaysia-service-engineer",
+      "filters": {
+        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "technical",
+        "locations": [
+          "Malaysia"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Kuala_Lumpur",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 50,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 5,
+        "label": "Malaysia · SEEK · CNC Service Engineer (Talent Search)",
+        "description": "CNC, Service Engineer · Malaysia · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-malaysia-talent-search-service-engineer",
+      "name": "SEEK Malaysia CNC Service Engineer — Talent Search",
+      "description": "Malaysia SEEK Talent Search for CNC Service Engineer (售後工程師). CNC is a score (brands + machining-center / FANUC / Mazak / Haas / Makino), not a reject pile. Company-industry DB remains the accuracy target vs CN.",
+      "createdAt": "2026-08-29",
+      "updatedAt": "2026-08-29",
+      "status": "active",
+      "location": "Malaysia",
+      "keywords": [
+        "CNC",
+        "Service Engineer"
+      ],
+      "jobDescription": "seek-malaysia-service-engineer",
+      "filters": {
+        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "technical",
+        "locations": [
+          "Malaysia"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Kuala_Lumpur",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 50,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 5,
+        "label": "Malaysia · SEEK · CNC Service Engineer (Talent Search)",
+        "description": "CNC, Service Engineer · Malaysia · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
+  },
+  {
+    "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-thailand-talent-search-service-engineer",
+      "name": "SEEK Thailand CNC Service Engineer — Talent Search",
+      "description": "Thailand SEEK Talent Search for CNC Service Engineer (วิศวกรบริการ / 售後工程師). YAML-only this cut (no TH market enum). Same hk.employer.seek.com entry, market=TH. CNC is a score, not a reject pile. Company-industry DB remains the accuracy target vs CN.",
+      "createdAt": "2026-08-29",
+      "updatedAt": "2026-08-29",
+      "status": "active",
+      "location": "Thailand",
+      "keywords": [
+        "CNC",
+        "Service Engineer"
+      ],
+      "jobDescription": "seek-thailand-service-engineer",
+      "filters": {
+        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "technical",
+        "locations": [
+          "Thailand"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Bangkok",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 50,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 6,
+        "label": "Thailand · SEEK · CNC Service Engineer (Talent Search)",
+        "description": "CNC, Service Engineer · Thailand · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 1800000,
+    "profile": {
+      "id": "seek-thailand-talent-search-service-engineer",
+      "name": "SEEK Thailand CNC Service Engineer — Talent Search",
+      "description": "Thailand SEEK Talent Search for CNC Service Engineer (วิศวกรบริการ / 售後工程師). YAML-only this cut (no TH market enum). Same hk.employer.seek.com entry, market=TH. CNC is a score, not a reject pile. Company-industry DB remains the accuracy target vs CN.",
+      "createdAt": "2026-08-29",
+      "updatedAt": "2026-08-29",
+      "status": "active",
+      "location": "Thailand",
+      "keywords": [
+        "CNC",
+        "Service Engineer"
+      ],
+      "jobDescription": "seek-thailand-service-engineer",
+      "filters": {
+        "maxExperience": null,
+        "minRoleYears": 1,
+        "roleFilterType": "technical",
+        "locations": [
+          "Thailand"
+        ]
+      },
+      "schedule": {
+        "enabled": false,
+        "timezone": "Asia/Bangkok",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "seek",
+          "enabled": true,
+          "priority": 1,
+          "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+          "collectLimit": 50,
+          "maxPages": 25,
+          "mode": "talentsearch"
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 6,
+        "label": "Thailand · SEEK · CNC Service Engineer (Talent Search)",
+        "description": "CNC, Service Engineer · Thailand · Talent Search lane"
+      },
+      "session": {
+        "scope": "per-position",
+        "retention": {
+          "mode": "until-closed",
+          "archiveAfterDays": 90
+        }
+      }
+    }
   }
 ];
 
