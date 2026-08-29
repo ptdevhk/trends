@@ -140,6 +140,7 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     const ids = SYSTEM_SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('overview')
     expect(ids).toContain('runtime')
+    expect(ids).toContain('score-caps')
     expect(ids).toContain('industry-verification')
     expect(ids).toContain('industry-data')
   })
@@ -172,6 +173,15 @@ describe('SYSTEM_SETTINGS_NAV_ITEMS', () => {
     const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'workspace')
     expect(item).toMatchObject({
       hrefSuffix: '/system/settings/workspace',
+      requiresAdmin: true,
+    })
+  })
+
+
+  it('marks the score-cap rule list as an admin system setting', () => {
+    const item = SYSTEM_SETTINGS_NAV_ITEMS.find((entry) => entry.id === 'score-caps')
+    expect(item).toMatchObject({
+      hrefSuffix: '/system/settings/score-caps',
       requiresAdmin: true,
     })
   })

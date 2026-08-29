@@ -115,6 +115,11 @@ const LazySystemSettingsRuntimePage = lazy(async () => {
   return { default: module.SystemSettingsRuntimePage }
 })
 
+const LazySystemSettingsScoreCapsPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsScoreCapsPage')
+  return { default: module.SystemSettingsScoreCapsPage }
+})
+
 const LazySystemSettingsAuthPage = lazy(async () => {
   const module = await import('@/pages/system-settings/SystemSettingsAuthPage')
   return { default: module.SystemSettingsAuthPage }
@@ -575,6 +580,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsRuntimePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="score-caps"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsScoreCapsPage />
                     </RouteSuspense>
                   )}
                 />

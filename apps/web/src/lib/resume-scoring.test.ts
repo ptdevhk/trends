@@ -669,4 +669,81 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
     // related_exp clamped to 30 (no_match ceiling); score = round(30*0.5)+0 = 15
     expect(result.score).toBe(15)
   })
+
+  it('caps adjacent-product evidence so display-time industry_db cannot re-inflate the overscore band', () => {
+    const analysis = {
+      score: 80,
+      recommendation: 'match' as const,
+      breakdown: { related_exp: 60, industry_db: 40 },
+      summary: '相关销售经验较完整。',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(
+      analysis,
+      50,
+      'CN',
+      '负责华东注塑机销售与经销商开发',
+    )
+    expect(result.breakdown!.related_exp).toBeLessThanOrEqual(45)
+    expect(result.breakdown!.industry_db).toBeLessThanOrEqual(20)
+    expect(result.score).toBeLessThan(60)
+  })
+
+  it('does not cap 整机数控机床销售 at display time', () => {
+    const analysis = {
+      score: 90,
+      recommendation: 'match' as const,
+      breakdown: { related_exp: 80, industry_db: 50 },
+      summary: '整机销售经验完整。',
+      highlights: [],
+      concerns: [],
+    }
+    const result = overrideIndustryDbBreakdown(
+      analysis,
+      50,
+      'CN',
+      '负责进口数控机床整机销售与加工中心客户开发',
+    )
+    expect(result.breakdown!.related_exp).toBe(80)
+    expect(result.breakdown!.industry_db).toBe(50)
+    expect(result.score).toBe(90)
+  })
+
+  it('does not let pay / location / 不考虑 / wechat-phone change the numeric score', () => {
+    const analysis = {
+      score: 80,
+      recommendation: 'match' as const,
+      breakdown: { related_exp: 60, industry_db: 40 },
+      summary: '相关销售经验较完整。',
+      highlights: [],
+      concerns: [],
+    }
+    const work = '齿轮机销售，覆盖华东经销渠道'
+    const base = overrideIndustryDbBreakdown(analysis, 50, 'CN', work)
+    const filtered = overrideIndustryDbBreakdown(
+      analysis,
+      50,
+      'CN',
+      work + "。不考虑出差，期望薪资面议，地区无需求，电话微信同号",
+    )
+    expect(filtered.score).toBe(base.score)
+    expect(filtered.breakdown).toEqual(base.breakdown)
+  })
+
+  it('does not add a 女性 scoring feature', () => {
+    const analysis = {
+      score: 80,
+      recommendation: 'match' as const,
+      breakdown: { related_exp: 60, industry_db: 40 },
+      summary: '相关销售经验较完整。',
+      highlights: [],
+      concerns: [],
+    }
+    const work = '电气配件销售'
+    const base = overrideIndustryDbBreakdown(analysis, 50, 'CN', work)
+    const gendered = overrideIndustryDbBreakdown(analysis, 50, 'CN', work + "，女性")
+    expect(gendered.score).toBe(base.score)
+    expect(gendered.breakdown).toEqual(base.breakdown)
+  })
 })

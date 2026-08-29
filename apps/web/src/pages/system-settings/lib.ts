@@ -144,6 +144,7 @@ export type SystemSettingsSubpageId =
   | 'overview'
   | 'operations'
   | 'runtime'
+  | 'score-caps'
   | 'auth'
   | 'config-sources'
   | 'keywords'
@@ -177,6 +178,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   runtime: {
     descriptionKey: 'debugConfig.runtimePageDescription',
     defaultDescription: 'Inspect AI connectivity and review-stage runtime tuning.',
+  },
+  'score-caps': {
+    descriptionKey: 'debugConfig.scoreCapsPageDescription',
+    defaultDescription: 'Every active score-cap rule in one place. The scoring formula and this list read the same registry.',
   },
   auth: {
     descriptionKey: 'debugConfig.authAccessPageDescription',

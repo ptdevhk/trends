@@ -376,6 +376,14 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings/runtime"],
   },
   {
+    id: "score-caps",
+    titleKey: "debugConfig.settingsNavScoreCaps",
+    defaultTitle: "Score caps",
+    hrefSuffix: "/system/settings/score-caps",
+    matchesSuffixes: ["/system/settings/score-caps"],
+    requiresAdmin: true,
+  },
+  {
     id: "auth",
     titleKey: "debugConfig.settingsNavAuth",
     defaultTitle: "Auth access",
