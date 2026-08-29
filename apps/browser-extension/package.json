@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "debug": "./scripts/debug.sh",
+    "debug:pipe": "node ./scripts/debug-pipe.mjs",
+    "load-unpacked:cli": "node ./scripts/debug-pipe.mjs",
     "setup-profile": "./scripts/setup-profile.sh",
     "cmux:setup-profile": "./scripts/cmux-setup-profile.sh",
     "open-search": "./scripts/open-search.sh",
@@ -12,10 +14,12 @@
     "build": "node esbuild.config.mjs",
     "build:watch": "node esbuild.config.mjs --watch",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "macos:load-unpacked": "./scripts/macos-load-unpacked.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "chrome-launcher": "1.2.1",
     "chrome-types": "^0.1.429",
     "esbuild": "^0.28.0",
     "eslint": "^10.4.0",

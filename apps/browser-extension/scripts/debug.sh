@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Launch Chrome with remote debugging for extension development.
 # Usage: ./scripts/debug.sh [URL]
+# On darwin, prefer Chrome for Testing / Chromium before branded Google Chrome.
+# Branded 137+ skips the unpack flag. 152 still ignores it. Pipe CDP, not :9222.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,16 +17,16 @@ detect_chrome() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
     # Standard Mac paths (check fixed paths first to avoid space-splitting issues with wildcards)
     local mac_paths=(
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
       "/Applications/Chromium.app/Contents/MacOS/Chromium"
+      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     )
-    for p in "${mac_paths[@]}"; do
-      if [[ -x "$p" ]]; then
-        echo "$p"
-        return 0
-      fi
-    done
+
+    if [[ -x "/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" ]]; then
+      echo "/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+      return 0
+    fi
+
 
     # Fallback to slower wildcard search for Puppeteer/Testing builds if needed
     # We use a temporary file glob to avoid space issues
@@ -34,6 +36,12 @@ detect_chrome() {
        echo "$pup_paths"
        return 0
     fi
+    for p in "${mac_paths[@]}"; do
+      if [[ -x "$p" ]]; then
+        echo "$p"
+        return 0
+      fi
+    done
   else
     for chrome_cmd in \
       "chromium-browser" \
@@ -94,7 +102,10 @@ echo "URL: $TARGET_URL"
 echo ""
 
 if [[ "$IS_BRANDED_CHROME" == true ]]; then
-  echo "Warning: branded Chrome 137+ detected. --load-extension is not available."
+  echo "Warning: branded Chrome 137+ detected. --load-extension is not available (dropped in 137; 152 still ignores it)."
+  echo "Load unpacked path:"
+  echo "  $EXT_DIR"
+  echo "CDP Extensions.loadUnpacked is pipe-only; it does not work over :9222."
   echo "Load the extension manually via chrome://extensions."
   echo ""
   "$CHROME" \
