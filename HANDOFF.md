@@ -304,14 +304,11 @@ Chrome. Human picker gate resolved without the picker (spec human_gate: RESOLVED
   unattended path is CDP `Extensions.loadUnpacked` (or WebDriver BiDi). Chrome
   152.0.7977.64 accepts it over the plain TCP debug port when launched with
   `--enable-unsafe-extension-debugging`.
-- **Patched (one line, two copies — re-apply if overwritten):**
-  `build_chrome_args()` adds `--enable-unsafe-extension-debugging` after
-  `--remote-allow-origins=*` in (1)
-  `~/.claude/plugins/cache/karlorz-agent-skills/playwright-cli/1.3.2/scripts/chrome-debug.sh`
-  (active plugin version) and (2)
-  `~/.local/share/playwright-cli/chrome-debug.sh` (user-path payload behind
-  `~/.local/bin/chrome-debug`). Rerunning `setup-playwright-cli.sh` or a plugin
-  marketplace update can overwrite → re-apply.
+- **Release state:** the original one-line patch was promoted to authoritative
+  `karlorz/agent-skills` source and released as `playwright-cli-1.3.3` with
+  launcher contract v3, tests, and documentation. The managed user launcher at
+  `~/.local/share/playwright-cli/chrome-debug.sh` now carries the released flag;
+  the old cached 1.3.2 edit is historical only.
 - **Live state:** collect Chrome on :9222 (profile clone
   `chrome-debug-profile-from-default`, Seek cookies preserved) has 智通直聘
   Resume Collector **v1.3.7** loaded from
@@ -319,10 +316,74 @@ Chrome. Human picker gate resolved without the picker (spec human_gate: RESOLVED
   (`id pafaiemddagkegcjcaihcomblnpjfmkf`, service worker running).
 - **Re-install rule:** persists across restarts; only a `--refresh-from-default`
   profile re-sync wipes it — one CDP call re-installs.
-- **Next:** reopen TH Talent Search tab in the collect window and collect.
+- **Collection follow-up:** completed; see §11 for the TH/MY results, private
+  artifacts, safety evidence, and recommended next work.
 
 Vault: `projects/trends/work/2026-08-29-chrome-debug-loadunpacked-unattended-install/`
 (evidence `evidence.md`) + `queries/2026-08-29-chrome-unpacked-launch-unattended-install.md`
 + `concepts/chrome-unpacked-extension-install-contract.md` + experiment log
 `raw/transcripts/2026-08-29-note-cdp-loadunpacked-experiments.md`.
 No ingest. Prod off. #1365 hold-merge.
+
+## 11. MY/TH CNC Service Engineer collection (2026-08-29, macos-dev)
+
+The first bounded MY/TH collection is **complete**. It used the existing branded
+Chrome 152 collect profile on TCP CDP `:9222`; Chrome was not relaunched and the
+PR #1367 pipe helper was not used.
+
+- **Employer session:** authenticated SEEK Talent Search for Pro-Technic
+  Machinery Ltd on `hk.employer.seek.com`.
+- **Extension:** 智通直聘 Resume Collector **v1.3.7**, id
+  `pafaiemddagkegcjcaihcomblnpjfmkf`, loaded from
+  `/Users/karlchow/Desktop/code/trends-ext-load-unpacked/apps/browser-extension`.
+  The runtime payload is byte-identical to the extension in the #1366 worktree.
+- **Query gate passed for both markets:** `SearchProfilesByNaturalLanguage`,
+  `searchQuery=CNC`, keyword `CNC`, `matchAll=false`, `matchLatestOnly=false`,
+  and exactly `Services Engineer`, `Service Technician`, `Service Manager`,
+  `Service Coordinator`, `Service Supervisor`.
+- **Thailand:** displayed pool **616**; captured 50 profiles over 3 pages; 50
+  unique stable identities.
+- **Malaysia:** displayed pool **2,076**; captured 50 rows over 3 pages. Two
+  repeated stable identities were removed offline, retaining the richer row;
+  final artifact has **48 unique profiles**. Deduplication audit metadata stores
+  the original row count and original SHA-256.
+- **Private artifacts** (candidate data; never commit or publish):
+  - `/Users/karlchow/Downloads/trends-collect-2026-08-29/seek-thailand-cnc-service-engineer-2026-08-29.json`
+    — SHA-256 `58ff46c9de2842676353079c5116f4ab8f53fa38571dbc06df181ed381623381`
+  - `/Users/karlchow/Downloads/trends-collect-2026-08-29/seek-malaysia-cnc-service-engineer-2026-08-29.json`
+    — SHA-256 `5e1d1f82571a6871a4fd30faafaf8b59c723d57f5d56fa6f74435d77f968d9ff`
+  - Directory mode `0700`; file modes `0600`.
+- **Safety evidence:** `tr_auto_sync` stayed `skipped`; monitored requests to
+  `trends.pt-mes.com`, `preview.pt-mes.com`, `localhost`, and `127.0.0.1` were
+  zero; no rate-limit or network/server errors; **no ingest and no production
+  writes**.
+- **Browser state:** Chrome remains running on `:9222`; the MY Talent Search tab
+  is open on page 3 with the required role-title context preserved.
+- **PR state after collection:** #1365 open @ `bc736fbb` (hold-merge); #1366
+  open @ `de02f68d` (checks green); #1367 open @ `a7a2b937` (`verify` red from
+  project-skill mirror drift, unrelated to collection).
+- **Repository state:** `trends-my-th-service-eng` remains clean. Root `main`
+  retains its pre-existing CPA/docs changes; do not mix them with collection
+  work. #1367 helper-worktree scratch files remain untouched.
+
+### Recommended next work
+
+1. **Private quality review first:** review the 50 TH and 48 MY unique profiles
+   for CNC/service-role relevance, usable work-history descriptions, location,
+   and brand signals. Produce aggregate findings only; keep candidate data out
+   of git and SkillWiki.
+2. **Use the review to decide TH query width:** retain the current five-title
+   stack if quality is acceptable. If yield is too thin, test Maintenance
+   Engineer and Application Engineer in a separate change; do not add broad
+   Mechanical/Electrical Engineer or sales titles.
+3. **Keep ingest gated:** do not ingest until the owner explicitly chooses the
+   target environment/workspace and resolves the #1365 hold. Production stays
+   off.
+4. **PR decisions remain human-owned:** #1366 can be merged when the owner wants
+   the profile definitions shipped. Repair or supersede #1367 separately; its
+   pipe helper is not the daily collect path. The authoritative unattended TCP
+   launcher fix has shipped in `playwright-cli-1.3.3`.
+5. After private quality review and owner decisions, update
+   `projects/trends/work/2026-08-28-my-th-cnc-service-engineer-profiles/` through
+   SkillWiki. Keep it in progress until collection review and the merge/ingest
+   decision are recorded.
