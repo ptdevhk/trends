@@ -67,6 +67,7 @@ Full postmortem/reference:
 Canonical paths on `ptcloud`:
 - Production: `/opt/trends` (API `:3000`, Convex `:3210`, `trends.pt-mes.com`)
 - Preview: `/home/ubuntu/trends-preview` (API `:3002`, Convex `:4210`, `preview.pt-mes.com`)
+- CPA (LLM proxy): `/home/ubuntu/cliproxyapi` (`:8317`, official `cliproxyapi-installer upgrade` as ubuntu). Runbook: `docs/runbooks/ptcloud-cpa.md`
 
 ```bash
 # On ptcloud — preferred single entrypoint for DATA parity (prod → preview)

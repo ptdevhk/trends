@@ -36,6 +36,13 @@ npx convex env set AI_API_BASE https://api.poe.com/v1
 The BFF `export const aiConfig = loadAIConfig()` is an **import-time snapshot**.
 That path is not the Convex analyze caller.
 
+## Routing on ptcloud (CPA proxy)
+
+Live preview/prod on `ptcloud` do **not** call Poe directly. They use the
+CLIProxyAPI proxy (`AI_API_BASE=http://127.0.0.1:8317/v1`; local Mac
+`https://cpa.pt-mes.com/v1`). Upgrade and layout: `docs/runbooks/ptcloud-cpa.md`.
+The table above is the **upstream** Poe contract behind CPA.
+
 ## Env keys
 
 | Key | Role | Default |
