@@ -58,25 +58,6 @@ Example of a JSON API response.
 
 --------------------------------
 
-### tmpdir with custom initialization
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example demonstrating how to use a custom `init` function to perform setup and return extra data accessible via `tmp.extra`.
-
-```typescript
-await using tmp = await tmpdir<string>({
-  init: async (dir) => {
-    await Bun.write(path.join(dir, "file.txt"), "content")
-    return "extra data"
-  },
-})
-// Access extra data via tmp.extra
-console.log(tmp.extra) // "extra data"
-```
-
---------------------------------
-
 ### Install dependencies (Linux)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -139,18 +120,6 @@ npm install -g package-name
 
 --------------------------------
 
-### Install OpenCode on Windows using Scoop
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using Scoop.
-
-```bash
-scoop install opencode
-```
-
---------------------------------
-
 ### Advanced configuration example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -166,6 +135,18 @@ const config = {
 
 --------------------------------
 
+### Install OpenCode on Windows using Scoop
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Scoop.
+
+```bash
+scoop install opencode
+```
+
+--------------------------------
+
 ### Install OpenCode on Windows using NPM
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -174,6 +155,18 @@ Install OpenCode on Windows using NPM.
 
 ```bash
 npm install -g opencode-ai
+```
+
+--------------------------------
+
+### Configure environment step
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of configuring environment variables within a step.
+
+```bash
+API_KEY=your_api_key_here
 ```
 
 --------------------------------
@@ -194,14 +187,14 @@ paru -S opencode-bin
 
 --------------------------------
 
-### Configure environment step
+### Install OpenCode on Windows using Chocolatey
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Example of configuring environment variables within a step.
+Install OpenCode on Windows using Chocolatey.
 
 ```bash
-API_KEY=your_api_key_here
+choco install opencode
 ```
 
 --------------------------------
@@ -219,30 +212,6 @@ npm install -g package-name
 
 --------------------------------
 
-### Install OpenCode on Windows using Chocolatey
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using Chocolatey.
-
-```bash
-choco install opencode
-```
-
---------------------------------
-
-### Install Mintlify CLI
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Command to install the Mintlify CLI globally using npm.
-
-```bash
-npm i -g mint
-```
-
---------------------------------
-
 ### Install SDK
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
@@ -255,17 +224,14 @@ npm install @opencode-ai/sdk
 
 --------------------------------
 
-### Required YAML frontmatter
+### Install Mintlify CLI
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
 
-Example of the YAML frontmatter required at the beginning of every documentation page.
+Command to install the Mintlify CLI globally using npm.
 
-```yaml
----
-title: "Clear, specific, keyword-rich title"
-description: "Concise description explaining page purpose and value"
----
+```bash
+npm i -g mint
 ```
 
 --------------------------------
@@ -377,6 +343,112 @@ description: "Concise description for SEO and navigation"
 
 --------------------------------
 
+### Install a plugin
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+Installs the specified plugin module and updates your configuration.
+
+```bash
+opencode plugin <module>
+```
+
+--------------------------------
+
+### Run OpenCode with Vertex AI inline environment variables
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Pass Google Cloud credentials and project ID directly when starting OpenCode.
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json GOOGLE_CLOUD_PROJECT=your-project-id opencode
+```
+
+--------------------------------
+
+### Install Helicone Session Plugin via npm
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Globally install the plugin used to automatically log OpenCode conversations as sessions in Helicone.
+
+```bash
+npm install -g opencode-helicone-session
+```
+
+--------------------------------
+
+### tmpdir with custom initialization
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example demonstrating how to use a custom `init` function to perform setup and return extra data accessible via `tmp.extra`.
+
+```typescript
+await using tmp = await tmpdir<string>({
+  init: async (dir) => {
+    await Bun.write(path.join(dir, "file.txt"), "content")
+    return "extra data"
+  },
+})
+// Access extra data via tmp.extra
+console.log(tmp.extra) // "extra data"
+```
+
+--------------------------------
+
+### Select Anthropic Authentication Method
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Interactive prompt display for selecting the authentication method during Anthropic setup.
+
+```txt
+┌ Select auth method
+│
+│ Manually enter API Key
+└
+```
+
+--------------------------------
+
+### GET https://opencode.ai/zen/v1/models
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/zen.mdx
+
+Fetch the full list of available models and their metadata from the OpenCode Zen API.
+
+```APIDOC
+## GET https://opencode.ai/zen/v1/models
+
+### Description
+Fetch the full list of available models and their metadata.
+
+### Endpoint
+`https://opencode.ai/zen/v1/models`
+```
+
+--------------------------------
+
+### Enter Provider Identifier in Connect CLI
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Specify a unique provider ID during interactive credential setup to reference in opencode.json.
+
+```bash
+$ /connect
+
+┌  Add credential
+│
+◇  Enter provider id
+│  myprovider
+└
+```
+
+--------------------------------
+
 ### Navigate to project directory
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -385,6 +457,19 @@ Change directory to your project.
 
 ```bash
 cd /path/to/project
+```
+
+--------------------------------
+
+### Set environment variables for self-hosted GitLab instance
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Export the GitLab instance URL and personal access token for self-hosted GitLab setups.
+
+```bash
+export GITLAB_INSTANCE_URL=https://gitlab.company.com
+export GITLAB_TOKEN=glpat-...
 ```
 
 --------------------------------
@@ -413,6 +498,25 @@ Run the /init command to analyze your project and create AGENTS.md.
 
 --------------------------------
 
+### Set Bedrock Authentication via Environment Variables
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/providers.mdx
+
+Pass AWS credentials or a Bedrock bearer token inline when starting OpenCode. Note that bearer tokens take precedence over credential chains.
+
+```bash
+# Option 1: Using AWS access keys
+AWS_ACCESS_KEY_ID=XXX AWS_SECRET_ACCESS_KEY=YYY opencode
+
+# Option 2: Using named AWS profile
+AWS_PROFILE=my-profile opencode
+
+# Option 3: Using Bedrock bearer token
+AWS_BEARER_TOKEN_BEDROCK=XXX opencode
+```
+
+--------------------------------
+
 ### Install OpenCode using Node.js package managers
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -437,6 +541,18 @@ yarn global add opencode-ai
 
 --------------------------------
 
+### Fetch Zen Models Metadata Endpoint
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/zen.mdx
+
+Send a GET request to this endpoint to retrieve the full list of available models and their metadata.
+
+```plaintext
+https://opencode.ai/zen/v1/models
+```
+
+--------------------------------
+
 ### Single code block example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -455,18 +571,6 @@ const apiConfig = {
 
 --------------------------------
 
-### Install Claude Code globally
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
-
-Command to install the Claude Code CLI tool using npm.
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
---------------------------------
-
 ### Run Development Server
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
@@ -475,6 +579,18 @@ Command to start the local development server for Mintlify documentation.
 
 ```bash
 mint dev
+```
+
+--------------------------------
+
+### Install Claude Code globally
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
+
+Command to install the Claude Code CLI tool using npm.
+
+```bash
+npm install -g @anthropic-ai/claude-code
 ```
 
 --------------------------------
@@ -564,18 +680,6 @@ From this screen, the user can undelete a note or permanently delete it.
 
 --------------------------------
 
-### Run Web App
-
-Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
-
-Start the web application development server.
-
-```bash
-bun run --cwd packages/app dev
-```
-
---------------------------------
-
 ### tmpdir with Git repository
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -584,6 +688,18 @@ Example of initializing a temporary directory as a Git repository.
 
 ```typescript
 await using tmp = await tmpdir({ git: true })
+```
+
+--------------------------------
+
+### Run Web App
+
+Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+
+Start the web application development server.
+
+```bash
+bun run --cwd packages/app dev
 ```
 
 --------------------------------
@@ -650,6 +766,21 @@ scoop bucket add extras; scoop install extras/opencode-desktop
 
 --------------------------------
 
+### Required YAML frontmatter
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
+
+Example of the YAML frontmatter required at the beginning of every documentation page.
+
+```yaml
+---
+title: "Clear, specific, keyword-rich title"
+description: "Concise description explaining page purpose and value"
+---
+```
+
+--------------------------------
+
 ### tmpdir with config file
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -701,275 +832,4 @@ response = requests.get('/api/endpoint',
 ```curl
 curl -X GET '/api/endpoint' \
   -H 'Authorization: Bearer YOUR_API_KEY'
-```
-
---------------------------------
-
-### Example: Run OpenCode with a Specific Prompt
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-This example demonstrates how to pass a specific question directly to the `opencode run` command.
-
-```bash
-opencode run Explain the use of context in Go
-```
-
---------------------------------
-
-### tmpdir with custom cleanup
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example showing how to use a custom `dispose` function for specific cleanup logic.
-
-```typescript
-await using tmp = await tmpdir({
-  init: async (dir) => {
-    const specialDir = path.join(dir, "special")
-    await fs.mkdir(specialDir)
-    return specialDir
-  },
-  dispose: async (dir) => {
-    // Custom cleanup logic
-    await fs.rm(path.join(dir, "special"), { recursive: true })
-  },
-})
-```
-
---------------------------------
-
-### Create and manage sessions
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
-
-Examples demonstrating how to create, list, prompt, and inject context into sessions using the SDK.
-
-```javascript
-// Create and manage sessions
-const session = await client.session.create({
-  body: { title: "My session" },
-})
-
-const sessions = await client.session.list()
-
-// Send a prompt message
-const result = await client.session.prompt({
-  path: { id: session.id },
-  body: {
-    model: { providerID: "anthropic", modelID: "claude-3-5-sonnet-20241022" },
-    parts: [{ type: "text", text: "Hello!" }],
-  },
-})
-
-// Inject context without triggering AI response (useful for plugins)
-await client.session.prompt({
-  path: { id: session.id },
-  body: {
-    noReply: true,
-    parts: [{ type: "text", text: "You are a helpful assistant." }],
-  },
-})
-```
-
---------------------------------
-
-### CLAUDE.md file content
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
-
-Example content for the CLAUDE.md file, used to train Claude Code on documentation standards.
-
-```markdown
-# Mintlify documentation
-
-## Working relationship
-
-- You can push back on ideas-this can lead to better documentation. Cite sources and explain your reasoning when you do so
-- ALWAYS ask for clarification rather than making assumptions
-- NEVER lie, guess, or make up information
-
-## Project context
-
-- Format: MDX files with YAML frontmatter
-- Config: docs.json for navigation, theme, settings
-- Components: Mintlify components
-
-## Content strategy
-
-- Document just enough for user success - not too much, not too little
-- Prioritize accuracy and usability of information
-- Make content evergreen when possible
-- Search for existing information before adding new content. Avoid duplication unless it is done for a strategic reason
-- Check existing patterns for consistency
-- Start by making the smallest reasonable changes
-
-## Frontmatter requirements for pages
-
-- title: Clear, descriptive page title
-- description: Concise summary for SEO/navigation
-
-## Writing standards
-
-- Second-person voice ("you")
-- Prerequisites at start of procedural content
-- Test all code examples before publishing
-- Match style and formatting of existing pages
-- Include both basic and advanced use cases
-- Language tags on all code blocks
-- Alt text on all images
-- Relative paths for internal links
-
-## Git workflow
-
-- NEVER use --no-verify when committing
-- Ask how to handle uncommitted changes before starting
-- Create a new branch when no clear branch exists for changes
-- Commit frequently throughout development
-- NEVER skip or disable pre-commit hooks
-
-## Do not
-
-- Skip frontmatter on any MDX file
-- Use absolute URLs for internal links
-- Include untested code examples
-- Make assumptions - always ask for clarification
-```
-
---------------------------------
-
-### Prompting with a Local MCP Tool (TXT)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
-
-Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
-
-```txt
-use the mcp_everything tool to add the number 3 and 4
-```
-
---------------------------------
-
-### Using TestInstance with it.instance
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example of yielding `TestInstance` to access the temporary directory path within an `it.instance` test.
-
-```typescript
-import { TestInstance } from "../fixture/fixture"
-
-it.instance("uses the temp directory", () =>
-  Effect.gen(function* () {
-    const test = yield* TestInstance
-    expect(test.directory).toContain("opencode-test-")
-  }),
-)
-```
-
---------------------------------
-
-### Run the project
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
-
-Command to run the project's main script using Bun.
-
-```bash
-bun run index.ts
-```
-
---------------------------------
-
-### Flow configuration
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/gitlab.mdx
-
-Example of a flow configuration file for OpenCode in GitLab CI/CD, including installation, authentication, Git configuration, and OpenCode execution logic.
-
-```yaml
-image: node:22-slim
-commands:
-  - echo "Installing opencode"
-  - npm install --global opencode-ai
-  - echo "Installing glab"
-  - export GITLAB_TOKEN=$GITLAB_TOKEN_OPENCODE
-  - apt-get update --quiet && apt-get install --yes curl wget gpg git && rm --recursive --force /var/lib/apt/lists/*
-  - curl --silent --show-error --location "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash
-  - apt-get install --yes glab
-  - echo "Configuring glab"
-  - echo $GITLAB_HOST
-  - echo "Creating OpenCode auth configuration"
-  - mkdir --parents ~/.local/share/opencode
-  - |
-    cat > ~/.local/share/opencode/auth.json << EOF
-    {
-      "anthropic": {
-        "type": "api",
-        "key": "$ANTHROPIC_API_KEY"
-      }
-    }
-    EOF
-  - echo "Configuring git"
-  - git config --global user.email "opencode@gitlab.com"
-  - git config --global user.name "OpenCode"
-  - echo "Testing glab"
-  - glab issue list
-  - echo "Running OpenCode"
-  - |
-    opencode run "
-    You are an AI assistant helping with GitLab operations.
-
-    Context: $AI_FLOW_CONTEXT
-    Task: $AI_FLOW_INPUT
-    Event: $AI_FLOW_EVENT
-
-    Please execute the requested task using the available GitLab tools.
-    Be thorough in your analysis and provide clear explanations.
-
-    <important>
-    Please use the glab CLI to access data from GitLab. The glab CLI has already been authenticated. You can run the corresponding commands.
-
-    If you are asked to summarize an MR or issue or asked to provide more information then please post back a note to the MR/Issue so that the user can see it.
-    You don't need to commit or push up changes, those will be done automatically based on the file changes you make.
-    </important>
-    "
-  - git checkout --branch $CI_WORKLOAD_REF origin/$CI_WORKLOAD_REF
-  - echo "Checking for git changes and pushing if any exist"
-  - |
-    if ! git diff --quiet || ! git diff --cached --quiet || [ --not --zero "$(git ls-files --others --exclude-standard)" ]; then
-      echo "Git changes detected, adding and pushing..."
-      git add .
-      if git diff --cached --quiet; then
-        echo "No staged changes to commit"
-      else
-        echo "Committing changes to branch: $CI_WORKLOAD_REF"
-        git commit --message "Codex changes"
-        echo "Pushing changes up to https://gitlab-ci-token:$GITLAB_TOKEN@$GITLAB_HOST/gl-demo-ultimate-dev-ai-epic-17570/test-java-project.git $CI_WORKLOAD_REF"
-        git push https://gitlab-ci-token:$GITLAB_TOKEN@$GITLAB_HOST/gl-demo-ultimate-dev-ai-epic-17570/test-java-project.git $CI_WORKLOAD_REF
-        echo "Changes successfully pushed"
-      fi
-    else
-      echo "No git changes detected, skipping push"
-    fi
-variables:
-  - ANTHROPIC_API_KEY
-  - GITLAB_TOKEN_OPENCODE
-  - GITLAB_HOST
-```
-
---------------------------------
-
-### OpenCode CLI: Attach TUI to Remote Backend Example
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-Demonstrates how to start an OpenCode backend server and then attach a TUI from another terminal to that running server using its URL.
-
-```bash
-opencode web --port 4096 --hostname 0.0.0.0
-```
-
-```bash
-opencode attach http://10.20.30.40:4096
 ```
