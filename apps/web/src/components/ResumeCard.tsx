@@ -35,6 +35,7 @@ import {
   normalizeExperienceLevel,
   toDisplayMatchBreakdown,
 } from '@/lib/resume-scoring'
+import type { ScreeningChecklist } from '@/types/screening-checklist'
 import {
   Tooltip,
   TooltipContent,
@@ -232,6 +233,92 @@ export function ResumeCardSkeleton() {
   )
 }
 
+
+function ScreeningChecklistChips({
+  checklist,
+  t,
+}: {
+  checklist: ScreeningChecklist
+  t: (key: string, options?: { defaultValue?: string }) => string
+}) {
+  const sellsVerdicts: Record<string, { label: string; className: string }> = {
+    yes: {
+      label: `✓ ${t('resumes.detail.screeningChecklist.verdicts.sellsMachines.yes', { defaultValue: '有賣機' })}`,
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    },
+    no: {
+      label: `✗ ${t('resumes.detail.screeningChecklist.verdicts.sellsMachines.no', { defaultValue: '無賣機' })}`,
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    },
+    unclear: {
+      label: `? ${t('resumes.detail.screeningChecklist.verdicts.sellsMachines.unclear', { defaultValue: '不明' })}`,
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+    },
+  }
+
+  const originVerdicts: Record<string, { label: string; className: string }> = {
+    international: {
+      label: t('resumes.detail.screeningChecklist.verdicts.machineOrigin.international', { defaultValue: '進口' }),
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    },
+    domestic: {
+      label: t('resumes.detail.screeningChecklist.verdicts.machineOrigin.domestic', { defaultValue: '國產' }),
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    },
+    unknown: {
+      label: t('resumes.detail.screeningChecklist.verdicts.machineOrigin.unknown', { defaultValue: '未能核實' }),
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+    },
+  }
+
+  const channelVerdicts: Record<string, { label: string; className: string }> = {
+    direct: {
+      label: t('resumes.detail.screeningChecklist.verdicts.channel.direct', { defaultValue: '直銷' }),
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    },
+    distributor: {
+      label: t('resumes.detail.screeningChecklist.verdicts.channel.distributor', { defaultValue: '代理商' }),
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    },
+    unclear: {
+      label: t('resumes.detail.screeningChecklist.verdicts.channel.unclear', { defaultValue: '不明' }),
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+    },
+  }
+
+  const sellsKey = checklist.sellsMachines?.verdict?.trim().toLowerCase() ?? 'unclear'
+  const originKey = checklist.machineOrigin?.verdict?.trim().toLowerCase() ?? 'unknown'
+  const channelKey = checklist.channel?.verdict?.trim().toLowerCase() ?? 'unclear'
+
+  const sells = sellsVerdicts[sellsKey] ?? {
+    label: checklist.sellsMachines?.verdict ? `✓ ${checklist.sellsMachines.verdict}` : `? ${t('resumes.detail.screeningChecklist.verdicts.sellsMachines.unclear', { defaultValue: '不明' })}`,
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  }
+
+  const origin = originVerdicts[originKey] ?? {
+    label: checklist.machineOrigin?.verdict || t('resumes.detail.screeningChecklist.verdicts.machineOrigin.unknown', { defaultValue: '未能核實' }),
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  }
+
+  const channel = channelVerdicts[channelKey] ?? {
+    label: checklist.channel?.verdict || t('resumes.detail.screeningChecklist.verdicts.channel.unclear', { defaultValue: '不明' }),
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1" data-testid="screening-checklist-chips">
+      <Badge variant="outline" className={cn('text-[10px]', sells.className)}>
+        {sells.label}
+      </Badge>
+      <Badge variant="outline" className={cn('text-[10px]', origin.className)}>
+        {origin.label}
+      </Badge>
+      <Badge variant="outline" className={cn('text-[10px]', channel.className)}>
+        {channel.label}
+      </Badge>
+    </div>
+  )
+}
 
 export const ResumeCard = memo(function ResumeCard({
   resume,
@@ -436,6 +523,11 @@ export const ResumeCard = memo(function ResumeCard({
   const scoreNode = showAiScore
     ? aiScoreNode ?? pendingAiScoreNode
     : ruleScoreNode ?? aiScoreNode
+
+  const checklistChipsNode = matchResult?.screeningChecklist ? (
+    <ScreeningChecklistChips checklist={matchResult.screeningChecklist} t={t} />
+  ) : null
+
   const visibleIndustryTags = (industryTags ?? [])
     .filter((tag) => tag.trim().length > 0 && tag.trim().toLowerCase() !== 'unknown')
     .slice(0, 4)
@@ -527,6 +619,7 @@ export const ResumeCard = memo(function ResumeCard({
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
         {scoreNode}
+        {checklistChipsNode}
         <CompanyPolicyBadges hits={companyPolicyHits} />
         {companyPolicyState.overriddenCompanyKeys.length > 0 ? (
           <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px]">

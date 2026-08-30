@@ -566,6 +566,97 @@ describe('ResumeDetail work history', () => {
       .toHaveAttribute('href', '/admin/system/settings/industry-verification?status=ready_for_review')
   })
 
+  it('renders screening checklist with 5 item labels and evidence when checklist present', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 85,
+          recommendation: 'strong_match',
+          highlights: ['Strong CNC background'],
+          concerns: [],
+          summary: 'Screened profile fit.',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          screeningChecklist: {
+            generatedBy: 'rules+ai',
+            sellsMachines: { verdict: 'yes', evidence: 'Sold 5-axis CNC machines for 3 years' },
+            machineOrigin: { verdict: 'international', evidence: 'Represented DMG MORI imports' },
+            channel: { verdict: 'direct', evidence: 'Direct enterprise sales model' },
+            region: { verdict: 'Guangdong', evidence: 'Covered South China territory' },
+            contactStatus: { verdict: 'valid', evidence: 'Phone and WeChat verified' },
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('screening-checklist-section')).toBeInTheDocument()
+    expect(screen.getByText('Screening Checklist')).toBeInTheDocument()
+    expect(screen.getByText('sellsMachines')).toBeInTheDocument()
+    expect(screen.getByText('machineOrigin')).toBeInTheDocument()
+    expect(screen.getByText('channel')).toBeInTheDocument()
+    expect(screen.getByText('region')).toBeInTheDocument()
+    expect(screen.getByText('contactStatus')).toBeInTheDocument()
+
+    expect(screen.getByText('Sold 5-axis CNC machines for 3 years')).toBeInTheDocument()
+    expect(screen.getByText('Represented DMG MORI imports')).toBeInTheDocument()
+    expect(screen.getByText('Direct enterprise sales model')).toBeInTheDocument()
+    expect(screen.getByText('Covered South China territory')).toBeInTheDocument()
+    expect(screen.getByText('Phone and WeChat verified')).toBeInTheDocument()
+    expect(screen.getByText('Guangdong')).toBeInTheDocument()
+  })
+
+  it('renders unavailable line when screening checklist is absent', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 85,
+          recommendation: 'strong_match',
+          highlights: ['Strong CNC background'],
+          concerns: [],
+          summary: 'Older profile analysis.',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('screening-checklist-unavailable')).toBeInTheDocument()
+    expect(screen.getByText('This analysis predates the screening checklist feature')).toBeInTheDocument()
+    expect(screen.queryByTestId('screening-checklist-items')).not.toBeInTheDocument()
+  })
+
   it('links a Convex resume to its exact industry-review target without employer-name matching', async () => {
     useAuthMock.mockReturnValue({
       memberships: [{ workspaceSlug: 'dev', role: 'admin' }],

@@ -1285,6 +1285,7 @@ export function useResumeListState(loadSearchHistory = false) {
             jobDescriptionId: normalizedAnalysis.jobDescriptionId,
             promptVersion: normalizedAnalysis.promptVersion,
             locale: normalizedAnalysis.locale,
+            screeningChecklist: normalizedAnalysis.screeningChecklist,
           }
           : undefined
 

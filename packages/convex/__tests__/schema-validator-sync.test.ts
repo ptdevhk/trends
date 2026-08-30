@@ -121,6 +121,7 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "queryLocation",
         "analyzedAt",
         "relatedExpEvidence",
+        "screeningChecklist",
     ].sort();
 
     const CONFIRM_RESULT_ANALYSIS_FIELDS = [
@@ -136,6 +137,7 @@ describe("analysis validator sync (with intentional overrides)", () => {
         "locale",
         "queryLocation",
         "analyzedAt",
+        "screeningChecklist",
     ].sort();
 
     it("resumes.analysis schema stays in sync with the shared primary analysis validator", () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResumeCard } from './ResumeCard'
@@ -399,6 +399,58 @@ describe('ResumeCard brand-hit badges', () => {
 
     expect(screen.getByText('销售5.4年')).toBeInTheDocument()
     expect(screen.queryByText('工程7年 (Industry verified)')).not.toBeInTheDocument()
+  })
+
+  it('renders compact chips when screeningChecklist is present on matchResult', () => {
+    render(
+      <ResumeCard
+        resume={baseResume}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 88,
+          recommendation: 'strong_match',
+          highlights: [],
+          concerns: [],
+          summary: 'Strong AI match',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          scoreSource: 'ai',
+          screeningChecklist: {
+            generatedBy: 'rules+ai',
+            sellsMachines: { verdict: 'yes', evidence: 'Direct machine sales' },
+            machineOrigin: { verdict: 'international', evidence: 'Imported FANUC CNC' },
+            channel: { verdict: 'direct', evidence: 'Direct sales' },
+          },
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    const chips = screen.getByTestId('screening-checklist-chips')
+    expect(chips).toBeInTheDocument()
+    expect(within(chips).getByText('✓ 有賣機')).toBeInTheDocument()
+    expect(within(chips).getByText('進口')).toBeInTheDocument()
+    expect(within(chips).getByText('直銷')).toBeInTheDocument()
+  })
+
+  it('renders nothing for checklist chips when screeningChecklist is absent', () => {
+    render(
+      <ResumeCard
+        resume={baseResume}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 88,
+          recommendation: 'strong_match',
+          highlights: [],
+          concerns: [],
+          summary: 'Strong AI match',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          scoreSource: 'ai',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('screening-checklist-chips')).not.toBeInTheDocument()
   })
 
   it('keeps the strongest current approved role badge when no active role filter is provided', () => {

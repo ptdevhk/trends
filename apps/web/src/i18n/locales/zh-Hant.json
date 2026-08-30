@@ -459,7 +459,41 @@
       "aiSummaryLabel": "AI 摘要",
       "promptVersion": "提示詞 v{{version}}",
       "previousResume": "上一份簡歷",
-      "nextResume": "下一份簡歷"
+      "nextResume": "下一份簡歷",
+      "screeningChecklist": {
+        "title": "篩選檢查清單",
+        "unavailable": "此分析早於檢查清單功能",
+        "generatedBy": "生成來源：{{source}}",
+        "items": {
+          "sellsMachines": "賣機經驗",
+          "machineOrigin": "機台來源",
+          "channel": "銷售模式",
+          "region": "區域",
+          "contactStatus": "聯絡狀態"
+        },
+        "verdicts": {
+          "sellsMachines": {
+            "yes": "有賣機",
+            "no": "無賣機",
+            "unclear": "不明"
+          },
+          "machineOrigin": {
+            "international": "進口",
+            "domestic": "國產",
+            "unknown": "未能核實"
+          },
+          "channel": {
+            "direct": "直銷",
+            "distributor": "代理商",
+            "unclear": "不明"
+          },
+          "contactStatus": {
+            "valid": "可聯絡",
+            "problem": "有問題",
+            "unclear": "不明"
+          }
+        }
+      }
     },
     "experienceLevel": {
       "senior": "資深",

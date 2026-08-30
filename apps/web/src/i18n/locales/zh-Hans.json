@@ -459,7 +459,41 @@
       "aiSummaryLabel": "AI 摘要",
       "promptVersion": "提示词 v{{version}}",
       "previousResume": "上一份简历",
-      "nextResume": "下一份简历"
+      "nextResume": "下一份简历",
+      "screeningChecklist": {
+        "title": "筛选检查清单",
+        "unavailable": "此分析早于检查清单功能",
+        "generatedBy": "生成来源：{{source}}",
+        "items": {
+          "sellsMachines": "卖机经验",
+          "machineOrigin": "机台来源",
+          "channel": "销售模式",
+          "region": "区域",
+          "contactStatus": "联系状态"
+        },
+        "verdicts": {
+          "sellsMachines": {
+            "yes": "有卖机",
+            "no": "无卖机",
+            "unclear": "不明"
+          },
+          "machineOrigin": {
+            "international": "进口",
+            "domestic": "国产",
+            "unknown": "未能核实"
+          },
+          "channel": {
+            "direct": "直销",
+            "distributor": "代理商",
+            "unclear": "不明"
+          },
+          "contactStatus": {
+            "valid": "可联系",
+            "problem": "有问题",
+            "unclear": "不明"
+          }
+        }
+      }
     },
     "experienceLevel": {
       "senior": "资深",

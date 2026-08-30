@@ -1456,6 +1456,7 @@ export const processAnalysisTask = internalAction({
                                     analyzedAt: resolveAnalysisWriteTimestamp(
                                         task.dispatchMode === "exact" ? task.dispatchedAt : undefined,
                                     ),
+                                    ...(result.screeningChecklist ? { screeningChecklist: result.screeningChecklist } : {}),
                                     ...(result.relatedExpEvidence ? { relatedExpEvidence: result.relatedExpEvidence } : {}),
                                 },
                                 ...(exactIdentity ? {

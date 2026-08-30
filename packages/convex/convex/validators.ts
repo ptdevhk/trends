@@ -268,6 +268,22 @@ export const analysisKeyFactorValidator = v.object({
     value: v.string(),
 });
 
+// --- Screening Checklist (AI-assisted with rules-layer fallback) ---
+
+export const screeningChecklistItemValidator = v.object({
+    verdict: v.string(),
+    evidence: v.optional(v.string()),
+});
+
+export const screeningChecklistValidator = v.object({
+    generatedBy: v.optional(v.string()),
+    sellsMachines: v.optional(screeningChecklistItemValidator),
+    machineOrigin: v.optional(screeningChecklistItemValidator),
+    channel: v.optional(screeningChecklistItemValidator),
+    region: v.optional(screeningChecklistItemValidator),
+    contactStatus: v.optional(screeningChecklistItemValidator),
+});
+
 export const analysisResultValidator = v.object({
     score: v.number(),
     summary: v.optional(v.string()),
@@ -283,6 +299,8 @@ export const analysisResultValidator = v.object({
     analyzedAt: v.optional(v.number()),
     /** P1: stored evidence ceiling result for audit/display */
     relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
+    /** AI screening checklist with rules-layer priorities */
+    screeningChecklist: v.optional(screeningChecklistValidator),
 });
 
 // --- Resume analysis (resumes.analysis — summary/highlights required) ---
@@ -302,6 +320,8 @@ export const resumeAnalysisValidator = v.object({
     analyzedAt: v.optional(v.number()),
     /** P1: stored evidence ceiling result for audit/display */
     relatedExpEvidence: v.optional(relatedExpEvidenceValidator),
+    /** AI screening checklist with rules-layer priorities */
+    screeningChecklist: v.optional(screeningChecklistValidator),
 });
 
 // --- ResumeFilters (screening_sessions.config.filters, search_history.filters) ---

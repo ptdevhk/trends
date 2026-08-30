@@ -1,3 +1,5 @@
+import type { ScreeningChecklist } from './screening-checklist'
+
 export type ResumeFilters = {
   maxExperience?: number
   minRoleYears?: number
@@ -98,6 +100,7 @@ export type MatchingResult = {
   scoreSource?: ScoreSource
   promptVersion?: number
   locale?: string
+  screeningChecklist?: ScreeningChecklist
 }
 
 export type MatchStats = {

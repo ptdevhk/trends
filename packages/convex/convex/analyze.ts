@@ -46,7 +46,11 @@ import {
     resolveAnalyzeLlmRuntimeConfig,
     type ChatMessage,
 } from "./lib/analysis_config.js";
-import { analysisKeyFactorValidator, matchingRulesValidator } from "./validators.js";
+import {
+    analysisKeyFactorValidator,
+    matchingRulesValidator,
+    screeningChecklistValidator,
+} from "./validators.js";
 
 // Re-export for backward compatibility
 export {
@@ -429,6 +433,7 @@ export const analyzeResume = action({
                 promptVersion,
                 locale,
                 analyzedAt: Date.now(),
+                ...(result.screeningChecklist ? { screeningChecklist: result.screeningChecklist } : {}),
             },
         });
 
@@ -574,6 +579,7 @@ export const storeConfirmResult = internalMutation({
             locale: v.string(),
             queryLocation: v.optional(v.string()),
             analyzedAt: v.number(),
+            screeningChecklist: v.optional(screeningChecklistValidator),
         }),
     },
     handler: async (ctx, args) => {
@@ -681,6 +687,7 @@ export const confirmSearchResults = action({
                         promptVersion: 1,
                         locale: "zh-Hans",
                         analyzedAt: Date.now(),
+                        ...(analysis.screeningChecklist ? { screeningChecklist: analysis.screeningChecklist } : {}),
                     },
                 });
 

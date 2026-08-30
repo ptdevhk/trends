@@ -24,6 +24,7 @@ export type AnalysisResult = {
     breakdown?: Record<string, number>;
     keyFactors: KeyFactor[];
     locale?: string;
+    screeningChecklist?: unknown;
     relatedExpEvidence?: {
         evidenceBandMax: number;
         coverage: string;
@@ -157,6 +158,7 @@ export function parseLlmResult(value: unknown): AnalysisResult {
         recommendation,
         breakdown: parseBreakdown(obj.breakdown),
         keyFactors: parseKeyFactors(obj.keyFactors),
+        screeningChecklist: obj.screeningChecklist,
     };
 }
 

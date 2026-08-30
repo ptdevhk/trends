@@ -1,6 +1,6 @@
 ---
-version: 13
-updated_at: '2026-07-13'
+version: 14
+updated_at: '2026-08-31'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -109,9 +109,25 @@ description: >
   "keyFactors": [
     {"factor": "technical_skills", "weight": 0.4, "value": "5年CNC编程，3年FANUC系统"},
     {"factor": "industry_experience", "weight": 0.3, "value": "数控机械行业销售工程师7年"}
-  ]
+  ],
+  "screeningChecklist": {
+    "sellsMachines": {"verdict": "yes|no|unclear", "evidence": "<=60字证据引用"},
+    "machineOrigin": {"verdict": "international|domestic|unknown", "evidence": "..."},
+    "channel": {"verdict": "direct|distributor|unclear", "evidence": "..."},
+    "region": {"verdict": "<region text e.g. 华南>", "evidence": "..."},
+    "contactStatus": {"verdict": "valid|problem|unclear", "evidence": "..."}
+  }
 }
 ```
+
+### 篩選檢查清單 (Screening Checklist)
+- 5 项检查清单基于简历工作经历证据逐项判定；每项必须给出 ≤60 字的原文证据引用；无法判定时 verdict 必须为 "unclear"/"unknown"（或 region 无证据时留空字符串），禁止编造证据。
+- sellsMachines（有冇賣機）：只根据岗位信号与工作条目判断候选人是否实际销售/服务机器产品（整机、刀具配件、工业零部件均算“有卖产品”，但 evidence 里写明产品类别）。完全无销售/服务职责 → "no"。
+- machineOrigin（進口定國產）：仅依据「行业数据库品牌命中」的 brandOrigin 与验证公司信息判定；这些字段未提供或无命中时必须 "unknown"，不得根据公司名猜测。
+- channel（渠道）：direct = 厂家直销/工厂销售; distributor = 代理商/经销商销售; 不明 → "unclear"。
+- region（區域）：从最近工作条目的地点/负责区域提取（如 华南/广东/华东）；无信息 → 空字符串 verdict。
+- contactStatus（聯絡狀態）：依据简历动态（更新时间、是否有联系方式、在职状态等证据）判定 valid/problem/unclear；仅当证据明确（如简历标注离职、联系方式缺失）才给 "problem"。
+- 检查清单不影响 score/recommendation 数学计算，仅作结构化筛选输出。
 
 ### breakdown 字段说明
 - `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。LLM 应将其视为输入相关经验因子，应与后续证据天花板一致。运行时按 50% 权重换算为 0-50 贡献。

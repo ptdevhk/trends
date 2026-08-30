@@ -15,6 +15,7 @@ import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
 import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateStatus, ResumeMachineOrigin } from '@/types/resume'
+import type { ScreeningChecklist } from '@/types/screening-checklist'
 import type { ResumeItem } from './useResumes'
 import type { VerifiedIndustryEvidenceSummary } from '@trends/shared'
 
@@ -53,6 +54,7 @@ export type ConvexResumeAnalysis = {
   concerns?: string[]
   breakdown?: Record<string, number>
   jobDescriptionId?: string
+  screeningChecklist?: ScreeningChecklist
 }
 
 export type ConvexIngestData = {
@@ -420,6 +422,28 @@ export function parseBreakdown(value: unknown): Record<string, number> | undefin
   return Object.keys(parsed).length ? parsed : undefined
 }
 
+export function parseScreeningChecklist(value: unknown): ScreeningChecklist | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const parseItem = (item: unknown) => {
+    if (!isRecord(item)) return undefined
+    const verdict = toStringValue(item.verdict)
+    const evidence = toStringValue(item.evidence) || undefined
+    return { verdict, evidence }
+  }
+
+  return {
+    generatedBy: toStringValue(value.generatedBy) || undefined,
+    sellsMachines: parseItem(value.sellsMachines),
+    machineOrigin: parseItem(value.machineOrigin),
+    channel: parseItem(value.channel),
+    region: parseItem(value.region),
+    contactStatus: parseItem(value.contactStatus),
+  }
+}
+
 export function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -442,6 +466,7 @@ export function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined 
     concerns: toStringArray(value.concerns),
     breakdown: parseBreakdown(value.breakdown),
     jobDescriptionId: toStringValue(value.jobDescriptionId) || undefined,
+    screeningChecklist: parseScreeningChecklist(value.screeningChecklist),
   }
 }
 

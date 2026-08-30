@@ -28,9 +28,14 @@ import {
     type RelatedExpIngestEvidence,
     type RelatedExpEvidenceResult,
 } from "@trends/shared";
+import {
+    parseScreeningChecklist,
+    type ScreeningChecklist,
+} from "./screening_checklist.js";
 
 // Re-export for callers that need the P1 context types
 export type { RelatedExpContextInput, RelatedExpIngestEvidence, RelatedExpEvidenceResult };
+export type { ScreeningChecklist };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -714,6 +719,7 @@ export function normalizeAnalysisResult(
         concerns?: unknown;
         breakdown?: unknown;
         keyFactors?: unknown;
+        screeningChecklist?: unknown;
     },
     resume: unknown,
     relatedExpCtx?: {
@@ -729,6 +735,7 @@ export function normalizeAnalysisResult(
     breakdown: Record<string, number>;
     keyFactors: KeyFactor[];
     relatedExpEvidence?: RelatedExpEvidenceResult;
+    screeningChecklist: ScreeningChecklist;
 } {
     const breakdown = parseNumericBreakdown(result.breakdown);
     const llmRelatedExp = toNumber(breakdown?.related_exp);
@@ -830,6 +837,8 @@ export function normalizeAnalysisResult(
         })
         : normalizedSummary;
 
+    const screeningChecklist = parseScreeningChecklist(result.screeningChecklist, resume);
+
     return {
         score,
         recommendation,
@@ -844,6 +853,7 @@ export function normalizeAnalysisResult(
             industry_db: cappedIndustryDb,
         },
         keyFactors: parseKeyFactors(result.keyFactors),
+        screeningChecklist,
         ...(relatedExpEvidence ? { relatedExpEvidence } : {}),
     };
 }

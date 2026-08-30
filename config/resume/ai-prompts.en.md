@@ -1,6 +1,6 @@
 ---
-version: 13
-updated_at: '2026-07-13'
+version: 14
+updated_at: '2026-08-31'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -109,9 +109,25 @@ Return the analysis as JSON and ensure score is numeric:
   "keyFactors": [
     {"factor": "technical_skills", "weight": 0.4, "value": "5 years CNC programming, 3 years FANUC systems"},
     {"factor": "industry_experience", "weight": 0.3, "value": "Sales engineer at CNC machinery company for 7 years"}
-  ]
+  ],
+  "screeningChecklist": {
+    "sellsMachines": {"verdict": "yes|no|unclear", "evidence": "<=60字证据引用"},
+    "machineOrigin": {"verdict": "international|domestic|unknown", "evidence": "..."},
+    "channel": {"verdict": "direct|distributor|unclear", "evidence": "..."},
+    "region": {"verdict": "<region text e.g. 华南>", "evidence": "..."},
+    "contactStatus": {"verdict": "valid|problem|unclear", "evidence": "..."}
+  }
 }
 ```
+
+### Screening Checklist (篩選檢查清單)
+- The 5 screening checklist items are determined item-by-item based on resume work-history evidence; each item must provide a quote of ≤60 characters of original text evidence; when a determination cannot be made, verdict must be "unclear"/"unknown" (or an empty string for region when no evidence exists); fabricating evidence is strictly forbidden.
+- sellsMachines: Judge whether the candidate actually sells/services machine products (complete machines, cutting tools/accessories, and industrial components all count as "sells products", but specify the product category in evidence) based solely on role signals and work entries. Completely lacking sales/service duties → "no".
+- machineOrigin: Determined solely based on `brandOrigin` from "Industry Database Brand Hits" and verified company information; when these fields are not provided or have no hits, it must be "unknown" and cannot be guessed from company names.
+- channel: direct = manufacturer direct sales / factory sales; distributor = agent / distributor sales; unknown/unclear → "unclear".
+- region: Extracted from location / responsible territory of the most recent work entry (e.g. South China / Guangdong / East China); no information → empty string verdict.
+- contactStatus: Evaluated as valid/problem/unclear based on resume activity (update time, presence of contact info, employment status evidence, etc.); mark "problem" only when evidence is explicit (such as resume noting resignation, missing contact info).
+- The screening checklist does not affect score/recommendation mathematical calculation; it serves solely as structured screening output.
 
 ### breakdown Field Descriptions
 - `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100). The LLM should treat this as an input related-experience factor that should be consistent with subsequent evidence ceilings. Runtime converts it into a 0-50 contribution using a fixed 50% weight.
