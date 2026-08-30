@@ -48,6 +48,7 @@ import {
   collectResumeAdjacentProductEvidenceText,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
+  toDisplayMatchBreakdown,
   toIndustryDbV2Stats,
 } from '@/lib/resume-scoring'
 import {
@@ -63,6 +64,7 @@ import {
   CANDIDATE_STATUS_VALUES,
   type CandidateActionType,
   type CandidateStatus,
+  type MatchingResult,
   type ResumeExportFormat,
   type ResumeFilters,
   type ResumeMachineOrigin,
@@ -996,12 +998,30 @@ export function useResumeSearchState() {
         workHistory: resume.workHistory,
         companyHits: resume.ingestData?.companyHits,
       })
+      const match: MatchingResult | undefined = normalizedAnalysis
+        ? {
+          resumeId: String(resume.resumeId),
+          score: normalizedAnalysis.score,
+          summary: normalizedAnalysis.summary,
+          highlights: normalizedAnalysis.highlights,
+          recommendation: recommendationFromScore(normalizedAnalysis.score),
+          concerns: normalizedAnalysis.concerns ?? [],
+          breakdown: toDisplayMatchBreakdown(normalizedAnalysis.breakdown),
+          scoreSource: 'ai',
+          matchedAt: new Date().toISOString(),
+          jobDescriptionId: normalizedAnalysis.jobDescriptionId,
+          promptVersion: normalizedAnalysis.promptVersion,
+          locale: normalizedAnalysis.locale,
+          screeningChecklist: normalizedAnalysis.screeningChecklist,
+        }
+        : undefined
       return {
         key: `${resume.resumeId}`,
         identityKey,
         resume,
         blocked: Boolean(blocksByIdentity[identityKey]),
         analysis: normalizedAnalysis,
+        match,
         score,
         scoreSource:
           typeof score === 'number'

@@ -345,6 +345,41 @@ export function SnippetCardExpanded({
               <div className="space-y-4 break-words text-sm text-slate-700">
                 <p className="leading-6">{analysis.summary || noSummaryLabel}</p>
 
+                {analysis.screeningChecklist ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      {t('resumes.detail.screeningChecklist.title', { defaultValue: 'Screening Checklist' })}
+                    </div>
+                    <div className="flex flex-wrap gap-2" data-testid="screening-checklist-chips">
+                      {(
+                        [
+                          { key: 'sellsMachines', item: analysis.screeningChecklist.sellsMachines },
+                          { key: 'machineOrigin', item: analysis.screeningChecklist.machineOrigin },
+                          { key: 'channel', item: analysis.screeningChecklist.channel },
+                        ] as const
+                      ).map(({ key, item: checklistItem }) => {
+                        const verdict = checklistItem?.verdict?.trim().toLowerCase() ?? ''
+                        const label = verdict
+                          ? t(`resumes.detail.screeningChecklist.verdicts.${key}.${verdict}`, { defaultValue: checklistItem?.verdict ?? '' })
+                          : t(`resumes.detail.screeningChecklist.verdicts.${key}.unclear`, { defaultValue: '不明' })
+                        let colorClass = 'border-slate-200 bg-slate-50 text-slate-600'
+                        if (['yes', 'international', 'direct', 'valid'].includes(verdict)) {
+                          colorClass = 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        } else if (['no', 'domestic', 'distributor'].includes(verdict)) {
+                          colorClass = 'border-amber-200 bg-amber-50 text-amber-700'
+                        } else if (verdict === 'problem') {
+                          colorClass = 'border-red-200 bg-red-50 text-red-700'
+                        }
+                        return (
+                          <Badge key={key} variant="outline" className={cn('text-[10px]', colorClass)}>
+                            {label}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 {analysis.highlights.length > 0 ? (
                   <div className="space-y-2">
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">

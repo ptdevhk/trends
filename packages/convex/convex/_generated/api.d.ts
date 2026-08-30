@@ -57,6 +57,7 @@ import type * as lib_resumes_diagnostics from "../lib/resumes_diagnostics.js";
 import type * as lib_resumes_list_projections from "../lib/resumes_list_projections.js";
 import type * as lib_resumes_pagination from "../lib/resumes_pagination.js";
 import type * as lib_resumes_tag_expansion from "../lib/resumes_tag_expansion.js";
+import type * as lib_screening_checklist from "../lib/screening_checklist.js";
 import type * as llm_cost from "../llm_cost.js";
 import type * as migrations from "../migrations.js";
 import type * as research_news from "../research_news.js";
@@ -138,6 +139,7 @@ declare const fullApi: ApiFromModules<{
   "lib/resumes_list_projections": typeof lib_resumes_list_projections;
   "lib/resumes_pagination": typeof lib_resumes_pagination;
   "lib/resumes_tag_expansion": typeof lib_resumes_tag_expansion;
+  "lib/screening_checklist": typeof lib_screening_checklist;
   llm_cost: typeof llm_cost;
   migrations: typeof migrations;
   research_news: typeof research_news;

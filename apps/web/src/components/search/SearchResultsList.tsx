@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
+import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { ExternalLink, SearchCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -210,12 +211,31 @@ export function SearchResultsList({
     if (!detailResumeId || routeDetailItem || !detailResumeFromConvex) {
       return null
     }
+    const analysis = detailResumeFromConvex.analysis
     return {
       key: String(detailResumeFromConvex.resumeId),
       identityKey: getResumeIdentityKey(detailResumeFromConvex, String(detailResumeFromConvex.resumeId)),
       resume: detailResumeFromConvex,
       blocked: false,
       status: 'new' as const,
+      analysis,
+      match: analysis
+        ? {
+          resumeId: String(detailResumeFromConvex.resumeId),
+          score: analysis.score,
+          summary: analysis.summary,
+          highlights: analysis.highlights,
+          recommendation: recommendationFromScore(analysis.score),
+          concerns: analysis.concerns ?? [],
+          breakdown: toDisplayMatchBreakdown(analysis.breakdown),
+          scoreSource: 'ai',
+          matchedAt: new Date().toISOString(),
+          jobDescriptionId: analysis.jobDescriptionId,
+          promptVersion: analysis.promptVersion,
+          locale: analysis.locale,
+          screeningChecklist: analysis.screeningChecklist,
+        }
+        : undefined,
     }
   }, [detailResumeFromConvex, detailResumeId, routeDetailItem])
   const detailItem = routeDetailItem ?? localDetailItem ?? directDetailItem
@@ -282,6 +302,7 @@ export function SearchResultsList({
     <Suspense fallback={null}>
       <ResumeDetail
         resume={resolvedDetailResume}
+        matchResult={detailItem.match}
         refreshState={detailItem.refreshState}
         open
         onOpenChange={(open) => {

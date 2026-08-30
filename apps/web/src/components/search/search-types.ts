@@ -1,6 +1,6 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import type { CandidateStatus } from '@/types/resume'
+import type { CandidateStatus, MatchingResult } from '@/types/resume'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
 import type { CompanyRankingEffect } from '@trends/shared'
@@ -32,6 +32,7 @@ export type ResumeSearchResultItem = {
   resume: ConvexResumeItem
   blocked: boolean
   analysis?: ConvexResumeItem['analysis']
+  match?: MatchingResult
   score?: number
   scoreSource?: SearchScoreSource
   /** Primary company-policy ranking effect; score-sort stratification only. */

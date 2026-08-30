@@ -570,6 +570,36 @@ export const SnippetCard = memo(function SnippetCard({
             </p>
           ) : null}
 
+          {item.match?.screeningChecklist ? (
+            <div className="flex flex-wrap items-center gap-1" data-testid="screening-checklist-chips">
+              {(
+                [
+                  { key: 'sellsMachines', item: item.match.screeningChecklist.sellsMachines },
+                  { key: 'machineOrigin', item: item.match.screeningChecklist.machineOrigin },
+                  { key: 'channel', item: item.match.screeningChecklist.channel },
+                ] as const
+              ).map(({ key, item: checklistItem }) => {
+                const verdict = checklistItem?.verdict?.trim().toLowerCase() ?? ''
+                const label = verdict
+                  ? t(`resumes.detail.screeningChecklist.verdicts.${key}.${verdict}`, { defaultValue: checklistItem?.verdict ?? '' })
+                  : t(`resumes.detail.screeningChecklist.verdicts.${key}.unclear`, { defaultValue: '不明' })
+                let colorClass = 'border-slate-200 bg-slate-50 text-slate-600'
+                if (['yes', 'international', 'direct', 'valid'].includes(verdict)) {
+                  colorClass = 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                } else if (['no', 'domestic', 'distributor'].includes(verdict)) {
+                  colorClass = 'border-amber-200 bg-amber-50 text-amber-700'
+                } else if (verdict === 'problem') {
+                  colorClass = 'border-red-200 bg-red-50 text-red-700'
+                }
+                return (
+                  <Badge key={key} variant="outline" className={cn('text-[10px]', colorClass)}>
+                    {label}
+                  </Badge>
+                )
+              })}
+            </div>
+          ) : null}
+
           {/* Status notes tooltip */}
           {statusNotes ? (
             <TooltipProvider>
