@@ -276,7 +276,7 @@ const DOMAIN_SEARCH_ALIASES: ReadonlyArray<readonly [RegExp, readonly string[]]>
     [/销售/, ["sales"]],
 ];
 
-function buildDomainAliasTokens(text: string): string[] {
+export function buildDomainAliasTokens(text: string): string[] {
     const tokens: string[] = [];
     for (const [pattern, aliases] of DOMAIN_SEARCH_ALIASES) {
         if (pattern.test(text)) {

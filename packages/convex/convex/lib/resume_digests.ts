@@ -1,5 +1,6 @@
 import {
     type AnalysisRoleSignalLike,
+    MAX_RESUME_WORK_HISTORY_LIMIT,
     buildLatestWorkHistoryEvidence,
     formatLocationHierarchySearchText,
     getVerifiedRoleSignalYears,
@@ -21,6 +22,7 @@ import {
 } from "./resume_analysis_read.js";
 import {
     appendMissingSearchTokens,
+    buildDomainAliasTokens,
     buildIngestSearchTokens,
     buildSearchText,
     deriveProseSearchTokens,
@@ -129,19 +131,19 @@ function buildCompactDigestSearchText(
     const ingestTokens = collectIngestTokens(ingestData);
     const domainTokens = collectDomainPresenceTokens(options.coldSearchText);
     const roleTokens = Object.keys(options.roleYearsByType);
-    // Ordering contract: domain tokens (cnc/数控/销售/sales/机床) are appended
-    // before role/ingest tokens, AND limitSearchText emits them with cap
-    // priority. The 1500-char cap breaks on overflow, so tokens appended later
-    // can silently drop under long content — putting domain presence tokens
-    // first in both the append order and the cap guarantees they always
-    // survive a rebuild (observed live: one CN resume lost its 销售 token
-    // when digest tokens were appended after long work-history text).
+    const workTokens = deriveWorkHistorySearchTokens(content.workHistory);
+    // Ordering contract: domain presence tokens (cnc/数控/销售/sales/机床)
+    // lead append order and limitSearchText emits them with priorityTokens
+    // cap protection. Structured metadata tokens (location, education, role
+    // types, ingest tags) precede bulk prose tokens (workHistory, selfIntro)
+    // so structured filters are not crowded out under the 1500-char cap.
     const withDigestFields = appendMissingSearchTokens(base, [
         ...domainTokens,
         options.locationText,
         options.educationLevel,
         ...roleTokens,
         ...ingestTokens,
+        ...workTokens,
         // selfIntro is excluded from the compact content, so its word tokens
         // (and 机床/machine-tool aliases) are appended at the lowest cap
         // priority: present when the 1500-char cap is not exhausted.
@@ -178,7 +180,12 @@ function compactArray(value: unknown, limit: number): string[] | undefined {
 }
 
 function compactWorkHistory(value: unknown): string[] | undefined {
-    const lines = buildLatestWorkHistoryEvidence(value, { limit: 3 }).lines
+    // Index ALL work entries (not just the 3 most recent) so keyword search
+    // recall covers older roles — a literal 销售/Service Engineer in an early
+    // work entry must still surface the resume. The digest search text is
+    // capped at 1500 chars anyway; dropping older entries silently lost
+    // searchable terms (observed: CN 销售 queries returning 0).
+    const lines = buildLatestWorkHistoryEvidence(value, { limit: MAX_RESUME_WORK_HISTORY_LIMIT }).lines
         .map((line) => compactFragment(line))
         .filter((line): line is string => typeof line === "string" && line.length > 0);
     return lines.length > 0 ? lines : undefined;
@@ -195,6 +202,31 @@ function collectIngestTokens(value: unknown): string[] {
             ? value.companyPatternAliasTokens
             : undefined,
     });
+}
+
+/**
+ * Derive search tokens from work-history prose (descriptions, raw entries)
+ * so roles like 销售顾问 / 销售工程师 surface in keyword search even when
+ * the job titles are excluded from the compact searchText build. Also emits
+ * domain alias tokens (销售 → sales, cnc ↔ 数控) for the same text.
+ */
+function deriveWorkHistorySearchTokens(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    const entries = value.flatMap((entry) => {
+        if (typeof entry === "string") return [entry];
+        if (!isRecord(entry)) return [];
+        return [
+            typeof entry.description === "string" ? entry.description : undefined,
+            typeof entry.raw === "string" ? entry.raw : undefined,
+            typeof entry.jobTitle === "string" ? entry.jobTitle : undefined,
+        ].filter((text): text is string => typeof text === "string" && text.length > 0);
+    });
+    const text = entries.join(" ");
+    if (!text.trim()) return [];
+    return Array.from(new Set([
+        ...deriveProseSearchTokens(text),
+        ...buildDomainAliasTokens(text),
+    ]));
 }
 
 function toStringArray(value: unknown): string[] | undefined {

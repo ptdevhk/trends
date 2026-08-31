@@ -9,6 +9,7 @@ import {
   parseIngestData,
   parseRuleScores,
   parseTaggingEnvelope,
+  stripKeywordsFromConvexFilters,
   toNumber,
   toStringArray,
   toStringValue,
@@ -409,3 +410,46 @@ describe('matchesKeywordExpansion', () => {
     expect(result).toHaveLength(1)
   })
 })
+
+// ── stripKeywordsFromConvexFilters ─────────────────────────────
+
+describe('stripKeywordsFromConvexFilters', () => {
+  it('strips keywords while preserving other fields', () => {
+    const filters = {
+      keywords: ['cnc', 'lathe'],
+      locations: ['Shenzhen'],
+      roleFilterType: 'cnc',
+      minSalary: 5000,
+      sources: ['job5156'],
+      minRoleYears: 3,
+      maxExperience: 10,
+      education: ['bachelor'],
+    }
+
+    const stripped = stripKeywordsFromConvexFilters(filters)
+    expect(stripped).toEqual({
+      locations: ['Shenzhen'],
+      roleFilterType: 'cnc',
+      minSalary: 5000,
+      sources: ['job5156'],
+      minRoleYears: 3,
+      maxExperience: 10,
+      education: ['bachelor'],
+    })
+    expect(stripped).not.toHaveProperty('keywords')
+  })
+
+  it('returns same filters object when keywords is undefined', () => {
+    const filters = {
+      locations: ['Penang'],
+      minRoleYears: 2,
+    }
+    const stripped = stripKeywordsFromConvexFilters(filters)
+    expect(stripped).toBe(filters)
+  })
+
+  it('returns undefined when filters is undefined', () => {
+    expect(stripKeywordsFromConvexFilters(undefined)).toBeUndefined()
+  })
+})
+

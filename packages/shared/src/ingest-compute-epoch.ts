@@ -47,6 +47,12 @@ export const INGEST_COMPUTE_EPOCH_HISTORY: readonly IngestComputeEpochReason[] =
       "CJK search digest materialization: selfIntro prose tokens (jieba union) in digest searchText",
     introduced: "2026-08-19",
   },
+  {
+    epoch: 5,
+    reason:
+      "Digest work-history recall: index all work entries (cap 10) + work-history prose/domain-alias tokens in digest searchText",
+    introduced: "2026-08-31",
+  },
 ] as const;
 
 /** Code-required ingest compute epoch stamped on every successful compute write. */

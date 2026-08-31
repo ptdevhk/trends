@@ -3,6 +3,7 @@ import {
   inferSeekMarket,
   isRecord,
   normalizeProfileUrlForDisplay,
+  normalizeSearchQuery,
   normalizeSharedResumeFields,
   parseKeywordQuery,
   parseVerifiedIndustryEvidenceSummary,
@@ -251,7 +252,11 @@ type ExactKeywordMatchContext = {
 }
 
 export function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
-  const parsed = parseKeywordQuery(query)
+  // Query-side normalization mirrors the BFF expansion path (and the ingest
+  // index build): boundary-space CJK↔ASCII joins and lowercase. Without it,
+  // "CNC销售" (no space) fails to split into cnc + 销售 groups and search
+  // silently misses.
+  const parsed = parseKeywordQuery(normalizeSearchQuery(query))
   const terms = parsed.keywords
     .map((term) => term.trim().toLowerCase())
     .filter((term) => term.length > 0)
@@ -1104,6 +1109,22 @@ function useBffAndModeSearch(
   }
 }
 
+// Convex resume-search queries (searchWithTagExpansionPaginated /
+// searchWithTagExpansionScanPage) accept location/role/age/salary filters but
+// NOT `keywords` — the keyword match itself is expressed via the query +
+// keywordGroups above. Strip the BFF-only `keywords` field before spreading
+// filters into Convex args; dropping it does not narrow search semantics.
+export function stripKeywordsFromConvexFilters(filters: ConvexResumeFilters | undefined): ConvexResumeFilters | undefined {
+  if (!filters) {
+    return filters
+  }
+  if (filters.keywords === undefined) {
+    return filters
+  }
+  const { keywords: _keywords, ...rest } = filters
+  return rest
+}
+
 export function useConvexResumes(
   limit: number = DEFAULT_CONVEX_RESUME_LIMIT,
   query?: string,
@@ -1260,7 +1281,7 @@ export function useConvexResumes(
               expandedFrom,
             })),
             jobDescriptionId: normalizedJobDescriptionId,
-            ...(options?.filters ?? {}),
+            ...stripKeywordsFromConvexFilters(options?.filters),
             ...(options?.sortBy ? {
               sortBy: options.sortBy,
               sortOrder: resolvedSortOrder,
@@ -1285,7 +1306,7 @@ export function useConvexResumes(
               term,
               expandedFrom,
             })),
-            ...(options?.filters ?? {}),
+            ...stripKeywordsFromConvexFilters(options?.filters),
           }
         : 'skip',
     {

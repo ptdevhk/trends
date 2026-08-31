@@ -161,4 +161,50 @@ describe("resume digest domain-token stability (F3)", () => {
       expect(tokens).toContain(token);
     }
   });
+
+  it("regression: structured filter tokens survive the 1500-char cap ahead of bulk work history prose", () => {
+    // Generate enough work history prose to threaten the 1500-char limit.
+    // Each entry has a unique companyName and raw text so compactContent and workTokens generate lots of tokens.
+    const longWorkHistory = Array.from({ length: 10 }, (_, i) => ({
+      companyName: `机械制造精工科技实业集团有限责任公司第${i + 1}特种装备制造加工基地`,
+      jobTitle: `高级数控机床加工中心装配调试与工艺规划技术工程师第${i + 1}岗位`,
+      raw: `201${i}-01 至 201${i}-12 佛山顺德第${i + 1}基地 负责精密机床加工工艺规划设备维保流水线优化及现场管理第${i + 1}项目，持续跟进生产进度与技术攻关任务，完成五金模具结构改进调试方案编制${i + 1}。`,
+      description: `负责精密机床加工工艺规划设备维保流水线优化及现场管理第${i + 1}项目，持续跟进生产进度与技术攻关任务，完成五金模具结构改进调试方案编制${i + 1}。`,
+    }));
+
+    const digest = buildResumeDigest(
+      resume(
+        {
+          name: "赵六",
+          desiredPosition: "机械技术员",
+          education: "本科",
+          location: "广东省佛山市顺德区",
+          workHistory: longWorkHistory,
+        },
+        "cnc 数控 销售 sales 机床 冷文本",
+        {
+          industryTags: ["精密制造", "机床装备"],
+          verifiedRoleYears: {
+            "cnc_operator": 5,
+          },
+        },
+      ),
+      Date.now(),
+    );
+
+    const searchText = digest.searchText ?? "";
+    expect(searchText.length).toBeGreaterThan(500);
+
+    // Domain tokens survive due to priorityTokens protection.
+    for (const token of DOMAIN_TOKENS) {
+      expect(searchText.includes(token)).toBe(true);
+    }
+
+    // Structured metadata tokens precede workTokens so they survive the cap.
+    expect(searchText.includes("佛山")).toBe(true);
+    expect(searchText.includes("本科")).toBe(true);
+    expect(searchText.includes("cnc_operator")).toBe(true);
+    expect(searchText.includes("精密制造")).toBe(true);
+  });
 });
+
