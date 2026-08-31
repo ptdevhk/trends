@@ -254,14 +254,15 @@ sync_convex_env() {
     # Always push role default when still empty after ensure
     if [ -z "$(read_env_value "$PREVIEW_ENV" BFF_API_URL)" ]; then
         echo "WARN: BFF_API_URL still empty in $PREVIEW_ENV — pushing ${preview_bff_default} to Convex only" >&2
-        if docker exec -e CONVEX_ENV_VALUE="$preview_bff_default" "$CONVEX_CONTAINER" bash -lc \
+        # Pass values via docker client environment, not argv, because argv is world-readable in ps (2026-08-31 drain-incident leak class).
+        if CONVEX_ENV_VALUE="$preview_bff_default" docker exec -e CONVEX_ENV_VALUE "$CONVEX_CONTAINER" bash -lc \
             'cd /app/packages/convex && npx convex env set BFF_API_URL "$CONVEX_ENV_VALUE" >/dev/null'; then
             synced=$((synced + 1))
             echo "Synced BFF_API_URL (default ${preview_bff_default}) into preview Convex env."
         fi
     fi
     if [ -z "$(read_env_value "$PREVIEW_ENV" TRENDS_DEPLOYMENT_ROLE)" ]; then
-        if docker exec -e CONVEX_ENV_VALUE="preview" "$CONVEX_CONTAINER" bash -lc \
+        if CONVEX_ENV_VALUE="preview" docker exec -e CONVEX_ENV_VALUE "$CONVEX_CONTAINER" bash -lc \
             'cd /app/packages/convex && npx convex env set TRENDS_DEPLOYMENT_ROLE "$CONVEX_ENV_VALUE" >/dev/null'; then
             synced=$((synced + 1))
             echo "Synced TRENDS_DEPLOYMENT_ROLE=preview into preview Convex env."
@@ -287,7 +288,7 @@ sync_convex_env() {
             value="$preview_bff_default"
         fi
 
-        if docker exec -e CONVEX_ENV_VALUE="$value" "$CONVEX_CONTAINER" bash -lc "cd /app/packages/convex && npx convex env set '$key' \"\$CONVEX_ENV_VALUE\" >/dev/null"; then
+        if CONVEX_ENV_VALUE="$value" docker exec -e CONVEX_ENV_VALUE "$CONVEX_CONTAINER" bash -lc "cd /app/packages/convex && npx convex env set '$key' \"\$CONVEX_ENV_VALUE\" >/dev/null"; then
             synced=$((synced + 1))
             echo "Synced $key into preview Convex env."
         else

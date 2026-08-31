@@ -34,7 +34,15 @@ Trends BFF:
 |--------|----------------|
 | local `.env` | `https://cpa.pt-mes.com/v1` |
 | ptcloud prod `/etc/trends/env` | `http://127.0.0.1:8317/v1` |
-| ptcloud preview `.env.preview` | `http://127.0.0.1:8317/v1` |
+| ptcloud preview `.env.preview` | `http://172.24.0.1:8317/v1` |
+
+## Preview container routing (2026-09-01)
+
+- Preview Convex runs in Docker on the pinned subnet `172.24.0.0/16`, gateway `172.24.0.1`; the container cannot reach host loopback `127.0.0.1:8317`.
+- CPA config `host: ""` listens on all interfaces; the UFW INPUT rule `ufw allow in from 172.24.0.0/16 to any port 8317 proto tcp` allows the container-to-CPA path (traffic to the gateway IP hits the host INPUT chain).
+- Preview `AI_API_BASE` is `http://172.24.0.1:8317/v1` in both `.env.preview` and preview Convex env; `deploy/sync-preview-convex-env.sh --sync-only` keeps them aligned.
+- The temporary bridge `/usr/local/bin/cpa-bridge-8317.mjs` on `172.24.0.1:18317` (2026-08-31 workaround) was removed 2026-09-01 — do not recreate it.
+- The subnet pin lives in `deploy/docker/docker-compose.preview.yml`; `preview-upgrade.sh` re-copies it to the preview root on every upgrade.
 
 `AI_API_KEY` is the CPA client key. Poe credentials stay in CPA config / `POE_API_KEY`.
 Secrets live in `~/.secrets/com.trends.app.env` (never in the repo).

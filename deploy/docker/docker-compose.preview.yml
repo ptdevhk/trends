@@ -120,3 +120,14 @@ volumes:
   convex-cache:
   convex-state:
   convex-node-modules:
+
+# Pin the default network subnet so the container gateway is always 172.24.0.1.
+# UFW INPUT allows 172.24.0.0/16 -> host port 8317 (CPA LLM proxy), and preview
+# AI_API_BASE is http://172.24.0.1:8317/v1 — both depend on the gateway staying
+# stable across network recreation (preview-upgrade.sh re-copies this file and
+# force-recreates containers on every upgrade).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.24.0.0/16
