@@ -105,7 +105,8 @@ export class ResumePolicyEnforcer {
     sourceKey?: string | null;
   }): ResumeVisibilityEvaluation {
     const market = deriveMarketFromSourceKey(resume.sourceKey);
-    const aliasIndex = this.aliasIndexByMarket[market === "MY" ? "my" : "cn"];
+    const marketKey = market === "MY" || market === "TH" ? "my" : "cn";
+    const aliasIndex = this.aliasIndexByMarket[marketKey];
     const hits = matchResumeCompanyPolicies(
       {
         workHistory: resume.workHistory,

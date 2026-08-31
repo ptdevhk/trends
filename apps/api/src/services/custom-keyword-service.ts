@@ -4,7 +4,7 @@ import JSON5 from "json5";
 import { findProjectRoot } from "./db.js";
 import { logger } from "./logger.js";
 
-export type KeywordMarket = "CN" | "MY";
+export type KeywordMarket = "CN" | "MY" | "TH";
 export type ConfigSourceOrigin = "system" | "workspace";
 export type WorkflowSeedCollectionSourceType = "job5156" | "51job" | "seek";
 
@@ -95,7 +95,7 @@ type Job5156LocationSnapshot = {
 };
 
 export function parseKeywordMarket(value: unknown): KeywordMarket | null {
-    return value === "CN" || value === "MY" ? value : null;
+    return value === "CN" || value === "MY" || value === "TH" ? value : null;
 }
 
 export function parseMarketList(value: unknown): KeywordMarket[] | undefined {

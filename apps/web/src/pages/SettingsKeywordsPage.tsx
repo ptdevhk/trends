@@ -35,6 +35,7 @@ import {
 const MARKET_OPTIONS: Array<{ value: KeywordMarket; label: string }> = [
   { value: 'CN', label: 'CN' },
   { value: 'MY', label: 'MY' },
+  { value: 'TH', label: 'TH' },
 ]
 
 export function SettingsKeywordsPage() {

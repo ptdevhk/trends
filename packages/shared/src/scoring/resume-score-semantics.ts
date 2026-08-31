@@ -14,6 +14,7 @@ export const RELATED_EXP_DISPLAY_WEIGHT = 0.5;
 export const INDUSTRY_DB_DISPLAY_CAP = 50;
 export const INDUSTRY_DB_SINGLE_HIT_SCORE = 40;
 export const MY_INDUSTRY_DB_FLOOR = 40;
+export const TH_INDUSTRY_DB_FLOOR = 40;
 
 export function computeIndustryDbDirectHitScore(
   hasBrandHits: boolean,
@@ -55,7 +56,9 @@ export function applyMarketIndustryDbFloor(
 ): number {
   const normalizedMarket = typeof market === "string" ? market.trim().toUpperCase() : "";
   const safeIndustryDb = industryDb !== undefined && Number.isFinite(industryDb) ? Math.max(0, industryDb) : 0;
-  return normalizedMarket === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, safeIndustryDb) : safeIndustryDb;
+  return normalizedMarket === "MY" ? Math.max(MY_INDUSTRY_DB_FLOOR, safeIndustryDb)
+    : normalizedMarket === "TH" ? Math.max(TH_INDUSTRY_DB_FLOOR, safeIndustryDb)
+    : safeIndustryDb;
 }
 
 /**

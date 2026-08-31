@@ -14,6 +14,7 @@ import {
   computeRelatedExpContribution,
   computeFinalAiScore,
   recommendationFromFinalAiScore,
+  TH_INDUSTRY_DB_FLOOR,
   MY_INDUSTRY_DB_FLOOR,
   RELATED_EXP_DISPLAY_WEIGHT,
   INDUSTRY_DB_DISPLAY_CAP,
@@ -39,6 +40,10 @@ describe("constants", () => {
 
   it("MY_INDUSTRY_DB_FLOOR is 40", () => {
     expect(MY_INDUSTRY_DB_FLOOR).toBe(40);
+  });
+
+  it("TH_INDUSTRY_DB_FLOOR is 40", () => {
+    expect(TH_INDUSTRY_DB_FLOOR).toBe(40);
   });
 });
 
@@ -66,6 +71,10 @@ describe("computeIndustryDbDirectHitScore", () => {
 describe("applyMarketIndustryDbFloor", () => {
   it("applies the MY floor when no hits exist", () => {
     expect(applyMarketIndustryDbFloor("MY", 0)).toBe(40);
+  });
+
+  it("applies the TH floor when no hits exist", () => {
+    expect(applyMarketIndustryDbFloor("TH", 0)).toBe(40);
   });
 
   it("preserves the 50-point hit score for MY resumes", () => {

@@ -29,7 +29,8 @@ export function matchResumeCompanyPolicyCached(
   input: CompanyPolicyMatchInput,
 ): CompanyPolicyMatchHit[] {
   const market = deriveMarketFromSourceKey(input.sourceKey)
-  return matchResumeCompanyPolicies(input, lastAliasIndexByMarket[market === 'MY' ? 'my' : 'cn'])
+  const marketKey = market === 'MY' || market === 'TH' ? 'my' : 'cn'
+  return matchResumeCompanyPolicies(input, lastAliasIndexByMarket[marketKey])
 }
 
 /**
@@ -92,7 +93,8 @@ export function useCompanyPolicyIndex(enabled: boolean = true) {
   const matchResume = useMemo(() => {
     return (input: CompanyPolicyMatchInput): CompanyPolicyMatchHit[] => {
       const market = deriveMarketFromSourceKey(input.sourceKey)
-      return matchResumeCompanyPolicies(input, aliasIndexByMarket[market === 'MY' ? 'my' : 'cn'])
+      const marketKey = market === 'MY' || market === 'TH' ? 'my' : 'cn'
+      return matchResumeCompanyPolicies(input, aliasIndexByMarket[marketKey])
     }
   }, [aliasIndexByMarket])
 

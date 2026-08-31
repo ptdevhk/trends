@@ -69,13 +69,17 @@ export function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-export function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
+export function parseMarkets(value: unknown): Array<"CN" | "MY" | "TH"> | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
 
-  const markets = value.filter((item): item is "CN" | "MY" => item === "CN" || item === "MY");
+  const markets = value.filter((item): item is "CN" | "MY" | "TH" => item === "CN" || item === "MY" || item === "TH");
   return markets.length > 0 ? Array.from(new Set(markets)) : undefined;
+}
+
+export function parseWorkflowMarket(value: unknown): "CN" | "MY" | "TH" | null {
+  return value === "CN" || value === "MY" || value === "TH" ? value : null;
 }
 
 export function parseVisible(value: unknown): boolean | undefined {
@@ -317,7 +321,7 @@ export function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | n
 
   const id = readString(value.id);
   const label = readString(value.label);
-  const market = value.market === "CN" || value.market === "MY" ? value.market : null;
+  const market = parseWorkflowMarket(value.market);
   const location = readString(value.location) ?? "";
   const keywords = Array.isArray(value.keywords)
     ? value.keywords

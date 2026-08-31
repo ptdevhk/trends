@@ -3,7 +3,7 @@
  * Used by ingest pipeline, rule scoring, and UI to apply
  * market-specific behavior (e.g., industry DB graceful degradation for MY).
  */
-export type KeywordMarket = "CN" | "MY";
+export type KeywordMarket = "CN" | "MY" | "TH";
 
 /**
  * Maps sourceKey values (from Convex resume.sourceKey and collectionSource.type)

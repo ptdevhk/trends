@@ -19,7 +19,7 @@ export type {
   ConfigSourceSummary,
 }
 
-export type KeywordMarket = 'CN' | 'MY'
+export type KeywordMarket = 'CN' | 'MY' | 'TH'
 export type ConfigSourceOrigin = 'system' | 'workspace'
 export type WorkflowSeedCollectionSourceType = 'job5156' | '51job' | 'seek'
 
@@ -458,7 +458,7 @@ function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
   }
 
   const markets = Array.isArray(value.markets)
-    ? value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY')
+    ? value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY' || item === 'TH')
     : undefined
   const visible = typeof value.visible === 'boolean' ? value.visible : undefined
   const source = value.source === 'system' || value.source === 'workspace' ? value.source : undefined
@@ -512,7 +512,7 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
     visible,
     parentKeyword: readString(value.parentKeyword) ?? undefined,
     markets: Array.isArray(value.markets)
-      ? Array.from(new Set(value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY')))
+      ? Array.from(new Set(value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY' || item === 'TH')))
       : undefined,
   }
 }
@@ -547,7 +547,7 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
   const market = readString(value.market)
   const location = readString(value.location) ?? ''
   const collectionSource = parseWorkflowSeedCollectionSource(value.collectionSource)
-  if (!id || !label || (market !== 'CN' && market !== 'MY') || !collectionSource || !Array.isArray(value.keywords)) {
+  if (!id || !label || (market !== 'CN' && market !== 'MY' && market !== 'TH') || !collectionSource || !Array.isArray(value.keywords)) {
     return null
   }
 
@@ -566,7 +566,7 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
   return {
     id,
     label,
-    market,
+    market: market as KeywordMarket,
     location,
     keywords: Array.from(new Set(keywords)),
     collectionSource: {

@@ -220,6 +220,16 @@ const LOCATION_TREE: LocationSeed[] = [
       },
     ],
   },
+  {
+    name: "Thailand",
+    aliases: ["TH", "泰国"],
+    children: [
+      {
+        name: "Bangkok",
+        aliases: ["Bangkok Thailand", "Bangkok, Thailand", "曼谷"],
+      },
+    ],
+  },
 ];
 
 const nodesById = new Map<string, InternalLocationNode>();

@@ -299,7 +299,9 @@ export function buildRelatedExpCtxArg(
     let industryVerifiedRelevantYears = 0;
     const matchedWorkEntries: string[] = [];
     const salesRoleContext = relatedExpContext.roleFilterType?.trim().toLowerCase() === "sales";
-    const myMarketContext = relatedExpContext.market?.trim().toUpperCase() === "MY";
+    const normalizedMarket = relatedExpContext.market?.trim().toUpperCase();
+    // MY/TH share the unverified sales-experience escape hatch (see ai-matching.ts).
+    const myMarketContext = normalizedMarket === "MY" || normalizedMarket === "TH";
     let domainRelevantUnverified = false;
 
     for (const signal of matchingSignals) {

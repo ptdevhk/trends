@@ -262,10 +262,13 @@ function parseNumericBreakdown(value: unknown): MatchingBreakdown | undefined {
 type MatchingResumeRoleSignal = NonNullable<MatchingRequest["resume"]["roleSignals"]>[number];
 type MatchingResumeWorkEntry = NonNullable<MatchingResumeRoleSignal["matchedWorkEntries"]>[number];
 
-function resolveResumeMarket(resume: MatchingRequest["resume"]): "CN" | "MY" {
+function resolveResumeMarket(resume: MatchingRequest["resume"]): "CN" | "MY" | "TH" {
     const explicitMarket = resume.market?.trim().toUpperCase();
     if (explicitMarket === "MY") {
         return "MY";
+    }
+    if (explicitMarket === "TH") {
+        return "TH";
     }
     if (explicitMarket === "CN") {
         return "CN";
@@ -380,7 +383,7 @@ function buildRelatedExpNormalizeArg(
     let directRoleMatch = false;
     let industryVerifiedRelevantYears = 0;
     const matchedWorkEntries: string[] = [];
-    const myMarketContext = relatedExpContext.market === "MY";
+    const myMarketContext = relatedExpContext.market === "MY" || relatedExpContext.market === "TH";
     let domainRelevantUnverified = false;
 
     for (const signal of matchingSignals) {
@@ -909,7 +912,7 @@ Return strictly valid JSON:
             let effectiveScore = score;
             let effectiveRecommendation = recommendation;
 
-            if (market === "MY" && llmRelatedExp !== undefined) {
+            if ((market === "MY" || market === "TH") && llmRelatedExp !== undefined) {
                 const industryDb = computeDeterministicIndustryDb(request.resume);
                 let effectiveRelatedExp = clamp(
                     llmRelatedExp,
@@ -933,7 +936,7 @@ Return strictly valid JSON:
                 }
 
                 effectiveScore = computeFinalAiScore(effectiveRelatedExp, industryDb);
-                if (recommendation === "no_match" && market !== "MY") {
+                if (recommendation === "no_match" && market !== "MY" && market !== "TH") {
                     effectiveScore = Math.min(effectiveScore, 39);
                 }
                 effectiveRecommendation = recommendationFromFinalAiScore(effectiveScore);

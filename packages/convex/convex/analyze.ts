@@ -226,7 +226,7 @@ export function normalizeResume(
     const source = typeof root.source === "string"
         ? root.source
         : (typeof content.source === "string" ? content.source : undefined);
-    const market = explicitMarket === "MY" || explicitMarket === "CN"
+    const market = explicitMarket === "MY" || explicitMarket === "TH" || explicitMarket === "CN"
         ? explicitMarket
         : deriveMarketFromSourceKey(resolveResumeAnalysisSourceKey({ sourceKey, source }));
 

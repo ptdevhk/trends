@@ -97,6 +97,7 @@ export function buildSeekNameSearchUrl(name: string, market?: string, roleTitles
 
 export function inferSeekMarket(_source: string, hint?: string): string {
   if (hint === "HK" || hint === "hk") return "HK";
+  if (hint === "TH" || hint === "th") return "TH";
   // Source hostnames for MY market include both hk. and my. subdomains
   // (Seek routes by market param, not subdomain)
   return "MY";

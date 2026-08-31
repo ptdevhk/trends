@@ -36,7 +36,7 @@ const REPO_ROOT = path.resolve(API_ROOT, "../..");
 // --- Shared schemas ---
 
 const AgentsConfigSchema = z.record(z.string(), z.unknown());
-const KeywordMarketSchema = z.enum(["CN", "MY"]);
+const KeywordMarketSchema = z.enum(["CN", "MY", "TH"]);
 const WorkflowSeedCollectionSourceSchema = z.object({
   type: z.enum(["job5156", "51job", "seek"]),
   exactUrl: z.string().optional(),

@@ -407,6 +407,21 @@ describe("isLocationMatch", () => {
   it("matches Malaysia locations", () => {
     expect(isLocationMatch("Kuala Lumpur, Malaysia", "Kuala Lumpur MY")).toBe(true);
     expect(isLocationMatch("Kuala Lumpur", "Malaysia")).toBe(true);
+    expect(isLocationMatch("Selangor Malaysia", "Malaysia")).toBe(true);
+  });
+
+  it("matches Thailand locations via aliases and hierarchy", () => {
+    expect(isLocationMatch("Thailand", "Thailand")).toBe(true);
+    expect(isLocationMatch("Thailand", "泰国")).toBe(true);
+    expect(isLocationMatch("Thailand", "TH")).toBe(true);
+    expect(isLocationMatch("Bangkok", "Thailand")).toBe(true);
+    expect(isLocationMatch("Bangkok, Thailand", "Thailand")).toBe(true);
+  });
+
+  it("does not cross-match MY and TH", () => {
+    expect(isLocationMatch("Kuala Lumpur", "Thailand")).toBe(false);
+    expect(isLocationMatch("Bangkok", "Malaysia")).toBe(false);
+    expect(isLocationMatch("Thailand", "Malaysia")).toBe(false);
   });
 
   it("returns false for empty resume location against non-empty filter", () => {

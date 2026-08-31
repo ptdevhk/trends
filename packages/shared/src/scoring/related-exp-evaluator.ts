@@ -22,8 +22,9 @@ export interface RelatedExpContextInput {
     roleFilterType?: string;
     /** Minimum domain-role years required (from search profile or JD) */
     minRoleYears?: number;
-    /** "CN" | "MY" — market context */
-    market?: string;
+    /**
+     * "CN" | "MY" | "TH" — market context
+     */    market?: string;
     /** Output locale — "zh" | "en" */
     locale?: string;
 }
@@ -143,7 +144,7 @@ function classifyCoverage(
     if (domainYears === 0) {
         missingReasons.push("zero domain-verified relevant years");
         if (
-            options?.market === "MY"
+            (options?.market === "MY" || options?.market === "TH")
             && directRoleMatch
             && options.domainRelevantUnverified === true
         ) {

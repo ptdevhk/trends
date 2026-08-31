@@ -577,11 +577,14 @@ export function computeDirectIndustryDbScoreFromResume(resume: unknown): number 
     return clamp(Math.max(raw, directHitScore), 0, INDUSTRY_DB_SCORE_CAP);
 }
 
-function resolveResumeMarket(resume: unknown): "CN" | "MY" {
+function resolveResumeMarket(resume: unknown): "CN" | "MY" | "TH" {
     const ingestData = getResumeIngestData(resume);
     const explicitMarket = typeof ingestData.market === "string" ? ingestData.market.trim().toUpperCase() : "";
     if (explicitMarket === "MY") {
         return "MY";
+    }
+    if (explicitMarket === "TH") {
+        return "TH";
     }
     if (explicitMarket === "CN") {
         return "CN";
@@ -814,7 +817,7 @@ export function normalizeAnalysisResult(
     // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
     // A candidate explicitly rejected by the LLM must not be elevated to potential/match
     // even when they have recognized employer brand hits.
-    if (llmRecommendation === "no_match" && market !== "MY") {
+    if (llmRecommendation === "no_match" && market !== "MY" && market !== "TH") {
         score = Math.min(score, 39);
     }
 

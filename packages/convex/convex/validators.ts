@@ -233,7 +233,7 @@ export const relatedExpContextValidator = v.object({
     roleFilterType: v.optional(v.string()),
     /** Minimum domain-role years required (from search profile or JD) */
     minRoleYears: v.optional(v.number()),
-    /** "CN" | "MY" — market context for market-specific scoring floors */
+    /** "CN" | "MY" | "TH" — market context for market-specific scoring floors */
     market: v.optional(v.string()),
     /** Output locale for AI prompts — "zh" | "en" */
     locale: v.optional(v.string()),

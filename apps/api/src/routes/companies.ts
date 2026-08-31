@@ -81,7 +81,7 @@ const PolicySchema = z.object({
   createdBy: z.string().optional(),
 });
 
-const MarketScopeEnum = z.enum(["cn", "my"]);
+const MarketScopeEnum = z.enum(["cn", "my", "th"]);
 const PolicyErrorResponseSchema = z.object({
   success: z.literal(false),
   error: z.string(),

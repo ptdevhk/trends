@@ -594,7 +594,7 @@ export function overrideIndustryDbBreakdown(
   }
 
   let score = computeFinalAiScore(cappedRelatedExp, effectiveIndustryDb)
-  if (analysis.recommendation === 'no_match' && market !== 'MY') {
+  if (analysis.recommendation === 'no_match' && market !== 'MY' && market !== 'TH') {
     score = Math.min(score, 39)
   }
 

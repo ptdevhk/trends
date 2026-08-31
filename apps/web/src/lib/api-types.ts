@@ -5752,7 +5752,7 @@ export interface paths {
                          */
                         minRoleYears?: number;
                         /**
-                         * @description Market context: CN | MY
+                         * @description Market context: CN | MY | TH
                          * @example CN
                          */
                         market?: string;
@@ -9102,7 +9102,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    market?: "cn" | "my";
+                    market?: "cn" | "my" | "th";
                 };
                 header?: never;
                 path?: never;
@@ -9183,7 +9183,7 @@ export interface paths {
                     "application/json": {
                         companyKey: string;
                         /** @enum {string} */
-                        market?: "cn" | "my";
+                        market?: "cn" | "my" | "th";
                         /** @enum {string} */
                         preset?: "known_good" | "no_hire" | "none";
                         /** @enum {string} */
@@ -16155,7 +16155,7 @@ export interface paths {
                                 keyword: string;
                                 english?: string;
                                 category: string;
-                                markets?: ("CN" | "MY")[];
+                                markets?: ("CN" | "MY" | "TH")[];
                                 visible?: boolean;
                                 /** @enum {string} */
                                 source?: "system" | "workspace";
@@ -16172,13 +16172,13 @@ export interface paths {
                                 level: "province" | "city";
                                 parentKeyword?: string;
                                 visible: boolean;
-                                markets?: ("CN" | "MY")[];
+                                markets?: ("CN" | "MY" | "TH")[];
                             }[];
                             workflowSeeds: {
                                 id: string;
                                 label: string;
                                 /** @enum {string} */
-                                market: "CN" | "MY";
+                                market: "CN" | "MY" | "TH";
                                 location: string;
                                 keywords: string[];
                                 collectionSource: {
@@ -16224,7 +16224,7 @@ export interface paths {
                         keyword: string;
                         english?: string;
                         category: string;
-                        markets?: ("CN" | "MY")[];
+                        markets?: ("CN" | "MY" | "TH")[];
                         visible?: boolean;
                         /** @enum {string} */
                         source?: "system" | "workspace";
@@ -16246,7 +16246,7 @@ export interface paths {
                                 keyword: string;
                                 english?: string;
                                 category: string;
-                                markets?: ("CN" | "MY")[];
+                                markets?: ("CN" | "MY" | "TH")[];
                                 visible?: boolean;
                                 /** @enum {string} */
                                 source?: "system" | "workspace";
@@ -16369,7 +16369,7 @@ export interface paths {
                                 level: "province" | "city";
                                 parentKeyword?: string;
                                 visible: boolean;
-                                markets?: ("CN" | "MY")[];
+                                markets?: ("CN" | "MY" | "TH")[];
                             };
                         };
                     };
@@ -16473,7 +16473,7 @@ export interface paths {
                         keyword: string;
                         english?: string;
                         category: string;
-                        markets?: ("CN" | "MY")[];
+                        markets?: ("CN" | "MY" | "TH")[];
                         visible?: boolean;
                         /** @enum {string} */
                         source?: "system" | "workspace";
@@ -16495,7 +16495,7 @@ export interface paths {
                                 keyword: string;
                                 english?: string;
                                 category: string;
-                                markets?: ("CN" | "MY")[];
+                                markets?: ("CN" | "MY" | "TH")[];
                                 visible?: boolean;
                                 /** @enum {string} */
                                 source?: "system" | "workspace";
@@ -16677,7 +16677,7 @@ export interface paths {
                         id: string;
                         label: string;
                         /** @enum {string} */
-                        market: "CN" | "MY";
+                        market: "CN" | "MY" | "TH";
                         location: string;
                         keywords: string[];
                         collectionSource: {
@@ -16705,7 +16705,7 @@ export interface paths {
                                 id: string;
                                 label: string;
                                 /** @enum {string} */
-                                market: "CN" | "MY";
+                                market: "CN" | "MY" | "TH";
                                 location: string;
                                 keywords: string[];
                                 collectionSource: {
@@ -16817,7 +16817,7 @@ export interface paths {
                         id: string;
                         label: string;
                         /** @enum {string} */
-                        market: "CN" | "MY";
+                        market: "CN" | "MY" | "TH";
                         location: string;
                         keywords: string[];
                         collectionSource: {
@@ -16845,7 +16845,7 @@ export interface paths {
                                 id: string;
                                 label: string;
                                 /** @enum {string} */
-                                market: "CN" | "MY";
+                                market: "CN" | "MY" | "TH";
                                 location: string;
                                 keywords: string[];
                                 collectionSource: {

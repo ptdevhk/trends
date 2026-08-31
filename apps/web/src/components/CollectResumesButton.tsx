@@ -218,7 +218,7 @@ export function CollectResumesButton({
     },
     {
       value: SEARCH_PROFILE_SOURCE_TYPES.seek,
-      label: t('quickStart.collectSourceSeek', 'Malaysia · SEEK'),
+      label: t('quickStart.collectSourceSeek', 'SEEK (MY/TH)'),
     },
   ]), [t])
   const maxPagesLabel = t('quickStart.collectMaxPagesLabel', 'Collect page limit')

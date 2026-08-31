@@ -466,7 +466,7 @@ export const getEffectivePolicy = query({
   args: {
     companyKey: v.string(),
     workspaceSlug: v.optional(v.string()),
-    market: v.optional(v.union(v.literal("CN"), v.literal("MY"))),
+    market: v.optional(v.union(v.literal("CN"), v.literal("MY"), v.literal("TH"))),
     writeSecret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

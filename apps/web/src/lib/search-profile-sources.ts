@@ -67,13 +67,13 @@ export type CollectionSource = {
   maxPages?: number
 }
 
-const SOURCE_MARKET_MAP: Record<CollectionSourceType, 'CN' | 'MY'> = {
+const SOURCE_MARKET_MAP: Record<CollectionSourceType, 'CN' | 'MY' | 'TH'> = {
   [SEARCH_PROFILE_SOURCE_TYPES.job5156]: 'CN',
   [SEARCH_PROFILE_SOURCE_TYPES.job51]: 'CN',
   [SEARCH_PROFILE_SOURCE_TYPES.seek]: 'MY',
 }
 
-export function getCollectionSourceMarket(sourceType: CollectionSourceType): 'CN' | 'MY' {
+export function getCollectionSourceMarket(sourceType: CollectionSourceType): 'CN' | 'MY' | 'TH' {
   return SOURCE_MARKET_MAP[sourceType]
 }
 

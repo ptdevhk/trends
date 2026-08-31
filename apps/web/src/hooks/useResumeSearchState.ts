@@ -169,7 +169,7 @@ function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefin
 function resolveRelatedExpMarket(
   state: UrlSearchState,
   recentSearches: ResumeSearchRecentItem[],
-): 'CN' | 'MY' | undefined {
+): 'CN' | 'MY' | 'TH' | undefined {
   const explicitCollectionSource = recentSearches.find(
     (item) => item.collectionSource,
   )?.collectionSource
@@ -189,6 +189,10 @@ function resolveRelatedExpMarket(
       return 'MY'
     }
 
+    if (hierarchy.country === 'Thailand') {
+      return 'TH'
+    }
+
     if (hierarchy.country === '中国') {
       return 'CN'
     }
@@ -205,7 +209,7 @@ function buildRelatedExpContext(
 ): {
   roleFilterType?: string
   minRoleYears?: number
-  market?: 'CN' | 'MY'
+  market?: 'CN' | 'MY' | 'TH'
 } | undefined {
   const roleFilterType = resolveEffectiveRoleFilterType(state)
   const minRoleYears = state.filters.minRoleYears

@@ -1584,7 +1584,7 @@ export const AnalyzeRequestSchema = z.object({
   // P1: evidence ceiling context — threads through to normalizeAnalysisResult
   roleFilterType: z.string().optional().openapi({ example: "sales", description: "Role type required: sales | technical | any" }),
   minRoleYears: z.number().min(0).optional().openapi({ example: 1, description: "Minimum domain-role years required" }),
-  market: z.string().optional().openapi({ example: "CN", description: "Market context: CN | MY" }),
+  market: z.string().optional().openapi({ example: "CN", description: "Market context: CN | MY | TH" }),
   targets: z.array(ExactResumeTargetSchema).min(1).max(500).optional(),
   resumeIds: z.array(z.string().trim().min(1)).min(1).max(500).optional(),
 }).superRefine((value, ctx) => {

@@ -7,7 +7,7 @@ import {
   type SearchProfileSource,
 } from "@/lib/search-profile-sources";
 
-export type KeywordMarket = "CN" | "MY";
+export type KeywordMarket = "CN" | "MY" | "TH";
 export type ConfigSourceOrigin = "system" | "workspace";
 
 export type KeywordCategory =
