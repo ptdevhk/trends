@@ -387,3 +387,173 @@ PR #1367 pipe helper was not used.
    `projects/trends/work/2026-08-28-my-th-cnc-service-engineer-profiles/` through
    SkillWiki. Keep it in progress until collection review and the merge/ingest
    decision are recorded.
+
+## 12. MY/TH readiness + search-path fixes (2026-08-31, macos-dev — RESUMED & COMPLETED)
+
+Context: owner asked "are MY,TH ready for searching profiles? what progress are
+they? start `make dev`". First pass (morning) fixed 3 search-path defects;
+resumed pass (afternoon, subagent-driven per owner) swept missed TH sites,
+added epoch-5 bump + tests, re-verified in browser, committed (NO-PUSH).
+
+### Facts for the answer (verified this session)
+- MY/TH CNC Service Engineer profiles ARE SHIPPED and registered: PR #1366
+  merged (commit `e04af096`, 2026-08-29) — YAMLs
+  `config/search-profiles/seek-malaysia-talent-search-service-engineer.yaml` +
+  `seek-thailand-talent-search-service-engineer.yaml`, both `active` in local
+  Convex `search_profiles:list` (quickStart rank 5/6), quick-start cards render
+  on the landing page (Malaysia/Thailand · SEEK · CNC Service Engineer with
+  Collect/Edit buttons). Filters: `locations:[Malaysia|Thailand]`,
+  `minRoleYears:1`, `roleFilterType:"technical"`.
+- Collection complete 2026-08-29 (HANDOFF §11): 50 TH + 48 MY unique profiles;
+  ingested into PREVIEW on ptcloud (2026-08-30, owner-approved, prod off) via
+  PR #1368 extension-json import; 98 live rows verified. Preview is the
+  acceptance env and HAS the MY/TH data; production stays off (owner gate).
+- LOCAL dev corpus is CN-only (52 rows, all `hr.job5156.com`), so MY/TH
+  searches locally return 0 rows by design — the profiles are usable where the
+  data lives (preview), not on this local DB.
+
+### Code changes (COMMITTED this round — see §12.1 commits; NO-PUSH per repo rule)
+Three search-path defects were found and fixed while answering. All typecheck
+(convex/api/web/shared `tsc --noEmit` clean) and targeted tests pass
+(location-tree 75, scoring 99, resume-scoring 67, search-state 52).
+
+1. **`keywords` ArgumentValidationError in web OR path** —
+   `apps/web/src/hooks/useConvexResumes.ts`: `searchWithTagExpansionPaginated` /
+   `searchWithTagExpansionScanPage` args spread `options?.filters` including the
+   BFF-only `keywords` field → Convex rejected the whole query with
+   `Object contains extra field 'keywords'` and the UI showed the ErrorBoundary.
+   Fix: `stripKeywordsFromConvexFilters()` strips `keywords` before the spread
+   (keyword matching is expressed via `query` + `keywordGroups`, so nothing is
+   lost). Verified: the Malaysia quick-start search now renders (no error) and
+   `CNC OR 销售` China returns rows.
+2. **`销售` search recall gap (digest index)** —
+   `packages/convex/convex/lib/resume_digests.ts` + `search_text.ts`: the
+   compact digest searchText only indexed the 3 most-recent work entries and
+   dropped 销售/sales entirely from the full `searchText` build (work-history
+   job titles/descriptions are excluded there). Result: `CNC 销售` returned 0
+   even though 文先生/贺先生 literally hold 销售顾问/销售工程师 roles. Fixes:
+   (a) `compactWorkHistory` now uses `MAX_RESUME_WORK_HISTORY_LIMIT` (all
+   entries, capped at 10); (b) new `deriveWorkHistorySearchTokens()` appends
+   jieba prose tokens + domain aliases (销售→sales, cnc↔数控) from work-history
+   descriptions/raw/jobTitle into the digest searchText with cap priority.
+   `backfillResumeDigests` re-run (52/52). Verified: digest rows with
+   销售/sales token went 0 → 2; `CNC 销售` now returns 3 results (王/贺/文先生);
+   `CNC OR 销售` China = 51.
+3. **Thailand market support across the stack** (TH was MY-only everywhere):
+   - `packages/shared/src/location-tree.ts`: added `Thailand` country node
+     (aliases TH/泰国, Bangkok child) — previously only Malaysia existed, so
+     `locations:["Thailand"]` filtered everything out. Tests added.
+   - `packages/shared/src/market.ts`: `KeywordMarket = "CN" | "MY" | "TH"`;
+     `resume-normalization.ts` `inferSeekMarket` accepts `hint=TH`.
+   - Scoring/analysis gates widened MY→MY|TH: `resume-score-semantics.ts`
+     (`TH_INDUSTRY_DB_FLOOR = 40`, `applyMarketIndustryDbFloor`),
+     `related-exp-evaluator.ts` (domain-relevant-unverified escape hatch),
+     `apps/api/src/services/ai-matching.ts` (`resolveResumeMarket` returns TH,
+     no-match cap excludes TH, MY/TH related-exp path), convex
+     `analysis_normalization.ts` (same), `apps/web/src/lib/resume-scoring.ts`
+     (no-match cap).
+   - Policy routing: `resume-policy-enforcer.ts` +
+     `useCompanyPolicyIndex.ts` route TH sourceKey to the `my` alias index.
+   - Settings/validation: `KeywordMarket` types widened in
+     `custom-keyword-service.ts`, `useIndustryKeywords.ts`,
+     `system-settings/lib.ts` (TH accepted in workflow seeds);
+     `workspace-config-service.ts` `parseWorkflowMarket` accepts TH; config
+     route `KeywordMarketSchema = z.enum(["CN","MY","TH"])`; resumes schema
+     market description updated.
+   - `useResumeSearchState.ts` `resolveRelatedExpMarket` returns 'TH' for
+     Thailand location; `search-profile-sources.ts` `getCollectionSourceMarket`
+     widened.
+   - NOTE: `deriveMarketFromSourceKey` still returns MY for `seek` sourceKey
+     (no TH sourceKey exists yet) — TH rows rely on ingest `market:"TH"` or
+     location hierarchy; a future `SOURCE_KEY_TO_MARKET["seek"]` split is the
+     remaining gap if TH is collected via a distinct sourceKey.
+
+### Verification done (first pass)
+- `make ci-local` NOT yet run (owner paused mid-session; completed in resumed
+  pass below).
+- Targeted tests green: location-tree 75 (incl. new TH + no-cross-match cases),
+  shared scoring 99, web resume-scoring 67, search-state 52.
+- Browser (chrome-debug :9222): `CNC 销售` → "3 results", `CNC OR 销售` China →
+  51, Malaysia quick-start URL renders the results UI (0 rows locally = data
+  absence, no error boundary). `q=Malaysia` still returns 0 locally (CN-only
+  corpus + no Malaysia tokens in CN digests — expected).
+
+### Resumed pass (2026-08-31 afternoon, subagent-driven)
+Two review subagents (missed-TH-site sweep + diff correctness review) then
+three implementation subagents produced, parent-verified:
+- **Epoch 5 bump** `packages/shared/src/ingest-compute-epoch.ts` (digest
+  work-history materialization changes the compute contract — without the
+  bump, `isComputeStale` stays false after deploy and preview/prod digests
+  silently stay stale; the standard reingest drain stamps epoch 5 + rebuilds).
+  Guard test updated per file convention (epoch-4 check downgraded to
+  contains-match, new epoch-5 tail test). Shared dist rebuilt.
+- **Missed TH widenings** (each verified in source before fixing):
+  `custom-keyword-service.ts` `parseKeywordMarket` (P0 — dropped TH workflow
+  seeds), `analysis_tasks.ts` `myMarketContext` (P0 — Convex async analysis
+  missed the MY/TH escape hatch), `workspace-config-service.ts` `parseMarkets`
+  + obsolete cast removed, `company_registry.ts` `getEffectivePolicy` market
+  union, `companies.ts` `MarketScopeEnum` +th, web `system-settings/lib.ts`
+  markets filters (3 sites incl. parseWorkflowSeed), `MARKET_OPTIONS` +TH on
+  both keywords pages, stale `as string` casts removed
+  (`resume-policy-enforcer.ts`, `useCompanyPolicyIndex.ts`).
+- **Digest token priority reorder** `resume_digests.ts`: structured metadata
+  (location/education/role/ingest tokens) now precede bulk workTokens under
+  the 1500-char cap. Regression test added
+  (`resume-digest-domain-tokens.test.ts`).
+- **Tests added**: TH_INDUSTRY_DB_FLOOR=40 + TH floor application;
+  stripKeywordsFromConvexFilters (3 cases; helper exported for tests).
+- **api-types.ts regenerated** (KeywordMarket + MarketScopeEnum widenings; CI
+  `check-node` gate diffs it vs HEAD so it must land in the same commit).
+- **Deferred (recorded, not done)**: `discovery.py` TH query pack (research
+  hub, not the resume market path); generated `resume-ai-prompts.ts` MY-only
+  prompt text (runtime deterministic override handles TH; needs prompt-spec
+  edit + regen).
+
+### Resumed-pass verification
+- `check-node` components: typechecks ×4 clean, web+ext lint clean, i18n
+  parity clean. Full suites: shared 699/699; web 2221/2225 — the 4 timeouts
+  (ReviewPackets, IndustryVerification ×2, SearchProfileEditorDialog) ALL
+  pass in isolation (machine-load flakes: coverage ran concurrently with the
+  dev stack + Chrome; not regressions). Convex/api targeted suites green
+  (companies 19, custom-keyword 43+34, workspace-config 60+70, digest 43).
+- Browser (chrome-debug :9222, fresh dev stack): `CNC 销售` → 3 results;
+  `CNC OR 销售` → 51; `locations=Thailand` parses clean (0 rows = CN-only
+  corpus, no error); settings keywords TH checkbox renders + toggles
+  (aria-checked true); Thailand + Malaysia quick-start cards render with
+  Collect buttons; no error boundaries. Fresh-stack note: old browser cookie
+  → 403 on the un-scoped `/resumes` route (stale session, pre-existing);
+  workspace route `/dev/resumes` works; re-login via `demo-admin`.
+- Local digest backfill re-run AFTER the token reorder (52/52).
+- Full `make ci-local`: the api-types gate requires the file to be COMMITTED
+  (gate = `git diff --exit-code` vs HEAD) — green capture done post-commit.
+
+### Owner items (unchanged)
+- Owner still owns: prod ingest gate for MY/TH (preview done), human collect
+  gate (unpacked-load on live employer Chrome, §10/§11), and the "is it ready"
+  answer on preview (98 rows live there).
+- Preview/prod post-deploy: run the standard reingest drain (rows become
+  compute-stale by design until drained → epoch 5 rebuild).
+- `SOURCE_KEY_TO_MARKET["seek"]` still maps seek→MY (no TH sourceKey exists);
+  TH rows rely on ingest `market:"TH"` or location hierarchy. A future
+  sourceKey split is the remaining TH gap if TH gets a distinct sourceKey.
+
+### Repo state (closeout)
+Changes committed as two local commits (NO-PUSH): search-recall fixes, then
+TH market support — see §12.1 for SHAs. Working tree clean apart from
+HANDOFF.md itself. `make dev` background task running (web :5173, Convex
+:3210, BFF :3000, worker :8000, MCP :3333); chrome-debug attached on :9222
+(logged in as demo-admin / dev workspace).
+Prior session transcripts: see compaction INDEX under the session dir in
+`/Users/karlchow/.grok/sessions/`.
+
+### §12.1 Commit record (2026-08-31 closeout, local NO-PUSH)
+- `f1d84933` fix(search): digest work-history recall + Convex keywords arg
+  strip — useConvexResumes (stripKeywordsFromConvexFilters + query
+  normalization), digest build (all work entries + prose/domain-alias tokens
+  + cap-priority reorder), ingest compute epoch 5, domain-tokens regression
+  test, stripKeywords unit tests.
+- `30ab96fa` feat(market): Thailand (TH) market support end-to-end — 32
+  files across shared/convex/api/web: all market widenings (parse sites,
+  validators, escape hatches, floors, policy routing, UI options), location
+  tree Thailand node + tests, api-types.ts regenerated.
+- HANDOFF.md itself committed separately after this stamp.
