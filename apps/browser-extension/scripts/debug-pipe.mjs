@@ -7,7 +7,7 @@
  *
  * Pipe-only. Does not use a TCP debug port.
  * Cannot attach to a live employer :9222 session.
- * Collect on :9222 still uses chrome://extensions Load unpacked once.
+ * Collect on :9222 uses playwright-cli `chrome-debug --load-unpacked`. Do not stack this helper on that profile.
  *
  * Usage: node scripts/debug-pipe.mjs [URL]
  */
@@ -205,7 +205,7 @@ For best compatibility, install Chrome for Testing or Chromium.
 Or set CHROME to your binary path.
 
 This pipe loader starts a new browser. It cannot attach to a live :9222 employer session.
-Collect on :9222 still uses chrome://extensions Load unpacked once.`);
+Collect on :9222 uses chrome-debug --load-unpacked. Do not stack this helper on collect Chrome.`);
     process.exit(1);
   }
 
@@ -216,7 +216,7 @@ Collect on :9222 still uses chrome://extensions Load unpacked once.`);
 
   console.log("Unattended pipe debug/dev launch (not :9222)");
   console.log("This cannot attach to a live :9222 employer Chrome.");
-  console.log("Collect on :9222 still uses chrome://extensions Load unpacked once.");
+  console.log("Collect on :9222 uses chrome-debug --load-unpacked; do not stack this helper.");
   console.log(`Chrome: ${chromePath}`);
   console.log(`Extension: ${EXT_DIR}`);
   console.log(`Profile: ${USER_DATA_DIR}`);

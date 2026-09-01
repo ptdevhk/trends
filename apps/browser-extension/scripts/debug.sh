@@ -103,10 +103,8 @@ echo ""
 
 if [[ "$IS_BRANDED_CHROME" == true ]]; then
   echo "Warning: branded Chrome 137+ detected. --load-extension is not available (dropped in 137; 152 still ignores it)."
-  echo "Load unpacked path:"
-  echo "  $EXT_DIR"
-  echo "CDP Extensions.loadUnpacked is pipe-only; it does not work over :9222."
-  echo "Load the extension manually via chrome://extensions."
+  echo "This script is isolated debug, not collect Chrome."
+  echo "Collect on :9222: chrome-debug --load-unpacked $EXT_DIR"
   echo ""
   "$CHROME" \
     --remote-debugging-port="$DEBUG_PORT" \

@@ -176,11 +176,11 @@ make check-project-skills
 - Start headed Chrome with CDP using the **global default-user** profile clone (not a new empty repo profile):
   ```bash
   make chrome-debug
-  # equivalent: bash scripts/chrome-debug.sh
-  # restart same profile: bash scripts/chrome-debug.sh --restart
+  # equivalent (installed SSOT): chrome-debug --load-unpacked apps/browser-extension
+  # restart same profile + re-apply collector: chrome-debug --restart
   ```
 - Attach and automate with `/playwright-cli` (`playwright-cli attach`). Prefer attach over inventing `--repo-local-profile`.
-- Profile defaults: `chrome-debug-contract: v2` — `PROFILE_MODE=default-user` under Application Support / XDG. Use `--repo-local-profile` only for explicit isolation.
+- Profile defaults: `chrome-debug-contract: v4` via the installed playwright-cli `chrome-debug` command — `PROFILE_MODE=default-user` under Application Support / XDG. Use `--repo-local-profile` only for explicit isolation. Do not vendor a second `chrome-debug.sh` launcher; `scripts/chrome-debug.sh` is a shim.
 - CLI: prefer `@playwright/cli` ≥ 0.1.17 (`npm install -g @playwright/cli@latest`).
 - Browser extension-specific guidance:
   - `{REPO_ROOT}/apps/browser-extension/CLAUDE.md`

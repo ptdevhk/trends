@@ -28,8 +28,9 @@ Run from **project root** using shell scripts (simplest, works with any package 
 - Profile location: `/root/.config/chrome/Default` (must match the extension path).
 
 ### Local (macOS/Linux)
-- Use `npm run debug` to launch a debug profile with `--load-extension` (Chromium/Chrome for Testing preferred).
-- Debug profile path: `apps/browser-extension/.chrome-debug-profile` (gitignored).
+- Collect Chrome (`:9222`): `chrome-debug --load-unpacked` on this folder, or `make chrome-debug` from repo root. Restart re-applies the saved path. Do not vendor a second chrome-debug launcher.
+- Isolated debug: `npm run debug` launches `apps/browser-extension/.chrome-debug-profile` (gitignored) with `--load-extension` on Chromium/Chrome for Testing. Branded Chrome 137+ ignores that flag.
+- Do not stack `debug:pipe` / `load-unpacked:cli` onto the live employer collect profile.
 
 ## Auto Export (for quick verification)
 - Enable via URL or localStorage:

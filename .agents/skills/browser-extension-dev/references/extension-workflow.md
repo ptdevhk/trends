@@ -16,13 +16,18 @@ Manual fallback: `chrome://extensions` → Developer mode → Load unpacked → 
 
 ## Local (macOS/Linux)
 
-Use `npm run debug` from `apps/browser-extension/` to launch a debug profile without always passing that flag. CFT/Chromium still accept the unpack flag. Branded builds dropped it in 137, not 152; 152 still ignores it. Branded 137+ never gets the unpack flag (dropped in 137; 152 still ignores it). setup-profile.sh refuses on darwin. Container seed stays container-only. CDP loadUnpacked is pipe-only, not :9222. See also the helper script in package.json.
-On macOS run macos:load-unpacked Running: print only. Quit: no start, no seed.
+Use `npm run debug` from `apps/browser-extension/` to launch an isolated debug profile (CFT/Chromium still accept `--load-extension`). Branded Chrome 137+ dropped that flag; 152 still ignores it.
 
-Unattended debug/dev uses debug:pipe / load-unpacked:cli.
-It starts a new browser over pipe transport and CDP Extensions.loadUnpacked.
-It cannot attach to an existing :9222 session.
-Collect on :9222 still uses the extensions page Load unpacked once.
+Collect Chrome on macOS is the live `:9222` profile. Install with the playwright-cli SSOT:
+
+```bash
+chrome-debug --load-unpacked /abs/path/to/apps/browser-extension
+# or: make chrome-debug
+```
+
+`chrome-debug --restart` re-applies the saved path. Do not load from a disposable worktree. setup-profile.sh refuses on darwin. Container seed stays container-only.
+
+Unattended isolated debug/dev uses debug:pipe / load-unpacked:cli (new browser, pipe transport). It cannot attach to the live employer :9222 session. Do not stack it on collect Chrome.
 
 ## Auto Export (quick verification)
 
@@ -58,4 +63,3 @@ Use the content-script accessor:
 - `window.__TR_RESUME_DATA__.extract()`
 
 If IDs are missing, ensure results are fully loaded before export.
-

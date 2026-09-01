@@ -19,7 +19,7 @@ Use this skill for work under `apps/browser-extension/` and any workflow that de
 3. When validating behavior:
    - Prefer deterministic checks via the content-script accessor (`window.__TR_RESUME_DATA__.*`).
    - Confirm dedupe identifiers (`resumeId`, `perUserId`) are present in exports.
-4. If automation is needed, use the existing CDP flows (`make refresh-sample`, `scripts/chrome-debug.sh`) instead of inventing new ones.
+4. If automation is needed, use the existing CDP flows (`make refresh-sample`, `chrome-debug` / `make chrome-debug`) instead of inventing new ones.
 
 ## Rules
 
@@ -27,15 +27,13 @@ Use this skill for work under `apps/browser-extension/` and any workflow that de
 - Branded builds dropped the unpack flag in 137, not 152; 152 still ignores it. CFT/Chromium still accept it.
 - Do not rely on the unpack flag inside the container; use the profile seeding workflow.
 - Do not run setup-profile.sh on darwin. Container seed stays container-only.
-- CDP loadUnpacked is pipe-only, not :9222.
-- Pipe helper: debug:pipe / load-unpacked:cli
-- Pipe helper cannot attach to a live :9222 session.
-- Collect on :9222 still uses the extensions page Load unpacked once.
-- darwin helper: macos:load-unpacked Running: print only. Quit: no start, no seed.
+- Collect on :9222 uses the installed playwright-cli `chrome-debug --load-unpacked` (TCP CDP). Do not vendor a second launcher.
+- `make chrome-debug` / `scripts/chrome-debug.sh` is a shim that always passes `apps/browser-extension`. Restart re-applies the sidecar path.
+- Pipe helper (`debug:pipe` / `load-unpacked:cli`) starts a NEW browser and cannot attach to the live employer :9222 session. Do not stack it on collect Chrome.
+- darwin helper: macos:load-unpacked prints the collect install command. Quit: no start, no seed.
 - Keep changes MV3-compatible and avoid inline injection patterns blocked by CSP (prefer `web_accessible_resources` patterns already in the codebase).
 
 ## References
 
 - `references/extension-workflow.md`
 - `references/collection-pipeline.md`
-

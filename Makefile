@@ -1312,13 +1312,16 @@ debug-51job-detail:
 	fi
 	./scripts/debug-51job-detail.sh "$(RESUME_ID)" "$(RAW_PATH)"
 
-# Start Chrome with remote debugging on port 9222 (for CDP/MCP)
+# Start Chrome with remote debugging on port 9222 (for CDP/MCP).
+# SSOT is the installed playwright-cli `chrome-debug` command; the repo script
+# is a shim that also passes --load-unpacked apps/browser-extension.
 chrome-debug:
 	@chmod +x scripts/chrome-debug.sh
 	./scripts/chrome-debug.sh
 
 # Re-sync the debug-safe clone from the real Chrome profile before launch.
 # Chrome should be fully closed before running this target.
+# The shim re-installs the collector after the clone is refreshed.
 chrome-debug-refresh:
 	@chmod +x scripts/chrome-debug.sh
 	./scripts/chrome-debug.sh --refresh-from-default

@@ -69,24 +69,29 @@ npm run debug
 ./scripts/debug.sh "https://hr.job5156.com/search?keyword=python"
 ```
 
-The script prefers Chrome for Testing or Chromium (supports `--load-extension`). If only branded
-Chrome 137+ (152 still ignores the unpack flag) is available, it will warn and you must load the extension manually via
-`chrome://extensions`.
+The script prefers Chrome for Testing or Chromium (supports `--load-extension`). Branded
+Chrome 137+ dropped that flag; 152 still ignores it. Isolated `npm run debug` is not the
+collect Chrome.
 
-setup-profile.sh refuses on darwin. Container seed stays container-only. CDP loadUnpacked is pipe-only, not :9222.
-On macOS run macos:load-unpacked Running: print only. Quit: no start, no seed.
+Collect on the live `:9222` profile uses the playwright-cli SSOT:
 
+```bash
+chrome-debug --load-unpacked "$(pwd)"   # from apps/browser-extension, or repo-root make chrome-debug
+```
+
+`chrome-debug --restart` re-applies the saved path. setup-profile.sh refuses on darwin.
+Container seed stays container-only.
 
 ### Unattended pipe loader (local debug/dev)
 
 Use the package.json pipe script and its cli alias.
 Scripts: debug:pipe / load-unpacked:cli
-It starts a new browser over pipe transport and sends CDP Extensions.loadUnpacked for this folder.
+It starts a NEW browser over pipe transport and sends CDP Extensions.loadUnpacked for this folder.
 
 - Dedicated profile: apps/browser-extension/.chrome-debug-profile (never macOS Default, never profile-seed).
 - Pipe-only. It does not open a TCP debug port and cannot attach to a live :9222 employer session.
-- Collect on :9222 still uses the extensions page Load unpacked once.
-- Prefers CFT / Chromium (same detect order as debug.sh). Branded-only still uses the pipe method.
+- Do not stack it on collect Chrome. Collect uses `chrome-debug --load-unpacked`.
+- Prefers CFT / Chromium (same detect order as debug.sh).
 
 ### Cmux container environment
 

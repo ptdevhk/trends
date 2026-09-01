@@ -8,16 +8,15 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
   echo "This helper is macOS-only. On Linux/container use setup-profile.sh."
   exit 1
 fi
-echo "Load unpacked path:"
-echo "  $EXT_DIR"
+echo "Collect Chrome install (playwright-cli SSOT, live :9222):"
+echo "  chrome-debug --load-unpacked $EXT_DIR"
+echo "  # or: make chrome-debug"
 echo ""
-echo "1. Open chrome://extensions"
-echo "2. Enable Developer mode"
-echo "3. Click Load unpacked and select the path above"
+echo "chrome-debug --restart re-applies that path. Do not load from a worktree."
 echo ""
 echo "Do not copy apps/browser-extension/profile-seed onto macos Default."
 echo "That seed is container-only."
-echo "CDP Extensions.loadUnpacked is pipe-only; it does not work over :9222."
+echo "Do not stack debug:pipe / load-unpacked:cli on the collect Chrome."
 running=false
 if pgrep -x "Google Chrome" >/dev/null 2>&1; then
   running=true
