@@ -13,6 +13,12 @@ import {
   type WorkspaceRole,
 } from '@/lib/auth'
 
+type LoginFailure = {
+  status?: number
+  retryAfterSeconds?: number
+  message?: string
+}
+
 type AuthState = {
   user: AuthUser | null
   memberships: WorkspaceMembership[]
@@ -20,6 +26,7 @@ type AuthState = {
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<CurrentAuth | null>
+  lastLoginError: LoginFailure | null
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -31,6 +38,7 @@ const AuthContext = createContext<AuthState>({
   isAuthenticated: false,
   isLoading: true,
   login: async () => null,
+  lastLoginError: null,
   logout: async () => {},
   refresh: async () => {},
 })
@@ -56,6 +64,7 @@ function silentLoginErrorMessage(code: string): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<CurrentAuth | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [lastLoginError, setLastLoginError] = useState<LoginFailure | null>(null)
 
   const refresh = useCallback(async () => {
     const data = await fetchCurrentAuth()
@@ -95,8 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string): Promise<CurrentAuth | null> => {
     const result = await loginWithLocalPassword(username, password)
     if (!result?.success) {
+      setLastLoginError({
+        status: result.status,
+        retryAfterSeconds: result.retryAfterSeconds,
+        message: result.error,
+      })
       return null
     }
+    setLastLoginError(null)
 
     const refreshed = await fetchCurrentAuth()
     if (refreshed) {
@@ -130,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: authenticated !== null,
       isLoading,
       login,
+      lastLoginError,
       logout,
       refresh,
     }}>

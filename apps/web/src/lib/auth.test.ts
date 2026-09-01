@@ -87,6 +87,34 @@ describe('auth helpers', () => {
     })
   })
 
+  it('surfaces 401 invalid-credential failures with status and message', async () => {
+    mockApiClient.POST.mockResolvedValueOnce({
+      error: { success: false, error: 'Invalid username or password' },
+      response: { status: 401 },
+    })
+
+    await expect(loginWithLocalPassword('admin', 'wrong')).resolves.toEqual({
+      success: false,
+      error: 'Invalid username or password',
+      status: 401,
+    })
+  })
+
+  it('surfaces 429 lockout failures with retry-after seconds', async () => {
+    const mockResponse = new Response(null, { status: 429, headers: { 'Retry-After': '644' } })
+    mockApiClient.POST.mockResolvedValueOnce({
+      error: { success: false, error: 'Account temporarily locked. Try again in 644s.' },
+      response: mockResponse,
+    })
+
+    await expect(loginWithLocalPassword('admin', 'admin123')).resolves.toEqual({
+      success: false,
+      error: 'Account temporarily locked. Try again in 644s.',
+      status: 429,
+      retryAfterSeconds: 644,
+    })
+  })
+
   it('silent-login exchanges desk token', async () => {
     const loginResponse = {
       success: true as const,

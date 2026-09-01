@@ -2935,6 +2935,7 @@
     "signIn": "Sign in",
     "signingIn": "Signing in...",
     "loginFailed": "Invalid username or password",
+    "loginLocked": "Account temporarily locked after too many failed attempts. Try again in a few minutes.",
     "logout": "Sign out",
     "loginRequired": "Please sign in to continue",
     "workspaceAccessRequired": "You do not have access to this workspace"

@@ -2962,6 +2962,7 @@
     "signIn": "登录",
     "signingIn": "登录中...",
     "loginFailed": "用户名或密码错误",
+    "loginLocked": "多次尝试失败后账户已被临时锁定，请稍后再试。",
     "logout": "退出登录",
     "loginRequired": "请先登录",
     "workspaceAccessRequired": "您没有此工作区的访问权限"

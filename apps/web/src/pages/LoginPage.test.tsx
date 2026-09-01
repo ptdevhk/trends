@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockNavigate = vi.fn()
 const mockSearchParams = new URLSearchParams()
 const mockLogin = vi.fn()
+const mockLastLoginError: { status?: number; retryAfterSeconds?: number; message?: string } = {}
 
 function loginResult(workspaceSlug: string, role: 'user' | 'admin' = 'user') {
   return {
@@ -32,7 +33,7 @@ vi.mock('react-router-dom', () => ({
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ login: mockLogin }),
+  useAuth: () => ({ login: mockLogin, lastLoginError: mockLastLoginError }),
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
@@ -45,6 +46,9 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSearchParams.delete('redirectTo')
+    mockLastLoginError.status = undefined
+    mockLastLoginError.retryAfterSeconds = undefined
+    mockLastLoginError.message = undefined
   })
 
   async function submitLogin(username: string, password: string) {
@@ -131,6 +135,25 @@ describe('LoginPage', () => {
     await submitLogin('admin', 'wrong')
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('shows a locked-account message instead of invalid-credentials on 429', async () => {
+    mockLogin.mockResolvedValueOnce(null)
+    mockLastLoginError.status = 429
+    mockLastLoginError.retryAfterSeconds = 644
+    await submitLogin('admin', 'admin123')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('locked')
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the generic message for non-lockout failures', async () => {
+    mockLogin.mockResolvedValueOnce(null)
+    mockLastLoginError.status = 401
+    await submitLogin('admin', 'wrong')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/invalid username or password/i)
     expect(mockNavigate).not.toHaveBeenCalled()
   })
 

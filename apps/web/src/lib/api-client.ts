@@ -54,3 +54,21 @@ apiClient.use({
     return request
   },
 })
+
+// Stash the raw Response on the openapi-fetch result so callers can read
+// response headers (e.g. Retry-After on the login lockout). openapi-fetch
+// only surfaces status in the parsed body; the response object is otherwise
+// discarded after it is consumed.
+apiClient.use({
+  async onResponse({ response }) {
+    const clone = response.clone()
+    ;(response as Response & { json: () => Promise<unknown> }).json = async function json() {
+      const parsed = (await Response.prototype.json.call(this)) as { response?: Response }
+      if (parsed && typeof parsed === 'object' && parsed.response === undefined) {
+        ;(parsed as { response?: Response }).response = clone
+      }
+      return parsed
+    }
+    return response
+  },
+})

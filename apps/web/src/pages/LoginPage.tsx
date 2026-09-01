@@ -9,7 +9,7 @@ import { canUseExplicitRedirect, getDefaultAuthenticatedPath } from '@/lib/works
 
 export function LoginPage() {
   const { t } = useTranslation()
-  const { login } = useAuth()
+  const { login, lastLoginError } = useAuth()
   const { slug } = useWorkspace()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -33,7 +33,8 @@ export function LoginPage() {
         : getDefaultAuthenticatedPath(result, slug)
       navigate(redirectTo, { replace: true })
     } else {
-      setError(t('auth.loginFailed', { defaultValue: 'Invalid username or password' }))
+      const locked = lastLoginError?.status === 429
+      setError(locked ? t('auth.loginLocked', { defaultValue: 'Account locked' }) : t('auth.loginFailed', { defaultValue: 'Invalid username or password' }))
     }
 
     setIsSubmitting(false)

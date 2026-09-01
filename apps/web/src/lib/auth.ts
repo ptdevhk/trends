@@ -37,6 +37,15 @@ export type LocalLoginResponse = {
   expiresAt: string
 }
 
+export type LocalLoginError = {
+  success: false
+  error: string
+  status?: number
+  retryAfterSeconds?: number
+}
+
+export type LocalLoginResult = LocalLoginResponse | LocalLoginError
+
 export type ProviderIdentity = {
   provider: AuthProvider
   providerSubject: string
@@ -175,6 +184,30 @@ function defaultErrorForStatus(status: number | undefined, fallback: string): st
   }
 }
 
+export function readRetryAfterSeconds(value: unknown): number | undefined {
+  if (value instanceof Response) {
+    const raw = value.headers.get('Retry-After')
+    if (!raw) {
+      return undefined
+    }
+    const seconds = Number(raw)
+    return Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds) : undefined
+  }
+  if (isRecord(value)) {
+    const retryAfter = value['retryAfterSeconds']
+    if (typeof retryAfter === 'number' && Number.isFinite(retryAfter)) {
+      return Math.max(0, Math.ceil(retryAfter))
+    }
+    if (typeof retryAfter === 'string' && retryAfter.trim() !== '') {
+      const seconds = Number(retryAfter)
+      if (Number.isFinite(seconds)) {
+        return Math.max(0, Math.ceil(seconds))
+      }
+    }
+  }
+  return undefined
+}
+
 function providerMembershipApiError(
   data: unknown,
   error: unknown,
@@ -230,14 +263,29 @@ export async function fetchCurrentAuth(): Promise<CurrentAuth | null> {
   return data
 }
 
-export async function loginWithLocalPassword(username: string, password: string): Promise<LocalLoginResponse | null> {
-  const { data, error } = await rawApiClient.POST<LocalLoginResponse>('/api/auth/login', {
-    body: { username, password },
-  })
-  if (error || data?.success !== true) {
-    return null
+export async function loginWithLocalPassword(
+  username: string,
+  password: string,
+): Promise<LocalLoginResult> {
+  const { data, error, response } = await rawApiClient.POST<LocalLoginResponse | LocalLoginError>(
+    '/api/auth/login',
+    { body: { username, password } },
+  )
+  if (data && data.success === true) {
+    return data
   }
-  return data
+  const status = response?.status ?? readStatus(error) ?? readStatus(data)
+  const message =
+    readErrorMessage(data) ?? readErrorMessage(error) ?? defaultErrorForStatus(status, 'Invalid username or password')
+  const result: LocalLoginError = { success: false, error: message }
+  if (status !== undefined) {
+    result.status = status
+  }
+  const retryAfter = readRetryAfterSeconds(response) ?? readRetryAfterSeconds(error)
+  if (retryAfter !== undefined) {
+    result.retryAfterSeconds = retryAfter
+  }
+  return result
 }
 
 export type SilentLoginResult =

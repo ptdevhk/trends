@@ -2935,6 +2935,7 @@
     "signIn": "登入",
     "signingIn": "登入中...",
     "loginFailed": "使用者名稱或密碼錯誤",
+    "loginLocked": "多次嘗試失敗後帳戶已被暫時鎖定，請稍後再試。",
     "logout": "登出",
     "loginRequired": "請先登入",
     "workspaceAccessRequired": "您沒有此工作區的存取權限"
