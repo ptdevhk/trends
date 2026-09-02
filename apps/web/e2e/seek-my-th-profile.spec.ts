@@ -289,8 +289,18 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
       seekPopups.push(popup.url())
       popup.on('request', (request) => {
         const url = request.url()
-        if (url.startsWith('https://hk.employer.seek.com/') || url.startsWith('https://my.employer.seek.com/')) {
+        if (url.startsWith('https://hk.employer.seek.com/talentsearch') || url.startsWith('https://my.employer.seek.com/talentsearch')) {
           launchedSeekUrls.push(url)
+        }
+      })
+      // The popup loads a static SPA shell; the talentsearch URL surfaces as
+      // the main document request. Catch it directly.
+      popup.on('framenavigated', (frame) => {
+        if (frame === popup.mainFrame()) {
+          const url = frame.url()
+          if (url.startsWith('https://hk.employer.seek.com/talentsearch') || url.startsWith('https://my.employer.seek.com/talentsearch')) {
+            launchedSeekUrls.push(url)
+          }
         }
       })
     })
