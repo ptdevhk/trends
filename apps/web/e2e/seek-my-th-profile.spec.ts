@@ -317,12 +317,13 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await myCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(1)
     await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(1)
-    const myOpened = launchedSeekUrls[launchedSeekUrls.length - 1]
-    expect(myOpened).toContain('hk.employer.seek.com/talentsearch')
-    expect(myOpened).toContain('market=MY')
-    expect(myOpened).toContain(`roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`)
-    expect(myOpened).toContain('searchQuery=CNC')
-    expect(myOpened).toContain('keywords=CNC')
+    const myUrl = new URL(launchedSeekUrls[launchedSeekUrls.length - 1])
+    expect(myUrl.host).toBe('hk.employer.seek.com')
+    expect(myUrl.pathname).toBe('/talentsearch')
+    expect(myUrl.searchParams.get('market')).toBe('MY')
+    expect(myUrl.searchParams.get('roleTitles')).toBe(MY_SERVICE_STACK_ROLE_TITLES)
+    expect(myUrl.searchParams.get('searchQuery')).toBe('CNC')
+    expect(myUrl.searchParams.get('keywords')).toBe('CNC')
 
     // TH collect launches market=TH on the same host (never th.employer.seek.com).
     const thCard = page.locator('button', { hasText: 'Thailand · SEEK · CNC Service Engineer (Talent Search)' }).first()
@@ -331,11 +332,12 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await thCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(2)
     await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(2)
-    const thOpened = launchedSeekUrls[launchedSeekUrls.length - 1]
-    expect(thOpened).toContain('hk.employer.seek.com/talentsearch')
-    expect(thOpened).toContain('market=TH')
-    expect(thOpened).not.toContain('th.employer.seek.com')
-    expect(thOpened).toContain(`roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`)
+    const thUrl = new URL(launchedSeekUrls[launchedSeekUrls.length - 1])
+    expect(thUrl.host).toBe('hk.employer.seek.com')
+    expect(thUrl.hostname).not.toBe('th.employer.seek.com')
+    expect(thUrl.pathname).toBe('/talentsearch')
+    expect(thUrl.searchParams.get('market')).toBe('TH')
+    expect(thUrl.searchParams.get('roleTitles')).toBe(MY_SERVICE_STACK_ROLE_TITLES)
   })
 
   test('applying the MY quick start seeds the in-app search shell', async ({ page }) => {
