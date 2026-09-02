@@ -273,6 +273,21 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
         originalOpen(url, 'e2e-capture')
       }
     })
+    // The app's rawApiClient reports browser-open failures through toast;
+    // also record the underlying URL from the DOM anchor path as a fallback
+    // for environments where window.open is intercepted by the shell.
+    await page.exposeFunction('__e2eRecordAnchor', (url: string) => {
+      openedUrls.push(url)
+    })
+    await page.addInitScript(() => {
+      document.addEventListener('click', (event) => {
+        const anchor = (event.target as Element | null)?.closest?.('a')
+        if (anchor && anchor.getAttribute('href')) {
+          const href = anchor.getAttribute('href') as string
+          ;(window as Window & { __e2eRecordAnchor?: (url: string) => void }).__e2eRecordAnchor?.(href)
+        }
+      }, true)
+    })
 
     await openCleanLanding(page)
 
