@@ -5,15 +5,18 @@ import { parse as parseYaml } from "yaml";
 
 /**
  * Shared fixtures for the MY/TH SEEK Talent Search service-engineer batch
- * (apps/web/e2e/seek-my-th-profile.spec.ts + scripts/e2e-fixtures/seek-my-th.test.ts).
+ * (apps/web/e2e/seek-my-th-profile.spec.ts + this package's contract test).
  *
  * Both consumers load the REAL config/search-profiles YAMLs, so the e2e
  * expectations cannot drift from the shipped profile files: if a YAML
  * changes, the contract test fails first with a precise message, and the e2e
  * then follows the YAML automatically.
  *
- * Lazy by design — profile files are parsed on first call, never at module
- * import, so a YAML problem surfaces as a test failure, not a load error.
+ * Lives in @trends/shared (ESM) — a repo-root scripts/ copy is compiled as
+ * CommonJS by Playwright's loader (no root "type":"module") and named
+ * imports from it throw (LXC run 20260902T040134Z). Lazy by design: profile
+ * files are parsed on first call, never at module import, so a YAML problem
+ * surfaces as a test failure, not a load error.
  */
 
 const PROFILE_IDS: Record<"my" | "th", string> = {
@@ -71,9 +74,9 @@ function findRepoRoot(start: string): string {
 }
 
 function repoRoot(): string {
-  // scripts/e2e-fixtures/ → repo root is two levels up; fall back to walking
-  // up from cwd (vitest runs from the repo root, playwright from apps/web).
-  return findRepoRoot(resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."));
+  // packages/shared/src/ (vitest, typecheck) or packages/shared/dist/
+  // (Playwright loading the built ESM) → walk up to the repo root.
+  return findRepoRoot(resolve(dirname(fileURLToPath(import.meta.url))));
 }
 
 type SeekSourceYaml = {

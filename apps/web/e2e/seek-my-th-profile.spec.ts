@@ -5,7 +5,13 @@ import {
   seekMyThApiProfile,
   seekServiceStackRoleTitles,
   type SeekMyThApiProfile,
-} from '../../../scripts/e2e-fixtures/seek-my-th'
+} from '@trends/shared/seek-my-th-e2e-fixtures'
+
+/**
+ * Fixtures come from the built @trends/shared package (ESM): Playwright's
+ * loader compiles a repo-root scripts/ file as CommonJS (no root package.json
+ * "type":"module"), which breaks named imports — see run 20260902T040134Z.
+ */
 
 /**
  * TH/MY Seek Talent Search service-engineer profile batch gate.
@@ -21,7 +27,7 @@ import {
  *   - applying a quick start seeds the in-app search (keywords + location)
  *
  * Profile fixtures load the REAL config/search-profiles YAMLs via the shared
- * module also consumed by scripts/e2e-fixtures/seek-my-th.test.ts, so this
+ * module also covered by the contract test in packages/shared/src/, so this
  * spec cannot drift from the shipped profile files.
  */
 

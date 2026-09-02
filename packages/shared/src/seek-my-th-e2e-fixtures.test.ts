@@ -5,7 +5,7 @@ import {
   seekMyThApiProfile,
   seekMyThServiceProfileFixtures,
   seekServiceStackRoleTitles,
-} from "./seek-my-th";
+} from "./seek-my-th-e2e-fixtures";
 
 /**
  * Contract test: the MY/TH SEEK Talent Search service-engineer profile YAMLs

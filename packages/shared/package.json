@@ -23,11 +23,20 @@
       "import": "./dist/workspace.js",
       "require": "./dist/workspace.js",
       "default": "./dist/workspace.js"
+    },
+    "./seek-my-th-e2e-fixtures": {
+      "types": "./src/seek-my-th-e2e-fixtures.ts",
+      "import": "./dist/seek-my-th-e2e-fixtures.js",
+      "require": "./dist/seek-my-th-e2e-fixtures.js",
+      "default": "./dist/seek-my-th-e2e-fixtures.js"
     }
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
