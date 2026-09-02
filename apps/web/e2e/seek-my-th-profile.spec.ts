@@ -200,6 +200,23 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
       body: JSON.stringify({ success: true, status: 'idle' }),
     })
   })
+
+  // Landing data hooks also read company/policy data (mode-keyed cache).
+  await page.route('**/api/companies**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, items: [] }),
+    })
+  })
+
+  await page.route('**/api/company-policies**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, items: [] }),
+    })
+  })
 }
 
 test.describe('SEEK MY/TH service-engineer quick starts', () => {
