@@ -280,6 +280,21 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await page.waitForTimeout(300)
     const collectPopups = () => page.context().pages().filter((p) => p !== page)
 
+    // Popups open on hk.employer.seek.com (external host) — Playwright keeps
+    // the target url on about:blank unless navigation is awaited. Resolve the
+    // final URL per target via CDP (works for out-of-process external pages).
+    async function popupUrl(target: string): Promise<string> {
+      const popup = collectPopups().find((p) => p.url().startsWith(target))
+      if (popup) {
+        return popup.url()
+      }
+      const cdp = await page.context().newCDPSession(page)
+      const { targetInfos } = await cdp.send('Target.getTargets')
+      const info = targetInfos?.find((t: { type?: string; url?: string }) =>
+        t.type === 'page' && (t.url ?? '').startsWith(target))
+      return info?.url ?? ''
+    }
+
     await openCleanLanding(page)
 
     const collectButtons = page.getByTestId('search-hero-collect')
@@ -294,8 +309,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await expect(myCollect).toBeEnabled()
     await myCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(1)
-    const myPopups = collectPopups()
-    const myOpened = myPopups[myPopups.length - 1].url()
+    const myOpened = await popupUrl('https://hk.employer.seek.com/')
     expect(myOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(myOpened).toContain('market=MY')
     expect(myOpened).toContain(`roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`)
@@ -308,8 +322,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await expect(thCollect).toBeEnabled()
     await thCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(2)
-    const thPopups = collectPopups()
-    const thOpened = thPopups[thPopups.length - 1].url()
+    const thOpened = await popupUrl('https://hk.employer.seek.com/')
     expect(thOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(thOpened).toContain('market=TH')
     expect(thOpened).not.toContain('th.employer.seek.com')
