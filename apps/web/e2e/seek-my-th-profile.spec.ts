@@ -273,21 +273,12 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
         originalOpen(url, 'e2e-capture')
       }
     })
-    // The app's rawApiClient reports browser-open failures through toast;
-    // also record the underlying URL from the DOM anchor path as a fallback
-    // for environments where window.open is intercepted by the shell.
-    await page.exposeFunction('__e2eRecordAnchor', (url: string) => {
-      openedUrls.push(url)
-    })
-    await page.addInitScript(() => {
-      document.addEventListener('click', (event) => {
-        const anchor = (event.target as Element | null)?.closest?.('a')
-        if (anchor && anchor.getAttribute('href')) {
-          const href = anchor.getAttribute('href') as string
-          ;(window as Window & { __e2eRecordAnchor?: (url: string) => void }).__e2eRecordAnchor?.(href)
-        }
-      }, true)
-    })
+    // Playwright intercepts window.open popups: the popup is created but its
+    // URL is not delivered to our binding. Open a blank popup at setup so the
+    // popup event surfaces as a tab we can inspect after the click.
+    await page.evaluate(() => window.open('about:blank', 'e2e-capture'))
+    await page.waitForTimeout(300)
+    const collectPopups = () => page.context().pages().filter((p) => p !== page)
 
     await openCleanLanding(page)
 
@@ -302,8 +293,8 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     const myCollect = myCard.locator('..').getByTestId('search-hero-collect')
     await expect(myCollect).toBeEnabled()
     await myCollect.click()
-    await expect.poll(() => openedUrls.length).toBeGreaterThanOrEqual(1)
-    const myOpened = openedUrls[openedUrls.length - 1]
+    await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(1)
+    const myOpened = collectPopups().at(-1)!.url()
     expect(myOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(myOpened).toContain('market=MY')
     expect(myOpened).toContain(`roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`)
@@ -315,8 +306,8 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     const thCollect = thCard.locator('..').getByTestId('search-hero-collect')
     await expect(thCollect).toBeEnabled()
     await thCollect.click()
-    await expect.poll(() => openedUrls.length).toBeGreaterThanOrEqual(2)
-    const thOpened = openedUrls[openedUrls.length - 1]
+    await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(2)
+    const thOpened = collectPopups().at(-1)!.url()
     expect(thOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(thOpened).toContain('market=TH')
     expect(thOpened).not.toContain('th.employer.seek.com')
