@@ -2108,6 +2108,7 @@
       "toggle": "匹配但未驗證",
       "loading": "載入未驗證匹配…",
       "empty": "沒有額外的未驗證匹配。",
+      "truncated": "已顯示前 {{shown}} 筆 · 共 {{total}} 筆未驗證匹配",
       "employerFunnel": "目錄候選僱主（按出現次數）· 審核入冊可提升驗證覆蓋",
       "badge": "證據未驗證",
       "openProfile": "打開簡歷"

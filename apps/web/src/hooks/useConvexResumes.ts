@@ -23,6 +23,11 @@ import type { VerifiedIndustryEvidenceSummary } from '@trends/shared'
 export const DEFAULT_CONVEX_RESUME_LIMIT = 200
 export const CONVEX_RESUME_PAGE_SIZE = 200
 export const MAX_CONVEX_RESUME_LIMIT = 2000
+// Expanded unverified-lane rows fetch a dedicated depth, sized above the
+// measured MY preset corpus (448 rows, 2026-09-02 parity report) so the
+// default expanded view is complete; the UI truncation hint covers growth
+// beyond it.
+export const UNVERIFIED_LANE_ROW_LIMIT = 500
 
 export type ConvexResumeSortBy = 'experience' | 'extractedAt'
 
@@ -1319,7 +1324,6 @@ export function useConvexResumes(
   const laneExpanded = options?.unverifiedLane?.expanded === true
   const laneFilters = useMemo(
     () => stripMinRoleYearsFromFilters(options?.filters),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters is a stable caller memo; strip is pure
     [options?.filters],
   )
   const laneCountResult = useBffAndModeSearch(
@@ -1349,7 +1353,7 @@ export function useConvexResumes(
     options?.showBlocked === true,
     normalizedJobDescriptionId,
     bffRefetchTrigger,
-    limit,
+    UNVERIFIED_LANE_ROW_LIMIT,
     true,
   )
   const unverifiedLaneItems = useMemo<UnverifiedLaneItem[]>(() => {
@@ -1711,7 +1715,10 @@ export function useConvexResumes(
     expansion: resolvedExpansion,
     isAndModeBff: isAndModeBffActive,
     bffStatusCounts: bffAndModeResult.statusCounts,
-    unverifiedLane: laneCountEnabled
+    // The lane only means something where the verified-only gate is enforced:
+    // the BFF AND-mode path. The Convex OR path accepts minRoleYears in args
+    // but ignores it, so showing the lane there would be a phantom gate.
+    unverifiedLane: laneCountEnabled && isAndModeBffActive
       ? {
           gateActive: true,
           estimatedCount:

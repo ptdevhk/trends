@@ -14,6 +14,7 @@ const UNVERIFIED_LANE_STRINGS: Record<string, string> = {
   'industryEvidence.unverifiedLane.toggle': '匹配但未验证',
   'industryEvidence.unverifiedLane.loading': '加载未验证匹配…',
   'industryEvidence.unverifiedLane.empty': '没有额外的未验证匹配。',
+  'industryEvidence.unverifiedLane.truncated': '已显示前 {{shown}} 条 · 共 {{total}} 条未验证匹配',
   'industryEvidence.unverifiedLane.employerFunnel':
     '目录候选雇主（按出现次数）· 审核入册可提升验证覆盖',
   'industryEvidence.unverifiedLane.badge': '证据未验证',
@@ -22,8 +23,9 @@ const UNVERIFIED_LANE_STRINGS: Record<string, string> = {
 
 const mockT = (key: string, opts?: Record<string, unknown>) => {
   const value = UNVERIFIED_LANE_STRINGS[key]
-  if (typeof value === 'string' && opts && 'count' in opts) {
-    return value.replace('{{count}}', String(opts.count))
+  if (typeof value === 'string' && opts) {
+    return value.replace(/\{\{(\w+)\}\}/g, (_, token: string) =>
+      token in opts ? String(opts[token]) : `{{${token}}}`)
   }
   return value ?? key
 }
@@ -183,5 +185,33 @@ describe('UnverifiedLaneSection', () => {
     )
     expect(screen.queryByTestId('unverified-lane-employer-funnel')).not.toBeInTheDocument()
     expect(screen.getAllByTestId('unverified-lane-row')).toHaveLength(1)
+  })
+
+  it('shows the truncation hint when the fetched subset is smaller than the estimated count', () => {
+    renderList(
+      buildLane({
+        expanded: true,
+        estimatedCount: 448,
+        items: [
+          { identityKey: 'profileUrl:seek/5', name: 'Row one' },
+          { identityKey: 'profileUrl:seek/6', name: 'Row two' },
+        ],
+      }),
+    )
+    expect(screen.getByTestId('unverified-lane-truncated')).toHaveTextContent('已显示前 2 条 · 共 448 条未验证匹配')
+  })
+
+  it('hides the truncation hint when all estimated matches are shown', () => {
+    renderList(
+      buildLane({
+        expanded: true,
+        estimatedCount: 2,
+        items: [
+          { identityKey: 'profileUrl:seek/7', name: 'Row one' },
+          { identityKey: 'profileUrl:seek/8', name: 'Row two' },
+        ],
+      }),
+    )
+    expect(screen.queryByTestId('unverified-lane-truncated')).not.toBeInTheDocument()
   })
 })

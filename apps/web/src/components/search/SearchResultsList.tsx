@@ -884,6 +884,15 @@ function UnverifiedLaneSection({
               })}
             </p>
           ) : null}
+          {!lane.loading && lane.estimatedCount !== null && lane.items.length > 0 && lane.items.length < lane.estimatedCount ? (
+            <p className="text-xs text-muted-foreground" data-testid="unverified-lane-truncated">
+              {t('industryEvidence.unverifiedLane.truncated', {
+                defaultValue: '已显示前 {{shown}} 条 · 共 {{total}} 条未验证匹配',
+                shown: lane.items.length,
+                total: lane.estimatedCount,
+              })}
+            </p>
+          ) : null}
           {canReview && employerCounts.length > 0 ? (
             <div
               className="rounded-md border border-amber-300/50 bg-white/70 p-3 dark:border-amber-500/40 dark:bg-background/60"

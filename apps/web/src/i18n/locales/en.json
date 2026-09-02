@@ -2108,6 +2108,7 @@
       "toggle": "Matched but unverified",
       "loading": "Loading unverified matches…",
       "empty": "No additional unverified matches.",
+      "truncated": "Showing first {{shown}} of {{total}} unverified matches",
       "employerFunnel": "Catalog-candidate employers (by frequency) · reviewing them raises verification coverage",
       "badge": "Evidence unverified",
       "openProfile": "Open resume"
