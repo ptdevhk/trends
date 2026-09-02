@@ -219,6 +219,17 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
   })
 }
 
+/**
+ * Land on a clean quick-start page regardless of what the dev shell's saved
+ * session restored. The landing condition is URL-only: any q/location/… param
+ * switches SearchHero off. "Apply quick start" assertions operate on the URL
+ * right after clicking, so a bare /resumes entry is enough for all three tests.
+ */
+async function openCleanLanding(page: Page): Promise<void> {
+  await page.goto('/resumes')
+  await page.waitForLoadState('networkidle')
+}
+
 test.describe('SEEK MY/TH service-engineer quick starts', () => {
   test('landing renders MY and TH quick-start cards in rank order with the service 5-stack', async ({ page }) => {
     await mockLandingShell(page, [
@@ -226,8 +237,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
       serviceEngineerProfile('th'),
     ])
 
-    await page.goto('/resumes')
-    await page.waitForLoadState('networkidle')
+    await openCleanLanding(page)
 
     const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' })
     const thCard = page.locator('button', { hasText: 'Thailand · SEEK · CNC Service Engineer (Talent Search)' })
@@ -262,8 +272,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
       }
     })
 
-    await page.goto('/resumes')
-    await page.waitForLoadState('networkidle')
+    await openCleanLanding(page)
 
     const collectButtons = page.getByTestId('search-hero-collect')
     await expect(collectButtons).toHaveCount(2)
@@ -300,8 +309,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
   test('applying the MY quick start seeds the in-app search shell', async ({ page }) => {
     await mockLandingShell(page, [serviceEngineerProfile('my')])
 
-    await page.goto('/resumes')
-    await page.waitForLoadState('networkidle')
+    await openCleanLanding(page)
 
     const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' }).first()
     await myCard.click()
