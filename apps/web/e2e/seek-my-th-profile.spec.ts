@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import {
+  expectedCollectLaunchUrl,
+  seekMyThApiProfile,
+  seekServiceStackRoleTitles,
+  type SeekMyThApiProfile,
+} from '../../../scripts/e2e-fixtures/seek-my-th'
+
 /**
  * TH/MY Seek Talent Search service-engineer profile batch gate.
  *
@@ -12,77 +19,29 @@ import { expect, test, type Page } from '@playwright/test'
  *   - clicking a card's collect button opens the external collection
  *     window with the exact hk.employer.seek.com talentsearch URL
  *   - applying a quick start seeds the in-app search (keywords + location)
+ *
+ * Profile fixtures load the REAL config/search-profiles YAMLs via the shared
+ * module also consumed by scripts/e2e-fixtures/seek-my-th.test.ts, so this
+ * spec cannot drift from the shipped profile files.
  */
 
-type SearchProfileItem = {
-  id: string
-  name: string
-  status: 'active' | 'paused' | 'archived'
-  location: string
-  keywords: string[]
-  quickStart?: {
-    enabled: boolean
-    rank: number
-    label: string
-    description?: string
+function requireQuickStartLabel(profile: SeekMyThApiProfile): string {
+  const label = profile.quickStart?.label
+  if (!label) {
+    throw new Error(`fixture profile ${profile.id} has no quickStart.label`)
   }
-  sources: Array<{
-    type: string
-    mode?: string
-    enabled: boolean
-    jobUrl?: string
-    collectLimit?: number
-    maxPages?: number
-  }>
+  return label
 }
 
-const MY_SERVICE_STACK_ROLE_TITLES = 'Services Engineer,Service Technician,Service Manager,Service Coordinator,Service Supervisor'
-
-function talentSearchUrl(market: 'MY' | 'TH'): string {
-  return (
-    `https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=${market}&pageNumber=1`
-    + `&roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`
-    + `&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE`
-  )
+function cardLocator(page: Page, profile: SeekMyThApiProfile) {
+  return page.locator('button', { hasText: requireQuickStartLabel(profile) })
 }
 
-function serviceEngineerProfile(id: 'my' | 'th'): SearchProfileItem {
-  const market = id === 'my' ? 'MY' : 'TH'
-  const rank = id === 'my' ? 5 : 6
-  return {
-    id: id === 'my'
-      ? 'seek-malaysia-talent-search-service-engineer'
-      : 'seek-thailand-talent-search-service-engineer',
-    name: id === 'my'
-      ? 'SEEK Malaysia CNC Service Engineer — Talent Search'
-      : 'SEEK Thailand CNC Service Engineer — Talent Search',
-    status: 'active',
-    location: id === 'my' ? 'Malaysia' : 'Thailand',
-    keywords: ['CNC', 'Service Engineer'],
-    quickStart: {
-      enabled: true,
-      rank,
-      label: id === 'my'
-        ? 'Malaysia · SEEK · CNC Service Engineer (Talent Search)'
-        : 'Thailand · SEEK · CNC Service Engineer (Talent Search)',
-      description: id === 'my'
-        ? 'CNC, Service Engineer · Malaysia · Talent Search lane'
-        : 'CNC, Service Engineer · Thailand · Talent Search lane',
-    },
-    sources: [
-      {
-        type: 'seek',
-        mode: 'talentsearch',
-        enabled: true,
-        jobUrl: talentSearchUrl(market),
-        collectLimit: 50,
-        maxPages: 25,
-      },
-    ],
-  }
+function emptyItemsBody(): string {
+  return JSON.stringify({ success: true, items: [] })
 }
 
-async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
+async function mockLandingShell(page: Page, profiles: SeekMyThApiProfile[]) {
   await page.addInitScript(() => {
     document.cookie = 'trends_csrf=csrf-e2e; path=/; SameSite=Lax'
     localStorage.setItem('i18nextLng', 'en')
@@ -130,27 +89,15 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
   })
 
   await page.route('**/api/industry/keywords**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 
   await page.route('**/api/config/custom-keywords**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 
   await page.route('**/api/industry/brands**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 
   await page.route('**/api/industry/brand-display-map', async (route) => {
@@ -162,24 +109,6 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
   })
 
   await page.route('**/api/query', async (route) => {
-    const body = route.request().postDataJSON() as { path?: string }
-    const path = body.path ?? ''
-    if (path === 'job_descriptions:list') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ status: 'success', value: [] }),
-      })
-      return
-    }
-    if (path === 'search_sessions:list' || path === 'search_history:list') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ status: 'success', value: [] }),
-      })
-      return
-    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -187,12 +116,8 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
     })
   })
 
-  await page.route('**/api/actions**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+  await page.route('**/api/actions', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 
   await page.route('**/api/worker/status', async (route) => {
@@ -205,19 +130,11 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
 
   // Landing data hooks also read company/policy data (mode-keyed cache).
   await page.route('**/api/companies**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 
   await page.route('**/api/company-policies**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, items: [] }),
-    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: emptyItemsBody() })
   })
 }
 
@@ -232,17 +149,34 @@ async function openCleanLanding(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
 }
 
+/**
+ * Full-parameter launch contract: the URL the collect button opens must equal
+ * the YAML jobUrl plus exactly the tr_* params the real builder appends
+ * (tr_auto_sync only — useIndustryKeywords maps the seek source to
+ * { type, jobUrl }, so source-level collectLimit/maxPages never reach the
+ * landing launch URL).
+ */
+function expectUrlMatchesLaunch(actual: URL, profile: SeekMyThApiProfile) {
+  const expected = expectedCollectLaunchUrl(profile)
+  expect(actual.host).toBe('hk.employer.seek.com')
+  expect(actual.pathname).toBe('/talentsearch')
+  const expectedKeys = Array.from(new Set(expected.searchParams.keys())).sort()
+  expect(Array.from(new Set(actual.searchParams.keys())).sort()).toEqual(expectedKeys)
+  for (const key of expectedKeys) {
+    expect(actual.searchParams.get(key)).toBe(expected.searchParams.get(key))
+  }
+}
+
 test.describe('SEEK MY/TH service-engineer quick starts', () => {
   test('landing renders MY and TH quick-start cards in rank order with the service 5-stack', async ({ page }) => {
-    await mockLandingShell(page, [
-      serviceEngineerProfile('my'),
-      serviceEngineerProfile('th'),
-    ])
+    const myProfile = seekMyThApiProfile('my')
+    const thProfile = seekMyThApiProfile('th')
+    await mockLandingShell(page, [myProfile, thProfile])
 
     await openCleanLanding(page)
 
-    const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' })
-    const thCard = page.locator('button', { hasText: 'Thailand · SEEK · CNC Service Engineer (Talent Search)' })
+    const myCard = cardLocator(page, myProfile)
+    const thCard = cardLocator(page, thProfile)
     await expect(myCard.first()).toBeVisible()
     await expect(thCard.first()).toBeVisible()
 
@@ -253,15 +187,15 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     expect(thBox).not.toBeNull()
     expect(myBox!.y).toBeLessThanOrEqual(thBox!.y)
 
-    await expect(myCard.first()).toContainText('CNC, Service Engineer · Malaysia')
-    await expect(thCard.first()).toContainText('CNC, Service Engineer · Thailand')
+    // The card body renders "keywords joined · location" under the label.
+    await expect(myCard.first()).toContainText(`${myProfile.keywords.join(', ')} · ${myProfile.location}`)
+    await expect(thCard.first()).toContainText(`${thProfile.keywords.join(', ')} · ${thProfile.location}`)
   })
 
   test('collect button opens the exact talentsearch URL with market, role 5-stack and collect limits', async ({ page }) => {
-    await mockLandingShell(page, [
-      serviceEngineerProfile('my'),
-      serviceEngineerProfile('th'),
-    ])
+    const myProfile = seekMyThApiProfile('my')
+    const thProfile = seekMyThApiProfile('th')
+    await mockLandingShell(page, [myProfile, thProfile])
 
     const openedUrls: string[] = []
     await page.exposeFunction('__e2eRecordOpen', (url: string) => {
@@ -284,9 +218,7 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     // list keeps the about:blank placeholder. Resolve the launched URL by
     // capturing the network request the popup makes to hk.employer.seek.com.
     const launchedSeekUrls: string[] = []
-    const seekPopups: string[] = []
     await page.context().on('page', async (popup) => {
-      seekPopups.push(popup.url())
       popup.on('request', (request) => {
         const url = request.url()
         if (url.startsWith('https://hk.employer.seek.com/talentsearch') || url.startsWith('https://my.employer.seek.com/talentsearch')) {
@@ -311,47 +243,44 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await expect(collectButtons).toHaveCount(2)
 
     // MY collect launches the exact hk talentsearch URL.
-    const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' }).first()
-    const myCollect = myCard.locator('..').getByTestId('search-hero-collect')
+    const myCollect = cardLocator(page, myProfile).first().locator('..').getByTestId('search-hero-collect')
     await expect(myCollect).toBeEnabled()
     await myCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(1)
     await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(1)
     const myUrl = new URL(launchedSeekUrls[launchedSeekUrls.length - 1])
-    expect(myUrl.host).toBe('hk.employer.seek.com')
-    expect(myUrl.pathname).toBe('/talentsearch')
+    expectUrlMatchesLaunch(myUrl, myProfile)
     expect(myUrl.searchParams.get('market')).toBe('MY')
-    expect(myUrl.searchParams.get('roleTitles')).toBe(MY_SERVICE_STACK_ROLE_TITLES)
+    expect(myUrl.searchParams.get('roleTitles')).toBe(seekServiceStackRoleTitles('my'))
     expect(myUrl.searchParams.get('searchQuery')).toBe('CNC')
     expect(myUrl.searchParams.get('keywords')).toBe('CNC')
 
     // TH collect launches market=TH on the same host (never th.employer.seek.com).
-    const thCard = page.locator('button', { hasText: 'Thailand · SEEK · CNC Service Engineer (Talent Search)' }).first()
-    const thCollect = thCard.locator('..').getByTestId('search-hero-collect')
+    const thCollect = cardLocator(page, thProfile).first().locator('..').getByTestId('search-hero-collect')
     await expect(thCollect).toBeEnabled()
     await thCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(2)
     await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(2)
     const thUrl = new URL(launchedSeekUrls[launchedSeekUrls.length - 1])
-    expect(thUrl.host).toBe('hk.employer.seek.com')
+    expectUrlMatchesLaunch(thUrl, thProfile)
     expect(thUrl.hostname).not.toBe('th.employer.seek.com')
-    expect(thUrl.pathname).toBe('/talentsearch')
     expect(thUrl.searchParams.get('market')).toBe('TH')
-    expect(thUrl.searchParams.get('roleTitles')).toBe(MY_SERVICE_STACK_ROLE_TITLES)
+    expect(thUrl.searchParams.get('roleTitles')).toBe(seekServiceStackRoleTitles('th'))
   })
 
   test('applying the MY quick start seeds the in-app search shell', async ({ page }) => {
-    await mockLandingShell(page, [serviceEngineerProfile('my')])
+    const myProfile = seekMyThApiProfile('my')
+    await mockLandingShell(page, [myProfile])
 
     await openCleanLanding(page)
 
-    const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' }).first()
+    const myCard = cardLocator(page, myProfile).first()
     await myCard.click()
     await page.waitForTimeout(500)
 
     await expect(page).toHaveURL(/\/resumes/)
     const url = new URL(page.url())
-    expect(url.searchParams.get('location')).toContain('Malaysia')
+    expect(url.searchParams.get('location')).toContain(myProfile.location)
     const q = url.searchParams.get('q')
     expect(q).toBeTruthy()
     const decoded = decodeURIComponent(q ?? '')
