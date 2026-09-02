@@ -17,6 +17,7 @@ import { expect, test, type Page } from '@playwright/test'
 type SearchProfileItem = {
   id: string
   name: string
+  status: 'active' | 'paused' | 'archived'
   location: string
   keywords: string[]
   quickStart?: {
@@ -55,6 +56,7 @@ function serviceEngineerProfile(id: 'my' | 'th'): SearchProfileItem {
     name: id === 'my'
       ? 'SEEK Malaysia CNC Service Engineer — Talent Search'
       : 'SEEK Thailand CNC Service Engineer — Talent Search',
+    status: 'active',
     location: id === 'my' ? 'Malaysia' : 'Thailand',
     keywords: ['CNC', 'Service Engineer'],
     quickStart: {
@@ -110,7 +112,7 @@ async function mockLandingShell(page: Page, profiles: SearchProfileItem[]) {
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        items: profiles,
+        profiles,
       }),
     })
   })
