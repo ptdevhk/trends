@@ -290,8 +290,9 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
       }
       const cdp = await page.context().newCDPSession(page)
       const { targetInfos } = await cdp.send('Target.getTargets')
-      const info = targetInfos?.find((t: { type?: string; url?: string }) =>
-        t.type === 'page' && (t.url ?? '').startsWith(target))
+      const infos = (targetInfos ?? []) as Array<{ type?: string; url?: string }>
+      const pageInfos = infos.filter((t) => t.type === 'page' && (t.url ?? '').startsWith('http'))
+      const info = pageInfos.find((t) => (t.url ?? '').startsWith(target))
       return info?.url ?? ''
     }
 
@@ -299,9 +300,6 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
 
     const collectButtons = page.getByTestId('search-hero-collect')
     await expect(collectButtons).toHaveCount(2)
-
-    const myUrl = talentSearchUrl('MY')
-    const thUrl = talentSearchUrl('TH')
 
     // MY collect launches the exact hk talentsearch URL.
     const myCard = page.locator('button', { hasText: 'Malaysia · SEEK · CNC Service Engineer (Talent Search)' }).first()
