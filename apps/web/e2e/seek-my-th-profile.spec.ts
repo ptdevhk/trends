@@ -280,21 +280,20 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await page.waitForTimeout(300)
     const collectPopups = () => page.context().pages().filter((p) => p !== page)
 
-    // Popups open on hk.employer.seek.com (external host) — Playwright keeps
-    // the target url on about:blank unless navigation is awaited. Resolve the
-    // final URL per target via CDP (works for out-of-process external pages).
-    async function popupUrl(target: string): Promise<string> {
-      const popup = collectPopups().find((p) => p.url().startsWith(target))
-      if (popup) {
-        return popup.url()
-      }
-      const cdp = await page.context().newCDPSession(page)
-      const { targetInfos } = await cdp.send('Target.getTargets')
-      const infos = (targetInfos ?? []) as Array<{ type?: string; url?: string }>
-      const pageInfos = infos.filter((t) => t.type === 'page' && (t.url ?? '').startsWith('http'))
-      const info = pageInfos.find((t) => (t.url ?? '').startsWith(target))
-      return info?.url ?? ''
-    }
+    // The Seek popup is an out-of-process external page; Playwright's page
+    // list keeps the about:blank placeholder. Resolve the launched URL by
+    // capturing the network request the popup makes to hk.employer.seek.com.
+    const launchedSeekUrls: string[] = []
+    const seekPopups: string[] = []
+    await page.context().on('page', async (popup) => {
+      seekPopups.push(popup.url())
+      popup.on('request', (request) => {
+        const url = request.url()
+        if (url.startsWith('https://hk.employer.seek.com/') || url.startsWith('https://my.employer.seek.com/')) {
+          launchedSeekUrls.push(url)
+        }
+      })
+    })
 
     await openCleanLanding(page)
 
@@ -307,7 +306,8 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await expect(myCollect).toBeEnabled()
     await myCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(1)
-    const myOpened = await popupUrl('https://hk.employer.seek.com/')
+    await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(1)
+    const myOpened = launchedSeekUrls[launchedSeekUrls.length - 1]
     expect(myOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(myOpened).toContain('market=MY')
     expect(myOpened).toContain(`roleTitles=${encodeURIComponent(MY_SERVICE_STACK_ROLE_TITLES)}`)
@@ -320,7 +320,8 @@ test.describe('SEEK MY/TH service-engineer quick starts', () => {
     await expect(thCollect).toBeEnabled()
     await thCollect.click()
     await expect.poll(() => collectPopups().length).toBeGreaterThanOrEqual(2)
-    const thOpened = await popupUrl('https://hk.employer.seek.com/')
+    await expect.poll(() => launchedSeekUrls.length).toBeGreaterThanOrEqual(2)
+    const thOpened = launchedSeekUrls[launchedSeekUrls.length - 1]
     expect(thOpened).toContain('hk.employer.seek.com/talentsearch')
     expect(thOpened).toContain('market=TH')
     expect(thOpened).not.toContain('th.employer.seek.com')
