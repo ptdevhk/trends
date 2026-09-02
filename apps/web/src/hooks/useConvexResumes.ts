@@ -1121,8 +1121,45 @@ export function stripKeywordsFromConvexFilters(filters: ConvexResumeFilters | un
   if (filters.keywords === undefined) {
     return filters
   }
-  const { keywords: _keywords, ...rest } = filters
+  const rest = { ...filters }
+  delete rest.keywords
   return rest
+}
+
+// The unverified-evidence lane mirrors the main search with the verified-only
+// minRoleYears gate dropped (2026-09-02 result-set parity decision). Dropping
+// the gate only widens the result set; other filters keep their semantics.
+export function stripMinRoleYearsFromFilters(filters: ConvexResumeFilters | undefined): ConvexResumeFilters | undefined {
+  if (!filters) {
+    return filters
+  }
+  if (filters.minRoleYears === undefined) {
+    return filters
+  }
+  const rest = { ...filters }
+  delete rest.minRoleYears
+  return rest
+}
+
+export type UnverifiedLaneItem = {
+  identityKey: string
+  name?: string
+  employer?: string
+  location?: string
+  source?: string
+  profileUrl?: string
+  resumeId?: string
+}
+
+export type UnverifiedLaneState = {
+  /** True when a verified-only role gate is active on the current AND-mode search. */
+  gateActive: boolean
+  /** Collapsed-count estimate: lane total − strict total (server summary totals). */
+  estimatedCount: number | null
+  expanded: boolean
+  loading: boolean
+  /** Lane rows minus the strict result set, keyed by resume identity. */
+  items: UnverifiedLaneItem[]
 }
 
 export function useConvexResumes(
@@ -1135,6 +1172,13 @@ export function useConvexResumes(
     sortOrder?: 'asc' | 'desc'
     filters?: ConvexResumeFilters
     showBlocked?: boolean
+    /** Unverified-evidence lane config (2026-09-02 result-set parity decision). */
+    unverifiedLane?: {
+      /** Eager single-page count query; set only when a verified-only role gate is active. */
+      countEnabled: boolean
+      /** Full lane query runs only while expanded. */
+      expanded: boolean
+    }
   }
 ) {
   const { tasks: analysisTasksForRefetch } = useAnalysisTasks()
@@ -1266,6 +1310,76 @@ export function useConvexResumes(
     limit,
     true,
   )
+
+  // --- Unverified-evidence lane (2026-09-02 result-set parity decision) ---
+  // Mirror of the AND-mode search with minRoleYears dropped. A collapsed
+  // single-page query keeps the eager count cheap; the full query runs only
+  // once the lane is expanded.
+  const laneCountEnabled = options?.unverifiedLane?.countEnabled === true
+  const laneExpanded = options?.unverifiedLane?.expanded === true
+  const laneFilters = useMemo(
+    () => stripMinRoleYearsFromFilters(options?.filters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters is a stable caller memo; strip is pure
+    [options?.filters],
+  )
+  const laneCountResult = useBffAndModeSearch(
+    !mockPayload && enabled && laneCountEnabled && isAndModeBffActive,
+    machineOriginActive,
+    normalizedQuery,
+    keywordExpansion,
+    expansionLoading,
+    laneFilters,
+    options?.sortBy,
+    resolvedSortOrder,
+    options?.showBlocked === true,
+    normalizedJobDescriptionId,
+    bffRefetchTrigger,
+    CONVEX_RESUME_PAGE_SIZE,
+    true,
+  )
+  const laneRowsResult = useBffAndModeSearch(
+    !mockPayload && enabled && laneCountEnabled && laneExpanded && isAndModeBffActive,
+    machineOriginActive,
+    normalizedQuery,
+    keywordExpansion,
+    expansionLoading,
+    laneFilters,
+    options?.sortBy,
+    resolvedSortOrder,
+    options?.showBlocked === true,
+    normalizedJobDescriptionId,
+    bffRefetchTrigger,
+    limit,
+    true,
+  )
+  const unverifiedLaneItems = useMemo<UnverifiedLaneItem[]>(() => {
+    if (!laneCountEnabled || !laneExpanded) {
+      return []
+    }
+    const strictIdentities = new Set(
+      bffAndModeResult.resumes.map((resume) => resume.identityKey?.trim() || resume.externalId),
+    )
+    const seen = new Set<string>()
+    const lane: UnverifiedLaneItem[] = []
+    for (const resume of laneRowsResult.resumes) {
+      const identityKey = resume.identityKey?.trim() || resume.externalId
+      if (strictIdentities.has(identityKey) || seen.has(identityKey)) {
+        continue
+      }
+      seen.add(identityKey)
+      const latestEmployer = resume.workHistory?.[0]?.companyName
+      lane.push({
+        identityKey,
+        name: resume.name,
+        employer: latestEmployer,
+        location: resume.location,
+        source: resume.source,
+        profileUrl: resume.profileUrl,
+        resumeId: resume.resumeId,
+      })
+    }
+    return lane
+  }, [bffAndModeResult.resumes, laneCountEnabled, laneExpanded, laneRowsResult.resumes])
 
   const paginatedSearchResults = useStablePaginatedQuery(
     api.resumes_search.searchWithTagExpansionPaginated,
@@ -1597,6 +1711,18 @@ export function useConvexResumes(
     expansion: resolvedExpansion,
     isAndModeBff: isAndModeBffActive,
     bffStatusCounts: bffAndModeResult.statusCounts,
+    unverifiedLane: laneCountEnabled
+      ? {
+          gateActive: true,
+          estimatedCount:
+            laneCountResult.loading && laneCountResult.total === 0
+              ? null
+              : Math.max(0, laneCountResult.total - bffAndModeResult.total),
+          expanded: laneExpanded,
+          loading: laneRowsResult.loading || laneRowsResult.loadingMore,
+          items: unverifiedLaneItems,
+        }
+      : undefined,
   }
 }
 

@@ -2102,6 +2102,16 @@
     "undoRowLabel": "撤銷 {{company}} 的核准",
     "undoSuccess": "已撤銷核准；提案重新進入待審狀態。",
     "verifiedOnlyReviewAction": "前往審核",
+    "unverifiedLane": {
+      "title": "結果僅含行業驗證僱主 · 以下為關鍵詞匹配但證據未計算的候選人",
+      "toggleWithCount": "匹配但未驗證 ({{count}})",
+      "toggle": "匹配但未驗證",
+      "loading": "載入未驗證匹配…",
+      "empty": "沒有額外的未驗證匹配。",
+      "employerFunnel": "目錄候選僱主（按出現次數）· 審核入冊可提升驗證覆蓋",
+      "badge": "證據未驗證",
+      "openProfile": "打開簡歷"
+    },
     "verifiedQuickPick": "已驗證公司檔案",
     "viewRow": "檢視",
     "visibleRiskFlags": "可見風險標記",

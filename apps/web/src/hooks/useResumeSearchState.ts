@@ -896,6 +896,18 @@ export function useResumeSearchState() {
     ],
   )
   const activeSort = resolveSortValue(parsedState.filters)
+  // Unverified-evidence lane (2026-09-02 result-set parity decision): when a
+  // verified-only role gate is active on an AND-mode search, offer the
+  // keyword matches whose verified role-year evidence has not been computed.
+  const unverifiedLaneGateActive =
+    !isLanding
+    && (parsedState.filters.minRoleYears ?? 0) > 0
+    && Boolean(effectiveRoleFilterType)
+  const [unverifiedLaneExpanded, setUnverifiedLaneExpanded] = useState(false)
+  const toggleUnverifiedLane = useCallback(
+    () => setUnverifiedLaneExpanded((expanded) => !expanded),
+    [],
+  )
   const resumeQuery = useConvexResumes(
     resumeLimit,
     activeQuery,
@@ -910,6 +922,10 @@ export function useResumeSearchState() {
         ? { sortBy: 'experience' as const, sortOrder: 'desc' as const }
         : {}),
       showBlocked: parsedState.filters.showBlocked === true,
+      unverifiedLane: {
+        countEnabled: unverifiedLaneGateActive,
+        expanded: unverifiedLaneGateActive && unverifiedLaneExpanded,
+      },
     },
   )
 
@@ -2183,6 +2199,8 @@ export function useResumeSearchState() {
     convexSearchFailed,
     convexRetrySearch,
     isFiltering,
+    unverifiedLane: resumeQuery.unverifiedLane,
+    toggleUnverifiedLane,
     parsedState,
     queryInput,
     recentSearches,

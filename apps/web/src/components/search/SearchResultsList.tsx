@@ -10,11 +10,11 @@ import {
 } from '@/components/industry-evidence/industry-evidence'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
-import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { useConvexResumeDetail, type ConvexResumeItem, type UnverifiedLaneItem, type UnverifiedLaneState } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
-import { ExternalLink, SearchCheck, X } from 'lucide-react'
+import { ChevronDown, ExternalLink, SearchCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import type { CandidatePolicyOverride } from '@trends/shared'
@@ -50,7 +50,7 @@ export type VerifiedOnlyNotice = {
 
 type SearchResultsListProps = {
   detailResumeId?: string
-  expandedIds: Set<string>
+  expandedIds?: Set<string>
   hasMore: boolean
   items: ResumeSearchResultItem[]
   loading?: boolean
@@ -95,6 +95,14 @@ type SearchResultsListProps = {
    * reviewer); when set, the verified-only notice gains a review link.
    */
   verifiedOnlyReviewHref?: string
+  /**
+   * Unverified-evidence lane (2026-09-02 result-set parity decision): keyword
+   * matches whose verified role-year evidence has not been computed yet.
+   * Rendered as an expandable section below the strict results; the employer
+   * funnel (catalog-growth candidates) is visible to industry-review seats.
+   */
+  unverifiedLane?: UnverifiedLaneState
+  onToggleUnverifiedLane?: () => void
   /** Show a quick-action button to clear the search query. */
   onClearQuery?: () => void
   /** Show a quick-action button to clear all facet filters. */
@@ -120,7 +128,7 @@ function SearchResultsSkeleton() {
 
 export function SearchResultsList({
   detailResumeId,
-  expandedIds,
+  expandedIds = new Set<string>(),
   hasMore,
   items,
   loading = false,
@@ -150,6 +158,8 @@ export function SearchResultsList({
   industryResearchQueueEnabled = false,
   verifiedOnlyNotice,
   verifiedOnlyReviewHref,
+  unverifiedLane,
+  onToggleUnverifiedLane,
   onClearQuery,
   onClearFilters,
 }: SearchResultsListProps) {
@@ -688,6 +698,12 @@ export function SearchResultsList({
           ) : null}
         </div>
       ) : null}
+      <UnverifiedLaneSection
+        lane={unverifiedLane}
+        onToggle={onToggleUnverifiedLane}
+        canReview={showIndustryEvidenceReviewGuidance}
+        reviewHref={verifiedOnlyReviewHref}
+      />
       {shouldVirtualize ? (
         <div
           className="relative"
@@ -773,5 +789,181 @@ export function SearchResultsList({
 
       {detailDialog}
     </div>
+  )
+}
+
+/**
+ * Expandable "matched but unverified" lane under the strict verified-only
+ * results (2026-09-02 result-set parity decision). HR keeps sight of keyword
+ * matches whose verified role-year evidence has not been computed yet; the
+ * employer funnel panel (industry-review seats only) feeds the MY catalog
+ * stewardship loop. Compact rows on purpose: the lane is discovery, not a
+ * second action surface.
+ */
+function UnverifiedLaneSection({
+  lane,
+  onToggle,
+  canReview,
+  reviewHref,
+}: {
+  lane?: UnverifiedLaneState
+  onToggle?: () => void
+  canReview: boolean
+  reviewHref?: string
+}) {
+  const { t } = useTranslation()
+  const employerCounts = useMemo(() => {
+    if (!lane?.expanded || !lane.items.length) {
+      return [] as Array<{ name: string; count: number }>
+    }
+    const counts = new Map<string, number>()
+    for (const item of lane.items) {
+      const employer = item.employer?.trim()
+      if (!employer) {
+        continue
+      }
+      counts.set(employer, (counts.get(employer) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 20)
+  }, [lane?.expanded, lane?.items])
+
+  if (!lane?.gateActive) {
+    return null
+  }
+
+  const countLabel = lane.estimatedCount !== null
+    ? t('industryEvidence.unverifiedLane.toggleWithCount', {
+      defaultValue: '匹配但未验证 ({{count}})',
+      count: lane.estimatedCount,
+    })
+    : t('industryEvidence.unverifiedLane.toggle', {
+      defaultValue: '匹配但未验证',
+    })
+
+  return (
+    <div
+      className="mt-3 rounded-lg border border-amber-300/40 bg-amber-50/60 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/20"
+      data-testid="unverified-lane-section"
+    >
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 text-left font-medium text-amber-900 dark:text-amber-200"
+        aria-expanded={lane.expanded}
+        data-testid="unverified-lane-toggle"
+        onClick={onToggle}
+      >
+        <span>
+          {t('industryEvidence.unverifiedLane.title', {
+            defaultValue: '结果仅含行业验证雇主 · 以下为关键词匹配但证据未计算的候选人',
+          })}
+        </span>
+        <span className="inline-flex items-center gap-2 whitespace-nowrap text-amber-800 dark:text-amber-300">
+          {countLabel}
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${lane.expanded ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+      {lane.expanded ? (
+        <div className="mt-3 space-y-3">
+          {lane.loading ? (
+            <p className="text-xs text-muted-foreground" role="status">
+              {t('industryEvidence.unverifiedLane.loading', {
+                defaultValue: '加载未验证匹配…',
+              })}
+            </p>
+          ) : null}
+          {!lane.loading && lane.items.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {t('industryEvidence.unverifiedLane.empty', {
+                defaultValue: '没有额外的未验证匹配。',
+              })}
+            </p>
+          ) : null}
+          {canReview && employerCounts.length > 0 ? (
+            <div
+              className="rounded-md border border-amber-300/50 bg-white/70 p-3 dark:border-amber-500/40 dark:bg-background/60"
+              data-testid="unverified-lane-employer-funnel"
+            >
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                {t('industryEvidence.unverifiedLane.employerFunnel', {
+                  defaultValue: '目录候选雇主（按出现次数）· 审核入册可提升验证覆盖',
+                })}
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {employerCounts.map((entry) => (
+                  <li
+                    key={entry.name}
+                    className="inline-flex items-center rounded-full border border-amber-300/60 px-2 py-0.5 text-xs dark:border-amber-500/40"
+                  >
+                    <span className="max-w-64 truncate">{entry.name}</span>
+                    <span className="ml-1 text-muted-foreground">×{entry.count}</span>
+                  </li>
+                ))}
+              </ul>
+              {reviewHref ? (
+                <a
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+                  href={reviewHref}
+                >
+                  {t('industryEvidence.verifiedOnlyReviewAction', {
+                    defaultValue: 'Review industry evidence',
+                  })}
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          {lane.items.length > 0 ? (
+            <ul className="divide-y divide-amber-200/60 dark:divide-amber-500/20">
+              {lane.items.map((item) => (
+                <LaneRow key={item.identityKey} item={item} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function LaneRow({ item }: { item: UnverifiedLaneItem }) {
+  const { t } = useTranslation()
+  const employerLabel = item.employer?.trim()
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm" data-testid="unverified-lane-row">
+      <span className="font-medium">{item.name || item.identityKey}</span>
+      {employerLabel ? (
+        <span className="text-muted-foreground">{employerLabel}</span>
+      ) : null}
+      {item.location ? (
+        <span className="text-muted-foreground">{item.location}</span>
+      ) : null}
+      <span
+        className="inline-flex items-center rounded border border-amber-300/70 px-1.5 py-0.5 text-xs text-amber-800 dark:border-amber-500/40 dark:text-amber-300"
+        data-testid="unverified-lane-badge"
+      >
+        {t('industryEvidence.unverifiedLane.badge', {
+          defaultValue: '证据未验证',
+        })}
+      </span>
+      {item.profileUrl ? (
+        <a
+          className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+          href={item.profileUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('industryEvidence.unverifiedLane.openProfile', {
+            defaultValue: '打开简历',
+          })}
+          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        </a>
+      ) : null}
+    </li>
   )
 }

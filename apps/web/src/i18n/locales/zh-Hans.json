@@ -1582,6 +1582,16 @@
     "undoRowLabel": "撤销 {{company}} 的批准",
     "undoSuccess": "已撤销批准；提案重新进入待审核状态。",
     "verifiedOnlyReviewAction": "前往审核",
+    "unverifiedLane": {
+      "title": "结果仅含行业验证雇主 · 以下为关键词匹配但证据未计算的候选人",
+      "toggleWithCount": "匹配但未验证 ({{count}})",
+      "toggle": "匹配但未验证",
+      "loading": "加载未验证匹配…",
+      "empty": "没有额外的未验证匹配。",
+      "employerFunnel": "目录候选雇主（按出现次数）· 审核入册可提升验证覆盖",
+      "badge": "证据未验证",
+      "openProfile": "打开简历"
+    },
     "verifiedQuickPick": "已验证公司资料",
     "viewRow": "查看",
     "visibleRiskFlags": "可见风险标记",

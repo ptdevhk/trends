@@ -2102,6 +2102,16 @@
     "undoRowLabel": "Undo approval for {{company}}",
     "undoSuccess": "Approval undone; proposal is ready for review again.",
     "verifiedOnlyReviewAction": "Review industry evidence",
+    "unverifiedLane": {
+      "title": "Results are limited to industry-verified employers · keyword matches with uncomputed evidence are listed below",
+      "toggleWithCount": "Matched but unverified ({{count}})",
+      "toggle": "Matched but unverified",
+      "loading": "Loading unverified matches…",
+      "empty": "No additional unverified matches.",
+      "employerFunnel": "Catalog-candidate employers (by frequency) · reviewing them raises verification coverage",
+      "badge": "Evidence unverified",
+      "openProfile": "Open resume"
+    },
     "verifiedQuickPick": "Verified profiles",
     "viewRow": "View",
     "visibleRiskFlags": "Visible risk flags",

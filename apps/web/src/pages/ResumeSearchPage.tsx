@@ -99,6 +99,8 @@ export function ResumeSearchPage() {
     loadingMore,
     convexSearchFailed,
     convexRetrySearch,
+    unverifiedLane,
+    toggleUnverifiedLane,
     loadMore,
     parsedState,
     queryInput,
@@ -750,6 +752,8 @@ export function ResumeSearchPage() {
                       : undefined
                   }
                   verifiedOnlyReviewHref={verifiedOnlyReviewHref}
+                  unverifiedLane={unverifiedLane}
+                  onToggleUnverifiedLane={toggleUnverifiedLane}
                   onClearQuery={queryInput.trim() ? handleClearQuery : undefined}
                   onClearFilters={filterCount > 0 ? clearFacetFilters : undefined}
                 />
