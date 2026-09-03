@@ -213,6 +213,11 @@ async function installProviderMembershipApi(page: Page) {
   ]
 
   await page.addInitScript(() => {
+    // fetchCurrentAuth short-circuits without the trends_csrf cookie; the
+    // real backend sets it via Set-Cookie on login, so the e2e mock must
+    // seed it (same pattern as blacklist.spec.ts) to keep auth alive across
+    // top-level route shells (/login → /admin/system remounts AuthProvider).
+    document.cookie = 'trends_csrf=csrf-e2e; path=/; SameSite=Lax'
     localStorage.setItem('i18nextLng', 'en')
   })
 
@@ -295,6 +300,12 @@ async function installProviderMembershipApi(page: Page) {
         memberships: userMemberships,
         workspaceRole: userMemberships.find((membership) => membership.workspaceSlug === workspaceSlug)?.role ?? null,
       })
+      return
+    }
+
+    if (pathname === '/api/admin/users' && method === 'GET') {
+      // The auth page embeds UsersPanel, which renders users.length.
+      await jsonResponse(route, 200, { success: true, users: [] })
       return
     }
 
@@ -482,7 +493,9 @@ async function installProviderMembershipApi(page: Page) {
 }
 
 async function signIn(page: Page, username: string, password: string, redirectTo: string) {
-  await page.goto(`/dev/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+  // Canonical login lives at /login since 43240996 (workspace-scoped
+  // /dev/login existed only as a legacy bounce target).
+  await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
   await page.getByLabel('Username').fill(username)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -498,11 +511,11 @@ test.describe('Provider membership admin page', () => {
     await page.reload()
 
     await expect(page.getByRole('heading', { name: 'Auth access' })).toBeVisible()
-    await expect(page.getByText('WeCom E2E Candidate')).toBeVisible()
+    await expect(page.getByText('WeCom E2E Candidate').first()).toBeVisible()
     await expect(page.getByText('wecom-seeded-42').first()).toBeVisible()
     await expect(page.getByText('wecom-corp-e2e').first()).toBeVisible()
     await expect(page.getByText('Provider-derived grants')).toBeVisible()
-    await expect(page.getByText('workspace_membership_granted')).toBeVisible()
+    await expect(page.getByText('workspace_membership_granted').first()).toBeVisible()
 
     await page.getByTestId('auth-provider-subject-input').fill('wecom-grant-99')
     await page.getByTestId('auth-provider-tenant-input').fill('wecom-corp-e2e')
@@ -512,7 +525,7 @@ test.describe('Provider membership admin page', () => {
 
     await expect(page.getByText('Provider access saved')).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'wecom-grant-99' }).filter({ hasText: 'admin' }).first()).toBeVisible()
-    await expect(page.getByTestId('auth-revoke-wecom-grant-99-dev')).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'wecom-grant-99' }).getByTestId('auth-revoke-wecom-grant-99-dev').first()).toBeVisible()
     expect(api.preapproveRequests).toEqual([
       {
         provider: 'casdoor',
@@ -527,11 +540,11 @@ test.describe('Provider membership admin page', () => {
       expect(dialog.message()).toContain('Revoke this provider-derived workspace access?')
       await dialog.accept()
     })
-    await page.getByTestId('auth-revoke-wecom-grant-99-dev').click()
+    await page.getByRole('row').filter({ hasText: 'wecom-grant-99' }).getByTestId('auth-revoke-wecom-grant-99-dev').first().click()
 
     await expect(page.getByText('Provider access revoked')).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'wecom-grant-99' }).filter({ hasText: 'Revoked' }).first()).toBeVisible()
-    await expect(page.getByText('workspace_membership_revoked')).toBeVisible()
+    await expect(page.getByText('workspace_membership_revoked').first()).toBeVisible()
     await expect(page.getByTestId('auth-revoke-wecom-grant-99-dev')).toHaveCount(0)
     expect(api.revokeRequests).toEqual([
       {
@@ -543,14 +556,20 @@ test.describe('Provider membership admin page', () => {
     ])
 
     const pageText = await page.locator('body').innerText()
-    expect(pageText).not.toMatch(/rawProfile|raw_profile|access_token|id_token|secret|password/i)
+    // The current auth page intentionally describes a "passwordless" desk
+    // token, so match standalone secret-field names/values rather than the
+    // substring "password" inside that copy.
+    expect(pageText).not.toMatch(/rawProfile|raw_profile|access_token|id_token|\bsecret\b|\bpassword\b|admin-secret|hr-secret/i)
     expect(consoleProblems.messages).toEqual([])
   })
 
   test('HR user cannot operate provider membership admin page or endpoints', async ({ page }) => {
     const api = await installProviderMembershipApi(page)
 
-    await signIn(page, 'hr-e2e', 'hr-secret', '/admin/system/settings/auth')
+    // System admin routes are dev-workspace-only: an HR user requesting
+    // settings/auth is denied via the workspace-scoped system route
+    // (WorkspaceSystemDeniedPage), never reaching /admin/system/settings/auth.
+    await signIn(page, 'hr-e2e', 'hr-secret', '/hr/system/settings/auth')
 
     await expect(page.getByText('Admin access required')).toBeVisible()
     await expect(page.getByTestId('auth-preapprove-submit')).toHaveCount(0)
@@ -574,8 +593,9 @@ test.describe('Provider membership admin page', () => {
     })
 
     expect(status).toBe(403)
+    // The auth page never mounts for HR, so no GET denial is recorded —
+    // only the direct endpoint probe.
     expect(api.deniedProviderRequests).toEqual([
-      { method: 'GET', path: '/api/auth/provider-memberships' },
       { method: 'POST', path: '/api/auth/provider-memberships/preapprove' },
     ])
   })

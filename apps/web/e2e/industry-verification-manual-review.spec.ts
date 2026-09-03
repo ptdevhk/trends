@@ -667,31 +667,32 @@ test.describe('Industry verification manual review (HR unknown company)', () => 
     // Open evidence packet
     await page.getByTestId(`industry-review-row-${proposalId}`).getByRole('button', { name: '查看' }).click()
 
-    // Select industrial as the industry class
-    await page.getByLabel(/Industry class/).selectOption('industrial')
+    // Select industrial as the industry class (review decision card labels
+    // are zh-Hans: 行业分类 / 证据摘要 / 决定原因)
+    await page.getByLabel(/行业分类/).selectOption('industrial')
 
     // Fill evidence summary + decision reason
-    await page.getByLabel(/Evidence summary/).fill(
+    await page.getByLabel(/证据摘要/).fill(
       '360百科 confirms industrial manufacturer of gear motors and micro motors.',
     )
-    await page.getByLabel(/Decision reason/).fill(
+    await page.getByLabel(/决定原因/).fill(
       'Reviewer approves industrial classification based on evidence.',
     )
 
-    // Acknowledge risk flags
-    await page.getByLabel(/Acknowledge low_source_diversity/).check()
-    await page.getByLabel(/Acknowledge weak_industry_signal/).check()
+    // Acknowledge risk flags (attestation card aria-labels: 确认 + flag)
+    await page.getByLabel(/确认 low source diversity/).check()
+    await page.getByLabel(/确认 weak industry signal/).check()
 
     // Fill acknowledgement reason (zh-Hans label)
     await page.getByLabel('详细确认理由').fill(
       'Single corroborating source with direct employer mention.',
     )
 
-    // Click Approve revision
-    await page.getByRole('button', { name: 'Approve revision' }).click()
+    // Click Approve revision (zh-Hans: 批准该版本)
+    await page.getByRole('button', { name: '批准该版本' }).click()
 
-    // Confirm dialog should appear — click the confirm button
-    await page.getByRole('button', { name: 'Confirm approve revision' }).click()
+    // Inline confirmation panel appears — click the confirm button
+    await page.getByRole('button', { name: '确认批准该版本' }).click()
 
     // POST /approve was called
     expect(state.approved).toBe(true)
@@ -712,24 +713,32 @@ test.describe('Industry verification manual review (HR unknown company)', () => 
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     await page.getByTestId(`industry-review-row-${proposalId}`).getByRole('button', { name: '查看' }).click()
-    await page.getByLabel(/Industry class/).selectOption('industrial')
-    await page.getByLabel(/Evidence summary/).fill('Evidence summary.')
-    await page.getByLabel(/Decision reason/).fill('Decision reason.')
-    await page.getByLabel(/Acknowledge low_source_diversity/).check()
-    await page.getByLabel(/Acknowledge weak_industry_signal/).check()
+    await page.getByLabel(/行业分类/).selectOption('industrial')
+    await page.getByLabel(/证据摘要/).fill('Evidence summary.')
+    await page.getByLabel(/决定原因/).fill('Decision reason.')
+    await page.getByLabel(/确认 low source diversity/).check()
+    await page.getByLabel(/确认 weak industry signal/).check()
     await page.getByLabel('详细确认理由').fill('Acknowledged.')
-    await page.getByRole('button', { name: 'Approve revision' }).click()
-    await page.getByRole('button', { name: 'Confirm approve revision' }).click()
+    await page.getByRole('button', { name: '批准该版本' }).click()
+    await page.getByRole('button', { name: '确认批准该版本' }).click()
 
     // Wait for state to propagate
     expect(state.approved).toBe(true)
 
+    // Session approvals are intentionally hidden from History until the
+    // manual refresh reconciles the queue and terminal history endpoints.
+    await page.getByTestId('industry-review-refresh').click()
+    await expect(page.getByTestId('industry-review-summary-session-approved')).toHaveText('0')
+
     // Click the History tab (zh-Hans: 历史)
     await page.getByRole('tab', { name: /历史/ }).click()
 
-    // The approved proposal should appear in history
-    await expect(page.getByText('测试工业有限公司').first()).toBeVisible()
-    await expect(page.getByText('approved').first()).toBeVisible()
-    await expect(page.getByText('industrial').first()).toBeVisible()
+    // The history row renders the mapped canonical company key (displayCompany
+    // uppercases and separates key tokens), not the original employer surface.
+    const historyRow = page.getByTestId(`industry-history-row-${proposalId}`)
+    await expect(historyRow).toBeVisible()
+    await expect(historyRow).toContainText('CANDIDATE E2E TEST COMPANY KEY')
+    await expect(historyRow).toContainText('approved')
+    await expect(historyRow).toContainText('industrial')
   })
 })

@@ -25,15 +25,62 @@ async function mockResumePageApis(
     jobDescriptionMinYears?: number
   }
 ) {
+  // Authenticated HR shell (same pattern as mockAuthenticatedDevShell in
+  // blacklist.spec.ts): the trends_csrf cookie lets fetchCurrentAuth call
+  // /api/auth/me, and the hr membership makes the workspace routing render
+  // /hr/resumes for both the public /resumes entry and legacy /dev/resumes.
   await page.addInitScript((payload) => {
+    document.cookie = 'trends_csrf=csrf-e2e; path=/; SameSite=Lax'
     localStorage.setItem('i18nextLng', 'zh-Hans')
-    ;(window as Window & { __TR_PLAYWRIGHT_MOCK_RESUMES__?: unknown }).__TR_PLAYWRIGHT_MOCK_RESUMES__ = payload
+    const params = new URLSearchParams(window.location.search)
+    const roleType = params.get('roleType')?.trim().toLowerCase()
+    const minRoleYears = Number(params.get('minRoleYears'))
+    const matchesRoleGate = (resume: {
+      ingestData?: { roleSignals?: Array<{ type?: string; years?: number }> }
+    } | undefined) => resume?.ingestData?.roleSignals?.some((signal) => (
+      signal.type?.trim().toLowerCase() === roleType
+      && (!Number.isFinite(minRoleYears) || (signal.years ?? 0) >= minRoleYears)
+    )) ?? false
+    const roleFilteredList = roleType
+      ? ((payload as { list?: Array<{ ingestData?: { roleSignals?: Array<{ type?: string; years?: number }> } }> }).list ?? []).filter(matchesRoleGate)
+      : undefined
+    const roleFilteredSearch = roleType
+      ? ((payload as { search?: { results?: Array<{ resume?: { ingestData?: { roleSignals?: Array<{ type?: string; years?: number }> } } }> } }).search?.results ?? []).filter(({ resume }) => matchesRoleGate(resume))
+      : undefined
+    ;(window as Window & { __TR_PLAYWRIGHT_MOCK_RESUMES__?: unknown }).__TR_PLAYWRIGHT_MOCK_RESUMES__ = roleType
+      ? {
+          ...(payload as Record<string, unknown>),
+          list: roleFilteredList,
+          search: {
+            ...((payload as { search?: Record<string, unknown> }).search ?? {}),
+            results: roleFilteredSearch,
+          },
+        }
+      : payload
   }, {
     list: options.listResumes ?? [],
     search: {
       results: (options.searchResumes ?? []).map((resume) => ({ resume })),
       expansion: undefined,
     },
+  })
+
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        user: {
+          id: 'hr-e2e',
+          email: 'hr-e2e@example.com',
+          displayName: 'HR User E2E',
+          status: 'active',
+        },
+        memberships: [{ userId: 'hr-e2e', workspaceSlug: 'hr', role: 'user' }],
+        workspaceRole: 'user',
+      }),
+    })
   })
 
   await page.route('**/api/query', async (route) => {
@@ -652,20 +699,23 @@ test.describe('Resume quick role filter', () => {
 
     const keywordInput = page.getByTestId('resume-search-input')
 
-    await expect(page).toHaveURL(/\/dev\/resumes\?location=.*q=/)
+    // Authenticated hr users are redirected from the public /resumes entry
+    // to the hr workspace route, preserving the search (workspace routing,
+    // ef47e528).
+    await expect(page).toHaveURL(/\/hr\/resumes\?location=.*q=/)
     await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
     await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBe('东莞')
-    await expect(page.getByText('2 条结果，查询“CNC 车床 销售 STAR”')).toBeVisible()
+    await expect(page.getByText('2 条结果，查询“CNC 车床 销售 STAR”').first()).toBeVisible()
 
     await page.getByRole('link', { name: '趋势 Trends' }).click()
 
-    await expect(page).toHaveURL(/\/dev\/resumes$/)
+    await expect(page).toHaveURL(/\/hr\/resumes$/)
     await expect(keywordInput).toHaveValue('')
     await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBeNull()
 
     await page.goBack()
 
-    await expect(page).toHaveURL(/\/dev\/resumes\?location=.*q=/)
+    await expect(page).toHaveURL(/\/hr\/resumes\?location=.*q=/)
     await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
     await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBe('东莞')
   })
@@ -704,12 +754,12 @@ test.describe('Resume quick role filter', () => {
     await page.getByRole('button', { name: '查看' }).first().click()
     const detailDialog = page.getByRole('dialog', { name: '简历详情' })
     await expect(detailDialog).toBeVisible()
-    await expect(detailDialog.getByText('东莞某设备公司 · 销售工程师')).toBeVisible()
+    await expect(detailDialog.getByRole('listitem').filter({ hasText: '东莞某设备公司' }).filter({ hasText: '销售工程师' })).toBeVisible()
     await expect(detailDialog.getByText('2021-03 ~ 至今 (4年)')).toBeVisible()
     await expect(detailDialog.getByText('负责华南区机床销售与客户维护。 离职原因：寻求更大平台。')).toBeVisible()
-    await expect(detailDialog.getByText('行业验证')).toBeVisible()
+    await expect(detailDialog.getByText(/工程\s+4年/)).toBeVisible()
     await expect(detailDialog.getByText('machine tools')).toBeVisible()
-    await page.getByRole('button', { name: '关闭' }).click()
+    await detailDialog.getByRole('button', { name: '关闭' }).first().click()
 
     await page.goto('/dev/resumes?q=%E9%94%80%E5%94%AE%E5%B7%A5%E7%A8%8B%E5%B8%88&minRoleYears=1&roleType=engineer')
 
@@ -853,7 +903,7 @@ test.describe('Resume quick role filter', () => {
 
     await page.getByRole('link', { name: '趋势 Trends' }).click()
 
-    await expect(page).toHaveURL(/\/dev\/resumes$/)
+    await expect(page).toHaveURL(/\/hr\/resumes$/)
     await expect(page.getByTestId('resume-search-input')).toHaveValue('')
   })
 })
