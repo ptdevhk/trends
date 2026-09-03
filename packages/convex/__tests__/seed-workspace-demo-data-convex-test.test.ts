@@ -22,16 +22,16 @@ describe("seed: seedWorkspaceDemoData", () => {
     expect(resumes).toHaveLength(0);
   });
 
-  it("seeds search profiles without JD linkage for the four seed profiles", async () => {
+  it("seeds search profiles without JD linkage for the six seed profiles", async () => {
     const t = createTest();
 
     const result = await t.mutation(api.seed.seedWorkspaceDemoData, {});
 
-    expect(result.searchProfiles.inserted).toBe(4);
+    expect(result.searchProfiles.inserted).toBe(6);
     expect(result.searchProfiles.updated).toBe(0);
 
     const profiles = await t.run(async (ctx) => ctx.db.query("search_profiles").collect());
-    expect(profiles).toHaveLength(4);
+    expect(profiles).toHaveLength(6);
 
     const seededProfiles = new Map(
       profiles.map((p) => [String((p.profile as Record<string, unknown>)?.id), p.profile ?? {}]),
