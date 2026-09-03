@@ -65,8 +65,8 @@ describe('MY/TH CNC Service Engineer talent-search profiles', () => {
     expect(th?.profile.location).toBe('Thailand')
     expect(my?.profile.jobDescription).toBe('seek-malaysia-service-engineer')
     expect(th?.profile.jobDescription).toBe('seek-thailand-service-engineer')
-    expect(my?.profile.filters?.roleFilterType).toBe('technical')
-    expect(th?.profile.filters?.roleFilterType).toBe('technical')
+    expect(my?.profile.filters?.roleFilterType).toBe('engineer')
+    expect(th?.profile.filters?.roleFilterType).toBe('engineer')
     expect(my?.profile.keywords).not.toContain('Sales')
     expect(th?.profile.keywords).not.toContain('Sales')
 

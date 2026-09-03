@@ -426,6 +426,37 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.years).toBeGreaterThan(0);
   });
 
+  it("should compute engineer role signals from Thai-language work history", () => {
+    const result = service.computeOne("resume-th-technician", {
+      data: [
+        {
+          name: "TH-Test",
+          profileUrl: "https://example.com/profile/th-901",
+          location: "Bangkok, Thailand",
+          jobIntention: "ช่างเทคนิค CNC",
+          workHistory: [
+            {
+              raw: "2021-01~2024-12 บริษัท ซีเอ็นซี ช่างเทคนิค CNC",
+              companyName: "บริษัท ซีเอ็นซี",
+              jobTitle: "ช่างเทคนิค CNC",
+              description: "ดูแลและซ่อมบำรุงเครื่อง CNC ควบคุมเครื่องจักร",
+              startDate: "2021-01",
+              endDate: "2024-12",
+            },
+          ],
+          extractedAt: "2026-02-21T10:00:00.000Z",
+        },
+      ],
+    });
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    expect(engineerRole).toBeDefined();
+    expect(engineerRole?.matchedSignals).toEqual(
+      expect.arrayContaining(["ช่างเทคนิค", "ซ่อมบำรุง"]),
+    );
+    expect(engineerRole?.years).toBeGreaterThan(0);
+  });
+
   it("should persist matched work-entry evidence and prioritize title matches", () => {
     const structuredResume = {
       data: [

@@ -556,7 +556,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
-        "roleFilterType": "technical",
+        "roleFilterType": "engineer",
         "locations": [
           "Malaysia"
         ]
@@ -611,7 +611,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
-        "roleFilterType": "technical",
+        "roleFilterType": "engineer",
         "locations": [
           "Malaysia"
         ]
@@ -666,7 +666,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
-        "roleFilterType": "technical",
+        "roleFilterType": "engineer",
         "locations": [
           "Thailand"
         ]
@@ -721,7 +721,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
-        "roleFilterType": "technical",
+        "roleFilterType": "engineer",
         "locations": [
           "Thailand"
         ]

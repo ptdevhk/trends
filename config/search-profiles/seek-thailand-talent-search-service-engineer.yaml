@@ -16,7 +16,7 @@ jobDescription: seek-thailand-service-engineer
 
 filters:
   minRoleYears: 1
-  roleFilterType: technical
+  roleFilterType: engineer
   maxExperience: null
   locations:
     - Thailand
