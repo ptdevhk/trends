@@ -436,3 +436,66 @@ describe("isLocationMatch", () => {
     expect(isLocationMatch("上海", "广东")).toBe(false);
   });
 });
+
+// ── Thailand province/city coverage (location-facet fix) ─────────────
+
+describe("Thailand province/city coverage (seek source-country fix)", () => {
+  it("resolves Rayong to a Thailand province", () => {
+    const h = resolveLocationHierarchy("Rayong");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Rayong",
+    }));
+  });
+
+  it("resolves 'Rayong, TH' to a Thailand province", () => {
+    const h = resolveLocationHierarchy("Rayong, TH");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Rayong",
+    }));
+  });
+
+  it("resolves 'Chon Buri, Thailand' to a Thailand province", () => {
+    const h = resolveLocationHierarchy("Chon Buri, Thailand");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Chon Buri",
+    }));
+  });
+
+  it("resolves 'Mueang Chonburi, Chon Buri, TH' to the Chon Buri province", () => {
+    const h = resolveLocationHierarchy("Mueang Chonburi, Chon Buri, TH");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Chon Buri",
+    }));
+  });
+
+  it("resolves Samut Prakan to a Thailand province", () => {
+    const h = resolveLocationHierarchy("Samut Prakan");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Samut Prakan",
+    }));
+  });
+
+  it("keeps Bangkok resolving under Thailand", () => {
+    const h = resolveLocationHierarchy("Bangkok, TH");
+    expect(h).toEqual(expect.objectContaining({
+      country: "Thailand",
+      province: "Bangkok",
+    }));
+  });
+
+  it("matches a Thailand province resume location to the Thailand country facet", () => {
+    const location = formatLocationHierarchySearchText(resolveLocationHierarchy("Rayong, TH")!);
+    expect(isLocationMatch(location, "Thailand")).toBe(true);
+    expect(isLocationMatch(location, "TH")).toBe(true);
+  });
+
+  it("does not match a Thailand province under Malaysia", () => {
+    const location = formatLocationHierarchySearchText(resolveLocationHierarchy("Rayong, TH")!);
+    expect(isLocationMatch(location, "Malaysia")).toBe(false);
+  });
+});

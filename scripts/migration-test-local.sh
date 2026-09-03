@@ -53,6 +53,7 @@ backfillSeekNameSearchUrls|{}
 backfillAnalysesValidator|{}
 backfillAuditLogActorIdentity|{}
 backfillResumeAnalysesStatus|{}
+backfillSeekLocationCountryDigests|{}
 validateDataConsistency|{}
 EOF
 }

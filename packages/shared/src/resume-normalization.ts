@@ -109,9 +109,87 @@ const SOURCE_KEY_TO_COUNTRY: Record<ResumeAnalysisSourceKey, string> = {
   seek: "Malaysia",
 };
 
-function inferCountryFromSource(source: unknown): string | undefined {
-  const key = normalizeResumeAnalysisSourceKey(toTrimmedString(source) || undefined);
-  return key ? SOURCE_KEY_TO_COUNTRY[key] : undefined;
+/**
+ * Infer the source-country fallback for a resume record.
+ *
+ * Seek's host is market-routed by URL param (all markets share the
+ * hk./my. employer host suffix, per the 2026-08-28 MY/TH lane notes), so the
+ * sourceKey → Malaysia default only applies when nothing in the record
+ * contradicts it. A content-derived hierarchy/country already present
+ * (persisted content.locationHierarchy, or a content location that the tree
+ * resolves to Thailand) is evidence of a TH-market row — preferring the
+ * explicit market map here would otherwise clobber Thailand with "Malaysia"
+ * (the source-country location-facet defect). CN sources keep their strict
+ * source-key override (51job/job5156 rows are never Thailand).
+ */
+function inferCountryFromSource(record: Record<string, unknown> | undefined, source?: unknown): string | undefined {
+  const sourceKey = normalizeResumeAnalysisSourceKey(toTrimmedString(source) || undefined);
+  if (sourceKey === "seek") {
+    const contentCountry = inferSeekCountryFromRecord(record);
+    return contentCountry ?? SOURCE_KEY_TO_COUNTRY.seek;
+  }
+  return sourceKey ? SOURCE_KEY_TO_COUNTRY[sourceKey] : undefined;
+}
+
+function inferSeekCountryFromRecord(record: Record<string, unknown> | undefined): string | undefined {
+  if (!record) {
+    return undefined;
+  }
+
+  const explicitHierarchy = normalizeLocationTreeHierarchy(record.locationHierarchy);
+  const explicitCountry = explicitHierarchy?.country;
+  if (explicitCountry === "Thailand") {
+    return "Thailand";
+  }
+  if (explicitCountry === "Malaysia") {
+    return "Malaysia";
+  }
+
+  const rawLocation = toTrimmedString(record.location);
+  if (rawLocation) {
+    const resolved = normalizeLocationTreeHierarchy(rawLocation);
+    if (resolved?.country === "Thailand") {
+      return "Thailand";
+    }
+    if (resolved?.country === "Malaysia") {
+      return "Malaysia";
+    }
+  }
+
+  // SEEK talentsearch name-search profile URLs carry the market the row was
+  // collected under (market=TH for the TH lane on hk.employer.seek.com).
+  // A row with an unparseable location but an explicit TH market URL should
+  // not fall back to the seek→Malaysia default.
+  const marketHint = inferSeekMarketHintFromUrl(
+    toTrimmedString(record.profileUrl)
+    ?? toTrimmedString(record.url)
+    ?? toTrimmedString(record.profile_url)
+    ?? toTrimmedString(record.profileURL),
+  );
+  if (marketHint === "TH") {
+    return "Thailand";
+  }
+  if (marketHint === "MY") {
+    return "Malaysia";
+  }
+
+  return undefined;
+}
+
+function inferSeekMarketHintFromUrl(value: string): "TH" | "MY" | "HK" | undefined {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(value);
+    const market = parsed.searchParams.get("market")?.trim().toUpperCase();
+    if (market === "TH" || market === "MY" || market === "HK") {
+      return market;
+    }
+  } catch {
+    // Not a parseable URL — ignore.
+  }
+  return undefined;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -466,7 +544,7 @@ function collectLocationHierarchyCandidates(record: Record<string, unknown>): Ra
   // Resumes with unparseable location text still have a known source host that
   // implies country; this fallback prevents them from being invisible to location filters.
   if (candidates.length === 0) {
-    const sourceCountry = inferCountryFromSource(record.source ?? record.sourceHost);
+    const sourceCountry = inferCountryFromSource(record);
     if (sourceCountry) {
       candidates.push({
         hierarchy: { country: sourceCountry, matchedFrom: "source", confidence: "low" },
@@ -479,7 +557,8 @@ function collectLocationHierarchyCandidates(record: Record<string, unknown>): Ra
 }
 
 export function normalizeResumeLocationHierarchy(record: Record<string, unknown>, source?: string): LocationHierarchy | undefined {
-  const sourceCountry = inferCountryFromSource(source ?? record.source ?? record.sourceHost);
+  const resolvedSource = source ?? record.source ?? record.sourceHost;
+  const sourceCountry = inferCountryFromSource(record, resolvedSource);
   const explicitHierarchy = normalizeLocationTreeHierarchy(record.locationHierarchy);
   if (explicitHierarchy) {
     if (sourceCountry && explicitHierarchy.country !== sourceCountry) {
@@ -488,7 +567,7 @@ export function normalizeResumeLocationHierarchy(record: Record<string, unknown>
     return explicitHierarchy;
   }
 
-  const recordWithSource: Record<string, unknown> = { ...record, source: source ?? record.source };
+  const recordWithSource: Record<string, unknown> = { ...record, source: resolvedSource };
   const selected = chooseBestLocationHierarchy(collectLocationHierarchyCandidates(recordWithSource));
   if (selected) {
     return selected;

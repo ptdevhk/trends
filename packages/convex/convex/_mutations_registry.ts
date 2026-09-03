@@ -56,6 +56,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "migrations.ts", name: "backfillAnalysesValidator", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillAuditLogActorIdentity", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillResumeAnalysesStatus", quiesceAware: false, reason: "Migration — must run during restore" },
+    { file: "migrations.ts", name: "backfillSeekLocationCountryDigests", quiesceAware: false, reason: "Migration — must run during restore (seek country-location digest fix)" },
 
     // Backfill in resumes_search.ts — same migration semantics as migrations.ts entries.
     { file: "resumes_search.ts", name: "backfillResumeDigests", quiesceAware: false, reason: "Migration — must run during restore" },

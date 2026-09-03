@@ -9,6 +9,7 @@ import {
     computeTemplateHash,
     computeVerifiedRoleYears,
     formatLocationHierarchyLabel,
+    formatLocationHierarchySearchText,
     getWorkspaceSearchProfileTemplates,
     inferSeekMarket,
     normalizeJob5156ProfileUrlForDisplay,
@@ -27,7 +28,7 @@ import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize, resolveDiagnosticsSourceKeyForResume } from "./resumes";
-import { doUpsertResumeAnalysis } from "./resumes_search";
+import { doUpsertResumeAnalysis, doUpsertResumeDigest } from "./resumes_search";
 import type { RecomputeCompanyKeyProjectionResult } from "./company_key_projection.js";
 
 const JOB5156_HOST = "hr.job5156.com";
@@ -2016,6 +2017,82 @@ export const backfillResumeAnalysesStatus = mutation({
             updated,
             hasMore: !rows.isDone,
             cursor: rows.isDone ? null : rows.continueCursor,
+        };
+    },
+});
+
+/**
+ * Recompute digests for seek rows whose location resolved under the wrong
+ * country (source-country location-facet fix, 2026-09-03).
+ *
+ * Before the fix, every seek digest built locationText from
+ * SOURCE_KEY_TO_COUNTRY.seek = "Malaysia" regardless of the row's real market,
+ * so TH-market rows (content location "Rayong, TH" / "Bangkok, TH" / persisted
+ * Thailand hierarchy) carried `locationText=Malaysia` and never matched the
+ * `locations=Thailand` facet. This migration rebuilds digests for seek rows
+ * where the new normalizeResumeLocationHierarchy (market-aware) yields a
+ * different hierarchy than the persisted digest's locationText implied.
+ *
+ * Idempotent: only rows whose digest would actually change are patched
+ * (doUpsertResumeDigest compares nothing itself, so we gate on the difference
+ * before calling it). Uses the shared by_sourceKey seek index to avoid a
+ * full-table scan. Re-run safe.
+ */
+export const backfillSeekLocationCountryDigests = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .withIndex("by_sourceKey", (q) => q.eq("sourceKey", "seek"))
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let scanned = 0;
+        let changed = 0;
+        for (const resume of resumes.page) {
+            if (resume.sourceKey !== "seek") {
+                continue;
+            }
+            scanned += 1;
+
+            const existing = await ctx.db
+                .query("resume_digests")
+                .withIndex("by_resumeId", (q) => q.eq("resumeId", resume._id))
+                .first();
+            const content = isRecord(resume.content) ? resume.content : {};
+            const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
+            const locationText = formatLocationHierarchySearchText(locationHierarchy)
+                || (typeof content.location === "string" ? content.location : "");
+
+            // Gate on the country-level facet value changing. The pre-fix bug
+            // stamped "Malaysia…" locationText on TH rows; MY rows already
+            // resolved to Malaysia. This keeps the migration scoped to rows
+            // whose country actually flips (e.g. Malaysia → Thailand) and
+            // avoids churning MY digests that only gain province detail from
+            // the location-tree object-path fix.
+            const existingLocationText = typeof existing?.locationText === "string"
+                ? existing.locationText
+                : "";
+            const firstToken = (value: string): string => value.trim().split(/\s+/)[0] ?? "";
+            if (!existing || firstToken(existingLocationText) === firstToken(locationText)) {
+                continue;
+            }
+
+            await doUpsertResumeDigest(ctx, resume);
+            changed += 1;
+        }
+
+        return {
+            scanned,
+            changed,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });

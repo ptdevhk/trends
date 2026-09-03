@@ -1881,3 +1881,81 @@ describe("migration: backfillEvidenceText", () => {
     expect(result.patched).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// backfillSeekLocationCountryDigests
+// ---------------------------------------------------------------------------
+
+describe("migration: backfillSeekLocationCountryDigests", () => {
+  it("recomputes seek digests whose country flips Malaysia → Thailand", async () => {
+    const t = createTest();
+
+    // TH-market seek row whose digest (pre-fix) carries locationText "Malaysia".
+    const resumeId = await insertResume(t, {
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      content: {
+        name: "TH Candidate",
+        location: "Rayong, TH",
+        locationHierarchy: { country: "Thailand", matchedFrom: "location", confidence: "high" },
+      },
+    });
+
+    // Seed a stale digest row with the pre-fix Malaysia text.
+    await t.run(async (ctx) => {
+      const digest: Record<string, unknown> = {
+        resumeId,
+        externalId: "ext-1",
+        source: "hk.employer.seek.com",
+        sourceKey: "seek",
+        searchText: "th candidate",
+        locationText: "Malaysia",
+        isArchived: false,
+        primaryRuleScore: 0,
+        crawledAt: 1,
+        updatedAt: 1,
+      };
+      await ctx.db.insert("resume_digests", digest as never);
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekLocationCountryDigests, {});
+
+    expect(result.changed).toBeGreaterThanOrEqual(1);
+
+    const digests = await t.run(async (ctx) => ctx.db.query("resume_digests").collect());
+    expect(digests[0].locationText).toContain("Thailand");
+  });
+
+  it("leaves MY seek rows unchanged when country already Malaysia", async () => {
+    const t = createTest();
+
+    await insertResume(t, {
+      source: "my.employer.seek.com",
+      sourceKey: "seek",
+      content: { name: "MY Candidate", location: "Kuala Lumpur" },
+    });
+
+    // Seed a current MY digest.
+    await t.run(async (ctx) => {
+      const resume = await ctx.db.query("resumes").first();
+      if (!resume) throw new Error("no resume seeded");
+      const digest: Record<string, unknown> = {
+        resumeId: resume._id,
+        externalId: resume.externalId,
+        source: resume.source,
+        sourceKey: resume.sourceKey,
+        searchText: "my candidate",
+        locationText: "Malaysia Kuala Lumpur",
+        isArchived: false,
+        primaryRuleScore: 0,
+        crawledAt: 1,
+        updatedAt: 1,
+      };
+      await ctx.db.insert("resume_digests", digest as never);
+    });
+
+    const result = await t.mutation(api.migrations.backfillSeekLocationCountryDigests, {});
+
+    expect(result.changed).toBe(0);
+  });
+});

@@ -226,7 +226,23 @@ const LOCATION_TREE: LocationSeed[] = [
     children: [
       {
         name: "Bangkok",
-        aliases: ["Bangkok Thailand", "Bangkok, Thailand", "曼谷"],
+        aliases: ["Bangkok Thailand", "Bangkok, Thailand", "曼谷", "Bangkok TH"],
+      },
+      {
+        // Eastern Seaboard provinces surfaced by the 2026-08-29/09-02 SEEK TH
+        // talentsearch collects (content locations "Rayong, TH",
+        // "Mueang Chonburi, Chon Buri, TH", "Samut Prakan, TH"). Province
+        // nodes under Thailand so country facets (locations=Thailand) resolve.
+        name: "Rayong",
+        aliases: ["Rayong Thailand", "Rayong, Thailand", "Mueang Rayong"],
+      },
+      {
+        name: "Chon Buri",
+        aliases: ["Chonburi", "Chon Buri Thailand", "Chon Buri, Thailand", "Chonburi, Thailand", "Mueang Chonburi"],
+      },
+      {
+        name: "Samut Prakan",
+        aliases: ["Samut Prakan Thailand", "Samut Prakan, Thailand", "Bang Phli"],
       },
     ],
   },
@@ -609,7 +625,17 @@ export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | 
     : undefined;
   const confidence = record.confidence === "high" ? "high" : undefined;
 
-  const resolved = resolveLocationHierarchy([country, province, city, district].filter(Boolean).join(""));
+  const joinedName = [country, province, city, district].filter(Boolean).join(" ");
+  // Prefer the most-specific-first ordering when resolving the object back
+  // through the tree. resolveLocationHierarchy scores candidate nodes by alias
+  // length, so a country-first join biases toward the country node whenever the
+  // province/city name is shorter than the country name (e.g. "Thailand Bangkok"
+  // resolves to the Thailand node and silently drops the province). User-facing
+  // strings are naturally most-specific-first ("Bangkok, Thailand"); matching
+  // that here makes persisted {country, province, ...} hierarchies round-trip
+  // without losing the more specific levels.
+  const childFirstLookup = [district, city, province, country].filter(Boolean).join(" ");
+  const resolved = resolveLocationHierarchy(childFirstLookup || joinedName);
   if (resolved) {
     if (matchedFrom) {
       resolved.matchedFrom = matchedFrom;
@@ -618,6 +644,19 @@ export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | 
       resolved.confidence = confidence;
     }
     return resolved;
+  }
+
+  // Fall back to the country-first ordering when the child-first lookup found
+  // no node (e.g. an object whose only known token is the country).
+  const legacyResolved = resolveLocationHierarchy(joinedName);
+  if (legacyResolved) {
+    if (matchedFrom) {
+      legacyResolved.matchedFrom = matchedFrom;
+    }
+    if (confidence) {
+      legacyResolved.confidence = confidence;
+    }
+    return legacyResolved;
   }
 
   if (country) {
