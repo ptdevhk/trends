@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-04",
+  "market": "TH",
+  "companies": [
+    {
+      "companyKey": "sam-precision-thailand",
+      "employerName": "SAM Precision (Thailand)",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Precision CNC machining / turned parts manufacturer (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Precision CNC machining / turned parts manufacturer); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-sam-precision-thailand",
+      "revisionId": "th-cnc-rev-sam-precision-thailand",
+      "aliases": [
+        "SAM PRECISION (THAILAND) LIMITED",
+        "SAM Precision (Thailand)",
+        "แซม พริซิซั่น"
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-sam-precision-thailand",
+          "companyKey": "sam-precision-thailand",
+          "proposalId": "th-cnc-seed-sam-precision-thailand",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Precision CNC machining / turned parts manufacturer. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "tool-and-mold-application",
+      "employerName": "Tool and Mold Application Co., Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: CNC mold & die making (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (CNC mold & die making); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-tool-and-mold-application",
+      "revisionId": "th-cnc-rev-tool-and-mold-application",
+      "aliases": [
+        "Tool and Mold Application Co., Ltd.",
+        "บริษัททูลแอนด์โมลด์ แอพพลิเคชัน"
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-tool-and-mold-application",
+          "companyKey": "tool-and-mold-application",
+          "proposalId": "th-cnc-seed-tool-and-mold-application",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "CNC mold & die making. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "thaipress-and-dies",
+      "employerName": "Thaipress and Dies Co., Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Press tooling & CNC die making (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Press tooling & CNC die making); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-thaipress-and-dies",
+      "revisionId": "th-cnc-rev-thaipress-and-dies",
+      "aliases": [
+        "Thaipress and Dies Co., Ltd.",
+        "Thaipress and Dies Co.,Ltd",
+        "บริษัท ไทยเพรส แอนด์ ดายส์ จำ กัด"
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-thaipress-and-dies",
+          "companyKey": "thaipress-and-dies",
+          "proposalId": "th-cnc-seed-thaipress-and-dies",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Press tooling & CNC die making. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "kubota-iron-works-thailand",
+      "employerName": "Kubota Iron Works (Thailand) Co., Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Machinery / iron works machining (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Machinery / iron works machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-kubota-iron-works-thailand",
+      "revisionId": "th-cnc-rev-kubota-iron-works-thailand",
+      "aliases": [
+        "Kubota Iron Works (Thailand) Co., Ltd.",
+        "Kubota Iron Works (Thailand) Co.,Ltd."
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-kubota-iron-works-thailand",
+          "companyKey": "kubota-iron-works-thailand",
+          "proposalId": "th-cnc-seed-kubota-iron-works-thailand",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Machinery / iron works machining. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "mano-seiko",
+      "employerName": "Mano Seiko Co., Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Precision machinery parts (Seiko) (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Precision machinery parts (Seiko)); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-mano-seiko",
+      "revisionId": "th-cnc-rev-mano-seiko",
+      "aliases": [
+        "Mano Seiko Co., Ltd."
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-mano-seiko",
+          "companyKey": "mano-seiko",
+          "proposalId": "th-cnc-seed-mano-seiko",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Precision machinery parts (Seiko). Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "nissho-seiko-thailand",
+      "employerName": "Nissho Seiko (Thailand) Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Precision machinery parts (Seiko) (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Precision machinery parts (Seiko)); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-nissho-seiko-thailand",
+      "revisionId": "th-cnc-rev-nissho-seiko-thailand",
+      "aliases": [
+        "Nissho Seiko (Thailand) Ltd.",
+        "Nissho Seiko (Thailand).LTD."
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-nissho-seiko-thailand",
+          "companyKey": "nissho-seiko-thailand",
+          "proposalId": "th-cnc-seed-nissho-seiko-thailand",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Precision machinery parts (Seiko). Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "miyoshi-hi-tech",
+      "employerName": "Miyoshi Hi-Tech Co., Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Automotive precision machining (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Automotive precision machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-miyoshi-hi-tech",
+      "revisionId": "th-cnc-rev-miyoshi-hi-tech",
+      "aliases": [
+        "Miyoshi Hi-Tech Co., Ltd.",
+        "[Miyoshi Hi-Tech Co,Ltd",
+        "มิโยชิ ไฮเทค จำกัด"
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-miyoshi-hi-tech",
+          "companyKey": "miyoshi-hi-tech",
+          "proposalId": "th-cnc-seed-miyoshi-hi-tech",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Automotive precision machining. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    },
+    {
+      "companyKey": "compart-precision-thailand",
+      "employerName": "Compart Precision Thailand",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "TH CNC catalog seed: Precision machining (corpus work-history evidence).",
+      "decisionReason": "Reviewed TH CNC employer (Precision machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "th-cnc-seed-compart-precision-thailand",
+      "revisionId": "th-cnc-rev-compart-precision-thailand",
+      "aliases": [
+        "Compart Precision Thailand",
+        "Compart precision Thailand"
+      ],
+      "sources": [
+        {
+          "sourceId": "th-cnc-src-compart-precision-thailand",
+          "companyKey": "compart-precision-thailand",
+          "proposalId": "th-cnc-seed-compart-precision-thailand",
+          "url": "https://example.com/th-cnc-catalog",
+          "sourceDomain": "example.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC machining / machine-tool employer",
+          "evidenceExcerpt": "Precision machining. Evidence: candidate CNC/machining work history at this employer in the TH Seek corpus."
+        }
+      ]
+    }
+  ]
+}
