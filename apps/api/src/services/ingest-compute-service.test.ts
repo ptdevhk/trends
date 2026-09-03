@@ -454,7 +454,34 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.matchedSignals).toEqual(
       expect.arrayContaining(["ช่างเทคนิค", "ซ่อมบำรุง"]),
     );
+    expect(engineerRole?.matchedSignals).not.toContain("ช่าง");
     expect(engineerRole?.years).toBeGreaterThan(0);
+  });
+
+  it("should not classify unrelated Thai trades from the bare ช่าง syllable", () => {
+    const result = service.computeOne("resume-th-barber", {
+      data: [
+        {
+          name: "TH-Barber",
+          profileUrl: "https://example.com/profile/th-902",
+          location: "Bangkok, Thailand",
+          jobIntention: "ช่างตัดผม",
+          workHistory: [
+            {
+              raw: "2021-01~2024-12 ร้านตัดผม ช่างตัดผม",
+              companyName: "ร้านตัดผม",
+              jobTitle: "ช่างตัดผม",
+              description: "ตัดผมและแต่งทรง",
+              startDate: "2021-01",
+              endDate: "2024-12",
+            },
+          ],
+          extractedAt: "2026-02-21T10:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.roleSignals.find((item) => item.type === "engineer")).toBeUndefined();
   });
 
   it("should persist matched work-entry evidence and prioritize title matches", () => {

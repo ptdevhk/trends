@@ -442,7 +442,9 @@ const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
   sales: Array.from(new Set([...DEFAULT_SALES_DIRECT_TITLE_SIGNALS, ...DEFAULT_SALES_CONTEXT_SIGNALS])),
   // Thai tokens: TH Seek work-history titles are Thai-language (e.g. ช่างเทคนิค CNC),
   // so the EN/CJK-only library left every TH technician row unclassified (roleSignals=[]).
-  engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design", "programmer", "machinist", "technician", "cnc operator", "maintenance", "วิศวกร", "ช่างเทคนิค", "ช่างเครื่อง", "ช่างซ่อม", "ซ่อมบำรุง", "ควบคุมเครื่อง", "คุมเครื่อง", "ช่าง"],
+  // Do not add bare "ช่าง" — substring matching would classify unrelated trades
+  // (electrician, carpenter, barber). The longer tokens already cover CNC technicians.
+  engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design", "programmer", "machinist", "technician", "cnc operator", "maintenance", "วิศวกร", "ช่างเทคนิค", "ช่างเครื่อง", "ช่างซ่อม", "ซ่อมบำรุง", "ควบคุมเครื่อง", "คุมเครื่อง"],
 };
 const ROLE_SIGNAL_MATCH_WEIGHTS = {
   jobTitle: 2,
