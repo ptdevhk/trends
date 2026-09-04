@@ -68,6 +68,7 @@ Canonical paths on `ptcloud`:
 - Production: `/opt/trends` (API `:3000`, Convex `:3210`, `trends.pt-mes.com`)
 - Preview: `/home/ubuntu/trends-preview` (API `:3002`, Convex `:4210`, `preview.pt-mes.com`)
 - CPA (LLM proxy): `/home/ubuntu/cliproxyapi` (`:8317`, official `cliproxyapi-installer upgrade` as ubuntu). Runbook: `docs/runbooks/ptcloud-cpa.md`
+- Preview Convex wedged-backend (container `Up (unhealthy)` but backend binary gone → every query times out "too many system operations"): runbook `docs/runbooks/preview-convex-restart.md` — fix is `docker restart trends-preview-convex`; do NOT change app queries for this error.
 
 ```bash
 # On ptcloud — preferred single entrypoint for DATA parity (prod → preview)
