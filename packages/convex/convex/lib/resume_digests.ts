@@ -87,6 +87,9 @@ export function buildResumeDigest(
         experienceYears: resolveExperienceYears(typeof content.experience === "string" ? content.experience : undefined, content.workHistory) ?? undefined,
         roleTypes,
         roleYearsByType,
+        // Ingest roleTypes must cover every role the full-doc BFF role gate
+        // can prove (verifiedRoleYears keys + roleSignals types) so digest
+        // phase-1 pruning never disagrees with phase-2 full-doc verification.
         ...evidenceProjection,
         displayScore: resolveDisplayScore(activeAnalysis.analysis),
         displayRecommendation: resolveDisplayRecommendation(activeAnalysis.analysis),
@@ -312,6 +315,17 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
     if (!raw) return Object.keys(roleYearsByType).sort();
 
     const out = new Set<string>(Object.keys(roleYearsByType));
+    // verifiedRoleYears is the legacy verified aggregate; roles present there
+    // satisfy the full-doc BFF role gate (hasResumeItemRole reads it), so they
+    // must also surface on the digest for phase-1 role-filter pruning.
+    if (isRecord(raw.verifiedRoleYears)) {
+        for (const key of Object.keys(raw.verifiedRoleYears)) {
+            const normalized = key.trim().toLowerCase();
+            if (normalized) {
+                out.add(normalized);
+            }
+        }
+    }
     const roleSignals = parseAnalysisRoleSignals(raw.roleSignals);
     for (const signal of roleSignals) {
         const key = signal.type.trim().toLowerCase();

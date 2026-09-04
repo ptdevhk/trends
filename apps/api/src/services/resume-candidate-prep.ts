@@ -210,6 +210,19 @@ function hasDigestRoleMetadata(digest: DigestFilterRecord): boolean {
     || Object.keys(digest.roleYearsByType ?? {}).length > 0;
 }
 
+// Keep phase-1 (digest) and phase-2 (full-doc) gates aligned: when the
+// filters require role metadata the digest cannot prove (empty roleTypes/
+// roleYearsByType), the row must NOT pass phase 1 here. It would only be
+// re-filtered in phase 2, but a missing digest match also means this row's
+// cached role fields were never computed at ingest — the full-doc
+// verification (bffMatchesResumeFilters) would drop it anyway.
+function digestFilterGateForRoleFields(digest: DigestFilterRecord, filters: ResumeFilters | undefined): boolean {
+  if (!filters) return true;
+  const gate = filters.roleFilterType || (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0);
+  if (!gate) return true;
+  return hasDigestRoleMetadata(digest);
+}
+
 function digestFiltersForAvailableFields(digest: DigestFilterRecord, filters: ResumeFilters | undefined): ResumeFilters | undefined {
   if (!filters) return undefined;
 
@@ -232,8 +245,10 @@ function digestFiltersForAvailableFields(digest: DigestFilterRecord, filters: Re
     delete availableFilters.minSalary;
     delete availableFilters.maxSalary;
   }
-  if ((filters.roleFilterType || filters.minRoleYears !== undefined) && !hasDigestRoleMetadata(digest)) {
+  if (filters.roleFilterType && !hasDigestRoleMetadata(digest)) {
     delete availableFilters.roleFilterType;
+  }
+  if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0 && !hasDigestRoleMetadata(digest)) {
     delete availableFilters.minRoleYears;
   }
   if (filters.sources?.length && !digest.sourceKey && !digest.source) {
@@ -755,16 +770,23 @@ export async function prepareConvexCandidates(params: {
   if (normalizedKeywords.length > 0 || keywordQuery) {
     const canonicalKeywordQuery = keywordQuery ?? formatKeywordQuery(normalizedKeywords);
     const keywordExpansion = params.resumeService.expandSearchQuery(canonicalKeywordQuery);
-
-    // AND-mode full-table-scan search: when the keyword expansion yields AND mode,
-    // paginate ALL resumes from Convex and filter in-memory.  This avoids two
-    // Convex platform limits that the search-index approaches hit:
+    const mode = keywordExpansion?.mode ?? "AND";
+    const hasActiveFilters = params.filters ? hasResumeListFilters(params.filters) : false;
+    // When the keyword expansion yields AND mode, paginate ALL resumes from
+    // Convex and filter in-memory.  This avoids two Convex platform limits
+    // that the search-index approaches hit:
     //   1. Search index returns at most 1024 results per query (BM25-ranked).
-    //      Resumes with long searchText (6KB+ from AI analysis / synonyms) score
-    //      low and fall beyond the 1024-position cutoff, making them invisible.
+    //      Resumes with long searchText (6KB+ from AI analysis / synonyms)
+    //      score low and fall beyond the 1024-position cutoff, making them
+    //      invisible.
     //   2. Convex action memory limit (64 MB) prevents full-table scan inside
     //      a Convex action.  BFF (Node.js) has no such limit.
-    if (keywordExpansion?.mode === "AND") {
+    // OR-mode searches with active filters hit the same 1024 index ceiling
+    // through the cursor-scan path (post-filter attrition can exhaust the
+    // scan before the page fills), so route them through the same digest
+    // scan with an OR keyword match. Filter-free OR searches stay on the
+    // cursor scan (fast index walk, no attrition).
+    if (keywordExpansion && (mode === "AND" || (mode === "OR" && hasActiveFilters))) {
       const allResults: PreparedResumeCandidate[] = [];
       let scanCursor: string | null = null;
       const groups = keywordExpansion.groups;
@@ -773,11 +795,19 @@ export async function prepareConvexCandidates(params: {
         ...g,
         loweredVariants: g.variants.map((v: string) => v.toLowerCase()),
       }));
+      const groupMatchesMode = (searchText: string): boolean =>
+        mode === "AND"
+          ? loweredGroups.every((group) =>
+            group.loweredVariants.some((lv: string) => searchText.includes(lv))
+          )
+          : loweredGroups.some((group) =>
+            group.loweredVariants.some((lv: string) => searchText.includes(lv))
+          );
 
       // Phase 1: Scan digest pages (lightweight, <1KB per row) for candidate
       // discovery. Digest rows are pre-built from resume fields at ingest and
-      // backfill time, so the Convex query avoids the monolithic ~27KB searchText
-      // transfer that dominated the old scanResumePageSlim path.
+      // backfill time, so the Convex query avoids the monolithic ~27KB
+      // searchText transfer that dominated the old scanResumePageSlim path.
       const matchingIds: string[] = [];
       while (true) {
         const page = await callConvexQuery("resumes_search:scanResumeDigestPage", {
@@ -788,24 +818,32 @@ export async function prepareConvexCandidates(params: {
         if (!isRecord(page) || !Array.isArray(page.docs)) {
           break;
         }
+        const pageDocs = page.docs;
+        const pageCursor = toStringValue(page.cursor) ?? null;
+        const pageDone = page.isDone === true;
+        if (typeof pageDocs.length !== "number") {
+          break;
+        }
 
-        for (const doc of page.docs) {
+        for (const doc of pageDocs) {
           if (!isRecord(doc)) continue;
           const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
-          const allGroupsMatch = loweredGroups.every((group) =>
-            group.loweredVariants.some((lv: string) => searchText.includes(lv))
-          );
-          if (!allGroupsMatch) continue;
+          if (!groupMatchesMode(searchText)) continue;
 
           const digest = toDigestFilterRecord(doc);
-          if (!matchesResumeDigestFilters(digest, digestFiltersForAvailableFields(digest, filters))) continue;
+          if (!digestFilterGateForRoleFields(digest, filters)) continue;
+          const digestAvailableFilters = digestFiltersForAvailableFields(digest, filters);
+          // No active filters, or none mappable to this digest's fields — either
+          // way the digest carries no usable role/location/etc. evidence to
+          // prune on. Skip the row here; phase 2's full-doc filter decides.
+          if (digestAvailableFilters && !matchesResumeDigestFilters(digest, digestAvailableFilters)) continue;
 
           const resumeId = toStringValue(doc.resumeId);
           if (resumeId) matchingIds.push(resumeId);
         }
 
-        if (!page.cursor || page.isDone) break;
-        scanCursor = toStringValue(page.cursor) ?? null;
+        if (!pageCursor || pageDone) break;
+        scanCursor = pageCursor;
       }
 
       // Phase 2: Fetch full docs only for matches, then apply remaining filters.
@@ -825,7 +863,6 @@ export async function prepareConvexCandidates(params: {
           if (!resumeId) continue;
 
           const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
-
           // Apply remaining filters that need full docs (role, education, etc.)
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
@@ -868,17 +905,16 @@ export async function prepareConvexCandidates(params: {
         }
       }
 
-      const hasActiveFilters = filters ? hasResumeListFilters(filters) : false;
+      const hasActiveFiltersForReturn = filters ? hasResumeListFilters(filters) : false;
       return {
         prepared: allResults,
         keywordExpansion,
         total: allResults.length,
-        usedServerSideFilters: hasActiveFilters,
+        usedServerSideFilters: hasActiveFiltersForReturn,
       };
     }
 
-    // OR-mode or mode-less with paged/filters: single-pass cursor scan
-    const hasActiveFilters = params.filters ? hasResumeListFilters(params.filters) : false;
+    // OR-mode (no active filters) or mode-less with paged/filters: single-pass cursor scan
     const useCursorScan = params.paged || hasActiveFilters;
 
     if (useCursorScan) {

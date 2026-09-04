@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildFallbackKeywordExpansion,
+  hasActiveResumeFilters,
   matchesKeywordExpansion,
   parseAnalysesMap,
   parseAnalysis,
@@ -411,6 +412,27 @@ describe('matchesKeywordExpansion', () => {
   })
 })
 
+// ── hasActiveResumeFilters ─────────────────────────────────────
+
+describe('hasActiveResumeFilters', () => {
+  it('returns false for undefined and empty filters', () => {
+    expect(hasActiveResumeFilters(undefined)).toBe(false)
+    expect(hasActiveResumeFilters({})).toBe(false)
+    expect(hasActiveResumeFilters({ keywords: [] })).toBe(false)
+  })
+
+  it('returns true when any list filter is set', () => {
+    expect(hasActiveResumeFilters({ locations: ['Thailand'] })).toBe(true)
+    expect(hasActiveResumeFilters({ roleFilterType: 'engineer' })).toBe(true)
+    expect(hasActiveResumeFilters({ minRoleYears: 1 })).toBe(true)
+    expect(hasActiveResumeFilters({ roleYearsGate: 1 })).toBe(true)
+    expect(hasActiveResumeFilters({ skills: ['CNC'] })).toBe(true)
+    expect(hasActiveResumeFilters({ maxExperience: 10 })).toBe(true)
+    expect(hasActiveResumeFilters({ machineOrigin: 'international' })).toBe(true)
+    expect(hasActiveResumeFilters({ minSalary: 5000 })).toBe(true)
+  })
+})
+
 // ── stripKeywordsFromConvexFilters ─────────────────────────────
 
 describe('stripKeywordsFromConvexFilters', () => {
@@ -439,13 +461,25 @@ describe('stripKeywordsFromConvexFilters', () => {
     expect(stripped).not.toHaveProperty('keywords')
   })
 
-  it('returns same filters object when keywords is undefined', () => {
+  it('returns same filters object when no BFF-only fields are present', () => {
     const filters = {
       locations: ['Penang'],
       minRoleYears: 2,
     }
     const stripped = stripKeywordsFromConvexFilters(filters)
-    expect(stripped).toBe(filters)
+    expect(stripped).toEqual(filters)
+  })
+
+  it('strips roleYearsGate route hint alongside keywords', () => {
+    const filters = {
+      keywords: ['cnc'],
+      roleYearsGate: 1,
+      locations: ['Thailand'],
+    }
+    const stripped = stripKeywordsFromConvexFilters(filters)
+    expect(stripped).toEqual({ locations: ['Thailand'] })
+    expect(stripped).not.toHaveProperty('keywords')
+    expect(stripped).not.toHaveProperty('roleYearsGate')
   })
 
   it('returns undefined when filters is undefined', () => {

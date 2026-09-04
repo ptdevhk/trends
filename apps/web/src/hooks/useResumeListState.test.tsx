@@ -591,6 +591,25 @@ describe('useResumeListState role filter regression', () => {
     })
   })
 
+  it('handleQuickConstraintApply drops a zero/minRoleYears gate and orphaned role type', () => {
+    mockState.filters = { minRoleYears: 1, roleFilterType: 'engineer' }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleQuickConstraintApply({ minRoleYears: 0 })
+    })
+
+    const setFiltersCall = mockState.setFilters.mock.calls[0]!
+    const nextState = setFiltersCall[0](mockState.filters)
+
+    expect(nextState).toEqual({
+      minRoleYears: undefined,
+      roleFilterType: undefined,
+      maxAge: undefined,
+    })
+  })
+
   it('keeps name sorting local to preserve the existing UI comparator', () => {
     mockState.filters = {
       sortBy: 'name',

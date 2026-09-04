@@ -718,6 +718,18 @@ export const ResumesQuerySchema = z.object({
       example: "desc",
     }),
   maxExperience: OptionalIntParam({ name: "maxExperience", example: "10" }),
+  // Sorting by experience must not drop candidates whose latest-role years
+  // are unknown/unclassified; such rows are unrankable and are filtered by
+  // the local experience sort instead of the pre-paged Convex path.
+  experienceSortNoPrePaginate: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true")
+    .openapi({
+      param: { name: "experienceSortNoPrePaginate", in: "query" },
+      example: "false",
+      description: "Internal: force the post-filter sort path when sorting by experience",
+    }),
   education: CsvStringArraySchema.openapi({
     param: { name: "education", in: "query" },
     example: "bachelor,master",

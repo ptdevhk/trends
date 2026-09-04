@@ -204,6 +204,9 @@ export function matchesResumeDigestFilters(digest: DigestRecord, filters: Digest
   }
   if (filters.roleFilterType && !_hasDigestRoleType(digest, filters.roleFilterType)) return false;
   if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
+    if (!hasDigestRoleMetadata(digest)) {
+      return false;
+    }
     const roleKey = filters.roleFilterType?.trim().toLowerCase();
     const roleYears = filters.roleFilterType
       ? digest.roleYearsByType?.[roleKey ?? ""] ?? 0
@@ -217,6 +220,11 @@ export function matchesResumeDigestFilters(digest: DigestRecord, filters: Digest
     if (!source || !filters.sources.includes(source)) return false;
   }
   return true;
+}
+
+function hasDigestRoleMetadata(digest: DigestRecord): boolean {
+  return (digest.roleTypes?.length ?? 0) > 0
+    || Object.keys(digest.roleYearsByType ?? {}).length > 0;
 }
 
 function _hasDigestRoleType(digest: DigestRecord, roleFilterType: string): boolean {

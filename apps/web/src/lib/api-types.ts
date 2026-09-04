@@ -4125,6 +4125,8 @@ export interface paths {
                     sortBy?: "score" | "name" | "experience" | "extractedAt";
                     sortOrder?: "asc" | "desc";
                     maxExperience?: string;
+                    /** @description Internal: force the post-filter sort path when sorting by experience */
+                    experienceSortNoPrePaginate?: "true" | "false";
                     education?: string | string[];
                     skills?: string | string[];
                     requiredKeywords?: string | string[];

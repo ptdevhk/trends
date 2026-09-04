@@ -530,7 +530,7 @@ describe('useConvexResumes AND-mode search', () => {
     })
   })
 
-  it('forwards age and role filters to the search query alongside keywords', async () => {
+  it('routes OR-mode searches with role filters to the BFF scan, not the websocket', async () => {
     rawApiGetMock.mockResolvedValueOnce({
       data: {
         success: true,
@@ -561,19 +561,25 @@ describe('useConvexResumes AND-mode search', () => {
       },
     }))
 
-    let searchCall: unknown[] | undefined
+    // The BFF fetch must include the age/role filters.
     await waitFor(() => {
-      searchCall = usePaginatedQueryMock.mock.calls.find(
-        ([, args]) => args !== 'skip' && typeof args === 'object' && 'query' in (args as Record<string, unknown>),
-      )
-      expect(searchCall).toBeDefined()
+      expect(rawApiGetMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+        params: expect.objectContaining({
+          query: expect.objectContaining({
+            q: 'CNC',
+            minRoleYears: 3,
+            roleFilterType: 'verified',
+          }),
+        }),
+      }))
     })
 
-    expect(searchCall?.[1]).toMatchObject({
-      minAge: 25,
-      maxAge: 40,
-      minRoleYears: 3,
-      roleFilterType: 'verified',
+    // The Convex websocket lane must stay skipped for filtered OR searches.
+    await waitFor(() => {
+      const searchCall = usePaginatedQueryMock.mock.calls.find(
+        ([, args]) => args !== 'skip' && typeof args === 'object' && 'query' in (args as Record<string, unknown>),
+      )
+      expect(searchCall).toBeUndefined()
     })
   })
 

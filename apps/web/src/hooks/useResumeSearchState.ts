@@ -159,7 +159,7 @@ function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefin
     return explicitRoleFilterType
   }
 
-  if (typeof state.filters.minRoleYears !== 'number') {
+  if (typeof state.filters.minRoleYears !== 'number' || (state.filters.minRoleYears ?? 0) <= 0) {
     return undefined
   }
 
@@ -212,7 +212,7 @@ function buildRelatedExpContext(
   market?: 'CN' | 'MY' | 'TH'
 } | undefined {
   const roleFilterType = resolveEffectiveRoleFilterType(state)
-  const minRoleYears = state.filters.minRoleYears
+  const minRoleYears = (state.filters.minRoleYears ?? 0) > 0 ? state.filters.minRoleYears : undefined
   const market = resolveRelatedExpMarket(state, recentSearches)
 
   if (!roleFilterType && typeof minRoleYears !== 'number' && !market) {
@@ -221,7 +221,7 @@ function buildRelatedExpContext(
 
   return {
     ...(roleFilterType ? { roleFilterType } : {}),
-    ...(typeof minRoleYears === 'number' ? { minRoleYears } : {}),
+    ...(typeof minRoleYears === 'number' && minRoleYears > 0 ? { minRoleYears } : {}),
     ...(market ? { market } : {}),
   }
 }
@@ -402,7 +402,7 @@ function buildSearchContextSignature(state: UrlSearchState): string {
       maxExperience: state.filters.maxExperience,
       minAge: state.filters.minAge,
       minMatchScore: state.filters.minMatchScore,
-      minRoleYears: state.filters.minRoleYears,
+      minRoleYears: (state.filters.minRoleYears ?? 0) > 0 ? state.filters.minRoleYears : undefined,
       roleFilterType: normalizeOptionalString(state.filters.roleFilterType),
       status: normalizeStringList(state.filters.status ?? []),
       minSalary: state.filters.minSalary,
@@ -770,12 +770,16 @@ export function useResumeSearchState() {
   const [analyzingResults, setAnalyzingResults] = useState(false)
   const [autoAnalyzeSearchNonce, setAutoAnalyzeSearchNonce] = useState(0)
   const [isFilterPending, startFilterTransition] = useTransition()
-  const [committedMinRoleYears, setCommittedMinRoleYears] = useState(parsedState.filters.minRoleYears)
+  const [committedMinRoleYears, setCommittedMinRoleYears] = useState(
+    (parsedState.filters.minRoleYears ?? 0) > 0 ? parsedState.filters.minRoleYears : undefined,
+  )
 
   // Sync committed filter values when transition completes
   useEffect(() => {
     if (!isFilterPending) {
-      setCommittedMinRoleYears(parsedState.filters.minRoleYears)
+      setCommittedMinRoleYears(
+        (parsedState.filters.minRoleYears ?? 0) > 0 ? parsedState.filters.minRoleYears : undefined,
+      )
     }
   }, [isFilterPending, parsedState.filters.minRoleYears])
   const [pendingAutoAnalyzeContextSignature, setPendingAutoAnalyzeContextSignature] = useState('')
@@ -868,7 +872,7 @@ export function useResumeSearchState() {
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
       maxExperience: parsedState.filters.maxExperience,
-      minRoleYears: parsedState.filters.minRoleYears,
+      minRoleYears: (parsedState.filters.minRoleYears ?? 0) > 0 ? parsedState.filters.minRoleYears : undefined,
       roleFilterType: effectiveRoleFilterType,
       minAge: parsedState.filters.minAge,
       maxAge: parsedState.filters.maxAge,
@@ -1339,7 +1343,7 @@ export function useResumeSearchState() {
         location: options?.location ?? parsedState.location,
         filters: {
           ...clearedFilters,
-          ...(typeof options?.minRoleYears === 'number' ? { minRoleYears: options.minRoleYears } : {}),
+          ...(typeof options?.minRoleYears === 'number' && options.minRoleYears > 0 ? { minRoleYears: options.minRoleYears } : {}),
           ...(typeof options?.roleFilterType === 'string' && options.roleFilterType.trim().length > 0
             ? { roleFilterType: options.roleFilterType.trim() }
             : {}),
@@ -1552,13 +1556,14 @@ export function useResumeSearchState() {
 
   const setMinRoleYearsFilter = useCallback(
     (minRoleYears: number | undefined) => {
-      setCommittedMinRoleYears(minRoleYears)
+      const applied = (minRoleYears ?? 0) > 0 ? minRoleYears : undefined
+      setCommittedMinRoleYears(applied)
       startFilterTransition(() => {
         syncToUrl(
           buildUrlState(parsedState, {
             filters: {
               ...parsedState.filters,
-              minRoleYears,
+              minRoleYears: applied,
             },
           }),
         )

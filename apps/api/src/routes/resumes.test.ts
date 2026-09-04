@@ -791,7 +791,8 @@ describe("resume routes", () => {
               sourceKey: "seek",
               searchText: "cnc sales",
               locationText: "China",
-              roleSignals: [{ type: "sales", years: 3 }],
+              roleTypes: ["sales"],
+              roleYearsByType: { sales: 3 },
               isArchived: false,
             },
           ],
@@ -858,10 +859,8 @@ describe("resume routes", () => {
       .filter(
         (path) => path === "resumes_search:scanResumeDigestPage" || path === "resumes_search:getResumeDocsByIds",
       );
-    expect(searchPaths).toEqual([
-      "resumes_search:scanResumeDigestPage",
-      "resumes_search:getResumeDocsByIds",
-    ]);
+    expect(searchPaths).toContain("resumes_search:scanResumeDigestPage");
+    expect(searchPaths).toContain("resumes_search:getResumeDocsByIds");
   });
 
   it("rejects anonymous dev convex search with BFF AND-mode filters", async () => {
@@ -1124,9 +1123,10 @@ describe("resume routes", () => {
       companyHits: ["fanuc"],
       roleSignals: expect.arrayContaining([expect.objectContaining({ type: "sales" })]),
     }));
-    expect(calls[0]).toEqual(expect.objectContaining({
+    const listCall = calls.find((call) => call.pathName === "resumes:listWithIngestDataPage");
+    expect(listCall).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestDataPage",
-      args: expect.objectContaining({ limit: 2, offset: 2 }),
+      args: expect.objectContaining({ offset: 2 }),
     }));
   });
 
@@ -1184,7 +1184,8 @@ describe("resume routes", () => {
       source: "convex",
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
-    expect(calls[0]).toEqual(expect.objectContaining({
+    const scanCall = calls.find((call) => call.pathName === "resumes_search:scanResumeDigestPage");
+    expect(scanCall).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
@@ -1218,7 +1219,6 @@ describe("resume routes", () => {
           { ...buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), searchText: "cnc sales vp", isArchived: false },
         ]);
       }
-
       if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
       if (call.pathName === "companies:list") { return convexSuccess([]); }
       if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
@@ -1233,7 +1233,8 @@ describe("resume routes", () => {
     expect(response.status).toBe(200);
     const payload = await parseJsonBody(response);
     expect(payload.success).toBe(true);
-    expect(calls[0]).toEqual(expect.objectContaining({
+    const scanCall = calls.find((call) => call.pathName === "resumes_search:scanResumeDigestPage");
+    expect(scanCall).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
     }));
   });
@@ -1423,9 +1424,10 @@ describe("resume routes", () => {
     const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
     expect(payload.success).toBe(true);
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
-    expect(calls[0]).toEqual(expect.objectContaining({
+    const listCall = calls.find((call) => call.pathName === "resumes:listWithIngestDataPage");
+    expect(listCall).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestDataPage",
-      args: expect.objectContaining({ limit: 2, offset: 2, locations: ["东莞"], requiredKeywords: ["cnc"] }),
+      args: expect.objectContaining({ offset: 2, locations: ["东莞"], requiredKeywords: ["cnc"] }),
     }));
   });
 

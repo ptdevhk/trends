@@ -41,11 +41,41 @@ export type ConvexResumeFilters = {
   skills?: string[]
   requiredKeywords?: string[]
   keywords?: string[]
+  /** Session-list internal: preserves a role-years gate when the caller
+   *  drops minRoleYears for unclassified rows (list state tracks the
+   *  raw gate separately). Route hint only — not sent to Convex args. */
+  roleYearsGate?: number
   locations?: string[]
   minSalary?: number
   maxSalary?: number
   sources?: string[]
   machineOrigin?: ResumeMachineOrigin
+}
+
+/**
+ * True when any resume-list filter is set. Mirrors the BFF's
+ * hasResumeListFilters so the OR-mode routing decision (BFF digest scan vs
+ * Convex cursor scan) matches server-side behavior.
+ */
+export function hasActiveResumeFilters(filters: ConvexResumeFilters | undefined): boolean {
+  if (!filters) {
+    return false
+  }
+  return (filters.education?.length ?? 0) > 0
+    || (filters.skills?.length ?? 0) > 0
+    || (filters.requiredKeywords?.length ?? 0) > 0
+    || (filters.keywords?.length ?? 0) > 0
+    || (filters.locations?.length ?? 0) > 0
+    || typeof filters.minSalary === 'number'
+    || typeof filters.maxSalary === 'number'
+    || typeof filters.minRoleYears === 'number'
+    || typeof filters.roleFilterType === 'string'
+    || typeof filters.roleYearsGate === 'number'
+    || typeof filters.minAge === 'number'
+    || typeof filters.maxAge === 'number'
+    || typeof filters.maxExperience === 'number'
+    || (filters.sources?.length ?? 0) > 0
+    || filters.machineOrigin != null
 }
 
 export type ConvexResumeAnalysis = {
@@ -924,7 +954,7 @@ function useBffAndModeSearch(
   // Track how many pages have been fetched (state-based to satisfy linter)
   const [fetchedPageCount, setFetchedPageCount] = useState(0)
   const prevBffActive = useRef(false)
-  const bffNowActive = enabled && (forceMachineOrigin || (!!normalizedQuery && !!keywordExpansion && keywordExpansion.mode === 'AND' && !expansionLoading))
+  const bffNowActive = enabled && (forceMachineOrigin || (!!normalizedQuery && !!keywordExpansion && !expansionLoading && (keywordExpansion.mode === 'AND' || (keywordExpansion.mode === 'OR' && hasActiveResumeFilters(filters)))))
 
   useEffect(() => {
     if (bffNowActive && !prevBffActive.current) {
@@ -964,7 +994,7 @@ function useBffAndModeSearch(
   useEffect(() => {
     let active = true
 
-    if (!enabled || (!forceMachineOrigin && (!normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading))) {
+    if (!enabled || (!forceMachineOrigin && (!normalizedQuery || !keywordExpansion || (keywordExpansion.mode !== 'AND' && !(keywordExpansion.mode === 'OR' && hasActiveResumeFilters(filters))) || expansionLoading))) {
       setAccumulatedResumes([])
       setTotal(0)
       setFetchedPageCount(0)
@@ -1005,6 +1035,7 @@ function useBffAndModeSearch(
       ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
       ...(filters?.machineOrigin ? { machineOrigin: filters.machineOrigin } : {}),
       ...(sortBy ? { sortBy } : {}),
+      ...(sortBy === 'experience' ? { experienceSortNoPrePaginate: 'true' } : {}),
       ...(sortBy && sortOrder ? { sortOrder } : {}),
       ...(showBlocked ? { showBlocked: 'true' } : {}),
       ...(includeHidden ? { includeHidden: 'true' } : {}),
@@ -1123,11 +1154,9 @@ export function stripKeywordsFromConvexFilters(filters: ConvexResumeFilters | un
   if (!filters) {
     return filters
   }
-  if (filters.keywords === undefined) {
-    return filters
-  }
   const rest = { ...filters }
   delete rest.keywords
+  delete rest.roleYearsGate
   return rest
 }
 
@@ -1193,6 +1222,7 @@ export function useConvexResumes(
   const useExactKeywordScan = Boolean(normalizedQuery && normalizedJobDescriptionId)
   const useAndModeBff = Boolean(normalizedQuery && !useExactKeywordScan)
   const machineOriginActive = options?.filters?.machineOrigin != null
+  const activeResumeFilters = hasActiveResumeFilters(options?.filters)
   const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
   const initialNumItems = Math.min(limit, CONVEX_RESUME_PAGE_SIZE)
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
@@ -1290,7 +1320,7 @@ export function useConvexResumes(
     }
   }, [enabled, mockKeywordExpansion, mockPayload, normalizedQuery])
 
-  const isAndModeBffActive = !mockPayload && enabled && (machineOriginActive || (useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading))
+  const isAndModeBffActive = Boolean(!mockPayload && enabled && (machineOriginActive || (useAndModeBff && keywordExpansion && !expansionLoading && (keywordExpansion.mode === 'AND' || (keywordExpansion.mode === 'OR' && activeResumeFilters)))))
 
   const bffRefetchTrigger = useMemo(() => {
     if (!isAndModeBffActive) return 0
@@ -1389,7 +1419,10 @@ export function useConvexResumes(
     api.resumes_search.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : enabled && !isAndModeBffActive && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode !== 'AND'
+      // Filtered OR-mode searches are served by the BFF digest scan
+      // (isAndModeBffActive); this websocket lane stays reserved for
+      // filter-free OR-mode keyword searches.
+      : enabled && !isAndModeBffActive && !useExactKeywordScan && normalizedQuery && keywordExpansion && keywordExpansion.mode === 'OR' && !activeResumeFilters
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -1444,7 +1477,7 @@ export function useConvexResumes(
         ? 'skip'
         : {
             jobDescriptionId: normalizedJobDescriptionId,
-            ...(options?.filters ?? {}),
+            ...stripKeywordsFromConvexFilters(options?.filters),
             ...(options?.sortBy ? {
               sortBy: options.sortBy,
               sortOrder: resolvedSortOrder,

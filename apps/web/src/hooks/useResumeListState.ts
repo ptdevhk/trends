@@ -323,6 +323,7 @@ export function useResumeListState(loadSearchHistory = false) {
       ...(Array.isArray(filters.locations) && filters.locations.length > 0 ? { locations: filters.locations } : {}),
       ...(typeof filters.minSalary === 'number' ? { minSalary: filters.minSalary } : {}),
       ...(typeof filters.maxSalary === 'number' ? { maxSalary: filters.maxSalary } : {}),
+      ...(filters.minRoleYears != null && filters.minRoleYears > 0 ? { roleYearsGate: filters.minRoleYears } : {}),
     }
     return Object.keys(normalized).length > 0 ? normalized : undefined
   }, [filters.education, filters.locations, filters.maxAge, filters.maxExperience, filters.maxSalary, filters.minAge, filters.minRoleYears, filters.minSalary, filters.roleFilterType, filters.skills, requiredKeywords])
@@ -908,7 +909,7 @@ export function useResumeListState(loadSearchHistory = false) {
         hasMatchingRoleSignal(resume, filters.roleFilterType)
       )
     }
-    if (typeof minRoleYears === 'number') {
+    if (typeof minRoleYears === 'number' && minRoleYears > 0) {
       result = result.filter((resume: ScoredConvexResume) =>
         getRoleYears(resume, filters.roleFilterType ?? '') >= minRoleYears
       )
@@ -1917,10 +1918,15 @@ export function useResumeListState(loadSearchHistory = false) {
       roleFilterType?: string
       maxAge?: number
     }) => {
+      const roleFilterType = normalizeOptionalString(constraints.roleFilterType)
+      const minRoleYears = constraints.minRoleYears
+      const minRoleYearsApplied = (typeof minRoleYears === 'number' && minRoleYears > 0)
+        ? minRoleYears
+        : undefined
       setFilters((current) => ({
         ...current,
-        minRoleYears: constraints.minRoleYears,
-        roleFilterType: normalizeOptionalString(constraints.roleFilterType),
+        minRoleYears: minRoleYearsApplied,
+        roleFilterType,
         maxAge: constraints.maxAge,
       }))
     },

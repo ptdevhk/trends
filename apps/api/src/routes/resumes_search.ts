@@ -787,11 +787,17 @@ app.openapi(getResumesRoute, (c) => {
     enableSemantic,
     semanticWeight,
     semanticLimit,
+    experienceSortNoPrePaginate,
   } = c.req.valid("query");
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
   const keywordExpansion = resumeService.expandSearchQuery(keyword);
   const canReadOperationalOverlays = Boolean(c.var.auth);
+  // Internal web escape: sorting by experience must use the post-filter
+  // local sort (the digest scan returns crawledAt order, and the scan limit
+  // must be the post-filter scan ceiling, not the pre-paged window).
+  const forceExperiencePostFilter = experienceSortNoPrePaginate === true;
+  const effectiveSortBy = forceExperiencePostFilter ? undefined : sortBy;
   const normalizedLocationAlias = location?.trim() || undefined;
   const effectiveLocations = locations && locations.length > 0
     ? locations
@@ -807,6 +813,7 @@ app.openapi(getResumesRoute, (c) => {
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
         const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
         const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
+        const convexRequiredKeywords = normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords : undefined;
         const normalizedRecommendations = normalizeMatchRecommendations(recommendation);
         const normalizedStatusFilters = normalizeStatusFilters(status);
         const hasLocalMatchFilters = minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0;
@@ -824,11 +831,11 @@ app.openapi(getResumesRoute, (c) => {
           sources,
           machineOrigin: Boolean(machineOrigin),
         });
-        const requiresMatchPagination = sortBy === "score" || hasLocalMatchFilters;
+        const requiresMatchPagination = effectiveSortBy === "score" || hasLocalMatchFilters;
         const localResumeFilters: ResumeFilters = {
           education,
           skills,
-          requiredKeywords: normalizedRequiredKeywords,
+          requiredKeywords: convexRequiredKeywords,
           locations: effectiveLocations,
           minSalary,
           maxSalary,
@@ -859,10 +866,10 @@ app.openapi(getResumesRoute, (c) => {
           && normalizedKeywords.length > 0
           && !machineOrigin
         );
-        const canUseSourcePagination = !requiresMatchPagination;
+        const canUseSourcePagination = !requiresMatchPagination && !(keywordExpansion?.mode === "OR" && hasLocalResumeFilters);
         let usesPrePagedMatchResults = canUseMatchStoragePagination || canUseFilteredMatchStoragePagination;
-        const matchSortOrder = sortBy === "score"
-          ? resolveResumeSortOrder(sortBy, sortOrder) || "desc"
+        const matchSortOrder = effectiveSortBy === "score"
+          ? resolveResumeSortOrder(effectiveSortBy, sortOrder) || "desc"
           : "desc";
 
         let prepared: PreparedResumeCandidate[] = [];
@@ -895,7 +902,7 @@ app.openapi(getResumesRoute, (c) => {
               maxSalary,
               sources,
               jobDescriptionId: resolvedJobId,
-              sortBy: sortBy === "score" ? undefined : sortBy,
+              sortBy: effectiveSortBy === "score" ? undefined : effectiveSortBy,
               sortOrder,
               semanticWeight,
               semanticLimit,
@@ -992,7 +999,7 @@ app.openapi(getResumesRoute, (c) => {
           liveExpansion = keywordMatchPage.keywordExpansion;
           usesPrePagedMatchResults = true;
         } else {
-          const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit({
+          const convexFetchLimit = canUseSourcePagination ? (effectiveSortBy ? limit : undefined) : resolveConvexResumeFetchLimit({
             limit,
             offset,
             requiresMatchPagination,
@@ -1004,9 +1011,9 @@ app.openapi(getResumesRoute, (c) => {
             keywords: normalizedKeywords,
             limit: convexFetchLimit,
             offset: canUseSourcePagination ? offset : undefined,
-            sortBy: canUseSourcePagination && sortBy ? sortBy : undefined,
-            sortOrder: canUseSourcePagination ? resolveResumeSortOrder(sortBy, sortOrder) : undefined,
-            filters: canUseSourcePagination ? localResumeFilters : undefined,
+            sortBy: canUseSourcePagination && effectiveSortBy ? effectiveSortBy : undefined,
+            sortOrder: canUseSourcePagination ? resolveResumeSortOrder(effectiveSortBy, sortOrder) : undefined,
+            filters: localResumeFilters,
             jobDescriptionId: resolvedJobId,
             paged: canUseSourcePagination,
             resumeService,
@@ -1014,10 +1021,9 @@ app.openapi(getResumesRoute, (c) => {
           prepared = preparedResult.prepared;
           liveExpansion = preparedResult.keywordExpansion;
           totalCount = preparedResult.total;
-          // machineOrigin must re-apply BFF-side on every path (Convex never
-          // applies it), but only claim "server-side filters used" when the
-          // source-pagination path actually ran them; otherwise the 8
-          // Convex-applied fields would be silently skipped below.
+          // The digest-scan branch inside prepareConvexCandidates applies the
+          // location/role/etc. filters itself; when it ran, filtering already
+          // happened and must not be repeated locally.
           usedServerSideFilters = (preparedResult.usedServerSideFilters ?? false)
             || (Boolean(machineOrigin) && canUseSourcePagination);
         }
@@ -1111,22 +1117,22 @@ app.openapi(getResumesRoute, (c) => {
           }
         }
 
-        if (!usesPrePagedMatchResults && sortBy) {
-          const order = sortOrder || (sortBy === "score" ? "desc" : "asc");
+        if (!usesPrePagedMatchResults && effectiveSortBy) {
+          const order = sortOrder || (effectiveSortBy === "score" ? "desc" : "asc");
           const direction = order === "desc" ? -1 : 1;
 
           working = [...working].sort((a, b) => {
-            if (sortBy === "score") {
+            if (effectiveSortBy === "score") {
               const scoreA = matchMap?.get(a.resumeId ?? a.id)?.score ?? -1;
               const scoreB = matchMap?.get(b.resumeId ?? b.id)?.score ?? -1;
               return (scoreA - scoreB) * direction;
             }
-            if (sortBy === "experience") {
+            if (effectiveSortBy === "experience") {
               const expA = parseExperienceYears(a.resume.experience) ?? -1;
               const expB = parseExperienceYears(b.resume.experience) ?? -1;
               return (expA - expB) * direction;
             }
-            if (sortBy === "extractedAt") {
+            if (effectiveSortBy === "extractedAt") {
               const timeA = Date.parse(a.resume.extractedAt || "") || 0;
               const timeB = Date.parse(b.resume.extractedAt || "") || 0;
               return (timeA - timeB) * direction;
