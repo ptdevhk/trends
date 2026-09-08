@@ -1,0 +1,572 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-07",
+  "market": "MY",
+  "companies": [
+    {
+      "companyKey": "cnc-metal-machining",
+      "employerName": "CNC Metal Machining Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: CNC metal machining job shop (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (CNC metal machining job shop); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-cnc-metal-machining",
+      "revisionId": "my-cnc-rev-cnc-metal-machining",
+      "aliases": ["CNC Metal Machining Sdn Bhd", "CNC Metal Machining"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-cnc-metal-machining-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC Metal Machining Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "star-cnc-wirecutting-services",
+      "employerName": "Star CNC Wirecutting services sdn bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: CNC wire EDM cutting services provider (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (CNC wire EDM cutting services); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-star-cnc-wirecutting-services",
+      "revisionId": "my-cnc-rev-star-cnc-wirecutting-services",
+      "aliases": ["Star CNC Wirecutting services sdn bhd", "Star CNC Wirecutting services"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-star-cnc-wirecutting-services-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Star CNC Wirecutting services sdn bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "kobeco-machine-tools",
+      "employerName": "Kobeco Machine Tools Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: machine tool distributor / CNC equipment dealer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (machine tool distributor); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-kobeco-machine-tools",
+      "revisionId": "my-cnc-rev-kobeco-machine-tools",
+      "aliases": ["Kobeco Machine Tools Sdn Bhd", "Kobeco Machine Tools"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-kobeco-machine-tools-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Kobeco Machine Tools Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "newline-machine-tool",
+      "employerName": "Newline Machine Tool Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: machine tool supplier (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (machine tool supplier); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-newline-machine-tool",
+      "revisionId": "my-cnc-rev-newline-machine-tool",
+      "aliases": [
+        "Newline Machine Tool Sdn Bhd",
+        "Newline machine tools sdn bhd",
+        "Newline Machine Tool",
+        "Newline machine tools"
+      ],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-newline-machine-tool-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Newline Machine Tool Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "aida-engineering-malaysia",
+      "employerName": "AIDA ENGINEERING (M) SDN BHD",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: press / stamping engineering (AIDA lineage) machining employer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (press and stamping engineering); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-aida-engineering-malaysia",
+      "revisionId": "my-cnc-rev-aida-engineering-malaysia",
+      "aliases": ["AIDA ENGINEERING (M) SDN BHD", "AIDA ENGINEERING (M)"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-aida-engineering-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "AIDA ENGINEERING (M) SDN BHD — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "intech-precision-engineering-malaysia",
+      "employerName": "Intech Precision Eng (M) Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision engineering machining shop (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision engineering machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-intech-precision-engineering-malaysia",
+      "revisionId": "my-cnc-rev-intech-precision-engineering-malaysia",
+      "aliases": ["Intech Precision Eng (M) Sdn Bhd", "Intech Precision Eng (M)"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-intech-precision-engineering-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Intech Precision Eng (M) Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "foong-chi-mould-industries",
+      "employerName": "Foong Chi Mould Industries Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: mould making / injection tooling manufacturer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (mould making / tooling); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-foong-chi-mould-industries",
+      "revisionId": "my-cnc-rev-foong-chi-mould-industries",
+      "aliases": ["Foong Chi Mould Industries Sdn Bhd", "Foong Chi Mould Industries"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-foong-chi-mould-industries-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Foong Chi Mould Industries Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "suntongseng-mould-tech",
+      "employerName": "Suntongseng Mould Tech Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: mould technology / tooling manufacturer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (mould technology / tooling); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-suntongseng-mould-tech",
+      "revisionId": "my-cnc-rev-suntongseng-mould-tech",
+      "aliases": [
+        "Suntongseng Mould Tech Sdn Bhd",
+        "SUNTONGSENG MOULD TECH SDN BHD.MALAYSIA",
+        "Suntongseng Mould Tech"
+      ],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-suntongseng-mould-tech-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Suntongseng Mould Tech Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "venus-tooling-corporation",
+      "employerName": "Venus Tooling Corporation Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision tooling / die manufacturing (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision tooling / die making); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-venus-tooling-corporation",
+      "revisionId": "my-cnc-rev-venus-tooling-corporation",
+      "aliases": ["Venus Tooling Corporation Sdn Bhd", "Venus Tooling Corporation"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-venus-tooling-corporation-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Venus Tooling Corporation Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "mattel-development-and-tooling",
+      "employerName": "Mattel Development and Tooling Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: tool room / mould tooling arm of Mattel Malaysia manufacturing (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (tool room / mould tooling); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-mattel-development-and-tooling",
+      "revisionId": "my-cnc-rev-mattel-development-and-tooling",
+      "aliases": ["Mattel Development and Tooling Sdn Bhd", "Mattel Development and Tooling"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-mattel-development-and-tooling-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Mattel Development and Tooling Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "micro-mechanics-technology",
+      "employerName": "Micro-Mechanics Technology Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision machining / micro mechanics manufacturer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-micro-mechanics-technology",
+      "revisionId": "my-cnc-rev-micro-mechanics-technology",
+      "aliases": ["Micro-Mechanics Technology Sdn Bhd", "Micro-Mechanics Technology"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-micro-mechanics-technology-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Micro-Mechanics Technology Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "micron-concept-engineering",
+      "employerName": "Micron Concept Engineering Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision engineering / machining (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision engineering / machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-micron-concept-engineering",
+      "revisionId": "my-cnc-rev-micron-concept-engineering",
+      "aliases": ["Micron Concept Engineering Sdn Bhd", "Micron Concept Engineering"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-micron-concept-engineering-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Micron Concept Engineering Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "paradigm-precision-components",
+      "employerName": "Paradigm Precision Components Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision machined components manufacturer (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision machined components); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-paradigm-precision-components",
+      "revisionId": "my-cnc-rev-paradigm-precision-components",
+      "aliases": ["Paradigm Precision Components Sdn Bhd", "Paradigm Precision Components"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-paradigm-precision-components-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Paradigm Precision Components Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "gah-hong-precision",
+      "employerName": "GAH HONG Precision Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision machining / components (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-gah-hong-precision",
+      "revisionId": "my-cnc-rev-gah-hong-precision",
+      "aliases": ["GAH HONG Precision Sdn Bhd", "GAH HONG Precision"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-gah-hong-precision-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "GAH HONG Precision Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "wise-tech-precision-engineering",
+      "employerName": "Wise tech precision enggineering sdn bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision engineering machining shop (corpus work-history evidence; corpus spelling carries a typo).",
+      "decisionReason": "Reviewed MY CNC employer (precision engineering machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-wise-tech-precision-engineering",
+      "revisionId": "my-cnc-rev-wise-tech-precision-engineering",
+      "aliases": ["Wise tech precision enggineering sdn bhd", "Wise tech precision enggineering"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-wise-tech-precision-engineering-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Wise tech precision enggineering sdn bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "advent-integrated-mold-solutions",
+      "employerName": "Advent Integrated Mold Solutions Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: integrated mold making / tooling solutions (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (mold making / tooling solutions); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-advent-integrated-mold-solutions",
+      "revisionId": "my-cnc-rev-advent-integrated-mold-solutions",
+      "aliases": ["Advent Integrated Mold Solutions Sdn Bhd", "Advent Integrated Mold Solutions"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-advent-integrated-mold-solutions-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Advent Integrated Mold Solutions Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "sam-precision-malaysia",
+      "employerName": "SAM Precision (M) Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: SAM Precision Malaysia machining entity (distinct from SAM Precision Thailand) (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (SAM Precision Malaysia machining); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-sam-precision-malaysia",
+      "revisionId": "my-cnc-rev-sam-precision-malaysia",
+      "aliases": ["SAM Precision (M) Sdn Bhd", "SAM Precision (M)"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-sam-precision-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "SAM Precision (M) Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "meiki-malaysia",
+      "employerName": "Meiki (M) Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: precision stamping dies / press parts manufacturer (Meiki Malaysia) (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision stamping dies); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-meiki-malaysia",
+      "revisionId": "my-cnc-rev-meiki-malaysia",
+      "aliases": ["Meiki (M) Sdn Bhd", "meiki(M)sdn bhd", "Meiki (M)"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-meiki-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Meiki (M) Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "epson-precision-johor",
+      "employerName": "EPSON PRECISION (JOHOR) Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: Epson precision machining / components plant in Johor (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (precision machining plant); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-epson-precision-johor",
+      "revisionId": "my-cnc-rev-epson-precision-johor",
+      "aliases": ["EPSON PRECISION (JOHOR) Sdn Bhd", "Epson Precision (Johor)"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-epson-precision-johor-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "EPSON PRECISION (JOHOR) Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "chung-nyap-yoon-machinery",
+      "employerName": "Chung Nyap Yoon Machinery Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: machinery / machine tool supplier (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (machinery / machine tool supplier); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-chung-nyap-yoon-machinery",
+      "revisionId": "my-cnc-rev-chung-nyap-yoon-machinery",
+      "aliases": ["Chung Nyap Yoon Machinery Sdn Bhd", "Chung Nyap Yoon Machinery"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-chung-nyap-yoon-machinery-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Chung Nyap Yoon Machinery Sdn Bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "techno-tools-asia",
+      "employerName": "TECHNO TOOLS ASIA SDN BHD",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: cutting tools / tooling supplier (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY CNC employer (cutting tools / tooling supplier); confirm cnc classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-techno-tools-asia",
+      "revisionId": "my-cnc-rev-techno-tools-asia",
+      "aliases": ["TECHNO TOOLS ASIA SDN BHD", "TECHNO TOOLS ASIA"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-techno-tools-asia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "TECHNO TOOLS ASIA SDN BHD — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "iac-manufacturing-malaysia",
+      "employerName": "IAC MANUFACTURING (MALAYSIA) SDN. BHD.",
+      "industryClass": "industrial",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: aerospace / precision contract manufacturing (industrial) (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY industrial employer (precision contract manufacturing); confirm industrial classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-iac-manufacturing-malaysia",
+      "revisionId": "my-cnc-rev-iac-manufacturing-malaysia",
+      "aliases": [
+        "IAC MANUFACTURING (MALAYSIA) SDN. BHD.",
+        "IAC MANUFACTURING (MALAYSIA)",
+        "IAC Manufacturing"
+      ],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-iac-manufacturing-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "IAC MANUFACTURING (MALAYSIA) SDN. BHD. — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "sankei-engineering-malaysia",
+      "employerName": "Sankei Engineering Sdn. Bhd.",
+      "industryClass": "industrial",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: surface treatment / plating engineering for machining supply chain (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY industrial employer (engineering services); confirm industrial classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-sankei-engineering-malaysia",
+      "revisionId": "my-cnc-rev-sankei-engineering-malaysia",
+      "aliases": ["Sankei Engineering Sdn. Bhd.", "Sankei Engineering"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-sankei-engineering-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Sankei Engineering Sdn. Bhd. — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    },
+    {
+      "companyKey": "kamishio-malaysia",
+      "employerName": "kamishio malaysia sdn bhd",
+      "industryClass": "industrial",
+      "verificationLevel": "verified",
+      "evidenceSummary": "MY CNC catalog seed: machinery parts manufacturing (Kamishio Malaysia) (corpus work-history evidence).",
+      "decisionReason": "Reviewed MY industrial employer (machinery parts manufacturing); confirm industrial classification.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1819000000000,
+      "proposalId": "my-cnc-seed-kamishio-malaysia",
+      "revisionId": "my-cnc-rev-kamishio-malaysia",
+      "aliases": ["kamishio malaysia sdn bhd", "kamishio malaysia"],
+      "sources": [
+        {
+          "sourceId": "my-cnc-src-kamishio-malaysia-1",
+          "url": "https://example.com/my-cnc-catalog",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "kamishio malaysia sdn bhd — company profile",
+          "evidenceExcerpt": "MY Seek work-history corpus: employer surface appears in MY CNC candidate profiles."
+        }
+      ]
+    }
+  ]
+}
