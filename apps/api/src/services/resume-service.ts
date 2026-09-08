@@ -16,6 +16,7 @@ import {
   parseRawSalaryRange,
   parseVerifiedIndustryEvidenceSummary,
   resolveGateRoleYears,
+  normalizeSearchRoleFilterType,
   selectLatestWorkHistory,
 } from "@trends/shared";
 
@@ -445,7 +446,7 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
 }
 
 function normalizeRoleType(value: string | undefined): string {
-  return value?.trim().toLowerCase() ?? "";
+  return normalizeSearchRoleFilterType(value);
 }
 
 function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {

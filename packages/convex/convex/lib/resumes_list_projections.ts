@@ -22,6 +22,7 @@ import {
     parseVerifiedIndustryEvidenceSummary,
     resolveResumeAnalysisSourceKey,
     resolveGateRoleYears,
+    normalizeSearchRoleFilterType,
     type VerifiedIndustryEvidenceSummary,
 } from "@trends/shared";
 import {
@@ -506,7 +507,7 @@ export function matchesAllRequiredKeywords(text: string, requiredKeywords: strin
  *      rows whose stored projection is missing.
  */
 export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string | undefined): boolean {
-    const key = toOptionalStringValue(roleType)?.trim().toLowerCase() ?? "";
+    const key = normalizeSearchRoleFilterType(toOptionalStringValue(roleType)) ?? "";
     if (!key) {
         return true;
     }

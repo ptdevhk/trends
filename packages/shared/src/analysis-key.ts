@@ -327,6 +327,25 @@ export function getVerifiedRoleSignalYears(
 }
 
 /**
+ * Normalize a role-filter search value to the canonical stored role key.
+ *
+ * The system only ever emits `roleSignals`/`verifiedRoleYears` for `sales` and
+ * `engineer`. `technical` is a legacy / operator-facing label (from the filter
+ * presets and older JD docs) for engineering + field-service work that the
+ * ingest vocabulary already classifies under `engineer` (维修/调试/编程/安装/
+ * 保养/维护/technician/machinist/…). Aliasing `technical`→`engineer` lets a
+ * `roleType=technical` operator URL return the real engineer cohort instead of
+ * silently matching nothing. Other values pass through lower-trimmed unchanged.
+ */
+export function normalizeSearchRoleFilterType(roleType: string | undefined): string {
+  const key = typeof roleType === "string" ? roleType.trim().toLowerCase() : "";
+  if (!key) {
+    return "";
+  }
+  return key === "technical" ? "engineer" : key;
+}
+
+/**
  * Resolve years for the minRoleYears search gate for one role type (or the
  * best across all types when `roleType` is empty). Prefers precomputed
  * `verifiedRoleYears`, then industry-verified signal years. Never falls back
@@ -337,7 +356,7 @@ export function resolveGateRoleYears(
   roleType: string | undefined,
   verifiedRoleYears?: Record<string, number> | null,
 ): number {
-  const key = typeof roleType === "string" ? roleType.trim().toLowerCase() : "";
+  const key = normalizeSearchRoleFilterType(roleType);
 
   if (key) {
     const stored = verifiedRoleYears?.[key];
@@ -512,7 +531,7 @@ export function getRoleSignalYears(
     return 0;
   }
 
-  const normalizedType = roleType.trim().toLowerCase();
+  const normalizedType = normalizeSearchRoleFilterType(roleType);
   const normalizedVerifyIn = verifyIn?.trim().toLowerCase();
 
   const resolveSignalYears = (signal: AnalysisRoleSignalLike, signalType: string): number => {

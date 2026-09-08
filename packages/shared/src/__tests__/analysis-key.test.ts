@@ -4,6 +4,7 @@ import {
   computeVerifiedRoleYears,
   getRoleRelevantSignalYears,
   isSalesRequiredContext,
+  normalizeSearchRoleFilterType,
   resolveGateRoleYears,
   resolveResumeDiagnosticsSourceKey,
 } from "../analysis-key";
@@ -234,5 +235,26 @@ describe("resolveGateRoleYears", () => {
     expect(resolveGateRoleYears(mixedSignals, "sales", {})).toBe(0);
     expect(resolveGateRoleYears(mixedSignals, "engineer", {})).toBe(7);
     expect(resolveGateRoleYears(mixedSignals, undefined, {})).toBe(7);
+  });
+
+  it("aliases the legacy technical label to the engineer role key", () => {
+    expect(normalizeSearchRoleFilterType("technical")).toBe("engineer");
+    expect(normalizeSearchRoleFilterType("TECHNICAL")).toBe("engineer");
+    expect(normalizeSearchRoleFilterType("engineer")).toBe("engineer");
+    expect(normalizeSearchRoleFilterType("sales")).toBe("sales");
+    expect(normalizeSearchRoleFilterType(undefined)).toBe("");
+    expect(normalizeSearchRoleFilterType(" ")).toBe("");
+
+    const engineerSignals = [
+      {
+        type: "engineer",
+        years: 4,
+        industryVerifiedRelevantYears: 4,
+        industryVerifiedYears: 4,
+      },
+    ];
+    // roleType=technical must resolve the engineer years (this is what made the
+    // operator URL return 0 before the alias).
+    expect(resolveGateRoleYears(engineerSignals, "technical", {})).toBe(4);
   });
 });

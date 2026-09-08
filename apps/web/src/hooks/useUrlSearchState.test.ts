@@ -102,6 +102,18 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.filters.roleFilterType).toBe('sales')
   })
 
+  it('aliases roleType=technical to engineer when parsing a url', () => {
+    // Operator URLs may carry the legacy `technical` label; it must resolve to
+    // the stored `engineer` role key so the /goal result URL shows results.
+    const state = parseUrlSearchState(new URLSearchParams(
+      'q=%22CNC%22+OR+%22Service+Engineer%22&location=Malaysia&minRoleYears=1&roleType=technical',
+    ))
+
+    expect(state.query).toBe('"CNC" OR "Service Engineer"')
+    expect(state.filters.roleFilterType).toBe('engineer')
+    expect(state.filters.minRoleYears).toBe(1)
+  })
+
   it('serializes MY CNC Sales default workflow URL with minRoleYears=1 and roleType=sales', () => {
     const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])

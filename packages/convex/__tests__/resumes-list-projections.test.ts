@@ -365,6 +365,29 @@ describe("matchesResumeListFilters", () => {
     expect(matchesResumeListFilters(resume, { roleFilterType: "engineer", minRoleYears: 1 })).toBe(true);
   });
 
+  it("aliases roleFilterType=technical to the engineer role key", () => {
+    // A service-engineer resume carries an `engineer` role signal. The operator
+    // URL roleType=technical must match it (technical work is classified under
+    // the engineer vocabulary: 维修/调试/编程/安装/保养/维护/technician/…).
+    const resume = makeResume({
+      ingestData: {
+        verifiedRoleYears: { engineer: 4 },
+        roleSignals: [{
+          type: "engineer",
+          signalCount: 1,
+          years: 4,
+          industryVerifiedYears: 4,
+          roleRelevantYears: 4,
+          industryVerifiedRelevantYears: 4,
+          matchedSignals: ["Service Engineer"],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "technical" })).toBe(true);
+    expect(matchesResumeListFilters(resume, { roleFilterType: "technical", minRoleYears: 1 })).toBe(true);
+  });
+
   it("CN resumes still require industry-verified years for minRoleYears", () => {
     const resume = makeResume({
       source: "hr.job5156.com",

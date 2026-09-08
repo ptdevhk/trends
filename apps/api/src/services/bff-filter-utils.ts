@@ -11,6 +11,7 @@ import {
   normalizeResumeLocationHierarchy,
   parseRawSalaryRange,
   resolveGateRoleYears,
+  normalizeSearchRoleFilterType,
   resolveResumeAnalysisSourceKey,
 } from "@trends/shared";
 import { normalizeEducationLevel } from "./resume-service.js";
@@ -110,7 +111,8 @@ export function bffMatchesResumeFilters(
 
   if (filters.roleFilterType) {
     // Match Convex hasMatchingRoleSignal: check verifiedRoleYears first, then roleSignals
-    const key = filters.roleFilterType.trim().toLowerCase();
+    // `technical` is aliased to `engineer` (see normalizeSearchRoleFilterType).
+    const key = normalizeSearchRoleFilterType(filters.roleFilterType);
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
       ? ingestData.verifiedRoleYears as Record<string, unknown>
       : {};

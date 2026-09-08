@@ -1,4 +1,4 @@
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, normalizeSearchRoleFilterType, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useMemo, useTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
@@ -186,6 +186,12 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
   return KNOWN_PARAM_KEYS.some((key) => searchParams.has(key))
 }
 
+/** Canonicalize a `roleType` URL value (technical→engineer) so the URL round-trips to a stable key. */
+export function normalizeRoleTypeParam(value: string | undefined): string | undefined {
+  const normalized = normalizeSearchRoleFilterType(value)
+  return normalized.length > 0 ? normalized : undefined
+}
+
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
   const shareSessionIdRaw = searchParams.get('sid')
   const shareSessionId = shareSessionIdRaw?.trim() || undefined
@@ -222,7 +228,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.minRoleYears = minRoleYears
   }
 
-  const roleFilterType = searchParams.get('roleType')?.trim()
+  const roleFilterType = normalizeRoleTypeParam(searchParams.get('roleType') ?? undefined)
   if (roleFilterType && roleFilterType.length > 0) {
     filters.roleFilterType = roleFilterType
   }
@@ -368,7 +374,7 @@ export function useUrlSearchState() {
         }
 
         if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {
-          setParam(nextParams, 'roleType', state.filters.roleFilterType.trim())
+          setParam(nextParams, 'roleType', normalizeSearchRoleFilterType(state.filters.roleFilterType.trim()))
         }
 
         if (typeof state.filters.minAge === 'number' && Number.isFinite(state.filters.minAge)) {
