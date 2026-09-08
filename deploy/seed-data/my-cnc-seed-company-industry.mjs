@@ -104,7 +104,8 @@ try {
       seededSources += 1;
     }
 
-    await client.mutation("companies:approveIndustryProposal", {
+    try {
+      await client.mutation("companies:approveIndustryProposal", {
       proposalId, revisionId, verificationLevel, industryClass,
       approvedSourceIds: sources.map((s) => s.sourceId), evidenceSummary,
       reviewer: REVIEWER, decisionReason, taxonomyVersion, nextReviewAt,
@@ -116,6 +117,10 @@ try {
       },
       writeSecret: WS,
     });
+    } catch (err) {
+      // Idempotent re-seed: already-approved proposals are a no-op, not a failure.
+      if (!isAlreadyExists(err) && !/not open for approval.*approved/i.test(String(err?.message ?? err))) throw err;
+    }
   }
 
   // Additive smoke: every seeded companyKey must resolve from its first alias
