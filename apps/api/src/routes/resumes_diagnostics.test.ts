@@ -1080,7 +1080,11 @@ describe("resumes_diagnostics", () => {
       expect(payload.goldenQueries.every((query) => query.ok === true)).toBe(true);
     });
 
-    it("fails the MY golden query when returned results lack verified direct sales evidence", async () => {
+    it("fails the MY golden query when a relaxed row carries no genuine role evidence", async () => {
+      // With the MY/SEEK no-verdict relaxation, an MY row whose employer has
+      // no verdict yet legitimately passes the gate via direct-role years — so
+      // the golden semantic check must still flag a row that carries NO genuine
+      // direct-role evidence at all (no directRoleMatch entry).
       const originalBffApiUrl = process.env.BFF_API_URL;
       process.env.BFF_API_URL = "http://bff.test";
 
@@ -1129,7 +1133,7 @@ describe("resumes_diagnostics", () => {
               success: true,
               summary: { total: 3 },
               data: [{
-                name: "MY fallback only",
+                name: "MY no-role-evidence",
                 source: "hk.employer.seek.com",
                 sourceKey: "seek",
                 ingestData: {
@@ -1141,7 +1145,7 @@ describe("resumes_diagnostics", () => {
                     signalCount: 1,
                     occurrences: 1,
                     years: 5.4,
-                    roleRelevantYears: 5.4,
+                    roleRelevantYears: 0,
                     industryVerifiedYears: 0,
                     industryVerifiedRelevantYears: 0,
                     verifyIn: "workHistory",
@@ -1150,7 +1154,7 @@ describe("resumes_diagnostics", () => {
                       jobTitle: "Sales Manager",
                       years: 5.4,
                       industryVerified: false,
-                      directRoleMatch: true,
+                      directRoleMatch: false,
                       matchedSignals: ["Sales Manager"],
                     }],
                   }],

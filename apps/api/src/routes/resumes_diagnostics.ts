@@ -6,6 +6,7 @@ import { logger } from "../services/logger.js";
 import {
   CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
   CURRENT_INGEST_COMPUTE_EPOCH,
+  deriveMarketFromSourceKey,
   resolveGateRoleYears,
   resolveResumeDiagnosticsSourceKey,
   type AnalysisMatchedWorkEntryLike,
@@ -337,7 +338,20 @@ function resolveGoldenQueryRoleYears(
     : undefined;
   const verifiedRoleYears = normalizeGoldenQueryVerifiedRoleYears(record.verifiedRoleYears);
 
-  return resolveGateRoleYears(roleSignals, roleType, verifiedRoleYears);
+  // Golden query rows carry ingestData.market (from the ingest stamp), so the
+  // MY/SEEK no-verdict relaxation is applied here the same way the live search
+  // gate applies it (resolveGateRoleYears market option). This keeps the
+  // golden availability/semantic check aligned with the returned cohort — the
+  // relaxed rows are legitimately part of the operator URL's result set.
+  const market = (typeof record.market === "string"
+    && (record.market === "CN" || record.market === "MY" || record.market === "TH")
+    ? record.market
+    : deriveMarketFromSourceKey(
+        typeof (row as { sourceKey?: unknown }).sourceKey === "string"
+          ? (row as { sourceKey?: unknown }).sourceKey as string
+          : undefined,
+      )) as "CN" | "MY" | "TH";
+  return resolveGateRoleYears(roleSignals, roleType, verifiedRoleYears, { market });
 }
 
 const listAnalysisTasksRoute = createRoute({
