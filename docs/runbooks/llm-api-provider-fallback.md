@@ -13,9 +13,39 @@ Gate A / Analyze All runs in **Convex**: `analysis_tasks.dispatch` →
 | Fallback | `openai/deepseek-v4-flash-e` |
 | **Former known bug (closed)** | Poe `deepseek-v4-flash` rejected `response_format: { type: "json_object" }` with HTTP 400 `Invalid input` / `invalid_request_error` (observed 2026-08-17; caused Gate A `analyzed=0 / failed=10`). Fixed upstream: 2026-08-25 live probe returned 200 for `response_format`, `tools`, and `response_format`+`tools` combined. |
 | Live probe (2026-08-25) | `deepseek-v4-flash`: 200, capability `full` (JSON + tool calls). `deepseek-v4-flash-e`: 200, capability `full`. |
+| **Default reasoning (closed 2026-09-08)** | Both `deepseek-v4-flash` and `deepseek-v4-flash-e` enable a thinking/reasoning pass by default on Poe/CPA (large `reasoning_content` + `reasoning_tokens`; ~2m20s TTFT per call was stalling keyword-search analyze batches). Structured JSON scoring never uses it, so every plain chat-completion now sends `enable_thinking:false` when the resolved model is in the flash family. |
 
-Code tracker: `POE_DEEPSEEK_V4_FLASH_KNOWN_BUG` in
-`packages/convex/convex/lib/ai_model.ts` (`status: closed`, `closed: "2026-08-25"`).
+Code trackers:
+- `POE_DEEPSEEK_V4_FLASH_KNOWN_BUG` in
+  `packages/convex/convex/lib/ai_model.ts` (`status: closed`, `closed: "2026-08-25"`).
+- `shouldDisableThinking()` in `packages/convex/convex/lib/ai_model.ts`
+  (`DEFAULT_THINKING_DISABLED_MODELS = {deepseek-v4-flash, deepseek-v4-flash-e}`)
+  and in `apps/api/src/services/ai-chat-client.ts` (BFF copy).
+
+## Default reasoning is OFF for the deepseek-v4-flash family (2026-09-08)
+
+The flash family defaults to a reasoning pass upstream. Probe results on the
+live Poe/CPA path (2026-09-08):
+
+| Request field | Result |
+|---------------|--------|
+| (no field) | `reasoning_tokens` 100–600+, TTFT 4–8s (single complex call 2m20s / 16,172 reasoning tokens) |
+| `reasoning_effort: "none"` | **does NOT disable** — still `reasoning_tokens` 500–600 |
+| Claude-style `thinking.type: "disabled"` | **does NOT disable** — still reasons |
+| `enable_thinking: false` | `reasoning_tokens=0`, valid JSON in ~2s |
+
+So the only effective opt-out is `enable_thinking:false`. Every request body
+builder that calls the flash family adds it automatically:
+
+- Convex `analyze.ts` `callLLM` (the live scoring path via `analysis_tasks`)
+- Convex `ai_tagging_results.ts` `callTaggingLlm`
+- BFF `ai-chat-client.ts` `callChatCompletion` (machine-origin suggestions)
+- BFF `ai-matching.ts` `callLLM` (sample-match / outreach path)
+
+Live verification: a 3-resume keyword-search dispatch on preview after the fix
+completed 3/3 in seconds; each CPA `/v1/chat/completions` call took **4.4–5.1s**
+(was 2m20s for a single call pre-fix). This is client-side only — no env var or
+model change is required.
 
 ## Runtime change (no rebuild)
 
