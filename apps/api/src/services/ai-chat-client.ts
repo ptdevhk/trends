@@ -10,6 +10,13 @@ export function extractModelName(model: string): string {
   return parts.length > 1 ? parts.slice(1).join("/") : model;
 }
 
+/** Models that default to a reasoning/thinking pass and accept `enable_thinking:false`. */
+const THINKING_DISABLED_MODELS = new Set(["deepseek-v4-flash", "deepseek-v4-flash-e"]);
+
+export function shouldDisableThinking(model: string): boolean {
+  return THINKING_DISABLED_MODELS.has(extractModelName(model).trim());
+}
+
 export async function callChatCompletion(args: {
   config?: ReturnType<typeof loadAIConfig>;
   maxTokens: number;
@@ -21,20 +28,25 @@ export async function callChatCompletion(args: {
   const baseUrl = config.apiBase || aiConfig.apiBase || "https://api.openai.com/v1";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout);
+  const resolvedModel = extractModelName(args.model);
 
   try {
+    const requestBody: Record<string, unknown> = {
+      model: resolvedModel,
+      messages: args.messages,
+      temperature: args.temperature ?? 0,
+      max_tokens: Math.min(config.maxTokens, args.maxTokens),
+    };
+    if (shouldDisableThinking(resolvedModel)) {
+      requestBody.enable_thinking = false;
+    }
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model: extractModelName(args.model),
-        messages: args.messages,
-        temperature: args.temperature ?? 0,
-        max_tokens: Math.min(config.maxTokens, args.maxTokens),
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 

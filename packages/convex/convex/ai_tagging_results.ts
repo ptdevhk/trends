@@ -6,7 +6,7 @@ import { internalAction, internalMutation, internalQuery, mutation, query } from
 import { v } from "convex/values";
 
 import type { ChatMessage } from "./analyze";
-import { resolveChatCompletionModel, warnUnknownModel } from "./lib/ai_model";
+import { resolveChatCompletionModel, shouldDisableThinking, warnUnknownModel } from "./lib/ai_model";
 import { resolveAiTaggingParallelism } from "./lib/parallelism";
 import { computeProtectedAttributeHashes } from "./audit.js";
 
@@ -305,17 +305,22 @@ async function callTaggingLlm(input: {
   const apiBase = resolveAiApiBase();
   const model = resolveChatCompletionModel(apiBase, input.model);
 
+  const requestBody: Record<string, unknown> = {
+    model,
+    messages: input.messages,
+    temperature: resolveAiTaggingTemperature(),
+  };
+  if (shouldDisableThinking(model)) {
+    requestBody.enable_thinking = false;
+  }
+
   const response = await fetch(`${apiBase}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: input.messages,
-      temperature: resolveAiTaggingTemperature(),
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

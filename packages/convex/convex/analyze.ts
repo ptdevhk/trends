@@ -20,6 +20,7 @@ import {
     classifyChatCompletionCapability,
     resolveChatCompletionModel,
     selectAnalyzeChatModel,
+    shouldDisableThinking,
 } from "./lib/ai_model";
 import { doUpsertResumeDigest, doUpsertResumeAnalysis } from "./resumes_search.js";
 import { readActiveResumeAnalysis } from "./lib/resume_analysis_read.js";
@@ -275,18 +276,24 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
 
     const post = async (model: string) => {
         console.debug(`Calling LLM at ${url} with model ${model}...`);
+        const requestBody: Record<string, unknown> = {
+            model,
+            messages: messages,
+            temperature: getAiTemperature(),
+            response_format: { type: "json_object" },
+        };
+        // deepseek-v4-flash family enables a thinking/reasoning pass by default;
+        // opt out so scoring is deterministic and does not spend on reasoning.
+        if (shouldDisableThinking(model)) {
+            requestBody.enable_thinking = false;
+        }
         return fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${apiKey}`,
             },
-            body: JSON.stringify({
-                model,
-                messages: messages,
-                temperature: getAiTemperature(),
-                response_format: { type: "json_object" },
-            }),
+            body: JSON.stringify(requestBody),
         });
     };
 

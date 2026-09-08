@@ -30,6 +30,7 @@ import { findProjectRoot } from "./db.js";
 import { computeDirectIndustryDbScore } from "./industry-db-batch-stats.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
 import { resumeAiPromptService, type ResumeAiPromptDocument } from "./resume-ai-prompt-service.js";
+import { shouldDisableThinking } from "./ai-chat-client.js";
 
 // Types
 export interface MatchingRequest {
@@ -816,12 +817,15 @@ Return strictly valid JSON:
         const modelParts = aiConfig.model.split("/");
         const modelName = modelParts.length > 1 ? modelParts.slice(1).join("/") : aiConfig.model;
 
-        const requestBody = {
+        const requestBody: Record<string, unknown> = {
             model: modelName,
             messages,
             temperature: aiConfig.temperature,
             max_tokens: aiConfig.maxTokens,
         };
+        if (shouldDisableThinking(modelName)) {
+            requestBody.enable_thinking = false;
+        }
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), aiConfig.timeout);

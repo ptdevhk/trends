@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractModelName } from "../ai-chat-client.js";
+import { extractModelName, shouldDisableThinking } from "../ai-chat-client.js";
 
 describe("extractModelName", () => {
   it("strips provider prefix from slash-delimited model IDs", () => {
@@ -21,5 +21,21 @@ describe("extractModelName", () => {
 
   it("returns empty string for empty input", () => {
     expect(extractModelName("")).toBe("");
+  });
+});
+
+describe("shouldDisableThinking", () => {
+  it("disables thinking for the deepseek-v4-flash family", () => {
+    expect(shouldDisableThinking("deepseek-v4-flash")).toBe(true);
+    expect(shouldDisableThinking("deepseek-v4-flash-e")).toBe(true);
+    expect(shouldDisableThinking("openai/deepseek-v4-flash")).toBe(true);
+    expect(shouldDisableThinking("openai/deepseek-v4-flash-e")).toBe(true);
+  });
+
+  it("leaves non-reasoning-by-default models alone", () => {
+    expect(shouldDisableThinking("gpt-4o-mini")).toBe(false);
+    expect(shouldDisableThinking("openai/gpt-4o")).toBe(false);
+    expect(shouldDisableThinking("deepseek-reasoner")).toBe(false);
+    expect(shouldDisableThinking("")).toBe(false);
   });
 });

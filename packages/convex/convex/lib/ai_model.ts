@@ -22,6 +22,30 @@ export function resolveChatCompletionModel(_apiBase: string, model: string): str
     return slashIndex >= 0 ? trimmedModel.slice(slashIndex + 1) : trimmedModel;
 }
 
+/**
+ * Models on which the upstream provider enables a thinking/reasoning pass by
+ * default and accepts `enable_thinking: false` to disable it. The OpenAI-compat
+ * models "deepseek-v4-flash" and "deepseek-v4-flash-e" both default to a
+ * reasoning pass on Poe/CPA; every non-reasoning call to them should explicitly
+ * opt out so scoring stays deterministic and cheap. Other models are untouched.
+ */
+const DEFAULT_THINKING_DISABLED_MODELS = new Set([
+    "deepseek-v4-flash",
+    "deepseek-v4-flash-e",
+]);
+
+/**
+ * Whether the given model id should have its upstream reasoning pass disabled
+ * for plain chat-completion requests. Accepts provider-prefixed ids (e.g.
+ * "openai/deepseek-v4-flash") and strips the prefix before matching.
+ */
+export function shouldDisableThinking(model: string): boolean {
+    const trimmedModel = model.trim();
+    const slashIndex = trimmedModel.indexOf("/");
+    const bare = slashIndex >= 0 ? trimmedModel.slice(slashIndex + 1) : trimmedModel;
+    return DEFAULT_THINKING_DISABLED_MODELS.has(bare);
+}
+
 export function classifyChatCompletionCapability(observation: {
     status: number;
     body: string;

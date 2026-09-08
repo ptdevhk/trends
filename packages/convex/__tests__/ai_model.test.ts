@@ -12,6 +12,7 @@ import {
     selectAnalyzeChatModel,
     buildChatCompletionCapabilityProbeRequest,
     probeChatCompletionCapability,
+    shouldDisableThinking,
 } from "../convex/lib/ai_model.js";
 
 describe("resolveChatCompletionModel", () => {
@@ -149,5 +150,24 @@ describe("chat-completion capability + analyze model select", () => {
         expect(result.status).toBe(400);
         expect(result.capability).toBe("incomplete");
         expect(result.body).toContain("response_format");
+    });
+});
+
+describe("shouldDisableThinking", () => {
+    it("opts out of reasoning for the deepseek-v4-flash family", () => {
+        expect(shouldDisableThinking("deepseek-v4-flash")).toBe(true);
+        expect(shouldDisableThinking("deepseek-v4-flash-e")).toBe(true);
+    });
+
+    it("accepts prefixed ids", () => {
+        expect(shouldDisableThinking("openai/deepseek-v4-flash")).toBe(true);
+        expect(shouldDisableThinking("dd/deepseek-v4-flash-e")).toBe(true);
+    });
+
+    it("returns false for non-reasoning-by-default models", () => {
+        expect(shouldDisableThinking("gpt-4o-mini")).toBe(false);
+        expect(shouldDisableThinking("openai/gpt-4o")).toBe(false);
+        expect(shouldDisableThinking("deepseek-reasoner")).toBe(false);
+        expect(shouldDisableThinking("")).toBe(false);
     });
 });
