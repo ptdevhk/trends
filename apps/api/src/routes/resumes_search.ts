@@ -27,6 +27,7 @@ import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from ".
 import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 import {
   formatKeywordQuery,
+  normalizeSearchRoleFilterType,
   parseKeywordQuery,
 } from "@trends/shared";
 import { isRecord } from "@trends/shared";
@@ -804,7 +805,9 @@ app.openapi(getResumesRoute, (c) => {
     : normalizedLocationAlias
       ? [normalizedLocationAlias]
       : undefined;
-  const effectiveRoleFilterType = roleFilterType?.trim() || roleType?.trim() || undefined;
+  const effectiveRoleFilterType = normalizeSearchRoleFilterType(
+    roleFilterType?.trim() || roleType?.trim() || undefined,
+  ) || undefined;
 
   try {
     if (source === "convex") {
