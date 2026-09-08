@@ -175,6 +175,7 @@ export type ConvexResumeItem = ResumeItem & {
   confirmedScore?: number
   confirmedAt?: number
   source: string
+  sourceKey?: string
   tags: string[]
   _provenance?: Array<{
     term: string
@@ -194,6 +195,7 @@ export type ResumeListDocLike = {
   primaryRuleScore?: number
   confirmedScore?: number
   confirmedAt?: number
+  sourceKey?: string
   ingestData?: {
     industryTags: string[]
     synonymHits?: string[]
@@ -792,6 +794,7 @@ export function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
     confirmedScore: typeof doc.confirmedScore === 'number' ? doc.confirmedScore : undefined,
     confirmedAt: typeof doc.confirmedAt === 'number' ? doc.confirmedAt : undefined,
     source: doc.source,
+    sourceKey: typeof doc.sourceKey === 'string' ? doc.sourceKey : undefined,
     tags: doc.tags,
   }
 }
@@ -1092,6 +1095,7 @@ function useBffAndModeSearch(
             crawledAt: record.crawledAt,
             _id: record.resumeId ?? record._id,
             source: record.source,
+            sourceKey: record.sourceKey,
             primaryRuleScore: record.primaryRuleScore,
             age: record.age,
             ingestData: record.ingestData,

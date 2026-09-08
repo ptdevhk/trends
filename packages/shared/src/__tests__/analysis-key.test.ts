@@ -257,4 +257,93 @@ describe("resolveGateRoleYears", () => {
     // operator URL return 0 before the alias).
     expect(resolveGateRoleYears(engineerSignals, "technical", {})).toBe(4);
   });
+
+  it("keeps strict verified-only gating for CN rows even when no verdict exists", () => {
+    // CN is the core market. A direct-role engineer resume at an unverified CN
+    // employer (no verdictRevisionId, roleRelevantYears present) must NOT pass
+    // minRoleYears under the relaxation — CN stays strict industry-verified.
+    const cnUnverified = [
+      {
+        type: "engineer",
+        years: 6,
+        roleRelevantYears: 6,
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+        matchedWorkEntries: [
+          { years: 6, directRoleMatch: true, industryVerified: false },
+        ],
+      },
+    ];
+    expect(resolveGateRoleYears(cnUnverified, "engineer", {}, { market: "CN" })).toBe(0);
+    expect(resolveGateRoleYears(cnUnverified, "engineer", {})).toBe(0);
+  });
+
+  it("relaxes to direct-role years for MY rows whose employer has no verdict yet", () => {
+    // MY (SEEK) catalog is still thin — many employers are not yet reviewed.
+    // When the matched work entry has no human-approved verdictRevisionId, the
+    // unverified direct-role years may satisfy the gate.
+    const myUnverified = [
+      {
+        type: "engineer",
+        years: 8,
+        roleRelevantYears: 8,
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 8,
+            directRoleMatch: true,
+            industryVerified: false,
+            // no verdictRevisionId — employer never resolved to a reviewed profile
+          },
+        ],
+      },
+    ];
+    expect(resolveGateRoleYears(myUnverified, "engineer", {}, { market: "MY" })).toBe(8);
+  });
+
+  it("does NOT relax MY rows whose employer carries a verdict", () => {
+    // Once a human-approved revision exists (verified or rejected), the MY row
+    // must stay strict verified-only — the relaxation only covers "no verdict
+    // yet", not "industry said no".
+    const myRejected = [
+      {
+        type: "engineer",
+        years: 8,
+        roleRelevantYears: 8,
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 8,
+            directRoleMatch: true,
+            industryVerified: false,
+            verdictRevisionId: "rev-rejected-1",
+          },
+        ],
+      },
+    ];
+    expect(resolveGateRoleYears(myRejected, "engineer", {}, { market: "MY" })).toBe(0);
+  });
+
+  it("prefers precomputed verifiedRoleYears over the MY relaxation", () => {
+    const myVerified = [
+      {
+        type: "engineer",
+        years: 8,
+        roleRelevantYears: 8,
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+        matchedWorkEntries: [
+          {
+            years: 8,
+            directRoleMatch: true,
+            industryVerified: false,
+            verdictRevisionId: "rev-x",
+          },
+        ],
+      },
+    ];
+    expect(resolveGateRoleYears(myVerified, "engineer", { engineer: 3 }, { market: "MY" })).toBe(3);
+  });
 });

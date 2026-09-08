@@ -118,6 +118,19 @@ type ScoredConvexResume = ConvexResumeItem & {
   _ruleScore: number
 }
 
+/** Return a role-years gate resume carrying the resolved sourceKey so the
+ *  shared resolver can apply the MY/SEEK relaxation for unreviewed employers.
+ *  Falls back to resolving from the resume's own source/profileType. */
+function sourceKeyOf(resume: ScoredConvexResume): ConvexResumeItem {
+  if (resume.sourceKey) {
+    return resume
+  }
+  const resolvedSourceKey = resolveAnalysisSourceKeyForResume(resume, undefined)
+  return resolvedSourceKey && resolvedSourceKey !== resume.source
+    ? { ...resume, sourceKey: resolvedSourceKey }
+    : resume
+}
+
 type EnrichedResume = {
   resume: ConvexResumeItem | ResumeItem
   key: string
@@ -910,9 +923,12 @@ export function useResumeListState(loadSearchHistory = false) {
       )
     }
     if (typeof minRoleYears === 'number' && minRoleYears > 0) {
-      result = result.filter((resume: ScoredConvexResume) =>
-        getRoleYears(resume, filters.roleFilterType ?? '') >= minRoleYears
-      )
+      result = result.filter((resume: ScoredConvexResume) => {
+        // Route the sourceKey onto the gate so the shared resolver can apply
+        // the MY/SEEK relaxation for unreviewed employers (CN stays strict).
+        const withSource = sourceKeyOf(resume)
+        return getRoleYears(withSource, filters.roleFilterType ?? '') >= minRoleYears
+      })
     }
 
     const minAge = filters.minAge

@@ -47,6 +47,11 @@ export type AnalysisMatchedWorkEntryLike = {
   years?: number;
   directRoleMatch?: boolean;
   industryVerified?: boolean;
+  /** Set when the employer's industry classification came from a human-approved
+   *  revision. Absent when the employer was never resolved to a reviewed
+   *  profile — the "no verdict yet" signal used by the market-scoped gate
+   *  relaxation (see {@link resolveGateRoleYears}). */
+  verdictRevisionId?: string;
 };
 
 export type AnalysisKeywordKeyOptions = {
@@ -346,15 +351,73 @@ export function normalizeSearchRoleFilterType(roleType: string | undefined): str
 }
 
 /**
+ * True when any matched work entry of any signal carries a human-approved
+ * `verdictRevisionId`. A revision means the employer was resolved to a
+ * reviewed company profile, so the row's industry-verification is authoritative
+ * (verified or rejected). Absent revisions mean the employer was never
+ * reviewed — the "no verdict yet" signal.
+ */
+function hasAnyReviewedVerdict(roleSignals: AnalysisRoleSignalLike[] | undefined): boolean {
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return false;
+  }
+  return roleSignals.some((signal) =>
+    Array.isArray(signal.matchedWorkEntries)
+    && signal.matchedWorkEntries.some(
+      (entry) => typeof entry.verdictRevisionId === "string"
+        && entry.verdictRevisionId.trim().length > 0,
+    )
+  );
+}
+
+/** Market-scoped gate relaxation when no verdict exists yet for the row. */
+function resolveRelaxedGateRoleYears(
+  roleSignals: AnalysisRoleSignalLike[] | undefined,
+  roleType: string | undefined,
+): number {
+  const key = normalizeSearchRoleFilterType(roleType);
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return 0;
+  }
+  if (key) {
+    const matched = roleSignals.find((signal) =>
+      signal.type.trim().toLowerCase() === key,
+    );
+    if (!matched) {
+      return 0;
+    }
+    return getRoleRelevantSignalYears(roleSignals, key);
+  }
+  return roleSignals.reduce((maxYears, signal) => {
+    const signalKey = typeof signal.type === "string" ? signal.type.trim().toLowerCase() : "";
+    if (!signalKey) {
+      return maxYears;
+    }
+    return Math.max(maxYears, getRoleRelevantSignalYears(roleSignals, signalKey));
+  }, 0);
+}
+
+/**
  * Resolve years for the minRoleYears search gate for one role type (or the
  * best across all types when `roleType` is empty). Prefers precomputed
- * `verifiedRoleYears`, then industry-verified signal years. Never falls back
- * to unverified role-relevant years.
+ * `verifiedRoleYears`, then industry-verified signal years.
+ *
+ * **Market-scoped relaxation (MY/SEEK only):** when `options.market` is `"MY"`,
+ * a row whose employers carry NO human-approved verdict (`verdictRevisionId`
+ * absent on every matched work entry — the employer was never resolved to a
+ * reviewed profile, e.g. an MY company not yet in the reviewed catalog) may
+ * fall back to unverified direct-role relevant years. This keeps the
+ * operator URL `minRoleYears=1&roleType=technical` returning the real MY
+ * Service-Engineer cohort before the catalog is reviewed. The relaxation is
+ * strictly market-scoped: CN (the core market) stays industry-verified-only
+ * exactly as locked by the 2026-04-24 direct-role-years plan. Rows whose
+ * employers DO carry a verdict (verified or rejected) always stay verified-only.
  */
 export function resolveGateRoleYears(
   roleSignals: AnalysisRoleSignalLike[] | undefined,
   roleType: string | undefined,
   verifiedRoleYears?: Record<string, number> | null,
+  options?: { market?: "CN" | "MY" | "TH" | null },
 ): number {
   const key = normalizeSearchRoleFilterType(roleType);
 
@@ -384,10 +447,16 @@ export function resolveGateRoleYears(
     if (verifiedYears > 0) {
       return verifiedYears;
     }
+    // MY-only: employer never reviewed → unverified direct-role years may
+    // satisfy the gate. CN rows with a verdict still land in the verified
+    // paths above or return 0 here.
+    if (options?.market === "MY" && !hasAnyReviewedVerdict(roleSignals)) {
+      return resolveRelaxedGateRoleYears(roleSignals, key);
+    }
     return 0;
   }
 
-  return roleSignals.reduce((maxYears, signal) => {
+  const maxVerified = roleSignals.reduce((maxYears, signal) => {
     const signalKey = typeof signal.type === "string" ? signal.type.trim().toLowerCase() : "";
     if (!signalKey) {
       return maxYears;
@@ -402,6 +471,13 @@ export function resolveGateRoleYears(
     }
     return maxYears;
   }, 0);
+  if (maxVerified > 0) {
+    return maxVerified;
+  }
+  if (options?.market === "MY" && !hasAnyReviewedVerdict(roleSignals)) {
+    return resolveRelaxedGateRoleYears(roleSignals, undefined);
+  }
+  return 0;
 }
 
 /**

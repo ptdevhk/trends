@@ -53,6 +53,12 @@ export const INGEST_COMPUTE_EPOCH_HISTORY: readonly IngestComputeEpochReason[] =
       "Digest work-history recall: index all work entries (cap 10) + work-history prose/domain-alias tokens in digest searchText",
     introduced: "2026-08-31",
   },
+  {
+    epoch: 6,
+    reason:
+      "MY/SEEK no-verdict gate relaxation: minRoleYears digest years fall back to unverified direct-role years for market=MY rows whose employers carry no human verdict yet (resolveGateRoleYears market option)",
+    introduced: "2026-09-08",
+  },
 ] as const;
 
 /** Code-required ingest compute epoch stamped on every successful compute write. */
@@ -192,6 +198,12 @@ export const COMPANY_KEY_PROJECTION_EPOCH_HISTORY: readonly IngestComputeEpochRe
       "Baseline: durable companyKey/company-token snapshot stamped on resume docs for advisor reads",
     introduced: "2026-08-19",
   },
+  {
+    epoch: 2,
+    reason:
+      "MY/SEEK no-verdict relaxation: recompute digest gate years from roleRelevantYears for market=MY rows whose matched employers carry no verdictRevisionId (collectRoleYearsByType MY fallback)",
+    introduced: "2026-09-08",
+  },
 ] as const;
 
 /** Code-required projection epoch stamped on every successful projection write. */
@@ -232,9 +244,10 @@ export const SEARCH_FRESHNESS_GOLDEN_QUERIES = [
     minRoleYears: 1,
     roleType: "sales",
     /**
-     * Verified-only MY policy intentionally removes the fallback-only cohort.
-     * Availability floor stays at 1; semantic sampling verifies the returned
-     * rows truly carry verified direct sales evidence.
+     * MY/SEEK relaxation (2026-09-08): the MY gate now lets an unreviewed
+     * employer's direct-role years satisfy minRoleYears. The availability
+     * floor reflects the relaxed population; semantic sampling still verifies
+     * the returned rows carry genuine direct sales evidence.
      */
     minTotalFloor: 1,
     semanticSampleLimit: 10,

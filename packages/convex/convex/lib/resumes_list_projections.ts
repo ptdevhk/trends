@@ -23,6 +23,7 @@ import {
     resolveResumeAnalysisSourceKey,
     resolveGateRoleYears,
     normalizeSearchRoleFilterType,
+    deriveMarketFromSourceKey,
     type VerifiedIndustryEvidenceSummary,
 } from "@trends/shared";
 import {
@@ -527,13 +528,16 @@ export function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string |
 
 /**
  * Resolve role years for the minRoleYears search gate.
- * Delegates to shared {@link resolveGateRoleYears} using verified-only years.
+ * Delegates to shared {@link resolveGateRoleYears} using verified-only years,
+ * with the MY/SEEK relaxation for unreviewed employers threaded via market.
  */
 export function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
+    const market = deriveMarketFromSourceKey(resume.sourceKey);
     return resolveGateRoleYears(
         resume.ingestData?.roleSignals,
         roleType,
         resume.ingestData?.verifiedRoleYears,
+        { market },
     );
 }
 

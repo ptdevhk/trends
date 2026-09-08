@@ -878,7 +878,10 @@ describe("resumes_search: scanResumeDigestPage", () => {
         expect(row.roleYearsByType).toEqual({ sales: 3 });
     });
 
-    it("does not derive MY/Seek digest role years from unverified direct-role fallback signals", async () => {
+    it("derives MY/Seek digest role years for unreviewed employers under the relaxation", async () => {
+        // MY/SEEK relaxation: an MY employer with no human verdict yet lets the
+        // digest store the unverified direct-role years so minRoleYears=1
+        // surfaces the real MY cohort before the catalog is reviewed.
         const t = convexTest(schema, modules);
         const resumeId = await seedResume(t, {
             externalId: "digest-my-fallback",
@@ -910,6 +913,56 @@ describe("resumes_search: scanResumeDigestPage", () => {
                         years: 5.5,
                         directRoleMatch: true,
                         industryVerified: false,
+                        matchedSignals: ["Sales Manager"],
+                    }],
+                    verifyIn: "workHistory",
+                }],
+            },
+        });
+
+        await t.mutation(api.resumes_search.upsertResumeDigestForTest, { resumeId });
+        const result = await t.query(api.resumes_search.scanResumeDigestPage, { numItems: 1000 });
+
+        const row = result.docs[0];
+        expect(row.roleTypes).toEqual(["sales"]);
+        expect(row.roleYearsByType).toEqual({ sales: 5.5 });
+    });
+
+    it("does NOT derive MY/Seek digest role years when the employer has a verdict", async () => {
+        // Once a verdict exists, MY stays strict — the relaxation only covers
+        // "no verdict yet".
+        const t = convexTest(schema, modules);
+        const resumeId = await seedResume(t, {
+            externalId: "digest-my-verdict",
+            identityKey: "profileUrl:example.com/candidates/digest-my-verdict",
+            source: "hk.employer.seek.com",
+            sourceKey: "seek",
+            searchText: "cnc sales manager",
+            content: {
+                name: "MY Verdict Candidate",
+                location: "Malaysia",
+                workHistory: [{ raw: "2019-2024 Sales Manager" }],
+            },
+            ingestData: {
+                ...MINIMAL_INGEST_DATA,
+                market: "MY",
+                verifiedRoleYears: {},
+                roleSignals: [{
+                    type: "sales",
+                    matchedSignals: ["Sales Manager"],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 5.5,
+                    roleRelevantYears: 5.5,
+                    industryVerifiedYears: 0,
+                    industryVerifiedRelevantYears: 0,
+                    matchedWorkEntries: [{
+                        companyName: "Reviewed MY Co",
+                        jobTitle: "Sales Manager",
+                        years: 5.5,
+                        directRoleMatch: true,
+                        industryVerified: false,
+                        verdictRevisionId: "rev-reviewed-co",
                         matchedSignals: ["Sales Manager"],
                     }],
                     verifyIn: "workHistory",

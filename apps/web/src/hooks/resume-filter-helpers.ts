@@ -127,12 +127,17 @@ export function hasMatchingRoleSignal(resume: Pick<ConvexResumeItem, 'ingestData
   return roleSignals.some((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
 }
 
-/** minRoleYears gate years — verified-only shared resolver. */
+/** minRoleYears gate years — verified-only shared resolver (MY relaxation for
+ *  unreviewed employers via the shared market option). Market is taken from the
+ *  ingest stamp only (`ingestData.market`), NOT derived from the sourceKey, so
+ *  rows that predate the market stamp keep the strict legacy behavior. */
 export function getRoleYears(resume: RoleYearsResume, roleType: string): number {
+  const market = (resume.ingestData?.market as 'CN' | 'MY' | 'TH' | undefined)
   return resolveGateRoleYears(
     resume.ingestData?.roleSignals,
     roleType,
     resume.ingestData?.verifiedRoleYears,
+    market ? { market } : undefined,
   )
 }
 

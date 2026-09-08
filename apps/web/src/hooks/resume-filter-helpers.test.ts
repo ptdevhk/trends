@@ -312,7 +312,10 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, 'sales')).toBe(0)
   })
 
-  it('does not count MY Seek direct-role years when industry verify is 0', () => {
+  it('relaxes MY Seek direct-role years when the employer has no verdict yet', () => {
+    // The MY/SEEK relaxation: ingestData.market is MY and the row has no
+    // human-approved verdict (no verdictRevisionId on the matched entry), so
+    // the unverified direct-role years satisfy the gate.
     const resume = makeResume([{
       type: 'sales',
       years: 5.5,
@@ -323,11 +326,14 @@ describe('getRoleYears', () => {
         { years: 5.5, directRoleMatch: true, industryVerified: false, matchedSignals: ['Sales Manager'] },
       ],
     }], {}, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
-    expect(getRoleYears(resume, 'sales')).toBe(0)
-    expect(getRoleYears(resume, '')).toBe(0)
+    expect(getRoleYears(resume, 'sales')).toBe(5.5)
+    expect(getRoleYears(resume, '')).toBe(5.5)
   })
 
   it('does not use Seek sourceKey alone to enable unverified fallback', () => {
+    // No ingestData.market stamp on this fixture → the relaxation is NOT
+    // applied even though the sourceKey is seek. Rows that predate the market
+    // stamp keep the strict legacy behavior.
     const resume = makeResume([{
       type: 'sales',
       years: 3,
@@ -341,6 +347,9 @@ describe('getRoleYears', () => {
   })
 
   it('does not count non-direct sales work-history mentions', () => {
+    // Even under the MY relaxation, non-direct role mentions (directRoleMatch
+    // false) contribute zero role-relevant years — the relaxation only counts
+    // genuine direct-role evidence.
     const resume = makeResume([{
       type: 'sales',
       years: 5,
@@ -380,7 +389,10 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, '')).toBe(8)
   })
 
-  it('keeps verified years isolated by requested role type', () => {
+  it('keeps verified years isolated by requested role type (CN, no relaxation)', () => {
+    // CN core-market resume: the unverified direct-role sales years must NOT
+    // satisfy the sales gate, and the verified engineer years stay with the
+    // engineer gate — verified-role isolation is unchanged.
     const resume = makeResume([
       {
         type: 'sales',
@@ -399,7 +411,7 @@ describe('getRoleYears', () => {
           { years: 4, directRoleMatch: true, industryVerified: true, matchedSignals: ['Application Engineer'] },
         ],
       },
-    ], { engineer: 4 }, { market: 'MY', source: 'hk.employer.seek.com', sourceKey: 'seek' })
+    ], { engineer: 4 }, { market: 'CN', source: 'hr.job5156.com', sourceKey: 'job5156' })
 
     expect(getRoleYears(resume, 'sales')).toBe(0)
     expect(getRoleYears(resume, 'engineer')).toBe(4)

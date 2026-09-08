@@ -2,7 +2,9 @@ import {
     type AnalysisRoleSignalLike,
     MAX_RESUME_WORK_HISTORY_LIMIT,
     buildLatestWorkHistoryEvidence,
+    deriveMarketFromSourceKey,
     formatLocationHierarchySearchText,
+    getRoleRelevantSignalYears,
     getVerifiedRoleSignalYears,
     isRecord,
     matchesResumeDigestFilters,
@@ -74,6 +76,7 @@ export function buildResumeDigest(
             locationText,
             educationLevel,
             roleYearsByType,
+            sourceKey: resume.sourceKey,
         }),
         isArchived: resume.isArchived,
         archivedAt: resume.archivedAt,
@@ -107,6 +110,9 @@ type CompactDigestSearchOptions = {
     locationText?: string;
     educationLevel?: string;
     roleYearsByType: Record<string, number>;
+    /** Canonical source key (seek/job5156/51job) used to scope the MY/SEEK
+     *  gate relaxation in collectRoleYearsByType. */
+    sourceKey?: string;
 };
 
 function buildCompactDigestSearchText(
@@ -353,6 +359,16 @@ function collectRoleTypes(resume: Doc<"resumes">, roleYearsByType: Record<string
  *   aggregates (verifiedRoleYears + verified role-signal years). Without
  *   this, every unreviewed resume would compute zero gate years and
  *   minRoleYears searches would silently return no results.
+ *
+ * **MY/SEEK relaxation:** for a seek-source resume whose employers carry NO
+ * human-approved verdict (`verdictRevisionId` absent on every matched work
+ * entry), legacy mode additionally falls back to unverified direct-role
+ * relevant years so the operator URL `minRoleYears=1&roleType=technical`
+ * returns the real MY Service-Engineer cohort before the catalog is reviewed.
+ * CN (the core market) is never relaxed — the strict industry-verified-only
+ * semantic locked by the 2026-04-24 direct-role-years plan is preserved.
+ * Rows whose employers DO carry a verdict (verified or rejected) are never
+ * relaxed, in evidence mode or legacy mode.
  */
 function collectRoleYearsByType(
     resume: Doc<"resumes">,
@@ -376,7 +392,46 @@ function collectRoleYearsByType(
     if (evidenceMode === "strict-active" && strictEvidenceProjection) {
         return collectStrictEvidenceRoleYears(strictEvidenceProjection);
     }
-    return collectLegacyRoleYears(roleSignals, raw.verifiedRoleYears);
+
+    const result = collectLegacyRoleYears(roleSignals, raw.verifiedRoleYears);
+
+    // MY/SEEK relaxation: seek rows with no verdict yet (see function doc).
+    // Mirrors the shared resolveGateRoleYears market option so the digest
+    // phase-1 gate agrees with the full-doc gate. Only fills roles that carry
+    // ZERO legacy-verified years — a row with any verified aggregate (legacy
+    // industryVerified or precomputed verifiedRoleYears) keeps that number
+    // unchanged instead of being inflated by the broad unverified fallback.
+    const market = deriveMarketFromSourceKey(resume.sourceKey);
+    if (market === "MY" && !hasAnyReviewedVerdictInSignals(rawRoleSignals)) {
+        for (const signal of roleSignals) {
+            const key = signal.type.trim().toLowerCase();
+            if (!key) continue;
+            if ((result[key] ?? 0) > 0) continue;
+            const broadYears = getRoleRelevantSignalYears(roleSignals, key, signal.verifyIn);
+            if (broadYears > 0) {
+                result[key] = broadYears;
+            }
+        }
+    }
+
+    return result;
+}
+
+/** True when any matched work entry carries a human-approved revision —
+ *  the "a verdict exists for this resume" signal. */
+function hasAnyReviewedVerdictInSignals(
+    rawRoleSignals: Array<Record<string, unknown>>,
+): boolean {
+    return rawRoleSignals.some((rawSignal) => {
+        if (!isRecord(rawSignal) || !Array.isArray(rawSignal.matchedWorkEntries)) {
+            return false;
+        }
+        return rawSignal.matchedWorkEntries.some((entry) =>
+            isRecord(entry)
+            && typeof entry.verdictRevisionId === "string"
+            && entry.verdictRevisionId.trim().length > 0,
+        );
+    });
 }
 
 /**

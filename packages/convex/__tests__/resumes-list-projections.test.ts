@@ -280,7 +280,10 @@ describe("matchesResumeListFilters", () => {
     expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
   });
 
-  it("MY Seek direct-role-only resumes still fail minRoleYears without verified years", () => {
+  it("MY Seek direct-role-only sales resumes relax minRoleYears under the MY gate", () => {
+    // MY/SEEK relaxation: an MY employer with no verdict yet lets the direct
+    // role-years satisfy minRoleYears (see resolveGateRoleYears market option).
+    // The row below is a sales manager at an unreviewed MY company.
     const resume = makeResume({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -313,19 +316,22 @@ describe("matchesResumeListFilters", () => {
       },
     }) as Parameters<typeof matchesResumeListFilters>[0];
 
-    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(false);
-    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+    expect(matchesResumeListFilters(resume, { minRoleYears: 1 })).toBe(true);
+    expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
     // Still project market for UI
     const projected = projectResumeListDoc(resume as any);
     expect(projected.ingestData?.market).toBe("MY");
   });
 
-  it("keeps verified engineer years from satisfying a sales gate", () => {
+  it("keeps verified engineer years from satisfying a sales gate (CN source, verified row)", () => {
+    // For a CN resume (core market, never relaxed) whose employer carries a
+    // human-approved revision (verdictRevisionId), the engineer years must not
+    // satisfy a sales gate — verified-role isolation stays strict.
     const resume = makeResume({
-      source: "hk.employer.seek.com",
-      sourceKey: "seek",
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
       ingestData: {
-        market: "MY",
+        market: "CN",
         verifiedRoleYears: { engineer: 4 },
         roleSignals: [{
           type: "sales",
@@ -354,6 +360,7 @@ describe("matchesResumeListFilters", () => {
             jobTitle: "Application Engineer",
             years: 4,
             industryVerified: true,
+            verdictRevisionId: "rev-app-eng",
             directRoleMatch: true,
             matchedSignals: ["Application Engineer"],
           }],
@@ -415,6 +422,77 @@ describe("matchesResumeListFilters", () => {
     }) as Parameters<typeof matchesResumeListFilters>[0];
 
     expect(matchesResumeListFilters(resume, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+  });
+
+  it("relaxes minRoleYears for MY seek rows whose employer has no verdict yet", () => {
+    // SEEK MY catalog is still thin. A direct-role Service Engineer at an MY
+    // employer with no human-approved verdict (verdictRevisionId absent) may
+    // pass minRoleYears=1 via its unverified direct-role years.
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "seek:profile:my-service-engineer",
+      content: {
+        name: "MY Service Eng",
+        workHistory: [{ jobTitle: "Service Engineer", companyName: "MTU Services Malaysia Sdn Bhd", years: "?", startDate: "2018-01", endDate: "2024-06" }],
+      },
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "engineer",
+          signalCount: 1,
+          years: 6.5,
+          roleRelevantYears: 6.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Service Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Service Engineer",
+            companyName: "MTU Services Malaysia Sdn Bhd",
+            years: 6.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Service Engineer"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "engineer", minRoleYears: 1 })).toBe(true);
+  });
+
+  it("does NOT relax MY seek rows whose employer carries a verdict", () => {
+    // Once a human-approved revision exists, MY stays strict verified-only —
+    // the relaxation covers "no verdict yet", not a negative verdict.
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "engineer",
+          signalCount: 1,
+          years: 6.5,
+          roleRelevantYears: 6.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Service Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Service Engineer",
+            companyName: "Some Reviewed MY Co",
+            years: 6.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            verdictRevisionId: "rev-some-co",
+            matchedSignals: ["Service Engineer"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof matchesResumeListFilters>[0];
+
+    expect(matchesResumeListFilters(resume, { roleFilterType: "engineer", minRoleYears: 1 })).toBe(false);
   });
 });
 
@@ -495,7 +573,10 @@ describe("buildResumeDigest", () => {
     expect(digest.roleYearsByType).toEqual({});
   });
 
-  it("MY Seek digests do not store direct-role fallback years when industry verify is 0", () => {
+  it("MY Seek digests do NOT store direct-role fallback years when the employer has a verdict", () => {
+    // The MY/SEEK relaxation only covers "no verdict yet". When a matched
+    // entry carries a human-approved verdictRevisionId, the digest stays
+    // strict — the unverified direct-role years must not be persisted.
     const resume = makeResume({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -517,6 +598,7 @@ describe("buildResumeDigest", () => {
             years: 5.5,
             industryVerified: false,
             directRoleMatch: true,
+            verdictRevisionId: "rev-acme",
             matchedSignals: ["Sales Manager"],
           }],
         }],
@@ -531,8 +613,81 @@ describe("buildResumeDigest", () => {
     expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1 })).toBe(false);
   });
 
+  it("MY Seek digests relax gate years for unreviewed direct-role engineers", () => {
+    // The MY/SEEK relaxation: an MY resume whose employer has NO human
+    // verdict yet (no verdictRevisionId on any matched entry) falls back to
+    // unverified direct-role years so minRoleYears=1 surfaces the real MY
+    // Service-Engineer cohort before the catalog is reviewed.
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "hk.employer.seek.com:profile:relax-eng-1",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "engineer",
+          signalCount: 1,
+          years: 6.5,
+          roleRelevantYears: 6.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Service Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Service Engineer",
+            companyName: "MTU Services Malaysia Sdn Bhd",
+            years: 6.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            matchedSignals: ["Service Engineer"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleTypes).toEqual(["engineer"]);
+    expect(digest.roleYearsByType).toEqual({ engineer: 6.5 });
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "engineer" })).toBe(true);
+  });
+
+  it("MY Seek digests do NOT relax when a verdict exists", () => {
+    const resume = makeResume({
+      source: "hk.employer.seek.com",
+      sourceKey: "seek",
+      externalId: "hk.employer.seek.com:profile:verdict-eng-1",
+      ingestData: {
+        market: "MY",
+        verifiedRoleYears: {},
+        roleSignals: [{
+          type: "engineer",
+          signalCount: 1,
+          years: 6.5,
+          roleRelevantYears: 6.5,
+          industryVerifiedRelevantYears: 0,
+          industryVerifiedYears: 0,
+          matchedSignals: ["Service Engineer"],
+          matchedWorkEntries: [{
+            jobTitle: "Service Engineer",
+            companyName: "Reviewed MY Co",
+            years: 6.5,
+            industryVerified: false,
+            directRoleMatch: true,
+            verdictRevisionId: "rev-reviewed-co",
+            matchedSignals: ["Service Engineer"],
+          }],
+        }],
+      },
+    }) as Parameters<typeof buildResumeDigest>[0];
+
+    const digest = buildResumeDigest(resume, Date.UTC(2026, 5, 4));
+
+    expect(digest.roleYearsByType).toEqual({});
+    expect(matchesResumeDigestFilters(digest as any, { minRoleYears: 1, roleFilterType: "engineer" })).toBe(false);
+  });
+
   it("keeps legacy verified gate years when the evidence catalog is empty", () => {
-    // Regression: epoch-3 ingest rows carry evidenceProjectionVersion even
     // before any company has been evidence-reviewed (empty summaries). The
     // strict projection computes zero revision-backed years, but replacing
     // the whole roleYearsByType map with it empties minRoleYears search

@@ -224,7 +224,9 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
     expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 3 })).toBe(true);
   });
 
-  it("MY Seek direct-role-only rows fail minRoleYears without verified years", () => {
+  it("MY Seek direct-role-only rows pass minRoleYears under the no-verdict relaxation", () => {
+    // MY/SEEK relaxation: ingestData.market is MY and the employer has no
+    // human verdict yet → the direct-role years satisfy minRoleYears=1.
     const doc = makeDoc({
       source: "hk.employer.seek.com",
       sourceKey: "seek",
@@ -249,16 +251,19 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
         }],
       },
     });
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 1 })).toBe(false);
-    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(false);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { minRoleYears: 1 })).toBe(true);
+    expect(bffMatchesResumeFilters(doc, BASE_TEXT, { roleFilterType: "sales", minRoleYears: 1 })).toBe(true);
   });
 
-  it("does not let verified engineer years satisfy a sales gate", () => {
+  it("does not let verified engineer years satisfy a sales gate (CN source)", () => {
+    // CN core-market row with a human verdict on the engineer employer: the
+    // sales gate stays strict (no MY relaxation), and the verified engineer
+    // years only satisfy the engineer gate.
     const doc = makeDoc({
-      source: "hk.employer.seek.com",
-      sourceKey: "seek",
+      source: "hr.job5156.com",
+      sourceKey: "job5156",
       ingestData: {
-        market: "MY",
+        market: "CN",
         verifiedRoleYears: { engineer: 4 },
         roleSignals: [{
           type: "sales",
@@ -290,6 +295,7 @@ describe("bffMatchesResumeFilters — minRoleYears", () => {
             jobTitle: "Application Engineer",
             years: 4,
             industryVerified: true,
+            verdictRevisionId: "rev-app-eng",
             directRoleMatch: true,
             matchedSignals: ["Application Engineer"],
           }],

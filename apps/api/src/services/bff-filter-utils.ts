@@ -4,6 +4,7 @@
  * three execution paths (Convex, BFF AND-mode, BFF OR-mode) stay aligned.
  */
 import {
+  deriveMarketFromSourceKey,
   formatLocationHierarchySearchText,
   type AnalysisRoleSignalLike,
   isLocationMatch,
@@ -143,10 +144,14 @@ export function bffMatchesResumeFilters(
     const roleSignals = Array.isArray(ingestData.roleSignals)
       ? (ingestData.roleSignals as AnalysisRoleSignalLike[])
       : undefined;
+    const market = deriveMarketFromSourceKey(
+      typeof doc.sourceKey === "string" ? doc.sourceKey : undefined,
+    );
     const roleYears = resolveGateRoleYears(
       roleSignals,
       filters.roleFilterType,
       verifiedRoleYears,
+      { market },
     );
     if (roleYears < filters.minRoleYears) return false;
   }

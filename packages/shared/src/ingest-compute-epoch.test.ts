@@ -100,11 +100,23 @@ describe("ingest-compute-epoch", () => {
 
   it("appends epoch 5 for digest work-history recall materialization", () => {
     expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(5);
+    expect(INGEST_COMPUTE_EPOCH_HISTORY).toContainEqual(
+      expect.objectContaining({
+        epoch: 5,
+        introduced: "2026-08-31",
+      }),
+    );
+    const epoch5 = INGEST_COMPUTE_EPOCH_HISTORY.find((e) => e.epoch === 5);
+    expect(epoch5?.reason).toContain("work-history");
+  });
+
+  it("appends epoch 6 for the MY/SEEK no-verdict gate relaxation", () => {
+    expect(CURRENT_INGEST_COMPUTE_EPOCH).toBeGreaterThanOrEqual(6);
     expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)).toMatchObject({
-      epoch: 5,
-      introduced: "2026-08-31",
+      epoch: 6,
+      introduced: "2026-09-08",
     });
-    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("work-history");
+    expect(INGEST_COMPUTE_EPOCH_HISTORY.at(-1)?.reason).toContain("MY/SEEK no-verdict");
   });
 
   it("tracks evidence projection freshness independently from compute and skills versions", () => {

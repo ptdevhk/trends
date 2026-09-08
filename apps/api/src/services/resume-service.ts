@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   buildWorkHistoryEntryText,
+  deriveMarketFromSourceKey,
   formatLocationHierarchySearchText,
   isLocationMatch,
   isRecord,
@@ -454,6 +455,7 @@ function getResumeItemRoleYears(item: ResumeItem, roleType?: string): number {
     item.ingestData?.roleSignals,
     roleType,
     item.ingestData?.verifiedRoleYears,
+    { market: deriveMarketFromSourceKey(item.sourceKey) },
   );
 }
 
