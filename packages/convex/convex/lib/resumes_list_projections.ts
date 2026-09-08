@@ -435,7 +435,7 @@ export function normalizeResumeListFilters(filters: ResumeListFilterArgs | undef
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
     const keywords = filters.keywords?.map((k) => k.trim()).filter(Boolean);
     const sources = filters.sources?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
-    const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.trim().toLowerCase();
+    const roleFilterType = normalizeSearchRoleFilterType(toOptionalStringValue(filters.roleFilterType));
     const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
         ? Math.trunc(filters.minAge)
         : undefined;

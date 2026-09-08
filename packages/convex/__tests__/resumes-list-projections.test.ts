@@ -788,6 +788,11 @@ describe("normalizeResumeListFilters", () => {
     expect(result!.roleFilterType).toBe("sales");
   });
 
+  it("aliases roleFilterType=technical to engineer during normalization", () => {
+    const result = normalizeResumeListFilters({ roleFilterType: "technical" });
+    expect(result!.roleFilterType).toBe("engineer");
+  });
+
   it("removes empty entries", () => {
     const result = normalizeResumeListFilters({
       education: ["", "  ", "BS"],
