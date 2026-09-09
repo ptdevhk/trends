@@ -39,14 +39,17 @@ services:
     image: node:25-slim
     container_name: trends-preview-convex
     restart: unless-stopped
-    # 12GB required when serving prod-restored data (~9k resumes, 1.5 GiB SQLite).
+    # 16GB required when serving prod-restored data (~9k resumes, 1.5 GiB SQLite).
     # History: 2g → OOM on import; 4g → OOM under steady query load (RSS hits 4.0 GiB
     # exactly, see dmesg + queries/2026-05-29-convex-local-backend-memory-oom.md);
     # 8g → OOM-killed at ~8.1 GiB anon-rss during compute reingest bursts (three
     # kills on 2026-08-05 while draining 2,300 stale rows — backend crash-looped,
-    # jobs resumed after each restart and re-killed it). 12g gives ~50% margin
-    # above the observed ceiling and fits the ~24 GiB preview host.
-    mem_limit: 12g
+    # jobs resumed after each restart and re-killed it); 12g → OOM-killed at 12.3 GiB
+    # on 2026-09-08 during the epoch-6 compute drain (see
+    # docs/diagnostics/2026-09-09-preview-convex-oom.md). 16g gives ~30% margin above
+    # the worst observed peak (12.3 GiB) and still fits the ~24 GiB preview host
+    # (convex 16g + other containers ~2g + OS ~2g ≈ 20g, ~4g headroom).
+    mem_limit: 16g
     ports:
       - "127.0.0.1:4210:3210"
       - "127.0.0.1:4211:3211"
@@ -65,9 +68,10 @@ services:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=120
       # Memory tuning — defaults from get-convex/convex-backend/crates/common/src/knobs.rs.
-      # Reclaims ~950 MiB at steady state vs. the 1 GiB shared UDF cache default.
-      # Safe at our scale (≤10k docs, low UDF count); revisit if query latency regresses.
-      - SHARED_UDF_CACHE_MAX_SIZE=100000000
+      # UDF_CACHE_MAX_SIZE reclaims the shared UDF cache; SHARED_UDF_CACHE_MAX_SIZE is
+      # NOT present in the deployed binary (precompiled-2026-08-25-7cce8fb) — it is a
+      # no-op on 0.4.23, so it has been dropped (see
+      # docs/diagnostics/2026-09-09-convex-memory-knobs-research.md).
       - UDF_CACHE_MAX_SIZE=50000000
       # System-op budget relief at preview scale (~9k resumes, ~3k sources):
       # the per-query budget is ~10k system ops and full-table collect()s on
@@ -77,6 +81,17 @@ services:
       - DOCUMENTS_IN_MEMORY=256
       - APPLICATION_MAX_CONCURRENT_QUERIES=8
       - APPLICATION_MAX_CONCURRENT_MUTATIONS=8
+      # Tantivy search-index compaction knobs (extracted from the deployed binary,
+      # see docs/diagnostics/2026-09-09-convex-memory-knobs-research.md). Bound the
+      # segment-merge memory that spiked during the epoch-6 reingest drain (2026-09-08
+      # OOM at 12.3 GiB): 1 concurrent compaction, fewer segments per merge, and
+      # conservative worker page pacing keep merge RAM bounded under sustained writes.
+      - MAX_CONCURRENT_SEGMENT_COMPACTIONS=1
+      - MIN_COMPACTION_SEGMENTS=4
+      - MAX_COMPACTION_SEGMENTS=10
+      - MAX_SEGMENT_DELETED_PERCENTAGE=0.1
+      - SEARCH_WORKER_PAGES_PER_SECOND=100
+      - SEARCH_WORKER_PASSIVE_PAGES_PER_SECOND=50
       # Match self-hosted/docker/docker-compose.yml override (2 days vs 14 day default).
       - DOCUMENT_RETENTION_DELAY=172800
       # Convex actions call the host BFF for ingest-compute + skills-version.
