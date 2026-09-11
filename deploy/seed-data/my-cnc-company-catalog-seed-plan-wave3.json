@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-11T03:10:00.000Z",
+  "market": "MY-TH",
+  "reviewer": "orchestration-wave3",
+  "wave": 3,
+  "previewOnly": true,
+  "note": "CNC-pattern official_site only. Nine employers (max 10). Shamrock (http-only), PWS (expired SSL), AIDA (no CNC token), Venus Tooling (stub WP), Star CNC MY (identity), Mano Seiko (expired SSL), SUNTONGSENG (https failed), Senior Aerospace Thailand (plc page lacks CNC regex token), Nidec Precision (not CNC), Kubota Iron Works (identity vs SKMT) skipped. Local commit of wave3 plan+seeder; no push.",
+  "companies": [
+    {
+      "companyKey": "cnc-metal-machining",
+      "employerName": "CNC Metal Machining Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official about page: Shah Alam machining factory offering precision machining services with CNC machines; history started with lathe machines.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machines and precision machining language support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-cnc-metal-machining",
+      "revisionId": "wave3-rev-cnc-metal-machining",
+      "sources": [
+        {
+          "sourceId": "wave3-src-cnc-metal-machining-1",
+          "companyKey": "cnc-metal-machining",
+          "proposalId": "wave3-orchestration-cnc-metal-machining",
+          "url": "https://cnc.com.my/about/",
+          "sourceDomain": "cnc.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "About – CNC Metal Machining Shah Alam, Selangor",
+          "evidenceExcerpt": "Welcome! We are CNC Metal Machining Sdn Bhd, a machining factory based in Shah Alam Selangor, Malaysia. Our goal is to provide the best precision machining services from Malaysia to all our clients. Our CNC machines, combined with our mechanical engineers and professional machining experts enrich us with the capability to assist you with any crucial projects. Journey Started: Started with 15 person and 6 units of lathe machines 1992."
+        }
+      ]
+    },
+    {
+      "companyKey": "chung-nyap-yoon-machinery",
+      "employerName": "Chung Nyap Yoon Machinery Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official CNYM homepage: automotive precision machining parts since 1994; specializes in CNC Precision Machining, laser cutting and sheet metal works.",
+      "decisionReason": "Reviewed 1 official_site source; CNC Precision Machining language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-chung-nyap-yoon-machinery",
+      "revisionId": "wave3-rev-chung-nyap-yoon-machinery",
+      "sources": [
+        {
+          "sourceId": "wave3-src-chung-nyap-yoon-machinery-1",
+          "companyKey": "chung-nyap-yoon-machinery",
+          "proposalId": "wave3-orchestration-chung-nyap-yoon-machinery",
+          "url": "https://www.cnym.com.my/",
+          "sourceDomain": "www.cnym.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC precision machining - laser cutting - sheet metal works manufacturer",
+          "evidenceExcerpt": "CHUNG NYAP YOON MACHINERY SDN BHD was incorporated on 10th June 1994 and has been a leader in the manufacturing of light construction equipment and automotive precision machining parts since 1994. Specialize In CNC Precision Machining Laser Cutting Sheet Metal Works Robotic Welding Powder Coatings Metal Casting Induction Hardening."
+        }
+      ]
+    },
+    {
+      "companyKey": "paradigm-precision-components",
+      "employerName": "Paradigm Precision Components Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official products-and-capabilities page: CNC milling (3- to 5-axis) and CNC turning with auto lathe machines for medical, life science and semiconductor parts.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling and CNC turning support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-paradigm-precision-components",
+      "revisionId": "wave3-rev-paradigm-precision-components",
+      "sources": [
+        {
+          "sourceId": "wave3-src-paradigm-precision-components-1",
+          "companyKey": "paradigm-precision-components",
+          "proposalId": "wave3-orchestration-paradigm-precision-components",
+          "url": "https://ppc.net.my/products-capabilities/",
+          "sourceDomain": "ppc.net.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Products & Capabilities – Paradigm Precision Components Sdn. Bhd.",
+          "evidenceExcerpt": "Our diversified CNC machines portfolio enable Paradigm Precision Components to offer broad spectrum of CNC milling and CNC turning parts that widely used as the components for medical device, life science instruments and semiconductor equipment. CNC MILLING: 3 axis to 5 axis CNC milling machines with high-precision that realized tight tolerances machining process down to 0.005\". CNC TURNING: auto lathe machines; CNC turning part size of 5mm to 250mm in diameter."
+        }
+      ]
+    },
+    {
+      "companyKey": "sam-precision",
+      "employerName": "SAM Precision (M) / SAM Precision (Thailand)",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official SAMEE equipment page: SAM Precision CNC machining centers (3- to 5-axis milling, up to 9-axis turning); SAM Precision (Thailand) listed with high-precision CNC machining.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machining centers and 3- to 5-axis milling support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-sam-precision",
+      "revisionId": "wave3-rev-sam-precision",
+      "sources": [
+        {
+          "sourceId": "wave3-src-sam-precision-1",
+          "companyKey": "sam-precision",
+          "proposalId": "wave3-orchestration-sam-precision",
+          "url": "https://www.sam-malaysia.com/equipment.html",
+          "sourceDomain": "www.sam-malaysia.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "SAMEE Berhad | Equipment",
+          "evidenceExcerpt": "SAM Precision specializes in manufacturing high-precision milling and turning parts. Our advanced CNC machining centers, which include 3- to 5-axis milling and up to 9-axis turning machines, allow us to produce and deliver highly complex, top-quality parts to customers worldwide. SAM Precision (Thailand) expands our manufacturing capacity by offering the same advanced manufacturing capabilities as our facilities in Malaysia; we offer sheet metal fabrication, enclosures, and high-precision CNC machining."
+        }
+      ]
+    },
+    {
+      "companyKey": "nissho-seiko-thailand",
+      "employerName": "Nissho Seiko (Thailand) Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Nissho Seiko Thailand toolroom page: CNC milling machine, conventional milling machine and lathe machine listed at Amata City, Thailand.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling and lathe equipment list supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-nissho-seiko-thailand",
+      "revisionId": "wave3-rev-nissho-seiko-thailand",
+      "sources": [
+        {
+          "sourceId": "wave3-src-nissho-seiko-thailand-1",
+          "companyKey": "nissho-seiko-thailand",
+          "proposalId": "wave3-orchestration-nissho-seiko-thailand",
+          "url": "https://nisshoseiko.com/toolroom",
+          "sourceDomain": "nisshoseiko.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Toolroom | Nissho Seiko Thailand Ltd.",
+          "evidenceExcerpt": "MACHINERIES & EQUIPMENTS TOOLROOM CHARLES MVC-1160 CNC MILLING MACHINE SURFACE GRINDING MACHINE JL-818ATD CONVENTIONAL MILLING MACHINE LATHE MACHINE CH-430. Copyright 2014 Nissho Seiko Thailand Ltd. Amata City, Thailand."
+        }
+      ]
+    },
+    {
+      "companyKey": "uis-technology",
+      "employerName": "UIS Technology Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official UIS contract-manufacturing page: CNC Auto Lathe, CNC Milling, CNC Turning, and CNC Turn + Mill machines for precision machining components.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling/turning/lathe equipment list supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-uis-technology",
+      "revisionId": "wave3-rev-uis-technology",
+      "sources": [
+        {
+          "sourceId": "wave3-src-uis-technology-1",
+          "companyKey": "uis-technology",
+          "proposalId": "wave3-orchestration-uis-technology",
+          "url": "https://www.uistech.com.my/contract-manufacturing/",
+          "sourceDomain": "www.uistech.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Contract Manufacturing – UIS Tech",
+          "evidenceExcerpt": "With over 20 years of expertise in precision manufacturing, UIS Technologies possesses the knowledge and capabilities necessary to fabricate a wide range of precision machining components or parts. Our well-equipped facility features state-of-the-art machinery, including: CNC Auto Lathe Machine CNC Milling Machine CNC Turning Machine CNC Turn + Mill Machine Rotary Grinding Machine."
+        }
+      ]
+    },
+    {
+      "companyKey": "upeca-engineering",
+      "employerName": "Upeca Engineering / Zenix Aerospace UPECA",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Zenix Aerospace UPECA page: high precision machining of aerostructure metallic components, including Turn and Mill Components, at Shah Alam / Subang.",
+      "decisionReason": "Reviewed 1 official_site source; high precision machining and Turn and Mill language support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-upeca-engineering",
+      "revisionId": "wave3-rev-upeca-engineering",
+      "sources": [
+        {
+          "sourceId": "wave3-src-upeca-engineering-1",
+          "companyKey": "upeca-engineering",
+          "proposalId": "wave3-orchestration-upeca-engineering",
+          "url": "https://zenixaerospace.com/upeca/",
+          "sourceDomain": "zenixaerospace.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Zenix Aerospace UPECA | Precision Metallic Components Supplier",
+          "evidenceExcerpt": "Zenix Aerospace UPECA World Class leader in high precision machining and aerospace component manufacturing. Zenix Aerospace UPECA manufactures and assembles build-to-print aerostructures for the civil aerospace industry, specialising in world-class hard and soft-metal machining components and assemblies. Manufacturing Capabilities: High Precision Machining and Fabrication; Soft Metal Machining (Aluminium); Turn and Mill Components."
+        }
+      ]
+    },
+    {
+      "companyKey": "micro-mechanics-technology",
+      "employerName": "Micro-Mechanics Technology Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Micro-Mechanics homepage: contract manufacturing of machining complex parts; Malaysia plant Micro-Mechanics Technology Sdn. Bhd. listed.",
+      "decisionReason": "Reviewed 1 official_site source; machining complex parts language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-micro-mechanics-technology",
+      "revisionId": "wave3-rev-micro-mechanics-technology",
+      "sources": [
+        {
+          "sourceId": "wave3-src-micro-mechanics-technology-1",
+          "companyKey": "micro-mechanics-technology",
+          "proposalId": "wave3-orchestration-micro-mechanics-technology",
+          "url": "https://www.micro-mechanics.com/",
+          "sourceDomain": "www.micro-mechanics.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Micro-Mechanics - Perfect Parts & Tools, On Time, Every Time",
+          "evidenceExcerpt": "We excel at developing repeatable processes for machining complex parts on a 24/7 automated basis. Micro-Mechanics designs, manufactures and markets high precision parts and tools used in process-critical applications for the semiconductor and other high technology industries. Malaysia Micro-Mechanics Technology Sdn. Bhd."
+        }
+      ]
+    },
+    {
+      "companyKey": "micron-concept-engineering",
+      "employerName": "Micron Concept Engineering Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Micron Concept homepage: core competencies of precision machining; multi-axis milling and turning for aerospace contract manufacturing.",
+      "decisionReason": "Reviewed 1 official_site source; precision machining and multi-axis milling support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave3-orchestration-micron-concept-engineering",
+      "revisionId": "wave3-rev-micron-concept-engineering",
+      "sources": [
+        {
+          "sourceId": "wave3-src-micron-concept-engineering-1",
+          "companyKey": "micron-concept-engineering",
+          "proposalId": "wave3-orchestration-micron-concept-engineering",
+          "url": "https://www.micronconcept.com.my/",
+          "sourceDomain": "www.micronconcept.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Micron Concept Group | Precision Engineering and Assembly",
+          "evidenceExcerpt": "Micron Concept Group is a contract manufacturer of products and services to the Aerospace industries. We have other skills sets such as welding, assembly, laser cutting and bending, to go along with our core competencies of precision machining; multi-axis milling and turning."
+        }
+      ]
+    }
+  ]
+}
