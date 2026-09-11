@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-11T12:00:00.000Z",
+  "market": "MY-TH",
+  "reviewer": "orchestration-wave2",
+  "wave": 2,
+  "previewOnly": true,
+  "note": "CNC-pattern official_site only. Dana/Edmund/Forming Pro/First Engineering/Atsumitech swapped out because excerpts failed INDUSTRY_CNC_SIGNAL_PATTERN. Local commit of wave2 plan+seeder; no push.",
+  "companies": [
+    {
+      "companyKey": "ctrm-aero-composites",
+      "employerName": "CTRM AERO COMPOSITES SDN BHD",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official CTRM offerings page: 9 CNC machines (3- and 5-axis) staffed by 40+ CNC machinists/engineers; 5-axis synchronous machining of composite aerostructures.",
+      "decisionReason": "Reviewed 1 official_site source; CNC trim cell with 3/5-axis machines supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-ctrm-aero-composites",
+      "revisionId": "wave2-rev-ctrm-aero-composites",
+      "sources": [
+        {
+          "sourceId": "wave2-src-ctrm-aero-composites-1",
+          "companyKey": "ctrm-aero-composites",
+          "proposalId": "wave2-orchestration-ctrm-aero-composites",
+          "url": "https://ctrm.com.my/our-offerings/",
+          "sourceDomain": "ctrm.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Our Offerings - CTRM",
+          "evidenceExcerpt": "Trimming (CNC and Manual). Capacity: Total of 9 CNC machines with 3 and 5-axis features with various dimension range; Length 3.3 m to 10 m, Width 2 m to 6.2 m, Height 1.2 m to 3.1 m. Manned by over 40 CNC dedicated machinist and engineer. Capability: Precision dimension: 30 to 45 micron. Flat to complex panel: 5 axis synchronous machining."
+        }
+      ]
+    },
+    {
+      "companyKey": "ichor-systems-malaysia",
+      "employerName": "ICHOR Systems Malaysia Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Ichor contract-manufacturing page: precision machining core with milling, turning, Swiss, mill-turn and 5-axis centers plus CNC wire/tube bending.",
+      "decisionReason": "Reviewed 1 official_site source; 5-axis machining centers support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-ichor-systems-malaysia",
+      "revisionId": "wave2-rev-ichor-systems-malaysia",
+      "sources": [
+        {
+          "sourceId": "wave2-src-ichor-systems-malaysia-1",
+          "companyKey": "ichor-systems-malaysia",
+          "proposalId": "wave2-orchestration-ichor-systems-malaysia",
+          "url": "https://www.ichorsystems.com/contract_manufacturing",
+          "sourceDomain": "www.ichorsystems.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Contract Manufacturing | Ichor Systems",
+          "evidenceExcerpt": "Ichor Systems provides custom precision machining services to demanding industries such as semiconductor capital equipment. Ichor's state of the art machining centers include Milling, Turning, Swiss, Mill-Turn, and 5-Axis covering virtually any application. Capabilities beyond machining include CNC Wire/Tube Bending."
+        }
+      ]
+    },
+    {
+      "companyKey": "intertool-grow-tech",
+      "employerName": "Intertool Grow Tech Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official IGT site: precision engineering / tooling house offering CNC machining and fabrication plus full-scale tooling and machining services in Malaysia.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machining and fabrication language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-intertool-grow-tech",
+      "revisionId": "wave2-rev-intertool-grow-tech",
+      "sources": [
+        {
+          "sourceId": "wave2-src-intertool-grow-tech-1",
+          "companyKey": "intertool-grow-tech",
+          "proposalId": "wave2-orchestration-intertool-grow-tech",
+          "url": "https://igtsb.com/",
+          "sourceDomain": "igtsb.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Home - IGTSB",
+          "evidenceExcerpt": "Now strategically located in Subang Jaya, Selangor, our facility operates 7 days a week, offering full-scale tooling and machining services. We specialize in: Precision tooling and machining; CNC machining and fabrication; Custom engineering solutions; Rapid prototyping and product development."
+        }
+      ]
+    },
+    {
+      "companyKey": "belton-industrial-thailand",
+      "employerName": "Belton Industrial ( Thailand )",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Belton Technology company-overview: CNC precision machining and auto-lathe components among vertically integrated capabilities; Thailand plants listed.",
+      "decisionReason": "Reviewed 1 official_site source; CNC precision machining / auto lathe supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-belton-industrial-thailand",
+      "revisionId": "wave2-rev-belton-industrial-thailand",
+      "sources": [
+        {
+          "sourceId": "wave2-src-belton-industrial-thailand-1",
+          "companyKey": "belton-industrial-thailand",
+          "proposalId": "wave2-orchestration-belton-industrial-thailand",
+          "url": "https://beltontechnology.com/en/CI_CO.html",
+          "sourceDomain": "beltontechnology.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Belton Corporate Website — Company Overview",
+          "evidenceExcerpt": "Belton Technology Group is an ISO 9001, 14001, 45001, 22301, 13485, IATF16949 certified and UL listed components and full turnkey contract manufacturer of Plastic Molding and Over-molded Components CNC Precision Machining and Auto Lathe Components. Locations include Navanakorn Thailand and Rojana 1/2/3 Thailand."
+        }
+      ]
+    },
+    {
+      "companyKey": "aerospace-partners-engineering",
+      "employerName": "Aerospace Partners Engineering Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official APE capability page lists CNC milling (3-axis and 4-axis) and CNC turning equipment for aerospace parts fabrication in Johor.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling/turning table supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-aerospace-partners-engineering",
+      "revisionId": "wave2-rev-aerospace-partners-engineering",
+      "sources": [
+        {
+          "sourceId": "wave2-src-aerospace-partners-engineering-1",
+          "companyKey": "aerospace-partners-engineering",
+          "proposalId": "wave2-orchestration-aerospace-partners-engineering",
+          "url": "https://www.aerospacepartners.com.my/capability/",
+          "sourceDomain": "www.aerospacepartners.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Capability - Aerospace Partners Engineering Sdn. Bhd.",
+          "evidenceExcerpt": "CNC MILLING (3 Axis) TRAVEL 850 x 530 x 510 mm, Max Part Size 800 mm x 500 mm x 400 mm, 24 Arm Type Automatic Tool Changer, 12,000 rpm spindle. CNC MILLING (4 Axis) Table 1400mm x 650 mm. CNC TURNING Max Dia 260 mm x 290 mm max length."
+        }
+      ]
+    },
+    {
+      "companyKey": "canyon-technology",
+      "employerName": "Canyon Technology Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Canyon Technology Penang page: multi-axis CNC milling and CNC turning for semiconductor, medical and instruments parts.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling and CNC turning support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-canyon-technology",
+      "revisionId": "wave2-rev-canyon-technology",
+      "sources": [
+        {
+          "sourceId": "wave2-src-canyon-technology-1",
+          "companyKey": "canyon-technology",
+          "proposalId": "wave2-orchestration-canyon-technology",
+          "url": "https://canyon-technology.com/precision-engineering-penang.html",
+          "sourceDomain": "canyon-technology.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Precision Engineering in Penang, Malaysia | CNC Milling & Turning",
+          "evidenceExcerpt": "Canyon Technology provides precision engineering and CNC machining support in Penang, Malaysia. We support multi-axis CNC milling and CNC turning for tight-tolerance components, tooling, fixtures, and custom parts for semiconductor, medical and instruments industries. Capabilities: Multi-axis CNC milling for complex geometry and multi-surface machining; CNC turning for precision cylindrical components."
+        }
+      ]
+    },
+    {
+      "companyKey": "ccs-advance-tech",
+      "employerName": "CCS Advance Tech Co.,Ltd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official CCS Groups homepage: vertically integrated build-to-print with CNC turning/machining, CNC manufacturing, and CNC turret punching; CCS Advance Tech listed for aerospace/jigs/fixtures.",
+      "decisionReason": "Reviewed 1 official_site source; CNC turning/machining and CNC manufacturing support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-ccs-advance-tech",
+      "revisionId": "wave2-rev-ccs-advance-tech",
+      "sources": [
+        {
+          "sourceId": "wave2-src-ccs-advance-tech-1",
+          "companyKey": "ccs-advance-tech",
+          "proposalId": "wave2-orchestration-ccs-advance-tech",
+          "url": "https://www.ccsgroups.com/",
+          "sourceDomain": "www.ccsgroups.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "C.C.S. Group of companies: CNC turning/machining",
+          "evidenceExcerpt": "C.C.S. Group of companies: CNC turning/machining, metal stamping, mold/die, jigs/fixture, cutting tools manufacturing, aviation equipment. CCS Advance Tech Co.,Ltd: Aerospace mfg, Oil & Gas mfg, Jigs/Fixtures mfg, Tool & Die spare parts mfg. ASM division: Vertical integration build to print components/assemblies with CNC manufacturing. Sheet metal working: Water Jet cutting, Laser cutting, CNC Turret punching."
+        }
+      ]
+    },
+    {
+      "companyKey": "bangerter-microtechnik",
+      "employerName": "Bangerter Microtechnik AG",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Bangerter know-how page: production floor machines superhard materials on 5-axis CNC grinding centers.",
+      "decisionReason": "Reviewed 1 official_site source; 5-axis CNC grinding centers support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-bangerter-microtechnik",
+      "revisionId": "wave2-rev-bangerter-microtechnik",
+      "sources": [
+        {
+          "sourceId": "wave2-src-bangerter-microtechnik-1",
+          "companyKey": "bangerter-microtechnik",
+          "proposalId": "wave2-orchestration-bangerter-microtechnik",
+          "url": "https://www.bangerter.com/en/know-how",
+          "sourceDomain": "www.bangerter.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Bangerter Know-how: Hardware, software and brainware.",
+          "evidenceExcerpt": "Our production floor consists of a wide variety of technologies and processes for machining superhard materials. The latest CAD/CAM systems are used at the interface between engineering and production, complex components are produced using the latest 5-axis CNC grinding centers, and we use production islands operated by robots for automated production."
+        }
+      ]
+    },
+    {
+      "companyKey": "gah-hong-precision",
+      "employerName": "Gah Hong Precision Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Gah Hong site: 30+ years specialising in high-precision turning and milling machining for engineering components in Johor.",
+      "decisionReason": "Reviewed 1 official_site source; milling machining language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-gah-hong-precision",
+      "revisionId": "wave2-rev-gah-hong-precision",
+      "sources": [
+        {
+          "sourceId": "wave2-src-gah-hong-precision-1",
+          "companyKey": "gah-hong-precision",
+          "proposalId": "wave2-orchestration-gah-hong-precision",
+          "url": "https://gahhong.com/",
+          "sourceDomain": "gahhong.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "30 Years of Professionalism | Gah Hong Precision Sdn Bhd",
+          "evidenceExcerpt": "GAH HONG PRECISION SDN BHD was established in 1992. For more than 30 years, we specialise in High Precision Turning & Milling machining for engineering components. Our products and services range include: sport appliances, electronic components, optical parts, industrial spare parts, fixtures for heavy & light machineries and instruments, metal stamping tool & die."
+        }
+      ]
+    },
+    {
+      "companyKey": "iac-manufacturing-malaysia",
+      "employerName": "IAC Manufacturing Malaysia Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official IAC Malaysia plant page: Melaka machining factory for aerospace parts with 18 five-axis, 4 four-axis and 3 three-axis machining centers.",
+      "decisionReason": "Reviewed 1 official_site source; machining-center equipment list supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave2-orchestration-iac-manufacturing-malaysia",
+      "revisionId": "wave2-rev-iac-manufacturing-malaysia",
+      "sources": [
+        {
+          "sourceId": "wave2-src-iac-manufacturing-malaysia-1",
+          "companyKey": "iac-manufacturing-malaysia",
+          "proposalId": "wave2-orchestration-iac-manufacturing-malaysia",
+          "url": "https://www.iac-corp.co.jp/corporate/advance/malaysia/",
+          "sourceDomain": "www.iac-corp.co.jp",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "IAC Malaysia | IAC Corporation",
+          "evidenceExcerpt": "IAC MANUFACTURING (MALAYSIA) SDN. BHD. IAC Malaysia machining factory for aircraft parts mass production. Main equipment: 5-axis machining center 18 units; 4-axis machining center 4 units; 3-axis machining center 3 units; CMM 3 units. EN 9100 (AS 9100 / JIS Q 9100) certified 2007."
+        }
+      ]
+    }
+  ]
+}
