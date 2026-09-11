@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-11T03:50:00.000Z",
+  "market": "MY-TH",
+  "reviewer": "orchestration-wave4",
+  "wave": 4,
+  "previewOnly": true,
+  "note": "CNC-pattern official_site only. Five employers (max 10). Tractor-Line (http-only), Moser Mechanik (Swiss identity), Fujikura (FPC/SMT), Somboon (identity vs SAT PCL), Victory Hitech (MY vs SG), SHOKOH TECH MY (identity vs TH parent), Union Tool MY (identity vs JP parent), AME steel, AIM identity, Sin Kwang plastics, Nitta mould, Siam TMC (no CNC token), Senior Aerospace (already wave3 skip), KAPAWOO (jobs only, no official CNC page), Aeroworks (HTTP parent / PDF only), Prestige Dynamics (moulding/metrology CNC measuring), Willpower (no official CNC page) skipped. Local commit of wave4 plan+seeder; no push.",
+  "companies": [
+    {
+      "companyKey": "professional-tools-dies",
+      "employerName": "Professional Tools & Dies Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official CNC machining/turning service page: Professional Tools & Dies Sdn Bhd offers precision CNC machining, CNC milling and CNC turning for tooling, components and contract manufacturing.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machining, CNC milling and CNC turning language support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave4-orchestration-professional-tools-dies",
+      "revisionId": "wave4-rev-professional-tools-dies",
+      "sources": [
+        {
+          "sourceId": "wave4-src-professional-tools-dies-1",
+          "companyKey": "professional-tools-dies",
+          "proposalId": "wave4-orchestration-professional-tools-dies",
+          "url": "https://professional-tools.com/services/cnc-machining-turning/",
+          "sourceDomain": "professional-tools.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "CNC Machining Turning Malaysia | Precision Machined Parts & Tooling",
+          "evidenceExcerpt": "At Professional Tools & Dies Sdn Bhd, CNC machining is more than a standalone manufacturing process. We provides precision CNC machining and turning services for both prototype and production requirements. CNC milling removes material using rotating cutting tools while the workpiece remains fixed. CNC turning produces cylindrical and rotationally symmetrical components by rotating the workpiece while stationary cutting tools perform machining operations."
+        }
+      ]
+    },
+    {
+      "companyKey": "multi-mould-industries",
+      "employerName": "Multi Mould Industries Sdn Bhd / MMISB",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official precision-machining page: MMIS milling capabilities include more than 30 years of CNC milling services plus double-column CNC 5-face / five-sided milling machines.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling and precision machining language support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave4-orchestration-multi-mould-industries",
+      "revisionId": "wave4-rev-multi-mould-industries",
+      "sources": [
+        {
+          "sourceId": "wave4-src-multi-mould-industries-1",
+          "companyKey": "multi-mould-industries",
+          "proposalId": "wave4-orchestration-multi-mould-industries",
+          "url": "https://mmisb.com/precision_machining/",
+          "sourceDomain": "mmisb.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Precision Machining - MMISB",
+          "evidenceExcerpt": "Precision Machining. MMIS milling capabilities and quality are highly reputable in Malaysia. Over 30 years of experience in CNC milling services. Equipped with a comprehensive range of machines, including: Milling machines; Double-column precision grinding; Double-column CNC 5-face machines; 5 Axis machine. We continuous growth with the addition of several double-column CNC five-sided milling machines: 8-meter double-column CNC five-sided milling machine; 6-meter double-column CNC five-sided milling machine."
+        }
+      ]
+    },
+    {
+      "companyKey": "siam-at-industry",
+      "employerName": "Siam AT Industry Co., Ltd. (SATI)",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official ATTG company-profile page names SIAM AT INDUSTRY CO., LTD (SATI) at Amata Nakorn, Chonburi, with production of 1 million pcs/month of machining parts.",
+      "decisionReason": "Reviewed 1 official_site source; machining parts production language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave4-orchestration-siam-at-industry",
+      "revisionId": "wave4-rev-siam-at-industry",
+      "sources": [
+        {
+          "sourceId": "wave4-src-siam-at-industry-1",
+          "companyKey": "siam-at-industry",
+          "proposalId": "wave4-orchestration-siam-at-industry",
+          "url": "https://www.attg.co.th/about/company",
+          "sourceDomain": "www.attg.co.th",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Company Profile — ATTG",
+          "evidenceExcerpt": "SIAM AT INDUSTRY CO., LTD (SATI). Location 700/463 Moo 7, Amata Nakorn Industrial Estate, Donhuaroh, Muang, Chonburi 20000. Established 17 May 1996. Production: 1 Million Pcs/Month of Machining Parts. Land Area 88,251 sq.m. Employees 591 Persons. Aisin Takaoka Thailand Group (ATTG) is the leading company of Iron & Aluminum Business in Thailand."
+        }
+      ]
+    },
+    {
+      "companyKey": "wandel-engineering",
+      "employerName": "Wandel Engineering & Industrial Supplies Sdn. Bhd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Wandel homepage lists Wandel Engineering & Industrial Supplies Sdn. Bhd. (Kulai/Skudai, registration 199601019603) with manufacturing capabilities of 10 CNC machines, 12 milling machines and 4 turning machines.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machines and milling machines language support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave4-orchestration-wandel-engineering",
+      "revisionId": "wave4-rev-wandel-engineering",
+      "sources": [
+        {
+          "sourceId": "wave4-src-wandel-engineering-1",
+          "companyKey": "wandel-engineering",
+          "proposalId": "wave4-orchestration-wandel-engineering",
+          "url": "https://www.wandeleng.com/",
+          "sourceDomain": "www.wandeleng.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Wandel Group Of Companies",
+          "evidenceExcerpt": "Wandel Engineering & Industrial Supplies Sdn. Bhd. Location: Kulai. Registration: 199601019603. Address: No.59, Jalan SME2, SME City, Bandar Indahpura, 81000, Kulai, Johor, Malaysia. Manufacturing Capabilities: 12 Milling Machines; 4 Turning Machines; 10 CNC Machines; 1 Grinding Machine; 1 Tapping Machine; 1 Laser Marking Machine. A cost-effective auto loader designed to load parts into moving machine areas, such as CNC machines."
+        }
+      ]
+    },
+    {
+      "companyKey": "delta-hydraulics-thailand",
+      "employerName": "Delta Hydraulics (Thailand) Ltd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Thailand capability page: the 9,000m2 Thailand facility has extensive machining capabilities including CNC Lathes, CNC Turning Centres and CNC Machining Centres.",
+      "decisionReason": "Reviewed 1 official_site source; CNC lathes, CNC turning centres and CNC machining centres support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave4-orchestration-delta-hydraulics-thailand",
+      "revisionId": "wave4-rev-delta-hydraulics-thailand",
+      "sources": [
+        {
+          "sourceId": "wave4-src-delta-hydraulics-thailand-1",
+          "companyKey": "delta-hydraulics-thailand",
+          "proposalId": "wave4-orchestration-delta-hydraulics-thailand",
+          "url": "https://www.deltahydraulics.co.th/capability",
+          "sourceDomain": "www.deltahydraulics.co.th",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Delta Hydraulics (Thailand) Ltd - Capability",
+          "evidenceExcerpt": "Extensive Design and Machining Capability. Our 8,300m2 manufacturing facility in Devonport and 9,000m2 facility in Thailand have extensive machining capabilities with an impressive range of CNC Lathes, CNC Turning Centres, CNC Machining Centres, Manual Lathes and Manual Mills. Our CNC Turning capacity utilises ten machines machining from 1000mm diameter x 3 metres down, with hollow spindle capacity to 520mm. Delta Thailand is next to Caterpillar Underground Mining and opposite Caterpillar Tractor and Earthmoving in Rayong."
+        }
+      ]
+    }
+  ]
+}
