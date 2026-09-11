@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-10T16:00:00.000Z",
+  "market": "MY-TH",
+  "reviewer": "orchestration-wave1",
+  "wave": 1,
+  "previewOnly": true,
+  "companies": [
+    {
+      "companyKey": "pacmet-aerospace",
+      "employerName": "PacMet Aerospace",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official PacMet site: Thailand plant runs 90 CNC mills (3–5 axis) plus elastomer molding and stamping.",
+      "decisionReason": "Reviewed 1 official_site source; Thailand page states 90 CNC mills and CNC machining. Confirm cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-pacmet-aerospace",
+      "revisionId": "wave1-rev-pacmet-aerospace",
+      "sources": [
+        {
+          "sourceId": "wave1-src-pacmet-aerospace-1",
+          "companyKey": "pacmet-aerospace",
+          "proposalId": "wave1-orchestration-pacmet-aerospace",
+          "url": "https://pacmetaerospace.com/",
+          "sourceDomain": "pacmetaerospace.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "PacMet Aerospace — Precision Components for a Demanding World",
+          "evidenceExcerpt": "Two strategically located facilities — one in Southern California for R&D and ITAR-sensitive programs, and one in Thailand for high-volume production. Thailand — 90,000 sq ft · 70 Molding Presses · 90 CNC Mills."
+        }
+      ]
+    },
+    {
+      "companyKey": "yokohama-mold",
+      "employerName": "Yokohama Mold",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Yokohama Rubber group official page: Yokohama Mold produces tire molds and in 2018 established a Thailand mold-manufacturing subsidiary; production notes include shortening machining times.",
+      "decisionReason": "Reviewed 1 official_site source; tire-mold production plus machining-time language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-yokohama-mold",
+      "revisionId": "wave1-rev-yokohama-mold",
+      "sources": [
+        {
+          "sourceId": "wave1-src-yokohama-mold-1",
+          "companyKey": "yokohama-mold",
+          "proposalId": "wave1-orchestration-yokohama-mold",
+          "url": "https://www.y-yokohama.com/global/sustainability/related/03/",
+          "sourceDomain": "www.y-yokohama.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Yokohama Mold Co., Ltd. (YMC) | THE YOKOHAMA RUBBER CO., LTD.",
+          "evidenceExcerpt": "Business activities: Production and distribution of tire molds. Currently, besides undertaking all tire mold and related product development, design and production work for the Yokohama Rubber Group, we also undertake global procurement tasks. In 2018, we established a mold manufacturing subsidiary in Thailand. We are thoroughly promoting energy conservation in production equipment, including aluminum reuse to reduce raw materials, electricity reduction through equipment upgrades, and shortening machining times."
+        }
+      ]
+    },
+    {
+      "companyKey": "hpmt-industries-sdn-bhd",
+      "employerName": "HPMT Industries Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official HPMT Industries site: Malaysia-headquartered manufacturer of precision cutting tools (endmills/drills) for precision machining.",
+      "decisionReason": "Reviewed 1 official_site source; cutting-tool manufacturer for precision machining supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-hpmt-industries-sdn-bhd",
+      "revisionId": "wave1-rev-hpmt-industries-sdn-bhd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-hpmt-industries-sdn-bhd-1",
+          "companyKey": "hpmt-industries-sdn-bhd",
+          "proposalId": "wave1-orchestration-hpmt-industries-sdn-bhd",
+          "url": "https://www.hpmt-industries.com/about-us",
+          "sourceDomain": "www.hpmt-industries.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "About Us | HPMT Industries",
+          "evidenceExcerpt": "HPMT is a leading cutting tool manufacturer headquartered in Southeast Asia and with a global reach, via fully owned subsidiaries and third party distributors. From the drawing to the packaging process, we uphold our commitment to delivering high-quality cutting tools that exceed industry standards and empower our customers' success in precision machining. HPMT INDUSTRIES SDN BHD 199601032653 (405005-X), 5, Jalan Sungai Kayu Ara 32/39, Taman Berjaya, Seksyen 32, 40460 Shah Alam, Selangor Darul Ehsan, Malaysia."
+        }
+      ]
+    },
+    {
+      "companyKey": "uwc-holdings-sdn-bhd",
+      "employerName": "UWC Holdings Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "UWC Berhad official corporate overview lists CNC Machining as a core group service; milestones record incorporation of UWC Holdings.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machining is explicit. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-uwc-holdings-sdn-bhd",
+      "revisionId": "wave1-rev-uwc-holdings-sdn-bhd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-uwc-holdings-sdn-bhd-1",
+          "companyKey": "uwc-holdings-sdn-bhd",
+          "proposalId": "wave1-orchestration-uwc-holdings-sdn-bhd",
+          "url": "https://www.uwcberhad.com.my/corporate-overview/",
+          "sourceDomain": "www.uwcberhad.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Corporate Overview – UWC Berhad",
+          "evidenceExcerpt": "Since its inception in 1990 by founders Dato’ Seri Ng Chai Eng and Dato’ Lau Chee Kheong, UWC Berhad has markedly transitioned from a nascent trading entity into a distinguished conglomerate within the precision engineering sector. The company excels in providing a comprehensive array of top-tier services, including CNC Machining, Sheet Metal Fabrication, and Advanced Assembly. Incorporated UWC Holdings and commenced operations as a trading company."
+        }
+      ]
+    },
+    {
+      "companyKey": "tnh-metal-engineering-sdn-bhd",
+      "employerName": "TNH Metal Engineering Sdn. Bhd.",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official TNH Metal capabilities page: precision engineering components with turning centers and 3-axis/4-axis vertical machining centers.",
+      "decisionReason": "Reviewed 1 official_site source; VMC 3/4-axis and turning centers support cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-tnh-metal-engineering-sdn-bhd",
+      "revisionId": "wave1-rev-tnh-metal-engineering-sdn-bhd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-tnh-metal-engineering-sdn-bhd-1",
+          "companyKey": "tnh-metal-engineering-sdn-bhd",
+          "proposalId": "wave1-orchestration-tnh-metal-engineering-sdn-bhd",
+          "url": "https://www.tnhmetal.com/mobile/capabilities",
+          "sourceDomain": "www.tnhmetal.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "TNH Metal Engineering — Capabilities and Products",
+          "evidenceExcerpt": "Turning Centers: FEMCO & TRD. Chuckle Lathes: EGURO & TSUGAMI where the machines are capable of 0.005~0.007mm fine finishing. Milling — Vertical Machine Centers : 3-Axis and 4-Axis. 1) HURCO 2) ENSHU – XYZ Travels - 560 x 410 x 450mm 3) FEELER QM-40: XYZ Travels - 1000 x 520 x 525mm 4) YCM XV."
+        }
+      ]
+    },
+    {
+      "companyKey": "tungaloy-cutting-tools",
+      "employerName": "tungaloy cutting tools",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Tungaloy-NTK Thailand milling catalog: carbide cutting tools for milling operations.",
+      "decisionReason": "Reviewed 1 official_site source; milling product line is explicit. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-tungaloy-cutting-tools",
+      "revisionId": "wave1-rev-tungaloy-cutting-tools",
+      "sources": [
+        {
+          "sourceId": "wave1-src-tungaloy-cutting-tools-1",
+          "companyKey": "tungaloy-cutting-tools",
+          "proposalId": "wave1-orchestration-tungaloy-cutting-tools",
+          "url": "https://tungaloy.com/th/products/milling/",
+          "sourceDomain": "tungaloy.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "เครื่องมือกัด - Tungaloy-NTK Cutting Tool (Thailand) Co., Ltd.",
+          "evidenceExcerpt": "ด้วยความต้องการที่เพิ่มขึ้นสำหรับงาน Milling ที่ซับซ้อนและเฉพาะเจาะจง ได้ผลักดันให้เกิดการพัฒนาทางเทคโนโลยีของ Tungaloy เพื่อสร้างโซลูชันการตัดเฉือนที่ไม่เหมือนใคร. Indexable extended-flute cutters for high-efficiency rough milling operations of titanium alloy and cast iron parts. The best solution for steel and cast iron milling."
+        }
+      ]
+    },
+    {
+      "companyKey": "kiriu-thailand-coltd",
+      "employerName": "Kiriu (Thailand ) Co,Ltd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official KIRIU machining-technology page: high-precision machining, lathe turning and cutting of brake discs; Thailand is a group plant.",
+      "decisionReason": "Reviewed 1 official_site source; high-precision machining / lathe turning supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-kiriu-thailand-coltd",
+      "revisionId": "wave1-rev-kiriu-thailand-coltd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-kiriu-thailand-coltd-1",
+          "companyKey": "kiriu-thailand-coltd",
+          "proposalId": "wave1-orchestration-kiriu-thailand-coltd",
+          "url": "https://www.kiriu.co.jp/en/tech/machining/",
+          "sourceDomain": "www.kiriu.co.jp",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Machining Technology | KIRIU CORPORATION",
+          "evidenceExcerpt": "We develop high precision machining equipment, machining programs, and automatic measurement devices that are dedicated to customer requirements to optimize machining technology applied to mass production. High-Precision Machining: We ensure the highly precise machining of brake-disc slide surfaces to reduce brake judder and shimmy. This is made possible through our unique mass-production methods for lathe turning, cutting and hub/disc assembly."
+        }
+      ]
+    },
+    {
+      "companyKey": "kum-hoi-engineering-industries-sdn-bhd",
+      "employerName": "Kum Hoi Engineering Industries Sdn Bhd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Kum Hoi machining page: CNC milling, CNC lathe, sliding lathe and double-column machining center.",
+      "decisionReason": "Reviewed 1 official_site source; CNC milling/turning is explicit. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-kum-hoi-engineering-industries-sdn-bhd",
+      "revisionId": "wave1-rev-kum-hoi-engineering-industries-sdn-bhd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-kum-hoi-engineering-industries-sdn-bhd-1",
+          "companyKey": "kum-hoi-engineering-industries-sdn-bhd",
+          "proposalId": "wave1-orchestration-kum-hoi-engineering-industries-sdn-bhd",
+          "url": "https://www.kumhoi.com.my/machining/",
+          "sourceDomain": "www.kumhoi.com.my",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Machining - Kum Hoi Engineering Industries",
+          "evidenceExcerpt": "Delivering high-precision machined parts. Tailored to exact specifications using advanced CNC milling, drilling, turning, and boring processes. CNC Milling: 46 machines delivering precise milling for sizes up to 1400mm x 700mm. CNC Lathe: Turning capabilities for diameters up to 460mm and lengths of 1000mm. Double Column Machining Center: High-precision machining for large and complex components."
+        }
+      ]
+    },
+    {
+      "companyKey": "ihara-manufacturing-thailand-co-ltd",
+      "employerName": "Ihara manufacturing (Thailand) Co, Ltd",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Ihara parent page for IMT Thailand lists 27 machining centers, 47 CNC lathes, 6 CNC composite vertical lathes and 16 CNC grinders.",
+      "decisionReason": "Reviewed 1 official_site source; CNC lathe and machining-center counts are explicit. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-ihara-manufacturing-thailand-co-ltd",
+      "revisionId": "wave1-rev-ihara-manufacturing-thailand-co-ltd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-ihara-manufacturing-thailand-co-ltd-1",
+          "companyKey": "ihara-manufacturing-thailand-co-ltd",
+          "proposalId": "wave1-orchestration-ihara-manufacturing-thailand-co-ltd",
+          "url": "https://iharamfg.co.jp/en/service/base-04/",
+          "sourceDomain": "iharamfg.co.jp",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "IHARA MANUFACTURING (THAILAND) CO.,LTD. (IMT)",
+          "evidenceExcerpt": "Company Name: IHARA MANUFACTURING (THAILAND) CO.,LTD. Type of industry: Manufacture and sale Automotive and Motorcycle parts. Machine: Machining Center…27 unit. CNC Lathe…47 unit. CNC Composite Vertical Lathe…6 unit. NC Automatic Lathe…27 unit. CNC Grinding machine…16 unit. Location: Amata City Chonburi Industrial, 700/384 Moo 6 Don Hua Lo, Mueang Chonburi, Chonburi 20000, Thailand."
+        }
+      ]
+    },
+    {
+      "companyKey": "cbc-ab-precision-co-ltd",
+      "employerName": "CBC AB Precision Co., Ltd.",
+      "industryClass": "industrial",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official AB Co. office page for CBC AB PRECISION (Thailand): mold design/manufacture and injection-molding of automotive parts. Page does not state CNC/lathe/milling, so class is industrial.",
+      "decisionReason": "Reviewed 1 official_site source; 金型設計と製作 is mold-making industrial, not explicit CNC. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave1-orchestration-cbc-ab-precision-co-ltd",
+      "revisionId": "wave1-rev-cbc-ab-precision-co-ltd",
+      "sources": [
+        {
+          "sourceId": "wave1-src-cbc-ab-precision-co-ltd-1",
+          "companyKey": "cbc-ab-precision-co-ltd",
+          "proposalId": "wave1-orchestration-cbc-ab-precision-co-ltd",
+          "url": "https://www.ab-mold.com/company/office/cbc.html",
+          "sourceDomain": "www.ab-mold.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "タイ／CBC AB PRECISION | AB Co.,Ltd.",
+          "evidenceExcerpt": "事業内容：金型製作　量産成型：自動車用部品. 設立：2012年. タイの事業拠点として、金型設計と製作、金型のメンテナンス、射出成型による量産成型を行っています。"
+        }
+      ]
+    }
+  ]
+}

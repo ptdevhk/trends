@@ -1,0 +1,1884 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-10T09:24:48.725Z",
+  "source": "preview-only",
+  "query": {
+    "host": "ptcloud trends-preview-convex",
+    "convex": "http://127.0.0.1:3210 inside container (host :4210)",
+    "functions": [
+      "resumes:getSummaryWindow",
+      "companies:list",
+      "resumes:listNewForWindow",
+      "resumes:getByIdsForExport"
+    ],
+    "prod": false,
+    "opt_trends": false
+  },
+  "window": {
+    "label": "2026-09-02 UTC hk.employer.seek.com talentsearch",
+    "fromTimestamp": 1788307200000,
+    "toTimestamp": 1788393600000,
+    "window0829_30": {
+      "bySource": [],
+      "total": 0
+    },
+    "window0902": {
+      "bySource": [
+        {
+          "count": 114,
+          "key": "hk.employer.seek.com"
+        }
+      ],
+      "total": 114
+    }
+  },
+  "liveCatalog": {
+    "companies": 62,
+    "aliasRows": 127,
+    "seed27Present": 27
+  },
+  "aggregates": {
+    "rowCount": 114,
+    "rowsWithCompany": 114,
+    "distinctCount": 260,
+    "vsSeed27": {
+      "hitDistinct": 0,
+      "hitOccurrences": 0,
+      "missDistinct": 260,
+      "missOccurrences": 262
+    },
+    "rowByMarketBestEffort": {
+      "MY": 36,
+      "TH": 78,
+      "UNSPLIT": 0
+    },
+    "distinctByMarketBestEffort": {
+      "MY": 92,
+      "TH": 168,
+      "UNSPLIT": 0
+    },
+    "marketNote": "Seek content.location country suffix best-effort (`, MY` / `, TH`). Digest locationText is still Malaysia-forced for seek (SOURCE_KEY_TO_COUNTRY); this catalog uses the raw suffix, not the digest. vsSeed27 is the 27-row company-industry-seed-plan.json alias set only (not the later MY/TH catalog plans)."
+  },
+  "distinctEmployerStrings": [
+    {
+      "normalizedKey": "pacmet-aerospace",
+      "employerName": "PacMet Aerospace",
+      "count": 2,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "yokohama-mold",
+      "employerName": "Yokohama Mold",
+      "count": 2,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "miyoshi-hi-tech-coltd",
+      "employerName": "[Miyoshi Hi-Tech Co,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "abio-orthopaedics-sdn-bhd",
+      "employerName": "ABio Orthopaedics Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "aerospace-partners-engineering-sdn-bhd",
+      "employerName": "Aerospace Partners Engineering Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "aeroworks-composites-asia-ltd",
+      "employerName": "Aeroworks composites (asia) ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "aida-engineering-m-sdn-bhd",
+      "employerName": "AIDA ENGINEERING (M) SDN BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "aim-mechatronic-sdn-bhd",
+      "employerName": "AIM MECHATRONIC SDN. BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "airgas-an-air-liquide-airgas-corporate-headquarters-usa",
+      "employerName": "Airgas, an Air Liquide (Airgas Corporate Headquarters), USA",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ame-manufacturing",
+      "employerName": "AME Manufacturing",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "asm-technologies-limited",
+      "employerName": "ASM Technologies Limited",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "astrazeneca",
+      "employerName": "AstraZeneca",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "atsumitech-thailand",
+      "employerName": "Atsumitech Thailand",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "bangerter-microtechnik-ag",
+      "employerName": "Bangerter Microtechnik AG",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "basf-malaysia-sdn-bhd",
+      "employerName": "BASF (Malaysia) Sdn. Bhd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "belton-industrial-thailand",
+      "employerName": "Belton Industrial ( Thailand )",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ccs-advance-tech-coltd",
+      "employerName": "C.C.S. Advance Tech Co.,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cpd-sheet-board-coltd",
+      "employerName": "C.P.D. Sheet Board Co.,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "canyon-technology-sdn-bhd",
+      "employerName": "CANYON TECHNOLOGY SDN BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cbc-ab-precision-co-ltd",
+      "employerName": "CBC AB Precision Co., Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ce-craffman",
+      "employerName": "CE CRAFFMAN",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "chpi",
+      "employerName": "CHPI",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "chung-nyap-yoon-machinery-sdn-bhd",
+      "employerName": "Chung Nyap Yoon Machinery Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cnc-engineering-co-ltd",
+      "employerName": "CNC Engineering Co., Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cnc-machinist-wan-jun-bend-weld",
+      "employerName": "CNC Machinist wan jun & bend weld",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cnc-metal-machining-sdn-bhd",
+      "employerName": "CNC Metal Machining Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cnc-technician",
+      "employerName": "CNC Technician",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "comirnaty",
+      "employerName": "Comirnaty",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "compart-precision-thailand",
+      "employerName": "Compart precision Thailand",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "coronavac",
+      "employerName": "CoronaVac",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ctrm-aero-composites-sdn-bhd",
+      "employerName": "CTRM AERO COMPOSITES SDN BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "dana-spicer",
+      "employerName": "Dana Spicer",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "dana-spicer-thailand-ltd-eastern-seaboard-industrial-estate",
+      "employerName": "Dana Spicer (Thailand) Ltd. (Eastern Seaboard Industrial Estate)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "degussa-construction-chemicals-sdn-bhd",
+      "employerName": "Degussa Construction Chemicals Sdn. Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "delta-hydraulics",
+      "employerName": "Delta Hydraulics",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "demand-options-sdn-bhd",
+      "employerName": "Demand Options Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "dexon-tehcnology",
+      "employerName": "Dexon tehcnology",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "doyalasdo",
+      "employerName": "doyalasdo",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "drissen-zodiac",
+      "employerName": "Drissen zodiac",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "edmund-optics-malaysia-sdn-bhd",
+      "employerName": "EDMUND OPTICS MALAYSIA SDN BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "emp-parts",
+      "employerName": "EMP parts",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "energy-research-and-development-institute-nakhon-ping-chiang-mai-university",
+      "employerName": "Energy Research and Development Institute Nakhon Ping Chiang Mai University",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "epson-precision-johor-sdn-bhd",
+      "employerName": "EPSON PRECISION (JOHOR) Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "equipment-parts",
+      "employerName": "Equipment Parts",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ethos-energy",
+      "employerName": "Ethos Energy",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ethos-energy-co-ltd",
+      "employerName": "Ethos Energy Co. Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "excelitas-technologies-singapore-pte-ltd",
+      "employerName": "Excelitas Technologies Singapore Pte. Ltd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "excellent-in-cnc",
+      "employerName": "Excellent in CNC",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "fastenal",
+      "employerName": "Fastenal",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "fibreking",
+      "employerName": "Fibreking",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "first-engineering-plastics-m-sdn-bhd",
+      "employerName": "First Engineering Plastics (M) Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "flextronics-technology-malaysia-sdn-bhd",
+      "employerName": "Flextronics Technology (Malaysia) Sdn. Bhd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "focal-energy-solutions-pte-ltd",
+      "employerName": "FOCAL ENERGY SOLUTIONS PTE LTD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "forming-pro-co-ltd",
+      "employerName": "Forming Pro Co., Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "fosroc-sdn-bhd",
+      "employerName": "Fosroc Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "fujikura-electronics-thailand-ltd",
+      "employerName": "Fujikura Electronics ( Thailand ) Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "gah-hong-precision-sdn-bhd",
+      "employerName": "GAH HONG Precision Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "gpv",
+      "employerName": "Gpv เอเซีย ประเทศไทย",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "hit-bkk",
+      "employerName": "HIT (bkk)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "hoya-lamphun-co-ltd-hoya-surgical-optics-factory",
+      "employerName": "HOYA Lamphun Co., Ltd. HOYA Surgical Optics Factory",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "hoya-sergical-optic-thailandcoltd",
+      "employerName": "Hoya Sergical optic (Thailand)Co,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "hpmt-industries-sdn-bhd",
+      "employerName": "HPMT Industries Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "hri-entec",
+      "employerName": "HRI Entec",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "iac-manufacturing",
+      "employerName": "IAC Manufacturing",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "iac-manufacturing-malaysia-sdn-bhd",
+      "employerName": "IAC MANUFACTURING (MALAYSIA) SDN. BHD.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ichor-systems-malaysia-sdn-bhd",
+      "employerName": "ICHOR Systems Malaysia Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ihara-manufacturing-thailand-co-ltd",
+      "employerName": "Ihara manufacturing (Thailand) Co, Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "intertool-grow-tech-sdn-bhd",
+      "employerName": "Intertool Grow Tech Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ipc-intelligence-pc-centre",
+      "employerName": "IPC (Intelligence PC Centre)",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "jp-express",
+      "employerName": "J&P EXPRESS",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kamishio-malaysia-sdn-bhd",
+      "employerName": "kamishio malaysia sdn bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kapawoo-thailand",
+      "employerName": "KAPAWOO THAILAND",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kenta",
+      "employerName": "Kenta",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kiriu-thailand-coltd",
+      "employerName": "Kiriu (Thailand ) Co,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ks-permanent",
+      "employerName": "KS Permanent",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kubota-iron-works-thailand-coltd",
+      "employerName": "Kubota Iron Works (Thailand) Co.,Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kum-hoi-engineering-industries-sdn-bhd",
+      "employerName": "Kum Hoi Engineering Industries Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "lct",
+      "employerName": "LCT",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ling-metal-precision",
+      "employerName": "Ling Metal Precision",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "llit-thailand-co-ltd",
+      "employerName": "LLIT (Thailand) Co., Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mo0k-manufacturing-coltd",
+      "employerName": "M.O0.K. Manufacturing Co,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mt-hydraulics",
+      "employerName": "M.T. Hydraulics",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mahasawat-technology-coltd",
+      "employerName": "Mahasawat Technology Co.,Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "maintenance-department",
+      "employerName": "Maintenance Department",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mano-seiko-co-ltd",
+      "employerName": "Mano Seiko Co., Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "marygot-jewelry-thailand-coltd",
+      "employerName": "Marygot Jewelry (thailand) Co,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mattel-development-and-tooling-sdn-bhd",
+      "employerName": "Mattel Development and Tooling Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "members-of-ert-texchem-pack-m-bhd",
+      "employerName": "Members of ERT Texchem-Pack (M) Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "micro-mechanics-technology-sdn-bhd",
+      "employerName": "Micro-Mechanics Technology Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "microled",
+      "employerName": "microled",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "micron-concept-engineering-sdn-bhd",
+      "employerName": "Micron Concept Engineering Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mmis",
+      "employerName": "Mmis",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mnc-diebold-nixdorf-pandora-big4-deloitte-others",
+      "employerName": "MNC: Diebold Nixdorf, PANDORA, Big4 (Deloitte), others",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "moser-mechanik-ag",
+      "employerName": "Moser Mechanik AG",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mpt",
+      "employerName": "MPT เทคโนโลยีจำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "mr-thanakorns-topgun-strengths",
+      "employerName": "Mr. Thanakorn's Topgun Strengths©",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "multi-mould-industries",
+      "employerName": "multi mould industries",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "nagasai-precision-engineers-pvt-ltd",
+      "employerName": "Nagasai Precision Engineers Pvt Ltd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "nidec-precision",
+      "employerName": "Nidec precision",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "nissho-seiko-thailandltd",
+      "employerName": "Nissho Seiko (Thailand).LTD.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "nitta-mt",
+      "employerName": "Nitta M&T",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "nr-industry",
+      "employerName": "NR Industry",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "olio-oilfield-service-sdn-bhd",
+      "employerName": "Olio Oilfield Service Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "osst",
+      "employerName": "Osst",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "otec-thailand",
+      "employerName": "otec thailand",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ownerfoods-machine-nary",
+      "employerName": "Ownerfoods machine nary",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "pantech-stainless-amp-alloy-industries-sdn-bhd",
+      "employerName": "Pantech Stainless &amp; Alloy Industries Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "paradigm-precision-components-sdn-bhd",
+      "employerName": "Paradigm Precision Components Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "piper-plastic-thailand",
+      "employerName": "PIPER PLASTIC (THAILAND)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "power-world",
+      "employerName": "Power world",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ppk-2009",
+      "employerName": "PPK อินเตอร์ 2009 จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "prestige-dynamics-industries-sdn-bhd",
+      "employerName": "Prestige Dynamics Industries Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "profender",
+      "employerName": "Profender",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "profender-premium-suspension-co-ltd",
+      "employerName": "Profender Premium Suspension Co. Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "profesional-tool-die",
+      "employerName": "Profesional tool & die",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "pws-manufacturing-sdn-bhd",
+      "employerName": "PWS MANUFACTURING SDN BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "rcl-agencies-m-sdn-bhd",
+      "employerName": "RCL Agencies (M) Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ricoh",
+      "employerName": "Ricoh",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ricoh-manufacturing-thailand-company-limited-amata-city-industrial-estate",
+      "employerName": "Ricoh Manufacturing (Thailand) company limited Amata City Industrial Estate",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ricoh-manufacturing-thailand-ltd",
+      "employerName": "Ricoh Manufacturing (Thailand) Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "rlc-group-singapore-pte-ltd",
+      "employerName": "RLC Group Singapore Pte Ltd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "rohag-singapore-pte-ltd",
+      "employerName": "Rohag Singapore Pte Ltd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "rpt-design",
+      "employerName": "RPT Design",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "stkpart-coltd",
+      "employerName": "S.T.K.PART CO.,LTD",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sam-precision-m-sdn-bhd",
+      "employerName": "SAM Precision (M) Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sam-precision-thailand",
+      "employerName": "SAM Precision (Thailand)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sam-precision-thailand-limited",
+      "employerName": "SAM PRECISION (THAILAND) LIMITED",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "savills-thailand",
+      "employerName": "Savills Thailand",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seiko-instrument-technologi",
+      "employerName": "Seiko instrument technologi",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seiko-instrument-technology-intech",
+      "employerName": "Seiko Instrument Technology (INTECH)",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seiko-singapore-instrument",
+      "employerName": "Seiko singapore instrument",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seiko-singapore-technology",
+      "employerName": "Seiko singapore technology",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seksun-technology",
+      "employerName": "Seksun Technology",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "senior-aerospace-thailand-limited",
+      "employerName": "SENIOR AEROSPACE (THAILAND) LIMITED",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "shamrock-precision",
+      "employerName": "Shamrock Precision",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "shamrock-pricesion",
+      "employerName": "shamrock pricesion",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "shamrosk-precision",
+      "employerName": "SHAMROSK PRECISION",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "shokoh-tech-m-sdnbhd",
+      "employerName": "SHOKOH TECH (M) SDN.BHD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "siam-at-industry-co-ltd",
+      "employerName": "Siam AT Industry Co., Ltd.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "siam-tmc-manufacturing",
+      "employerName": "Siam T.M.C Manufacturing",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sin-kwang-plastics",
+      "employerName": "Sin Kwang Plastics",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sksc",
+      "employerName": "Sksc",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "smtsb",
+      "employerName": "SMTSB",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "sobena-offshore-ink-sdn-bhd",
+      "employerName": "Sobena Offshore Ink Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "solid-as-engering",
+      "employerName": "SOLID A'S ENGERING",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "solid-as-engineering",
+      "employerName": "Solid as engineering",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "somboon-technology-limited-partnership",
+      "employerName": "Somboon technology limited partnership",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "srichon-engineering-and-service-coltd",
+      "employerName": "SRICHON ENGINEERING AND SERVICE CO.,LTD",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "star-cnc-wirecutting-services-sdn-bhd",
+      "employerName": "Star CNC Wirecutting services sdn bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "star-cnc-wirecutting-services-sdnbhd",
+      "employerName": "Star CNC Wirecutting services sdn.bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "stovers-polymer-group-department-of-chemistry-m",
+      "employerName": "Stover’s Polymer Group, Department of Chemistry, M",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "suntongseng-mould-tech-sdn-bhdmalaysia",
+      "employerName": "SUNTONGSENG MOULD TECH SDN BHD.MALAYSIA",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "syarikat-parade-jasa-sdn-bhd",
+      "employerName": "Syarikat Parade Jasa Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "tbkk",
+      "employerName": "TBKK",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "technical-thai-service-company-limited",
+      "employerName": "TECHNICAL THAI SERVICE COMPANY LIMITED",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "temgtai",
+      "employerName": "Temgtai. ที่ประเทศ ไต้หวัน",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "texchem-pack-m-bhd",
+      "employerName": "Texchem-pack (M) Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "thaiming-lighting",
+      "employerName": "Thaiming lighting",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "thaipress-and-dies-coltd",
+      "employerName": "Thaipress and Dies Co.,Ltd",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "tnh-metal-engineering-sdn-bhd",
+      "employerName": "TNH Metal Engineering Sdn. Bhd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "toa",
+      "employerName": "Toa",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "toppack-engineering",
+      "employerName": "Toppack Engineering",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "toyo-glass-mold-thailand-coltd",
+      "employerName": "TOYO GLASS MOLD (THAILAND) CO.,LTD.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "tractor-line-sdn-bhd",
+      "employerName": "Tractor Line Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "trimoro",
+      "employerName": "Trimoro",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "tungaloy-cutting-tools",
+      "employerName": "tungaloy cutting tools",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "twinkle-tatsu-ltdpart",
+      "employerName": "TWINKLE TATSU LTD.,PART",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ugnx",
+      "employerName": "UGNX",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "uis-technology-sdn-bhd",
+      "employerName": "UIS Technology Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ums",
+      "employerName": "ums",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "union-plus",
+      "employerName": "UNION PLUS",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "union-tool-engineering",
+      "employerName": "Union tool engineering",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "upeca-aerotech-sdnbhd",
+      "employerName": "Upeca aerotech sdn.bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "upeca-enggineering-sdn-bhd",
+      "employerName": "Upeca Enggineering Sdn bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "upeca-flowtech",
+      "employerName": "UPECA Flowtech",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "upeca-valve-automation-sdn-bhd",
+      "employerName": "Upeca Valve Automation Sdn. Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "uwc-holdings-sdn-bhd",
+      "employerName": "UWC Holdings Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "venus-tooling-corporation-sdn-bhd",
+      "employerName": "Venus Tooling Corporation Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "victory-hitech-pte-ltd",
+      "employerName": "VICTORY HITECH PTE LTD",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "volvo-penta",
+      "employerName": "Volvo penta",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "wandel-engineering-industrial-supplies-sdnbhd",
+      "employerName": "Wandel Engineering & Industrial Supplies Sdn.Bhd.",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "willpower-technology-sdn-bhd",
+      "employerName": "Willpower technology sdn bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "wise-tech-precision-enggineering-sdn-bhd",
+      "employerName": "Wise tech precision enggineering sdn bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "wpa-engineering",
+      "employerName": "WPA ENGINEERING",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "yudo-asian-malaysia-sdn-bhd",
+      "employerName": "Yudo Asian (Malaysia) Sdn Bhd",
+      "count": 1,
+      "marketBestEffort": "MY",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "yugengaisha-kuouru",
+      "employerName": "Yugengaisha Kuouru",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "yutaka",
+      "employerName": "YUTAKA",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "47",
+      "employerName": "กองทัพบก.กรมทหารพรานที่ 47",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "11",
+      "employerName": "กองพันทหารราบ มณฑลทหารบกที่ 11",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "เกรทโฟม",
+      "employerName": "เกรทโฟม",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "แคทเธอร์พิลล่า",
+      "employerName": "แคทเธอร์พิลล่า",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "จินเป่า",
+      "employerName": "จินเป่า",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ซัมมิท ออโต เทค อินดัสตร ี",
+      "employerName": "ซัมมิท ออโต เทค อินดัสตร ี",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "แซม พริซิซั่น",
+      "employerName": "แซม พริซิซั่น",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ดานิลี่",
+      "employerName": "ดานิลี่",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ดีเคเค พรีซิซั่น จำกัด",
+      "employerName": "ดีเคเค พรีซิซั่น จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "เทพผดุงพรมะพร้าว จำกัด",
+      "employerName": "เทพผดุงพรมะพร้าว จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ไทยซัมมิสเอนจิเนียริ่ง",
+      "employerName": "ไทยซัมมิสเอนจิเนียริ่ง",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ไทยเอ็กเพรส อินดักทรี",
+      "employerName": "ไทยเอ็กเพรส อินดักทรี",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "นากาโน่เอ็นจิเนียริ่ง",
+      "employerName": "นากาโน่เอ็นจิเนียริ่ง",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "นิตโตเซโกประเทศไทยจำกัด",
+      "employerName": "นิตโตเซโกประเทศไทยจำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษั ริษัทเทิร์น ร์ แม็ก ม็ พรีซิ รี ชั่ ซิ น ชั่ จำ กัด",
+      "employerName": "บริษั ริษัทเทิร์น ร์ แม็ก ม็ พรีซิ รี ชั่ ซิ น ชั่ จำ กัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษั ริษัทเอซเอ็นจิเ จิ นียริ่ง ริ่ แอนด์คอนสตรัค รั ชั่น ชั่ จำ กัด",
+      "employerName": "บริษั ริษัทเอซเอ็นจิเ จิ นียริ่ง ริ่ แอนด์คอนสตรัค รั ชั่น ชั่ จำ กัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "kpk-partnership",
+      "employerName": "บริษัท KPK Partnership",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "seksun-technology",
+      "employerName": "บริษัท seksun technology",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เกรทโฟม",
+      "employerName": "บริษัท เกรทโฟม",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท คอมพลีท โอโต รับเบอร์ แมนูแฟ็คเจอริ่ง จํากัด",
+      "employerName": "บริษัท คอมพลีท โอโต รับเบอร์ แมนูแฟ็คเจอริ่ง จํากัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เคทเท็ม สยาม",
+      "employerName": "บริษัท เคทเท็ม สยาม",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท จินป่าว พรีซิชั่นอินดัสทรี่ จำกัด",
+      "employerName": "บริษัท จินป่าว พรีซิชั่นอินดัสทรี่ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ชินเฮือง จำกัด",
+      "employerName": "บริษัท ชินเฮือง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ซันไชน์ พรรีวิชั่น อินดีสเตรียล จำกัด",
+      "employerName": "บริษัท ซันไชน์ พรรีวิชั่น อินดีสเตรียล จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ซี แอล พี เอ็นจิเนียริ่ง จำกัด",
+      "employerName": "บริษัท ซี แอล พี เอ็นจิเนียริ่ง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เดโช เทค จำกัด",
+      "employerName": "บริษัท เดโช เทค จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ไดซิน จำกัด",
+      "employerName": "บริษัท ไดซิน จำกัด.",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ไทโชบิโคเกอิจำกัด",
+      "employerName": "บริษัท ไทโชบิโคเกอิจำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ไทยเพรส แอนด์ ดายส์ จำ กัด",
+      "employerName": "บริษัท ไทยเพรส แอนด์ ดายส์ จำ กัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท บุญเอ็นจิเนียริ่งพาร์ทส์ จำกัด",
+      "employerName": "บริษัท บุญเอ็นจิเนียริ่งพาร์ทส์ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท โปร-ฟินิช จํากัด",
+      "employerName": "บริษัท โปร-ฟินิช จํากัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท มิติเท็กซ์ จำกัด",
+      "employerName": "บริษัท มิติเท็กซ์ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เมธากร เอ็นจิเนียริ่ง จำกัด",
+      "employerName": "บริษัท เมธากร เอ็นจิเนียริ่ง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ยามาโตะ แมนูแฟคเจอริ่ง จำกัด",
+      "employerName": "บริษัท ยามาโตะ แมนูแฟคเจอริ่ง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ยูนิค อินทิเกรตเต็ด เทคโนโลยี จำกั",
+      "employerName": "บริษัท ยูนิค อินทิเกรตเต็ด เทคโนโลยี จำกั",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ยูเนี่ยนบัททึน คอปเปอเรชั่น",
+      "employerName": "บริษัท ยูเนี่ยนบัททึน คอปเปอเรชั่น",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ยูเนี่ยนบัททึน คอเปอร์เรชั่น จำกัด",
+      "employerName": "บริษัท ยูเนี่ยนบัททึน คอเปอร์เรชั่น จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท ลิกมันไลท์ติ้ง จำกัด",
+      "employerName": "บริษัท ลิกมันไลท์ติ้ง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท สเถียรสเตนเลส สตีล",
+      "employerName": "บริษัท สเถียรสเตนเลส สตีล",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท สยามแอลเค จำกัด",
+      "employerName": "บริษัท สยามแอลเค จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท อัลคามี เทคโนโลยี ประเทศไทย จำกัด",
+      "employerName": "บริษัท อัลคามี เทคโนโลยี (ประเทศไทย) จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท อัลฟ่า ไดมอนด์ทูล จำกัด",
+      "employerName": "บริษัท อัลฟ่า ไดมอนด์ทูล จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท อีสเทิร์น โพลีแพค จำกัด",
+      "employerName": "บริษัท อีสเทิร์น โพลีแพค จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เอสเอ็นซี ครีเอติวิตี้ แอนโทโลจี จำกัด",
+      "employerName": "บริษัท เอสเอ็นซี ครีเอติวิตี้ แอนโทโลจี จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท เออาร์วัน เอ็นจิเนียริ่ง จำกัด",
+      "employerName": "บริษัท เออาร์วัน เอ็นจิเนียริ่ง จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัท โอตะ เซมิซึ คานางาตะ จำกัด",
+      "employerName": "บริษัท โอตะ เซมิซึ คานางาตะ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัททูลแอนด์โมลด์ แอพพลิเคชัน",
+      "employerName": "บริษัททูลแอนด์โมลด์ แอพพลิเคชัน",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัทบูรพาเอ็นจิเนียริ่งจำกัด",
+      "employerName": "บริษัทบูรพาเอ็นจิเนียริ่งจำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัทเพิ่มทวีเอ็นจิเนียริ่ง",
+      "employerName": "บริษัทเพิ่มทวีเอ็นจิเนียริ่ง",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บริษัทแพลตตินั่มโปรพลาสติกจำกัด",
+      "employerName": "บริษัทแพลตตินั่มโปรพลาสติกจำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "บุญส่งพรีซิชั่น ซับพราย",
+      "employerName": "บุญส่งพรีซิชั่น ซับพราย",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "เบอร์นิน่า ไทยแลนด์ จำกัด",
+      "employerName": "เบอร์นิน่า ไทยแลนด์ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ปินเป่า",
+      "employerName": "ปินเป่า",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "พรเจริญ เทปเปอร์ เซฟตี้กลาส",
+      "employerName": "พรเจริญ เทปเปอร์ เซฟตี้กลาส",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ฟอร์มูล่าอุตสาหกรรม",
+      "employerName": "ฟอร์มูล่าอุตสาหกรรม",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ฟางต้าโฮลดิ้ง",
+      "employerName": "ฟางต้าโฮลดิ้ง",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ฟาโซนิค ไทยแลนด์ จำกัด",
+      "employerName": "ฟาโซนิค ไทยแลนด์ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "มหาสวัสดิ์เทคโนโลยี จำกัด",
+      "employerName": "มหาสวัสดิ์เทคโนโลยี จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "มิโยชิ ไฮเทค จำกัด",
+      "employerName": "มิโยชิ ไฮเทค จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ยาชิโยดา อัลลอยวีล",
+      "employerName": "ยาชิโยดา อัลลอยวีล",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ยามาดะ",
+      "employerName": "ยามาดะ",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ยามาดะ สมบูณร์ จำกัด",
+      "employerName": "ยามาดะ สมบูณร์ จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "cnc",
+      "employerName": "โรงกลึงเครื่อง CNC (ธุรกิจครอบครัว)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "โรเบิร์ตบ๊อช",
+      "employerName": "โรเบิร์ตบ๊อช",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "สยามพลาลวูด",
+      "employerName": "สยามพลาลวูด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "หจกรุ่งเรือง ปาดเจียร",
+      "employerName": "หจก.รุ่งเรือง ปาดเจียร",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "หจกโรงอวนเดชาพาณิชย์",
+      "employerName": "หจก.โรงอวนเดชาพาณิชย์",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ห้างหุ้นส่วนจำกัด ดีพีเค เอ็นจิเนียริ่งแอนด์ซัพพลาย",
+      "employerName": "ห้างหุ้นส่วนจำกัด ดี.พี.เค เอ็นจิเนียริ่งแอนด์ซัพพลาย",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "อินเนอร์ไลน์",
+      "employerName": "อินเนอร์ไลน์",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "เอส วี เค โมลด์",
+      "employerName": "เอส วี เค โมลด์",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "เอสไอเอส เมดิคอล จำกัด",
+      "employerName": "เอสไอเอส เมดิคอล จำกัด",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "โอกิฮาร่า ประเทศไทย",
+      "employerName": "โอกิฮาร่า (ประเทศไทย)",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    },
+    {
+      "normalizedKey": "ไฮไมล",
+      "employerName": "ไฮไมล",
+      "count": 1,
+      "marketBestEffort": "TH",
+      "vsSeed27": "miss"
+    }
+  ]
+}
