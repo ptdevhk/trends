@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-11T08:40:00.000Z",
+  "market": "MY-TH",
+  "reviewer": "orchestration-wave5",
+  "wave": 5,
+  "previewOnly": true,
+  "note": "CNC-pattern official_site only. Two employers (max 10; quality over filling the cap). UPECA Aerotech skipped (identity overlap with wave3 upeca-engineering / zenixaerospace.com/upeca/; sa-upeca.com fetch empty). Seksun HTTPS fail. Thai Summit Engineering homepage has no CNC regex token. Unique Integrated semiconductor. CLP rice millers. Bosch TH no CNC token. Pantech pipes. Yamato press identity. SVK extrusion. Epson Precision Johor no official CNC page. Miyoshi Hi-Tech stamping. Nagano no official. Tool and Mold Application no official. Ogihara HTTP-only. Nitto Seiko fasteners. Alpha Diamond tools. S.T.K.PART official page has only a CNC photo heading. Local commit of wave5 plan+seeder; no push.",
+  "companies": [
+    {
+      "companyKey": "jinpao-precision-industry",
+      "employerName": "Jinpao Precision Industry Co., Ltd. / บริษัท จินป่าว พรีซิชั่นอินดัสทรี่ จำกัด",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Jinpao Precision Industry homepage lists manufacturing of 3/4/5 Axis CNC Machining plus machining of aerospace and medical metal parts.",
+      "decisionReason": "Reviewed 1 official_site source; CNC Machining language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave5-orchestration-jinpao-precision-industry",
+      "revisionId": "wave5-rev-jinpao-precision-industry",
+      "sources": [
+        {
+          "sourceId": "wave5-src-jinpao-precision-industry-1",
+          "companyKey": "jinpao-precision-industry",
+          "proposalId": "wave5-orchestration-jinpao-precision-industry",
+          "url": "https://www.jinpao.co.th/",
+          "sourceDomain": "www.jinpao.co.th",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Home | Jinpao",
+          "evidenceExcerpt": "Welcome to Jinpao Precision Industry. MANUFACTURE: NCT Punching, Laser, Bending, 3/4/5 Axis CNC Machining, Stamping, Hard Tooling, Hydroforming. JINPAO vast experience in sheet metal fabrication, machining and sub-assembling allows us to manufacture medical products and devices. Machining process page also covers 3-Axis Vertical Mill and 5-axis machining."
+        }
+      ]
+    },
+    {
+      "companyKey": "alcami-technology-thailand",
+      "employerName": "Alcami Technology (Thailand) Co., Ltd. / บริษัท อัลคามี เทคโนโลยี (ประเทศไทย) จำกัด",
+      "industryClass": "cnc",
+      "verificationLevel": "verified",
+      "machineOrigin": "unknown",
+      "evidenceSummary": "Official Alcami Prachinburi factory page names Alcami Technology at that site and states CNC machining capabilities plus CNC machining among services provided there.",
+      "decisionReason": "Reviewed 1 official_site source; CNC machining language supports cnc. machineOrigin unknown.",
+      "taxonomyVersion": "industry-v1",
+      "nextReviewAt": 1828000000000,
+      "proposalId": "wave5-orchestration-alcami-technology-thailand",
+      "revisionId": "wave5-rev-alcami-technology-thailand",
+      "sources": [
+        {
+          "sourceId": "wave5-src-alcami-technology-thailand-1",
+          "companyKey": "alcami-technology-thailand",
+          "proposalId": "wave5-orchestration-alcami-technology-thailand",
+          "url": "https://alcamiglobal.com/alcami-manufacturing-thailand-co-ltd/",
+          "sourceDomain": "alcamiglobal.com",
+          "sourceType": "official_site",
+          "trustTier": "primary",
+          "title": "Alcami Manufacturing (Thailand) Co., Ltd. - Alcami Global",
+          "evidenceExcerpt": "Our Prachinburi factory is located in Industrial Park 304, and houses Alcami Manufacturing and Alcami Technology. CNC Machining: Alcami's CNC machining capabilities allow us to create precision parts with high accuracy and tight tolerances, in addition to creating moulds or prototypes to meet all of our client's needs. Which companies are based here? Alcami Manufacturing and Alcami Technology are based in Prachinburi. Which service are provided here? In Prachinburi we do thermoformong, injection moulding, DI washing, and CNC machining."
+        }
+      ]
+    }
+  ]
+}
