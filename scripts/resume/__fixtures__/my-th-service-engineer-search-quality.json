@@ -1,0 +1,206 @@
+{
+  "profileResponses": [
+    {
+      "workspace": "hr",
+      "profile": {
+        "id": "seek-malaysia-talent-search-service-engineer",
+        "location": "Malaysia",
+        "keywords": ["CNC", "Service Engineer"],
+        "filters": {
+          "minRoleYears": 1,
+          "roleFilterType": "engineer",
+          "locations": ["Malaysia"]
+        },
+        "schedule": {
+          "enabled": false,
+          "timezone": "Asia/Kuala_Lumpur",
+          "maxCandidates": 50
+        },
+        "sources": [
+          {
+            "type": "seek",
+            "mode": "talentsearch",
+            "enabled": true,
+            "priority": 1,
+            "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+            "collectLimit": 50,
+            "maxPages": 25
+          }
+        ],
+        "quickStart": {
+          "enabled": true,
+          "rank": 5
+        }
+      }
+    },
+    {
+      "workspace": "hr",
+      "profile": {
+        "id": "seek-thailand-talent-search-service-engineer",
+        "location": "Thailand",
+        "keywords": ["CNC", "Service Engineer"],
+        "filters": {
+          "minRoleYears": 1,
+          "roleFilterType": "engineer",
+          "locations": ["Thailand"]
+        },
+        "schedule": {
+          "enabled": false,
+          "timezone": "Asia/Bangkok",
+          "maxCandidates": 50
+        },
+        "sources": [
+          {
+            "type": "seek",
+            "mode": "talentsearch",
+            "enabled": true,
+            "priority": 1,
+            "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+            "collectLimit": 50,
+            "maxPages": 25
+          }
+        ],
+        "quickStart": {
+          "enabled": true,
+          "rank": 6
+        }
+      }
+    },
+    {
+      "workspace": "dev",
+      "profile": {
+        "id": "seek-malaysia-talent-search-service-engineer",
+        "location": "Malaysia",
+        "keywords": ["CNC", "Service Engineer"],
+        "filters": {
+          "minRoleYears": 1,
+          "roleFilterType": "engineer",
+          "locations": ["Malaysia"]
+        },
+        "schedule": {
+          "enabled": false,
+          "timezone": "Asia/Kuala_Lumpur",
+          "maxCandidates": 50
+        },
+        "sources": [
+          {
+            "type": "seek",
+            "mode": "talentsearch",
+            "enabled": true,
+            "priority": 1,
+            "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+            "collectLimit": 50,
+            "maxPages": 25
+          }
+        ],
+        "quickStart": {
+          "enabled": true,
+          "rank": 5
+        }
+      }
+    },
+    {
+      "workspace": "dev",
+      "profile": {
+        "id": "seek-thailand-talent-search-service-engineer",
+        "location": "Thailand",
+        "keywords": ["CNC", "Service Engineer"],
+        "filters": {
+          "minRoleYears": 1,
+          "roleFilterType": "engineer",
+          "locations": ["Thailand"]
+        },
+        "schedule": {
+          "enabled": false,
+          "timezone": "Asia/Bangkok",
+          "maxCandidates": 50
+        },
+        "sources": [
+          {
+            "type": "seek",
+            "mode": "talentsearch",
+            "enabled": true,
+            "priority": 1,
+            "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
+            "collectLimit": 50,
+            "maxPages": 25
+          }
+        ],
+        "quickStart": {
+          "enabled": true,
+          "rank": 6
+        }
+      }
+    }
+  ],
+  "qualityResponses": {
+    "MY": {
+      "success": true,
+      "summary": {
+        "total": 5,
+        "returned": 5
+      },
+      "data": [
+        {
+          "location": "Selangor, Malaysia",
+          "locationHierarchy": { "country": "Malaysia", "province": "Selangor" },
+          "workHistory": [{ "jobTitle": "CNC Service Engineer", "description": "Field service for FANUC machining centres" }]
+        },
+        {
+          "location": "Johor, Malaysia",
+          "locationHierarchy": { "country": "Malaysia", "province": "Johor" },
+          "workHistory": [{ "jobTitle": "Service Technician", "description": "Repair and maintain CNC milling machines" }]
+        },
+        {
+          "location": "Penang, Malaysia",
+          "locationHierarchy": { "country": "Malaysia", "province": "Penang" },
+          "workHistory": [{ "jobTitle": "Service Manager", "description": "Led machine tool after-sales support" }]
+        },
+        {
+          "location": "Kuala Lumpur, Malaysia",
+          "locationHierarchy": { "country": "Malaysia", "city": "Kuala Lumpur" },
+          "workHistory": [{ "jobTitle": "Application Engineer", "description": "CNC lathe service applications and customer training" }]
+        },
+        {
+          "location": "Bangkok, Thailand",
+          "locationHierarchy": { "country": "Thailand", "city": "Bangkok" },
+          "workHistory": [{ "jobTitle": "Mechanical Engineer", "description": "General factory utilities" }]
+        }
+      ]
+    },
+    "TH": {
+      "success": true,
+      "summary": {
+        "total": 5,
+        "returned": 5
+      },
+      "data": [
+        {
+          "location": "Chon Buri, Thailand",
+          "locationHierarchy": { "country": "Thailand", "province": "Chon Buri" },
+          "workHistory": [{ "jobTitle": "Services Engineer", "description": "CNC machine installation and repair" }]
+        },
+        {
+          "location": "Rayong, Thailand",
+          "locationHierarchy": { "country": "Thailand", "province": "Rayong" },
+          "workHistory": [{ "jobTitle": "ช่างบริการ", "description": "ซ่อมบำรุงเครื่องจักร CNC" }]
+        },
+        {
+          "location": "Bangkok, Thailand",
+          "locationHierarchy": { "country": "Thailand", "city": "Bangkok" },
+          "workHistory": [{ "jobTitle": "Service Coordinator", "description": "Coordinated milling machine service visits" }]
+        },
+        {
+          "location": "Prachin Buri, TH",
+          "locationHierarchy": { "province": "Prachin Buri" },
+          "workHistory": [{ "jobTitle": "วิศวกรบริการ", "description": "ติดตั้งและบริการเครื่องกลึง" }]
+        },
+        {
+          "location": "Selangor, Malaysia",
+          "locationHierarchy": { "country": "Malaysia", "province": "Selangor" },
+          "workHistory": [{ "jobTitle": "Electrical Engineer", "description": "PLC panels" }]
+        }
+      ]
+    }
+  }
+}
