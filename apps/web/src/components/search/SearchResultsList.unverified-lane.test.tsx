@@ -49,6 +49,17 @@ vi.mock('@/hooks/useResumeWorkHistoryLimit', () => ({
   useResumeWorkHistoryLimit: () => ({ limit: 3 }),
 }))
 
+vi.mock('@/hooks/useConvexConnectionGuard', () => ({
+  CONVEX_CONNECTION_DEGRADED_AFTER_MS: 8_000,
+  useConvexConnectionGuard: () => ({
+    isWebSocketConnected: true,
+    hasEverConnected: true,
+    connectionRetries: 0,
+    isDegraded: false,
+    retry: vi.fn(),
+  }),
+}))
+
 vi.mock('@/hooks/useConvexResumes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/useConvexResumes')>()
   return {

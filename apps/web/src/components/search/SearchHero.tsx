@@ -2,11 +2,13 @@ import { useMemo } from 'react'
 import { Clock3, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
+import { ConvexConnectionDegradedBanner } from '@/components/ConvexConnectionDegradedBanner'
 import { ModeToggle } from '@/components/ModeToggle'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import { Card, CardContent } from '@/components/ui/card'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useConvexConnectionGuard } from '@/hooks/useConvexConnectionGuard'
 import { buildCollectionLaunchUrl, type CollectionSourceType } from '@/lib/search-profile-sources'
 
 type SearchHeroQuickStart = {
@@ -110,6 +112,7 @@ export function SearchHero({
 }: SearchHeroProps) {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const { isDegraded, retry } = useConvexConnectionGuard()
   const uniqueHotKeywords = useMemo(() => deduplicateHotKeywords(hotKeywords), [hotKeywords])
 
   return (
@@ -281,13 +284,17 @@ export function SearchHero({
             })}
           </div>
           {recentSearchesLoading ? (
-            <Card className="rounded-[1.5rem] border-dashed">
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                {t('resumes.searchPage.hero.loadingRecentSearches', {
-                  defaultValue: 'Loading recent searches...',
-                })}
-              </CardContent>
-            </Card>
+            isDegraded ? (
+              <ConvexConnectionDegradedBanner onRetry={retry} />
+            ) : (
+              <Card className="rounded-[1.5rem] border-dashed">
+                <CardContent className="p-6 text-sm text-muted-foreground">
+                  {t('resumes.searchPage.hero.loadingRecentSearches', {
+                    defaultValue: 'Loading recent searches...',
+                  })}
+                </CardContent>
+              </Card>
+            )
           ) : recentSearches.length === 0 ? (
             <Card className="rounded-[1.5rem] border-dashed">
               <CardContent className="p-6 text-sm text-muted-foreground">

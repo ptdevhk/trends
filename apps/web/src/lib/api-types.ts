@@ -13132,6 +13132,7 @@ export interface paths {
                     limit?: number | null;
                     all?: string;
                     hotlistOnly?: string;
+                    keyword?: string;
                 };
                 header?: never;
                 path?: never;
@@ -13302,6 +13303,122 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/channels-briefing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build a sales-facing CNC briefing from public WeChat Channels sph URLs */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Public WeChat Channels share URLs (1–8). Allowlist: weixin.qq.com/sph/{id} or Finder Preview sph form.
+                         * @example [
+                         *       "https://weixin.qq.com/sph/ALr3ch0zp9",
+                         *       "https://weixin.qq.com/sph/A3F4F1Vabv",
+                         *       "https://weixin.qq.com/sph/Ah85Fcapqh"
+                         *     ]
+                         */
+                        urls: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Deterministic CNC sales briefing from public metadata */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            briefing: {
+                                oneLiner: string;
+                                generatedAt: string;
+                                posts: {
+                                    shareId: string;
+                                    url: string;
+                                    author: string;
+                                    caption: string;
+                                    createtime: number | null;
+                                    likes: number;
+                                    comments: number;
+                                    forwards: number;
+                                    favs: number;
+                                    coverUrl: string | null;
+                                }[];
+                                coreTrends: string[];
+                                weakSignals: string[];
+                                opportunities: {
+                                    who: string;
+                                    sell: string;
+                                    why: string;
+                                }[];
+                                sources: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid body or URL not on the WeChat Channels allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description WeChat Finder Preview returned an unusable response */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description WeChat Finder Preview transport failed */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

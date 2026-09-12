@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../middleware/maintenance.js", () => ({
@@ -48,6 +50,7 @@ vi.mock("../services/research-hotlist-platforms-service.js", async (importOrigin
 });
 
 import { createApp } from "../app";
+import { setChannelsPreviewTransportForTests } from "../services/channels-preview-probe";
 import { resetResumeScreeningDb } from "../services/database";
 import { PulseKeywordsValidationError } from "../services/research-pulse-service";
 import { HotlistPlatformsValidationError } from "../services/research-hotlist-platforms-service";
@@ -253,6 +256,7 @@ describe("research routes", () => {
     pulseMocks.getResearchPulse.mockReset();
     platformMocks.getHotlistPlatformsState.mockReset();
     platformMocks.putHotlistPlatforms.mockReset();
+    setChannelsPreviewTransportForTests(undefined);
     resetResumeScreeningDb();
   });
 
@@ -884,5 +888,190 @@ describe("research routes", () => {
     const body = await parseJsonBody(response);
     expect(body.success).toBe(false);
     expect(String(body.error)).toMatch(/unknown platform/i);
+  });
+
+  describe("POST /api/research/channels-briefing", () => {
+    const GOLDEN_URLS = [
+      "https://weixin.qq.com/sph/ALr3ch0zp9",
+      "https://weixin.qq.com/sph/A3F4F1Vabv",
+      "https://weixin.qq.com/sph/Ah85Fcapqh",
+    ];
+    const PLAYABLE_MEDIA_LEAK = /encfilekey|stodownload|signedtokenabc|secretkey123|thumbkey/i;
+
+    function isAllowedStillCover(coverUrl: string): boolean {
+      try {
+        const parsed = new URL(coverUrl);
+        if (parsed.protocol !== "https:") {
+          return false;
+        }
+        if (parsed.hostname !== "finder.video.qq.com") {
+          return false;
+        }
+        if (!/^\/\d+\/\d+\/stodownload$/.test(parsed.pathname)) {
+          return false;
+        }
+        return parsed.searchParams.has("picformat") || parsed.searchParams.has("wxampicformat");
+      } catch {
+        return false;
+      }
+    }
+
+    function assertNoPlayableMediaLeak(
+      serialized: string,
+      posts?: Array<{ coverUrl: string | null }>,
+    ) {
+      let remainder = serialized;
+      for (const post of posts ?? []) {
+        if (typeof post.coverUrl === "string" && isAllowedStillCover(post.coverUrl)) {
+          remainder = remainder.split(post.coverUrl).join("");
+        }
+      }
+      expect(remainder).not.toMatch(PLAYABLE_MEDIA_LEAK);
+    }
+
+    type ChannelsBriefingResponse = {
+      success: boolean;
+      error?: string;
+      briefing?: {
+        oneLiner: string;
+        generatedAt: string;
+        posts: Array<{
+          shareId: string;
+          url: string;
+          author: string;
+          caption: string;
+          createtime: number | null;
+          likes: number;
+          comments: number;
+          forwards: number;
+          favs: number;
+          coverUrl: string | null;
+        }>;
+        coreTrends: string[];
+        weakSignals: string[];
+        opportunities: Array<{ who: string; sell: string; why: string }>;
+        sources: string[];
+      };
+    };
+
+    function loadFeedInfoFixture(): Record<string, Record<string, unknown>> {
+      const raw = readFileSync(
+        new URL("../services/__fixtures__/channels-briefing-feedinfo.json", import.meta.url),
+        "utf8",
+      );
+      return JSON.parse(raw) as Record<string, Record<string, unknown>>;
+    }
+
+    function installFixtureTransport(
+      byShareId: Record<string, Record<string, unknown>>,
+      mode: "ok" | "network-fail" = "ok",
+    ) {
+      setChannelsPreviewTransportForTests({
+        async post(input) {
+          if (mode === "network-fail") {
+            throw new TypeError("fetch failed");
+          }
+          const parsed = JSON.parse(input.body) as { shortUri?: string };
+          const payload = parsed.shortUri ? byShareId[parsed.shortUri] : undefined;
+          if (!payload) {
+            return { status: 502, json: { errcode: 1, errmsg: "missing fixture" } };
+          }
+          return { status: 200, json: payload };
+        },
+      });
+    }
+
+    async function postChannelsBriefing(urls: unknown) {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const app = createApp();
+      return app.request("/api/research/channels-briefing", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+    }
+
+    it("returns a CNC briefing shape for three allowlisted sph URLs", async () => {
+      installFixtureTransport(loadFeedInfoFixture());
+      const response = await postChannelsBriefing(GOLDEN_URLS);
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<ChannelsBriefingResponse>(response);
+      expect(body.success).toBe(true);
+      expect(body.briefing).toBeDefined();
+      const briefing = body.briefing!;
+      expect(briefing.oneLiner.length).toBeGreaterThan(10);
+      expect(briefing.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(briefing.posts).toHaveLength(3);
+      expect(briefing.posts.map((item) => item.forwards)).toEqual([551, 293, 93]);
+      expect(briefing.posts.map((item) => item.shareId)).toEqual([
+        "ALr3ch0zp9",
+        "A3F4F1Vabv",
+        "Ah85Fcapqh",
+      ]);
+      expect(briefing.posts[0]).toMatchObject({
+        shareId: "ALr3ch0zp9",
+        url: "https://weixin.qq.com/sph/ALr3ch0zp9",
+        author: "9月22日23日深圳液冷全产业链展",
+        likes: 111,
+        comments: 8,
+        forwards: 551,
+        favs: 165,
+        createtime: 1787565901,
+      });
+      expect(briefing.posts[0]?.caption).toMatch(/液冷/);
+      expect(briefing.coreTrends.length).toBeGreaterThan(0);
+      expect(briefing.coreTrends.length).toBeLessThanOrEqual(4);
+      expect(briefing.weakSignals.length).toBeLessThanOrEqual(3);
+      expect(briefing.opportunities.length).toBeGreaterThan(0);
+      expect(briefing.opportunities.length).toBeLessThanOrEqual(4);
+      for (const row of briefing.opportunities) {
+        expect(row.who.length).toBeGreaterThan(0);
+        expect(row.sell.length).toBeGreaterThan(0);
+        expect(row.why.length).toBeGreaterThan(0);
+      }
+      expect(briefing.sources).toEqual(GOLDEN_URLS);
+      expect(JSON.stringify(body)).toMatch(/液冷|UQD|压铸/);
+      expect(JSON.stringify(body)).not.toMatch(/老板昨天|Finder Preview|片子|一句话给销售/);
+      assertNoPlayableMediaLeak(JSON.stringify(body), briefing.posts);
+      for (const post of briefing.posts) {
+        if (post.coverUrl !== null) {
+          expect(post.coverUrl.startsWith("https://")).toBe(true);
+          expect(isAllowedStillCover(post.coverUrl)).toBe(true);
+        }
+      }
+    });
+
+    it("rejects youtube and mp.weixin URLs with 400", async () => {
+      const youtube = await postChannelsBriefing(["https://www.youtube.com/watch?v=dQw4w9WgXcQ"]);
+      expect(youtube.status).toBe(400);
+      const youtubeBody = await parseJsonBody<ChannelsBriefingResponse>(youtube);
+      expect(youtubeBody.success).toBe(false);
+      expect(String(youtubeBody.error)).toMatch(/allowlist|weixin|channels/i);
+
+      const mp = await postChannelsBriefing(["https://mp.weixin.qq.com/s/notAChannelsShare"]);
+      expect(mp.status).toBe(400);
+      const mpBody = await parseJsonBody<ChannelsBriefingResponse>(mp);
+      expect(mpBody.success).toBe(false);
+      expect(String(mpBody.error)).toMatch(/allowlist|weixin|channels/i);
+    });
+
+    it("rejects empty urls with 400", async () => {
+      const response = await postChannelsBriefing([]);
+      expect(response.status).toBe(400);
+      const body = await parseJsonBody<ChannelsBriefingResponse>(response);
+      expect(body.success).toBe(false);
+      expect(String(body.error)).toMatch(/urls/i);
+    });
+
+    it("returns 502 or 503 with an error envelope when the preview transport fails", async () => {
+      installFixtureTransport(loadFeedInfoFixture(), "network-fail");
+      const response = await postChannelsBriefing(GOLDEN_URLS);
+      expect([502, 503]).toContain(response.status);
+      const body = await parseJsonBody<ChannelsBriefingResponse>(response);
+      expect(body.success).toBe(false);
+      expect(typeof body.error).toBe("string");
+      expect(String(body.error).length).toBeGreaterThan(0);
+      assertNoPlayableMediaLeak(JSON.stringify(body));
+    });
   });
 });

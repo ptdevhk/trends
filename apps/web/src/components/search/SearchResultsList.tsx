@@ -1,6 +1,7 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ConvexConnectionDegradedBanner } from '@/components/ConvexConnectionDegradedBanner'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LegacyIndustryEvidenceNotice } from '@/components/industry-evidence/LegacyIndustryEvidenceNotice'
@@ -10,6 +11,7 @@ import {
 } from '@/components/industry-evidence/industry-evidence'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useConvexConnectionGuard } from '@/hooks/useConvexConnectionGuard'
 import { useConvexResumeDetail, type ConvexResumeItem, type UnverifiedLaneItem, type UnverifiedLaneState } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
 import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
@@ -111,7 +113,7 @@ type SearchResultsListProps = {
 
 function SearchResultsSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="resume-search-results-skeleton">
       {Array.from({ length: 4 }).map((_, index) => (
         <div key={index} className="rounded-[1.5rem] border bg-white p-5 shadow-sm">
           <div className="space-y-3">
@@ -165,6 +167,7 @@ export function SearchResultsList({
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
+  const { isDegraded, retry } = useConvexConnectionGuard()
   const listRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -501,7 +504,11 @@ export function SearchResultsList({
   if (loading) {
     return (
       <>
-        <SearchResultsSkeleton />
+        {isDegraded ? (
+          <ConvexConnectionDegradedBanner onRetry={retry} />
+        ) : (
+          <SearchResultsSkeleton />
+        )}
         {detailDialog}
       </>
     )

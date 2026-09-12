@@ -29,6 +29,11 @@ import {
   HotlistPlatformsValidationError,
 } from "../services/research-hotlist-platforms-service.js";
 import { purgeDemoResearchSignals } from "../services/research-demo-purge-service.js";
+import {
+  buildChannelsBriefing,
+  ChannelsBriefingValidationError,
+  ChannelsPreviewUpstreamError,
+} from "../services/channels-briefing-service.js";
 
 const app = new OpenAPIHono();
 
@@ -603,6 +608,8 @@ const getPulseRoute = createRoute({
       all: z.string().optional(),
       /** When true/1, exclude rss:* brand feeds so the feed is NewsNow hotlist only. */
       hotlistOnly: z.string().optional(),
+      /** Optional free-form keyword to focus the feed (e.g. a ?pulse= handoff value). */
+      keyword: z.string().optional(),
     }),
   },
   responses: {
@@ -662,6 +669,7 @@ app.openapi(getPulseRoute, async (c) => {
     limit: query.limit,
     all,
     hotlistOnly,
+    keyword: query.keyword,
   });
   return c.json({ success: true as const, ...result }, 200);
 });
@@ -768,6 +776,106 @@ app.openapi(putHotlistPlatformsRoute, async (c) => {
   } catch (error) {
     if (error instanceof HotlistPlatformsValidationError) {
       return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
+const ChannelsBriefingPostSchema = z.object({
+  shareId: z.string(),
+  url: z.string(),
+  author: z.string(),
+  caption: z.string(),
+  createtime: z.number().nullable(),
+  likes: z.number(),
+  comments: z.number(),
+  forwards: z.number(),
+  favs: z.number(),
+  coverUrl: z.string().nullable(),
+});
+
+const ChannelsBriefingSchema = z.object({
+  oneLiner: z.string(),
+  generatedAt: z.string(),
+  posts: z.array(ChannelsBriefingPostSchema),
+  coreTrends: z.array(z.string()),
+  weakSignals: z.array(z.string()),
+  opportunities: z.array(
+    z.object({
+      who: z.string(),
+      sell: z.string(),
+      why: z.string(),
+    }),
+  ),
+  sources: z.array(z.string()),
+});
+
+const channelsBriefingErrorSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
+
+const channelsBriefingRoute = createRoute({
+  method: "post",
+  path: "/api/research/channels-briefing",
+  tags: ["research"],
+  summary: "Build a sales-facing CNC briefing from public WeChat Channels sph URLs",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            urls: z.array(z.string()).openapi({
+              description: "Public WeChat Channels share URLs (1–8). Allowlist: weixin.qq.com/sph/{id} or Finder Preview sph form.",
+              example: [
+                "https://weixin.qq.com/sph/ALr3ch0zp9",
+                "https://weixin.qq.com/sph/A3F4F1Vabv",
+                "https://weixin.qq.com/sph/Ah85Fcapqh",
+              ],
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            briefing: ChannelsBriefingSchema,
+          }),
+        },
+      },
+      description: "Deterministic CNC sales briefing from public metadata",
+    },
+    400: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "Invalid body or URL not on the WeChat Channels allowlist",
+    },
+    502: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "WeChat Finder Preview returned an unusable response",
+    },
+    503: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "WeChat Finder Preview transport failed",
+    },
+  },
+});
+
+app.openapi(channelsBriefingRoute, async (c) => {
+  const body = c.req.valid("json");
+  try {
+    const briefing = await buildChannelsBriefing(body.urls);
+    return c.json({ success: true as const, briefing }, 200);
+  } catch (error) {
+    if (error instanceof ChannelsBriefingValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    if (error instanceof ChannelsPreviewUpstreamError) {
+      return c.json({ success: false as const, error: error.message }, error.status);
     }
     throw error;
   }

@@ -7,6 +7,13 @@ import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 
 const useAuthMock = vi.hoisted(() => vi.fn())
 const useWorkspaceMock = vi.hoisted(() => vi.fn())
+const connectionGuardMock = vi.hoisted(() => ({
+  isWebSocketConnected: true,
+  hasEverConnected: true,
+  connectionRetries: 0,
+  isDegraded: false,
+  retry: vi.fn(),
+}))
 
 const mockT = (key: string, options?: string | Record<string, unknown>) => {
   if (typeof options === 'string') {
@@ -27,6 +34,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
   }),
+}))
+
+vi.mock('@/hooks/useConvexConnectionGuard', () => ({
+  CONVEX_CONNECTION_DEGRADED_AFTER_MS: 8_000,
+  useConvexConnectionGuard: () => connectionGuardMock,
 }))
 
 let virtualRows: Array<{ index: number; start: number }> = [{ index: 0, start: 0 }]
@@ -109,6 +121,10 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
     useAuthMock.mockReturnValue({ memberships: [] })
+    connectionGuardMock.isWebSocketConnected = true
+    connectionGuardMock.hasEverConnected = true
+    connectionGuardMock.connectionRetries = 0
+    connectionGuardMock.isDegraded = false
     Element.prototype.scrollIntoView = vi.fn()
     window.history.replaceState(null, '', window.location.pathname + window.location.search)
     useWorkspaceMock.mockReturnValue({ slug: 'hr', isPublicSurface: false })
@@ -276,6 +292,83 @@ describe('SearchResultsList', () => {
     )
     expect(screen.queryByRole('button', { name: /清除搜索|Clear search/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /清除筛选|Clear filters/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the results skeleton while loading if the websocket is connected', () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        loading
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('resume-search-results-skeleton')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('convex-connection-degraded-banner'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('replaces a hung results skeleton with a retry banner after a prolonged disconnect', () => {
+    connectionGuardMock.isWebSocketConnected = false
+    connectionGuardMock.isDegraded = true
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        loading
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByTestId('resume-search-results-skeleton')).not.toBeInTheDocument()
+    const banner = screen.getByTestId('convex-connection-degraded-banner')
+    expect(banner).toBeInTheDocument()
+    expect(banner).toHaveTextContent(/connection interrupted/i)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(connectionGuardMock.retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores the results skeleton after the websocket reconnects', () => {
+    connectionGuardMock.isWebSocketConnected = false
+    connectionGuardMock.isDegraded = true
+
+    const { rerender } = render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        loading
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('convex-connection-degraded-banner')).toBeInTheDocument()
+
+    connectionGuardMock.isWebSocketConnected = true
+    connectionGuardMock.isDegraded = false
+    rerender(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={[]}
+        loading
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.queryByTestId('convex-connection-degraded-banner'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('resume-search-results-skeleton')).toBeInTheDocument()
   })
 
   it('renders an explicit search-failure panel with retry instead of the empty state', () => {

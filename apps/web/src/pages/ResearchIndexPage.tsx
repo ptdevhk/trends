@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
 import { zhCN } from 'date-fns/locale/zh-CN'
@@ -12,6 +12,7 @@ import {
   HotlistPlatformsDialog,
   type HotlistPlatformsDialogState,
 } from '@/components/research/HotlistPlatformsDialog'
+import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
 import { researchSignalKindLabel } from '@/components/research/research-signal-kind-label'
 import { Badge } from '@/components/ui/badge'
@@ -202,6 +203,8 @@ function CompanyCardGrid({
 export function ResearchIndexPage() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const [searchParams] = useSearchParams()
+  const pulseParam = searchParams.get('pulse')?.trim() || null
   const teamSlug = slug || 'hr'
   const [q, setQ] = useState('')
   const [items, setItems] = useState<CompanyHit[]>([])
@@ -224,7 +227,7 @@ export function ResearchIndexPage() {
   const [pulseLoading, setPulseLoading] = useState(true)
   const [pulseError, setPulseError] = useState<string | null>(null)
   const [pulseShowAll, setPulseShowAll] = useState(false)
-  const [pulseFocusKeyword, setPulseFocusKeyword] = useState<string | null>(null)
+  const [pulseFocusKeyword, setPulseFocusKeyword] = useState<string | null>(pulseParam)
   const [pulseChipsExpanded, setPulseChipsExpanded] = useState(false)
   const [pulseHelperExpanded, setPulseHelperExpanded] = useState(false)
   const [industryExpanded, setIndustryExpanded] = useState(false)
@@ -273,8 +276,9 @@ export function ResearchIndexPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const loadPulse = useCallback(async (opts?: { all?: boolean }) => {
+  const loadPulse = useCallback(async (opts?: { all?: boolean; keyword?: string | null }) => {
     const all = opts?.all === true
+    const keyword = opts?.keyword !== undefined ? opts.keyword : pulseParam
     setPulseLoading(true)
     setPulseError(null)
     const { data, error: apiError } = await rawApiClient.GET<PulseResponse>(
@@ -286,6 +290,7 @@ export function ResearchIndexPage() {
             // 综合热榜 = NewsNow platforms only (exclude rss:* brand feeds)
             hotlistOnly: 1,
             ...(all ? { all: 1 } : {}),
+            ...(keyword ? { keyword } : {}),
           },
         },
       },
@@ -300,7 +305,7 @@ export function ResearchIndexPage() {
     setPulseItems(Array.isArray(data.items) ? data.items : [])
     setPulseMeta(data.meta ?? null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [pulseParam])
 
   const loadKeywords = useCallback(async () => {
     const { data, error: apiError } = await rawApiClient.GET<PulseKeywordsResponse>(
@@ -339,6 +344,12 @@ export function ResearchIndexPage() {
     void loadKeywords()
     void loadPlatforms()
   }, [loadShowcase, loadIndustry, loadPulse, loadKeywords, loadPlatforms])
+
+  useEffect(() => {
+    if (pulseParam) {
+      setPulseFocusKeyword(pulseParam)
+    }
+  }, [pulseParam])
 
   const seedShowcase = useCallback(async () => {
     setSeeding(true)
@@ -443,8 +454,13 @@ export function ResearchIndexPage() {
     golden.every((c) => c.signalCount === 0) &&
     fromDesk.every((c) => c.signalCount === 0)
 
-  const effectiveKeywords =
-    keywordsState?.effective ?? pulseMeta?.effectiveKeywords ?? []
+  const effectiveKeywords = useMemo(() => {
+    const list = keywordsState?.effective ?? pulseMeta?.effectiveKeywords ?? []
+    if (pulseParam && !list.includes(pulseParam)) {
+      return [pulseParam, ...list]
+    }
+    return list
+  }, [keywordsState?.effective, pulseMeta?.effectiveKeywords, pulseParam])
 
   const visibleChips = pulseChipsExpanded
     ? effectiveKeywords
@@ -524,13 +540,15 @@ export function ResearchIndexPage() {
   const showIndustrySection = industryLoading || !!industryError || industry.length > 0
 
   return (
-    <div className="space-y-6 p-4" data-testid="research-index-page">
+    <div className="space-y-6 p-3 sm:p-4" data-testid="research-index-page">
       <PageHeader
         title={t('research.indexTitle', { defaultValue: '行业研究' })}
         description={t('research.indexDescription', {
           defaultValue: '精密机械 / 数控机床企业信号 — 面向 HR 简历台（简体中文优先）。',
         })}
       />
+
+      <ChannelsBriefingPanel />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

@@ -404,6 +404,24 @@ describe('ResearchIndexPage hub', () => {
     expect(screen.getByTestId('research-pulse-chips-more')).toHaveTextContent('收起')
   })
 
+  it('mounts the channels briefing paste panel with generate disabled on empty paste', async () => {
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-channels-briefing')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('research-channels-briefing-textarea')).toBeInTheDocument()
+    expect(screen.getByTestId('research-channels-briefing-generate')).toBeDisabled()
+    expect(postMock).not.toHaveBeenCalledWith(
+      '/api/research/channels-briefing',
+      expect.anything(),
+    )
+  })
+
   it('places search and pulse above industry catalog for HR scan path', async () => {
     render(
       <MemoryRouter>
@@ -737,6 +755,36 @@ describe('ResearchIndexPage hub', () => {
           }),
         }),
       )
+    })
+  })
+
+  it('consumes pulse URL param to query pulse API with keyword and focus the matching chip', async () => {
+    render(
+      <MemoryRouter initialEntries={['/hr/research?pulse=%E6%B6%B2%E5%86%B7']}>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        '/api/research/pulse',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            query: expect.objectContaining({
+              keyword: '液冷',
+              hotlistOnly: 1,
+            }),
+          }),
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      const chip = screen
+        .getAllByTestId('research-pulse-chip')
+        .find((el) => el.getAttribute('data-keyword') === '液冷')
+      expect(chip).toBeTruthy()
+      expect(chip).toHaveAttribute('data-active', 'true')
     })
   })
 })

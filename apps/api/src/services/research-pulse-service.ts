@@ -230,9 +230,22 @@ export async function loadPulseNewsSource(
   return [...byHash.values()].sort((a, b) => b.capturedAt - a.capturedAt);
 }
 
+function matchesFocusKeyword(
+  item: ResearchNewsItem & { matchedKeywords: string[] },
+  keyword: string,
+): boolean {
+  const focus = keyword.trim().normalize("NFKC");
+  if (!focus) return true;
+  if (item.matchedKeywords.some((m) => m.normalize("NFKC") === focus)) return true;
+  // Fallback: substring match on title/snippet when the keyword is not in the
+  // effective keyword set (e.g. a free-form ?pulse= handoff value).
+  const haystack = `${item.title} ${item.rawSnippet ?? ""}`.normalize("NFKC");
+  return haystack.includes(focus);
+}
+
 export async function getResearchPulse(
   workspaceSlug: string,
-  opts: { limit?: number; all?: boolean; hotlistOnly?: boolean } = {},
+  opts: { limit?: number; all?: boolean; hotlistOnly?: boolean; keyword?: string } = {},
 ): Promise<ResearchPulseResult> {
   const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
   const { effective } = await getPulseKeywordsState(workspaceSlug);
@@ -248,10 +261,14 @@ export async function getResearchPulse(
   const annotated = annotateNewsByKeywords(sorted, effective);
   const hits = annotated.filter((item) => item.matchedKeywords.length > 0);
   const keywordHits = analyzeKeywordHits(annotated, effective);
+  const focused = opts.keyword
+    ? annotated.filter((item) => matchesFocusKeyword(item, opts.keyword!))
+    : null;
 
   if (opts.all) {
+    const items = (focused ?? annotated).slice(0, limit);
     return {
-      items: annotated.slice(0, limit).map((n) =>
+      items: items.map((n) =>
         mapPulseItem({
           title: n.title,
           platform: n.platform,
@@ -271,7 +288,7 @@ export async function getResearchPulse(
     };
   }
 
-  const sliced = hits.slice(0, limit);
+  const sliced = (focused ?? hits).slice(0, limit);
   return {
     items: sliced.map((n) =>
       mapPulseItem({

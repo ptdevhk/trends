@@ -267,4 +267,43 @@ describe("research-pulse-service", () => {
     expect(result.items.map((i) => i.platform)).toEqual(["weibo", "zhihu"]);
     expect(result.items.every((i) => !i.platform.startsWith("rss:"))).toBe(true);
   });
+
+  it("getResearchPulse: keyword focuses the feed server-side (substring fallback for free-form handoff)", async () => {
+    getWorkspaceConfigValueMock.mockResolvedValue({
+      version: 1,
+      enabled: [],
+      excluded: [],
+      custom: [],
+    });
+    resolveResearchCompanySurfaceMock.mockReturnValue(null);
+    listResearchNewsMock.mockResolvedValue([
+      {
+        _id: "1",
+        sourceId: "s",
+        platform: "weibo",
+        title: "液冷扩产订单落地",
+        contentHash: "h1",
+        capturedAt: 200,
+      },
+      {
+        _id: "2",
+        sourceId: "s",
+        platform: "weibo",
+        title: "娱乐热搜",
+        contentHash: "h2",
+        capturedAt: 100,
+      },
+    ]);
+
+    const focused = await getResearchPulse("hr", { limit: 12, keyword: "液冷" });
+    // The item also matches the seed effective keyword set (液冷/扩产), so the
+    // keyword focus narrows the feed to it regardless of the match path.
+    expect(focused.items.map((i) => i.title)).toEqual(["液冷扩产订单落地"]);
+    expect(focused.meta.filtered).toBe(true);
+    expect(focused.meta.rawCount).toBe(2);
+
+    // A keyword matching an item's matchedKeywords (in the effective set) also works.
+    const effectiveFocused = await getResearchPulse("hr", { limit: 12, keyword: "扩产" });
+    expect(effectiveFocused.items.map((i) => i.title)).toEqual(["液冷扩产订单落地"]);
+  });
 });

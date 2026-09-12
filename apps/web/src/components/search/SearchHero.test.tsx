@@ -20,6 +20,19 @@ const mockT = (key: string, options?: string | Record<string, unknown>) => {
   })
 };
 
+const connectionGuardMock = vi.hoisted(() => ({
+  isWebSocketConnected: true,
+  hasEverConnected: true,
+  connectionRetries: 0,
+  isDegraded: false,
+  retry: vi.fn(),
+}))
+
+vi.mock('@/hooks/useConvexConnectionGuard', () => ({
+  CONVEX_CONNECTION_DEGRADED_AFTER_MS: 8_000,
+  useConvexConnectionGuard: () => connectionGuardMock,
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
@@ -154,6 +167,10 @@ function renderSearchHero(overrides: Partial<SearchHeroProps> = {}) {
 describe('SearchHero', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    connectionGuardMock.isWebSocketConnected = true
+    connectionGuardMock.hasEverConnected = true
+    connectionGuardMock.connectionRetries = 0
+    connectionGuardMock.isDegraded = false
   })
 
   it('shows the loading state while recent searches are loading', () => {
@@ -167,6 +184,63 @@ describe('SearchHero', () => {
       screen.getByText('Search Bar machine tools idle 0'),
     ).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'AI Mode' })).toBeChecked()
+  })
+
+  it('keeps the recent-search loading state when the websocket is still connected', () => {
+    renderSearchHero({ recentSearchesLoading: true })
+
+    expect(screen.getByText('Loading recent searches...')).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('convex-connection-degraded-banner'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('replaces hung recent-search loading with a retry banner after a prolonged disconnect', async () => {
+    connectionGuardMock.isWebSocketConnected = false
+    connectionGuardMock.isDegraded = true
+
+    renderSearchHero({ recentSearchesLoading: true })
+
+    expect(screen.queryByText('Loading recent searches...')).not.toBeInTheDocument()
+    const banner = screen.getByTestId('convex-connection-degraded-banner')
+    expect(banner).toBeInTheDocument()
+    expect(banner).toHaveTextContent(/connection interrupted/i)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /retry/i }))
+    expect(connectionGuardMock.retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the retry banner when the websocket reconnects', () => {
+    connectionGuardMock.isWebSocketConnected = false
+    connectionGuardMock.isDegraded = true
+    const { rerender } = renderSearchHero({ recentSearchesLoading: true })
+
+    expect(screen.getByTestId('convex-connection-degraded-banner')).toBeInTheDocument()
+
+    connectionGuardMock.isWebSocketConnected = true
+    connectionGuardMock.isDegraded = false
+    rerender(
+      <MemoryRouter>
+        <SearchHero
+          aiModeEnabled
+          loading={false}
+          queryInput=""
+          onAiModeChange={vi.fn()}
+          recentSearches={[]}
+          recentSearchesLoading
+          onApplyRecentSearch={vi.fn()}
+          onApplyExtractedKeywords={vi.fn()}
+          onChangeQuery={vi.fn()}
+          onClearQuery={vi.fn()}
+          onSubmitQuery={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(
+      screen.queryByTestId('convex-connection-degraded-banner'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Loading recent searches...')).toBeInTheDocument()
   })
 
   it('shows the empty state when there are no recent searches', () => {

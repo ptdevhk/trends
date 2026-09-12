@@ -41,6 +41,9 @@ env/
 *.swp
 *.swo
 
+# Visual brainstorm companion (local mockups)
+.superpowers/
+
 # Project Specific
 output/
 # Keep resume sample data tracked for fast dev
