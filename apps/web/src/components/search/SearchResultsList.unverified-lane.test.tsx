@@ -37,6 +37,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockT }),
 }))
 
+vi.mock('@/components/search/SnippetCard', () => ({
+  SnippetCard: () => <div data-testid="strict-result-card" />,
+}))
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ memberships: authState.memberships }),
 }))
