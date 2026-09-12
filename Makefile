@@ -26,7 +26,7 @@
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
 		sync-resume-field-usage-policy check-resume-field-usage-policy \
-		sync-search-profile-templates check-search-profile-templates \
+		sync-search-profile-templates check-search-profile-templates check-keyword-tags \
 		clean-db fresh-env refresh-env verify-workflow-dataset
 
 # Default target
@@ -910,6 +910,14 @@ check-search-profile-templates:
 		bunx tsx scripts/resume/sync-search-profile-templates.ts --check; \
 	else \
 		npx tsx scripts/resume/sync-search-profile-templates.ts --check; \
+	fi
+
+# Validate keyword-tags.json is up to date with keywords-structured.md
+check-keyword-tags:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/industry-data/build-keyword-tags.ts --check; \
+	else \
+		npx tsx scripts/industry-data/build-keyword-tags.ts --check; \
 	fi
 
 # Sync committed repo project skills into .agents/skills and .claude/skills

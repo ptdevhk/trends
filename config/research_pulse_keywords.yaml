@@ -9,5 +9,23 @@ groups:
   - id: hiring-sales
     label: 招聘与商机
     keywords: [招聘, 扩产, 中标, 采购, 订单, 签约]
+  - id: machining
+    label: 加工中心类
+    keywords: [加工中心, cnc, 4轴, 5轴, 四轴, 五轴, 模具, 注塑机, 机床, 数控, 铣床, 卧加, 立加, 钻攻, 数控设备, 机电设备, 数控机床, 机加工设备, 电火花, 钻攻中心]
+  - id: lathe
+    label: 车床类
+    keywords: [数控走心机, 走刀机, 自动棒料送料机, 车铣复合机床, 高速钻攻机, 排刀车床, 刀架转塔, 双刀塔, 车削中心, 转塔机床, 走刀, 斜刀, 斜床, 硬轨车床, 走心机, 刀塔机, 车床, 磨床, 慢走丝, 车铣复合, 龙门, 线切割]
+  - id: edm
+    label: 电火花类
+    keywords: [火花机, 电火花, 慢走丝, 中走丝, 快走丝, 线切割]
+  - id: measurement
+    label: 测量类
+    keywords: [三坐标, 探测系统, 影像测量仪, 测量机, 影像仪, 蓝光设备, 蓝光扫描设备, 坐标测量系统, Smarttech metrascan, 三次元, 3D扫描仪, 激光扫描仪, 三维测量, 扫描仪, 三维成像, 3D量测, 扫描系统, CMM, OMM, OGP]
+  - id: smt
+    label: SMT类
+    keywords: [SMT, 贴片机, 回流焊, 点胶涂覆机, 分板机, AOI, 激光打标机, 自动接料机]
+  - id: 3d-printing
+    label: 3D打印类
+    keywords: [3D打印设备, 增材制造]
 defaults:
   enabledGroupIds: [cnc-core, brands, hiring-sales]

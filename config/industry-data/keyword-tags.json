@@ -1,0 +1,328 @@
+{
+  "version": "v1",
+  "source": "config/industry-data/keywords-structured.md",
+  "tags": {
+    "machining": [
+      {
+        "keyword": "加工中心",
+        "english": "Machining Center"
+      },
+      {
+        "keyword": "cnc",
+        "english": "CNC"
+      },
+      {
+        "keyword": "4轴",
+        "english": "4-Axis"
+      },
+      {
+        "keyword": "5轴",
+        "english": "5-Axis"
+      },
+      {
+        "keyword": "四轴",
+        "english": "4-Axis"
+      },
+      {
+        "keyword": "五轴",
+        "english": "5-Axis"
+      },
+      {
+        "keyword": "模具",
+        "english": "Mold"
+      },
+      {
+        "keyword": "注塑机",
+        "english": "Injection Molding Machine"
+      },
+      {
+        "keyword": "机床",
+        "english": "Machine Tool"
+      },
+      {
+        "keyword": "数控",
+        "english": "CNC/Numerical Control"
+      },
+      {
+        "keyword": "铣床",
+        "english": "Milling Machine"
+      },
+      {
+        "keyword": "卧加",
+        "english": "Horizontal Machining Center"
+      },
+      {
+        "keyword": "立加",
+        "english": "Vertical Machining Center"
+      },
+      {
+        "keyword": "钻攻",
+        "english": "Drilling & Tapping"
+      },
+      {
+        "keyword": "数控设备",
+        "english": "CNC Equipment"
+      },
+      {
+        "keyword": "机电设备",
+        "english": "Electromechanical Equipment"
+      },
+      {
+        "keyword": "数控机床",
+        "english": "CNC Machine Tool"
+      },
+      {
+        "keyword": "机加工设备",
+        "english": "Machining Equipment"
+      },
+      {
+        "keyword": "电火花",
+        "english": "EDM"
+      },
+      {
+        "keyword": "钻攻中心",
+        "english": "Drilling & Tapping Center"
+      }
+    ],
+    "lathe": [
+      {
+        "keyword": "数控走心机",
+        "english": "CNC Swiss-type Lathe"
+      },
+      {
+        "keyword": "走刀机",
+        "english": "Gang Tool Lathe"
+      },
+      {
+        "keyword": "自动棒料送料机",
+        "english": "Automatic Bar Feeder"
+      },
+      {
+        "keyword": "车铣复合机床",
+        "english": "Turn-Mill Center"
+      },
+      {
+        "keyword": "高速钻攻机",
+        "english": "High-speed Drilling & Tapping"
+      },
+      {
+        "keyword": "排刀车床",
+        "english": "Gang Tool Lathe"
+      },
+      {
+        "keyword": "刀架转塔",
+        "english": "Tool Turret"
+      },
+      {
+        "keyword": "双刀塔",
+        "english": "Twin Turret"
+      },
+      {
+        "keyword": "车削中心",
+        "english": "Turning Center"
+      },
+      {
+        "keyword": "转塔机床",
+        "english": "Turret Machine"
+      },
+      {
+        "keyword": "走刀"
+      },
+      {
+        "keyword": "斜刀"
+      },
+      {
+        "keyword": "斜床",
+        "english": "Slant Bed"
+      },
+      {
+        "keyword": "硬轨车床",
+        "english": "Box Way Lathe"
+      },
+      {
+        "keyword": "走心机",
+        "english": "Swiss-type Lathe"
+      },
+      {
+        "keyword": "刀塔机",
+        "english": "Turret Lathe"
+      },
+      {
+        "keyword": "车床",
+        "english": "Lathe"
+      },
+      {
+        "keyword": "磨床",
+        "english": "Grinding Machine"
+      },
+      {
+        "keyword": "慢走丝",
+        "english": "Slow Wire EDM"
+      },
+      {
+        "keyword": "车铣复合",
+        "english": "Turn-Mill"
+      },
+      {
+        "keyword": "龙门",
+        "english": "Gantry"
+      },
+      {
+        "keyword": "线切割",
+        "english": "Wire Cut"
+      }
+    ],
+    "edm": [
+      {
+        "keyword": "火花机",
+        "english": "EDM Machine"
+      },
+      {
+        "keyword": "电火花",
+        "english": "Electrical Discharge Machining"
+      },
+      {
+        "keyword": "慢走丝",
+        "english": "Slow Wire EDM"
+      },
+      {
+        "keyword": "中走丝",
+        "english": "Medium Wire EDM"
+      },
+      {
+        "keyword": "快走丝",
+        "english": "Fast Wire EDM"
+      },
+      {
+        "keyword": "线切割",
+        "english": "Wire Cutting/Wire EDM"
+      }
+    ],
+    "measurement": [
+      {
+        "keyword": "三坐标",
+        "english": "CMM"
+      },
+      {
+        "keyword": "探测系统",
+        "english": "Probing System"
+      },
+      {
+        "keyword": "影像测量仪",
+        "english": "Vision Measuring Machine"
+      },
+      {
+        "keyword": "测量机",
+        "english": "Measuring Machine"
+      },
+      {
+        "keyword": "影像仪",
+        "english": "Vision System"
+      },
+      {
+        "keyword": "蓝光设备",
+        "english": "Blue Light Equipment"
+      },
+      {
+        "keyword": "蓝光扫描设备",
+        "english": "Blue Light Scanner"
+      },
+      {
+        "keyword": "坐标测量系统",
+        "english": "Coordinate Measuring System"
+      },
+      {
+        "keyword": "Smarttech metrascan",
+        "english": "Smarttech Metrascan"
+      },
+      {
+        "keyword": "三次元",
+        "english": "3D Coordinate Measuring"
+      },
+      {
+        "keyword": "3D扫描仪",
+        "english": "3D Scanner"
+      },
+      {
+        "keyword": "激光扫描仪",
+        "english": "Laser Scanner"
+      },
+      {
+        "keyword": "三维测量",
+        "english": "3D Measurement"
+      },
+      {
+        "keyword": "扫描仪",
+        "english": "Scanner"
+      },
+      {
+        "keyword": "三维成像",
+        "english": "3D Imaging"
+      },
+      {
+        "keyword": "3D量测",
+        "english": "3D Metrology"
+      },
+      {
+        "keyword": "扫描系统",
+        "english": "Scanning System"
+      },
+      {
+        "keyword": "CMM",
+        "english": "CMM"
+      },
+      {
+        "keyword": "OMM",
+        "english": "OMM"
+      },
+      {
+        "keyword": "OGP",
+        "english": "OGP"
+      }
+    ],
+    "smt": [
+      {
+        "keyword": "SMT",
+        "english": "SMT"
+      },
+      {
+        "keyword": "贴片机",
+        "english": "Pick and Place Machine"
+      },
+      {
+        "keyword": "回流焊",
+        "english": "Reflow Soldering"
+      },
+      {
+        "keyword": "点胶涂覆机",
+        "english": "Dispensing Machine"
+      },
+      {
+        "keyword": "分板机",
+        "english": "PCB Depaneling Machine"
+      },
+      {
+        "keyword": "AOI",
+        "english": "AOI (Automated Optical Inspection)"
+      },
+      {
+        "keyword": "激光打标机",
+        "english": "Laser Marking Machine"
+      },
+      {
+        "keyword": "自动接料机",
+        "english": "Automatic Splicing Machine"
+      }
+    ],
+    "3d_printing": [
+      {
+        "keyword": "3D打印设备",
+        "english": "3D Printing Equipment"
+      },
+      {
+        "keyword": "增材制造",
+        "english": "Additive Manufacturing"
+      }
+    ]
+  }
+}
