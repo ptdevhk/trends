@@ -787,7 +787,7 @@ export const processNewResumes = internalAction({
         const text = await response.text();
         const error = `BFF API error: ${response.status} ${response.statusText} - ${text}`;
         console.error(`[ingest_agent] ${error}`);
-        return { processed: 0, error };
+        throw new Error(error);
       }
 
       const result = (await response.json()) as {
@@ -798,7 +798,7 @@ export const processNewResumes = internalAction({
       if (!result.success || !Array.isArray(result.results)) {
         const error = `Invalid BFF response: ${JSON.stringify(result)}`;
         console.error(`[ingest_agent] ${error}`);
-        return { processed: 0, error };
+        throw new Error(error);
       }
 
       // 4. Store results via mutation
@@ -843,9 +843,14 @@ export const processNewResumes = internalAction({
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
       }));
 
-      await ctx.runMutation(internal.resumes_mutations.updateIngestDataBatch, {
-        updates,
-      });
+      // Mutations have a 1s isolate budget. A 10-row Promise.all of
+      // link+digest patches times out (resumes_mutations.ts:220) and the
+      // scheduler then retries the same IDs forever.
+      for (const update of updates) {
+        await ctx.runMutation(internal.resumes_mutations.updateIngestDataBatch, {
+          updates: [update],
+        });
+      }
 
       // Audit log — EU AI Act compliance for automated rank/tag decisions
       for (const update of updates) {
@@ -887,7 +892,7 @@ export const processNewResumes = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[ingest_agent] Error:`, message);
-      return { processed: 0, error: message };
+      throw error instanceof Error ? error : new Error(message);
     }
   },
 });
@@ -936,6 +941,36 @@ function resolveStaleSelectionMode(value: string | undefined): StaleSelectionMod
   return "any";
 }
 
+/** Per-pass schedule cap used when an epoch bump saturates the scan window. */
+export const ADAPTIVE_BACKPRESSURE_LIMIT = 50;
+/** processNewResumes BFF payload size. 50-id jobs over public HTTPS complete in ~10s without persisting epoch. */
+export const PROCESS_NEW_RESUMES_BATCH_SIZE = 10;
+
+/**
+ * Bound Tantivy churn after an epoch bump: a 15-min cron with a fixed 200-row
+ * schedule turns a full-corpus lag into ~11h of index writes. When the scanned
+ * window is entirely compute-stale and hasMore, schedule a smaller pass.
+ * Mixed/finishing windows keep the requested limit (capped to the stale count).
+ */
+export function resolveAdaptiveReingestLimit(input: {
+  requestedLimit: number;
+  computeStaleCount: number;
+  scannedRows: number;
+  hasMore: boolean;
+}): number {
+  const requested = Math.max(0, Math.min(input.requestedLimit, 1000));
+  if (input.computeStaleCount <= 0 || requested <= 0) {
+    return 0;
+  }
+  const windowSize = Math.max(input.scannedRows, 1);
+  const windowSaturated =
+    input.hasMore && input.computeStaleCount >= Math.min(requested, windowSize);
+  if (windowSaturated) {
+    return Math.min(requested, ADAPTIVE_BACKPRESSURE_LIMIT);
+  }
+  return Math.min(requested, input.computeStaleCount);
+}
+
 export type ReIngestStaleResult = {
   scheduled: number;
   batches: number;
@@ -953,6 +988,10 @@ export type ReIngestStaleResult = {
   computeStaleCount: number;
   /** Rows selected under `mode` in this scan (before limit truncate for schedule). */
   matchedCount: number;
+  /** Adaptive schedule cap applied this pass (only set when `adaptive` is true). */
+  adaptiveLimit?: number;
+  /** Why this pass scheduled nothing despite being invoked. */
+  skippedReason?: "maintenance";
 };
 
 export const reIngestStaleResumes = internalAction({
@@ -963,11 +1002,35 @@ export const reIngestStaleResumes = internalAction({
     mode: v.optional(v.string()),
     /** When true, scan and count only — do not schedule processNewResumes */
     dryRun: v.optional(v.boolean()),
+    /** When true, cap the scheduled batch from scan-window saturation (FIX-C). */
+    adaptive: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<ReIngestStaleResult> => {
     const limit = Math.max(1, Math.min(args.limit ?? 200, 1000));
     const mode = resolveStaleSelectionMode(args.mode);
     const dryRun = args.dryRun === true;
+    const adaptive = args.adaptive === true;
+
+    const maintenance = await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {});
+    if (maintenance === true) {
+      return {
+        scheduled: 0,
+        batches: 0,
+        currentVersion: 0,
+        currentIngestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+        hasMore: false,
+        cursor: null,
+        mode,
+        dryRun,
+        scannedRows: 0,
+        skillsStaleCount: 0,
+        computeStaleCount: 0,
+        matchedCount: 0,
+        adaptiveLimit: adaptive ? 0 : undefined,
+        skippedReason: "maintenance",
+      };
+    }
+
     const bffUrl = getBffApiUrl();
     const versionHeaders: Record<string, string> = {
       Accept: "application/json",
@@ -1058,8 +1121,18 @@ export const reIngestStaleResumes = internalAction({
     }
 
     const hasMore = nextCursor !== null;
+    const adaptiveLimit = adaptive
+      ? resolveAdaptiveReingestLimit({
+        requestedLimit: limit,
+        computeStaleCount,
+        scannedRows,
+        hasMore,
+      })
+      : undefined;
+    const scheduleIds =
+      adaptiveLimit !== undefined ? resumeIds.slice(0, adaptiveLimit) : resumeIds;
 
-    if (dryRun || resumeIds.length === 0) {
+    if (dryRun || scheduleIds.length === 0) {
       return {
         scheduled: 0,
         batches: 0,
@@ -1073,18 +1146,19 @@ export const reIngestStaleResumes = internalAction({
         skillsStaleCount,
         computeStaleCount,
         matchedCount: Math.min(matchedCount, limit),
+        ...(adaptiveLimit !== undefined ? { adaptiveLimit } : {}),
       };
     }
 
-    for (let index = 0; index < resumeIds.length; index += batchSize) {
+    for (let index = 0; index < scheduleIds.length; index += PROCESS_NEW_RESUMES_BATCH_SIZE) {
       await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
-        resumeIds: resumeIds.slice(index, index + batchSize),
+        resumeIds: scheduleIds.slice(index, index + PROCESS_NEW_RESUMES_BATCH_SIZE),
       });
       batches += 1;
     }
 
     return {
-      scheduled: resumeIds.length,
+      scheduled: scheduleIds.length,
       batches,
       currentVersion,
       currentIngestComputeEpoch: currentEpoch,
@@ -1095,7 +1169,8 @@ export const reIngestStaleResumes = internalAction({
       scannedRows,
       skillsStaleCount,
       computeStaleCount,
-      matchedCount: resumeIds.length,
+      matchedCount: scheduleIds.length,
+      ...(adaptiveLimit !== undefined ? { adaptiveLimit } : {}),
     };
   },
 });

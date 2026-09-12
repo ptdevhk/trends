@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { processNewResumes, reIngestAllResumes, reIngestStaleResumes } from "../convex/ingest_agent";
+import {
+  PROCESS_NEW_RESUMES_BATCH_SIZE,
+  processNewResumes,
+  reIngestAllResumes,
+  reIngestStaleResumes,
+} from "../convex/ingest_agent";
 
 type ConvexHandler<TArgs, TResult> = {
   _handler: (ctx: unknown, args: TArgs) => Promise<TResult>
@@ -17,7 +22,7 @@ const reIngestAllResumesHandler = (reIngestAllResumes as unknown as ConvexHandle
 >)._handler
 
 const reIngestStaleResumesHandler = (reIngestStaleResumes as unknown as ConvexHandler<
-  { limit?: number; cursor?: string },
+  { limit?: number; cursor?: string; mode?: string; dryRun?: boolean; adaptive?: boolean },
   {
     scheduled: number
     batches: number
@@ -31,6 +36,8 @@ const reIngestStaleResumesHandler = (reIngestStaleResumes as unknown as ConvexHa
     skillsStaleCount: number
     computeStaleCount: number
     matchedCount: number
+    adaptiveLimit?: number
+    skippedReason?: string
   }
 >)._handler
 
@@ -89,7 +96,7 @@ describe("processNewResumes", () => {
     expect(result).toEqual({ processed: 0, error: null })
   })
 
-  it("returns error when BFF API returns non-OK status", async () => {
+  it("throws when BFF API returns non-OK status", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       makeBffResponse(500, { error: "internal" }),
     )
@@ -99,14 +106,12 @@ describe("processNewResumes", () => {
       },
     }
 
-    const result = await processNewResumesHandler(ctx as never, { resumeIds: ["r1"] })
-
-    expect(result.processed).toBe(0)
-    expect(result.error).toContain("BFF API error: 500")
+    await expect(processNewResumesHandler(ctx as never, { resumeIds: ["r1"] }))
+      .rejects.toThrow(/BFF API error: 500/)
     fetchSpy.mockRestore()
   })
 
-  it("returns error when BFF response is missing success/results", async () => {
+  it("throws when BFF response is missing success/results", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       makeBffResponse(200, { wrong: true }),
     )
@@ -116,10 +121,8 @@ describe("processNewResumes", () => {
       },
     }
 
-    const result = await processNewResumesHandler(ctx as never, { resumeIds: ["r1"] })
-
-    expect(result.processed).toBe(0)
-    expect(result.error).toContain("Invalid BFF response")
+    await expect(processNewResumesHandler(ctx as never, { resumeIds: ["r1"] }))
+      .rejects.toThrow(/Invalid BFF response/)
     fetchSpy.mockRestore()
   })
 
@@ -227,8 +230,9 @@ describe("processNewResumes", () => {
     const result = await processNewResumesHandler(ctx as never, { resumeIds: ["r1", "r2"] })
 
     expect(result).toEqual({ processed: 2, error: null })
-    expect(ingestMutations).toHaveLength(1)
-    expect(ingestMutations[0].updates).toHaveLength(2)
+    expect(ingestMutations).toHaveLength(2)
+    expect(ingestMutations[0].updates).toHaveLength(1)
+    expect(ingestMutations[1].updates).toHaveLength(1)
     const update0 = ingestMutations[0].updates[0] as Record<string, Record<string, unknown>>
     expect(update0.resumeId).toBe("r1")
     expect((update0.ingestData as Record<string, unknown>).market).toBe("tech")
@@ -244,7 +248,7 @@ describe("processNewResumes", () => {
       origin: "international",
       productClass: "complete_machine",
     }])
-    expect(ingestMutations[0].updates[1].resumeId).toBe("r2")
+    expect(ingestMutations[1].updates[0].resumeId).toBe("r2")
 
     // Verify audit log mutations were called for each processed resume (EU AI Act Art. 12)
     expect(auditLogMutations).toHaveLength(2)
@@ -266,7 +270,7 @@ describe("processNewResumes", () => {
     fetchSpy.mockRestore()
   })
 
-  it("handles network/fetch errors gracefully", async () => {
+  it("throws on network/fetch errors so scheduler does not mark success", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"))
     const ctx = {
       async runQuery() {
@@ -274,10 +278,8 @@ describe("processNewResumes", () => {
       },
     }
 
-    const result = await processNewResumesHandler(ctx as never, { resumeIds: ["r1"] })
-
-    expect(result.processed).toBe(0)
-    expect(result.error).toBe("network down")
+    await expect(processNewResumesHandler(ctx as never, { resumeIds: ["r1"] }))
+      .rejects.toThrow("network down")
     fetchSpy.mockRestore()
   })
 })
@@ -443,6 +445,7 @@ describe("reIngestStaleResumes", () => {
     expect(result.scheduled).toBe(2)
     expect(result.currentVersion).toBe(3)
     expect(result.hasMore).toBe(false)
+    expect(PROCESS_NEW_RESUMES_BATCH_SIZE).toBe(10)
     expect(scheduledPayloads).toEqual([
       { resumeIds: ["stale-1", "stale-2"] },
     ])
@@ -526,9 +529,9 @@ describe("reIngestStaleResumes", () => {
     expect(result.scheduled).toBe(75)
     expect(result.currentVersion).toBe(3)
     expect(result.hasMore).toBe(true)
-    // 75 stale = a single 100-row batch (scan page size raised to 100)
-    expect(scheduledPayloads).toHaveLength(1)
-    expect(scheduledPayloads[0].resumeIds).toHaveLength(75)
+    expect(scheduledPayloads).toHaveLength(8)
+    expect(scheduledPayloads[0].resumeIds).toHaveLength(PROCESS_NEW_RESUMES_BATCH_SIZE)
+    expect(scheduledPayloads.at(-1)?.resumeIds).toHaveLength(5)
     fetchSpy.mockRestore()
   })
 
@@ -574,7 +577,10 @@ describe("reIngestStaleResumes", () => {
 
     let queryCount = 0
     const ctx = {
-      async runQuery() {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
         queryCount += 1
         if (queryCount === 1) {
           return {
@@ -633,6 +639,9 @@ describe("reIngestStaleResumes", () => {
     } as const
     const ctx = {
       async runQuery(_fn: unknown, args: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
         queryArgs.push(args)
         const page = pages[args.cursor ?? "start"]
         return {
@@ -679,7 +688,10 @@ describe("reIngestStaleResumes", () => {
 
     let queryCount = 0
     const ctx = {
-      async runQuery() {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
         queryCount += 1
         if (queryCount === 1) {
           return {
@@ -773,6 +785,158 @@ describe("reIngestStaleResumes", () => {
       hasMore: true,
       cursor: "cursor:more",
     })
+    fetchSpy.mockRestore()
+  })
+
+  it("skips scheduling when maintenance mode is on", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      throw new Error("maintenance skip must not fetch skills-version")
+    })
+
+    const ctx = {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return true
+        }
+        return {
+          continueCursor: "",
+          isDone: true,
+          page: [
+            {
+              _id: "stale-1",
+              content: {},
+              ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+          ],
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 200,
+      mode: "compute",
+      adaptive: true,
+    })
+
+    expect(result).toMatchObject({
+      scheduled: 0,
+      batches: 0,
+      skippedReason: "maintenance",
+    })
+    expect(scheduledPayloads).toEqual([])
+    fetchSpy.mockRestore()
+  })
+
+  it("adaptive mode caps the schedule when the scan window is full of compute-stale rows", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 6 }),
+    )
+
+    const ctx = {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
+        return {
+          continueCursor: "cursor:more",
+          isDone: false,
+          page: Array.from({ length: args.limit ?? 100 }, (_, i) => ({
+            _id: `stale-${i}`,
+            content: {},
+            ingestData: { skillsVersion: 3, ingestComputeEpoch: 1 },
+            primaryRuleScore: 0,
+            searchText: "",
+          })),
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 200,
+      mode: "compute",
+      adaptive: true,
+    })
+
+    // Epoch-bump / full-window lag: bound Tantivy churn to 50 instead of 200.
+    expect(result.scheduled).toBe(50)
+    expect(result.adaptiveLimit).toBe(50)
+    expect(result.computeStaleCount).toBe(200)
+    expect(result.hasMore).toBe(true)
+    expect(result.skippedReason).toBeUndefined()
+    expect(scheduledPayloads.reduce((n, p) => n + p.resumeIds.length, 0)).toBe(50)
+    fetchSpy.mockRestore()
+  })
+
+  it("adaptive mode keeps the requested limit when the window is mixed", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeBffResponse(200, { version: 3, ingestComputeEpoch: 6 }),
+    )
+
+    const ctx = {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
+        return {
+          continueCursor: "",
+          isDone: true,
+          page: [
+            {
+              _id: "stale-1",
+              content: {},
+              ingestData: { skillsVersion: 3, ingestComputeEpoch: 1 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+            {
+              _id: "fresh-1",
+              content: {},
+              ingestData: { skillsVersion: 3, ingestComputeEpoch: 6 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+            {
+              _id: "stale-2",
+              content: {},
+              ingestData: { skillsVersion: 3, ingestComputeEpoch: 1 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+          ],
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 200,
+      mode: "compute",
+      adaptive: true,
+    })
+
+    expect(result.scheduled).toBe(2)
+    expect(result.adaptiveLimit).toBe(2)
+    expect(result.hasMore).toBe(false)
+    expect(scheduledPayloads).toEqual([{ resumeIds: ["stale-1", "stale-2"] }])
     fetchSpy.mockRestore()
   })
 })
