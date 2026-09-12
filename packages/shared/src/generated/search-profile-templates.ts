@@ -756,6 +756,226 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         }
       }
     }
+  },
+  {
+    "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 900000,
+    "profile": {
+      "id": "51job-cn-cmm-sales",
+      "name": "China 51job CMM & Metrology Sales",
+      "description": "China 51job coordinate measuring machine (CMM) and metrology sales search profile",
+      "createdAt": "2026-09-10",
+      "updatedAt": "2026-09-10",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "三坐标",
+        "销售"
+      ],
+      "filters": {
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ],
+        "salaryRange": {
+          "max": 35000
+        }
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "51job",
+          "enabled": true,
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 7,
+        "label": "China · 51job · CMM 销售",
+        "description": "三坐标, 销售 · China"
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 900000,
+    "profile": {
+      "id": "51job-cn-cmm-sales",
+      "name": "China 51job CMM & Metrology Sales",
+      "description": "China 51job coordinate measuring machine (CMM) and metrology sales search profile",
+      "createdAt": "2026-09-10",
+      "updatedAt": "2026-09-10",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "三坐标",
+        "销售"
+      ],
+      "filters": {
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ],
+        "salaryRange": {
+          "max": 35000
+        }
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "51job",
+          "enabled": true,
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 7,
+        "label": "China · 51job · CMM 销售",
+        "description": "三坐标, 销售 · China"
+      }
+    }
+  },
+  {
+    "workspaceSlug": "dev",
+    "seedLastRunOffsetMs": 900000,
+    "profile": {
+      "id": "51job-cn-3d-scanning-sales",
+      "name": "China 51job 3D Scanning Sales",
+      "description": "China 51job 3D scanner and optical inspection equipment sales search profile",
+      "createdAt": "2026-09-10",
+      "updatedAt": "2026-09-10",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "3D扫描仪",
+        "销售"
+      ],
+      "filters": {
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ],
+        "salaryRange": {
+          "max": 35000
+        }
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "51job",
+          "enabled": true,
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 8,
+        "label": "China · 51job · 3D扫描销售",
+        "description": "3D扫描仪, 销售 · China"
+      }
+    }
+  },
+  {
+    "workspaceSlug": "hr",
+    "seedLastRunOffsetMs": 900000,
+    "profile": {
+      "id": "51job-cn-3d-scanning-sales",
+      "name": "China 51job 3D Scanning Sales",
+      "description": "China 51job 3D scanner and optical inspection equipment sales search profile",
+      "createdAt": "2026-09-10",
+      "updatedAt": "2026-09-10",
+      "status": "active",
+      "location": "China",
+      "keywords": [
+        "3D扫描仪",
+        "销售"
+      ],
+      "filters": {
+        "minRoleYears": 1,
+        "roleFilterType": "sales",
+        "minAge": 25,
+        "maxAge": 40,
+        "locations": [
+          "China"
+        ],
+        "salaryRange": {
+          "max": 35000
+        }
+      },
+      "schedule": {
+        "enabled": false,
+        "cron": "0 9 * * 1-5",
+        "timezone": "Asia/Shanghai",
+        "maxCandidates": 50
+      },
+      "sources": [
+        {
+          "type": "51job",
+          "enabled": true,
+          "priority": 1,
+          "collectLimit": 50,
+          "maxPages": 1
+        },
+        {
+          "type": "job5156",
+          "enabled": false,
+          "priority": 2
+        }
+      ],
+      "quickStart": {
+        "enabled": true,
+        "rank": 8,
+        "label": "China · 51job · 3D扫描销售",
+        "description": "3D扫描仪, 销售 · China"
+      }
+    }
   }
 ];
 

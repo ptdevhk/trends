@@ -94,3 +94,52 @@ describe('MY/TH CNC Service Engineer talent-search profiles', () => {
     expect(decodedTh).not.toContain('Sales Engineer')
   })
 })
+
+describe('51job CN CMM and 3D scanning sales profiles', () => {
+  const IDS = ['51job-cn-cmm-sales', '51job-cn-3d-scanning-sales'] as const
+
+  it('seeds both 51job sales profiles for hr and dev without Seek URLs or CNC copy', () => {
+    const hr = getWorkspaceSearchProfileTemplates('hr')
+    const dev = getWorkspaceSearchProfileTemplates('dev')
+    const cmm = hr.find((t) => t.profile.id === '51job-cn-cmm-sales')
+    const scanning = hr.find((t) => t.profile.id === '51job-cn-3d-scanning-sales')
+
+    expect(cmm).toBeDefined()
+    expect(scanning).toBeDefined()
+    expect(dev.some((t) => t.profile.id === '51job-cn-cmm-sales')).toBe(true)
+    expect(dev.some((t) => t.profile.id === '51job-cn-3d-scanning-sales')).toBe(true)
+    expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.profile.id === '51job-cn-cmm-sales')).toBe(true)
+    expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.profile.id === '51job-cn-3d-scanning-sales')).toBe(true)
+
+    for (const template of [cmm, scanning]) {
+      expect(template?.profile.location).toBe('China')
+      expect(template?.profile.filters?.roleFilterType).toBe('sales')
+      expect(template?.profile.keywords).toContain('销售')
+      expect(template?.profile.keywords).not.toContain('CNC')
+      expect(template?.profile.quickStart?.label).not.toContain('CNC')
+      expect(template?.profile.quickStart?.description).not.toContain('CNC')
+      expect(template?.profile.schedule?.maxCandidates).toBe(50)
+
+      const enabled51job = template?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
+      expect(enabled51job?.collectLimit).toBe(50)
+      expect(enabled51job?.jobUrl).toBeUndefined()
+
+      const jobUrls = (template?.profile.sources ?? [])
+        .map((source) => source.jobUrl ?? '')
+        .join(' ')
+      expect(jobUrls).not.toContain('seek.com')
+    }
+
+    expect(cmm?.profile.keywords).toContain('三坐标')
+    expect(scanning?.profile.keywords).toContain('3D扫描仪')
+    expect(cmm?.profile.quickStart?.rank).toBe(7)
+    expect(scanning?.profile.quickStart?.rank).toBe(8)
+    expect(cmm?.profile.quickStart?.label).toBe('China · 51job · CMM 销售')
+    expect(scanning?.profile.quickStart?.label).toBe('China · 51job · 3D扫描销售')
+
+    expect(hr.some((t) => t.profile.id === '51job-cn-cnc-sales')).toBe(true)
+    expect(cmm?.profile.id).not.toBe('51job-cn-cnc-sales')
+    expect(scanning?.profile.id).not.toBe('51job-cn-cnc-sales')
+  })
+})
+

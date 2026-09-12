@@ -1,0 +1,45 @@
+id: 51job-cn-cmm-sales
+name: China 51job CMM & Metrology Sales
+description: China 51job coordinate measuring machine (CMM) and metrology sales search profile
+createdAt: "2026-09-10"
+updatedAt: "2026-09-10"
+status: active
+workspaceSlug: [dev, hr]
+seedLastRunOffsetMs: 900000
+
+location: China
+keywords:
+  - 三坐标
+  - 销售
+
+filters:
+  minRoleYears: 1
+  roleFilterType: sales
+  minAge: 25
+  maxAge: 40
+  locations:
+    - China
+  salaryRange:
+    max: 35000
+
+schedule:
+  enabled: false
+  cron: "0 9 * * 1-5"
+  timezone: Asia/Shanghai
+  maxCandidates: 50
+
+sources:
+  - type: 51job
+    enabled: true
+    priority: 1
+    collectLimit: 50
+    maxPages: 1
+  - type: job5156
+    enabled: false
+    priority: 2
+
+quickStart:
+  enabled: true
+  rank: 7
+  label: China · 51job · CMM 销售
+  description: 三坐标, 销售 · China
