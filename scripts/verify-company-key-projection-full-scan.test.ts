@@ -159,10 +159,10 @@ describe("Role and Target URL / Deployment reconciliation (Requirement 3)", () =
 });
 
 describe("Command construction & argument isolation (Requirement 4)", () => {
-  it("builds argv array without shell interpolation, enforcing dryRun=true", () => {
+  it("builds argv array without shell interpolation, calling resumes:fieldCoverage with batchSize", () => {
     const cmd = buildConvexRunCommandArgs({
-      functionName: "migrations:recomputeCompanyKeyProjections",
-      args: { limit: 100, cursor: "curs_1" },
+      functionName: "resumes:fieldCoverage",
+      args: { batchSize: 100, cursor: "curs_1" },
       options: {
         targetRole: "local",
         limit: 100,
@@ -179,13 +179,12 @@ describe("Command construction & argument isolation (Requirement 4)", () => {
     expect(cmd.file).toBe("npx");
     expect(cmd.args).toContain("convex");
     expect(cmd.args).toContain("run");
-    expect(cmd.args).toContain("migrations:recomputeCompanyKeyProjections");
+    expect(cmd.args).toContain("resumes:fieldCoverage");
 
     // Check JSON payload argument
-    const jsonArg = cmd.args[cmd.args.indexOf("migrations:recomputeCompanyKeyProjections") + 1];
+    const jsonArg = cmd.args[cmd.args.indexOf("resumes:fieldCoverage") + 1];
     const parsed = JSON.parse(jsonArg);
-    expect(parsed.dryRun).toBe(true);
-    expect(parsed.limit).toBe(100);
+    expect(parsed.batchSize).toBe(100);
     expect(parsed.cursor).toBe("curs_1");
 
     expect(cmd.args).toContain("--url");
@@ -202,8 +201,8 @@ describe("Command construction & argument isolation (Requirement 4)", () => {
     const maliciousEnv = ".env.test; touch /tmp/pwned";
 
     const cmd = buildConvexRunCommandArgs({
-      functionName: "migrations:recomputeCompanyKeyProjections",
-      args: { limit: 10 },
+      functionName: "resumes:fieldCoverage",
+      args: { batchSize: 10 },
       options: {
         targetRole: "local",
         limit: 10,
@@ -318,45 +317,35 @@ Some intermediate logs
 
 describe("Response schema strict validation (Requirement 1)", () => {
   const validPage = {
-    dryRun: true,
-    scheduled: 0,
-    batches: 0,
-    currentEpoch: 2,
+    scanned: 10,
+    currentCompanyKeyProjectionEpoch: 2,
+    missingCompanyKeyProjection: 0,
+    laggingCompanyKeyProjection: 0,
     hasMore: false,
     cursor: null,
-    scannedRows: 10,
-    staleCount: 0,
   };
 
   it("accepts a strictly valid response page", () => {
     expect(() => validateProjectionResponsePage(validPage, null)).not.toThrow();
   });
 
-  it("rejects dryRun !== true", () => {
-    expect(() => validateProjectionResponsePage({ ...validPage, dryRun: false }, null)).toThrow(/dryRun must be strictly true/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, dryRun: undefined }, null)).toThrow(/dryRun must be strictly true/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, dryRun: "true" }, null)).toThrow(/dryRun must be strictly true/i);
+  it("rejects non-integer, negative, or missing scanned, missingCompanyKeyProjection, or laggingCompanyKeyProjection", () => {
+    expect(() => validateProjectionResponsePage({ ...validPage, scanned: -1 }, null)).toThrow(/scanned must be a non-negative integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, scanned: 1.5 }, null)).toThrow(/scanned must be a non-negative integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, scanned: undefined }, null)).toThrow(/scanned must be a non-negative integer/i);
+
+    expect(() => validateProjectionResponsePage({ ...validPage, missingCompanyKeyProjection: -1 }, null)).toThrow(/missingCompanyKeyProjection must be a non-negative integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, missingCompanyKeyProjection: "0" }, null)).toThrow(/missingCompanyKeyProjection must be a non-negative integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, missingCompanyKeyProjection: undefined }, null)).toThrow(/missingCompanyKeyProjection must be a non-negative integer/i);
+
+    expect(() => validateProjectionResponsePage({ ...validPage, laggingCompanyKeyProjection: -1 }, null)).toThrow(/laggingCompanyKeyProjection must be a non-negative integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, laggingCompanyKeyProjection: undefined }, null)).toThrow(/laggingCompanyKeyProjection must be a non-negative integer/i);
   });
 
-  it("rejects non-zero scheduled or batches", () => {
-    expect(() => validateProjectionResponsePage({ ...validPage, scheduled: 1 }, null)).toThrow(/scheduled must be 0/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, batches: 1 }, null)).toThrow(/batches must be 0/i);
-  });
-
-  it("rejects non-integer, negative, or missing scannedRows or staleCount", () => {
-    expect(() => validateProjectionResponsePage({ ...validPage, scannedRows: -1 }, null)).toThrow(/scannedRows must be a non-negative integer/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, scannedRows: 1.5 }, null)).toThrow(/scannedRows must be a non-negative integer/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, scannedRows: undefined }, null)).toThrow(/scannedRows must be a non-negative integer/i);
-
-    expect(() => validateProjectionResponsePage({ ...validPage, staleCount: -1 }, null)).toThrow(/staleCount must be a non-negative integer/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, staleCount: "0" }, null)).toThrow(/staleCount must be a non-negative integer/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, staleCount: undefined }, null)).toThrow(/staleCount must be a non-negative integer/i);
-  });
-
-  it("requires finite currentEpoch and enforces consistency across pages", () => {
-    expect(() => validateProjectionResponsePage({ ...validPage, currentEpoch: undefined }, null)).toThrow(/currentEpoch must be a finite integer/i);
-    expect(() => validateProjectionResponsePage({ ...validPage, currentEpoch: 2 }, 2)).not.toThrow();
-    expect(() => validateProjectionResponsePage({ ...validPage, currentEpoch: 3 }, 2)).toThrow(/inconsistent currentEpoch across pages/i);
+  it("requires finite currentCompanyKeyProjectionEpoch and enforces consistency across pages", () => {
+    expect(() => validateProjectionResponsePage({ ...validPage, currentCompanyKeyProjectionEpoch: undefined }, null)).toThrow(/currentCompanyKeyProjectionEpoch must be a finite integer/i);
+    expect(() => validateProjectionResponsePage({ ...validPage, currentCompanyKeyProjectionEpoch: 2 }, 2)).not.toThrow();
+    expect(() => validateProjectionResponsePage({ ...validPage, currentCompanyKeyProjectionEpoch: 3 }, 2)).toThrow(/inconsistent currentCompanyKeyProjectionEpoch across pages/i);
   });
 
   it("enforces cursor semantics for hasMore=true vs hasMore=false", () => {
@@ -376,14 +365,12 @@ describe("Cursor safety & progression (Requirement 2)", () => {
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 10,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: true,
         cursor: null, // invalid: hasMore=true with null cursor
-        scannedRows: 10,
-        staleCount: 0,
       }),
       stderr: "",
     });
@@ -404,14 +391,12 @@ describe("Cursor safety & progression (Requirement 2)", () => {
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 10,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: true,
         cursor: "cycle_cursor_A",
-        scannedRows: 10,
-        staleCount: 0,
       }),
       stderr: "",
     });
@@ -431,14 +416,12 @@ describe("Cursor safety & progression (Requirement 2)", () => {
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 0,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: true,
         cursor: "cursor_stuck",
-        scannedRows: 0,
-        staleCount: 0,
       }),
       stderr: "",
     });
@@ -461,14 +444,12 @@ describe("Cursor safety & progression (Requirement 2)", () => {
       return {
         exitCode: 0,
         stdout: JSON.stringify({
-          dryRun: true,
-          scheduled: 0,
-          batches: 0,
-          currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+          scanned: 10,
+          currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+          missingCompanyKeyProjection: 0,
+          laggingCompanyKeyProjection: 0,
           hasMore: true,
           cursor: `cursor_page_${callIndex}`,
-          scannedRows: 10,
-          staleCount: 0,
         }),
         stderr: "",
       };
@@ -517,21 +498,19 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     }
   });
 
-  it("enforces dryRun: true in all invocations without exception", async () => {
-    const executedArgs: any[] = [];
+  it("invokes query resumes:fieldCoverage with read-only arguments", async () => {
+    const executedCalls: any[] = [];
     const mockExecutor: CommandExecutor = async (cmd) => {
-      executedArgs.push(cmd.args);
+      executedCalls.push(cmd);
       return {
         exitCode: 0,
         stdout: JSON.stringify({
-          dryRun: true,
-          scheduled: 0,
-          batches: 0,
-          currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+          scanned: 10,
+          currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+          missingCompanyKeyProjection: 0,
+          laggingCompanyKeyProjection: 0,
           hasMore: false,
           cursor: null,
-          scannedRows: 10,
-          staleCount: 0,
         }),
         stderr: "",
       };
@@ -543,41 +522,36 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     });
 
     expect(result.exitCode).toBe(EXIT_OK);
-    expect(executedArgs.length).toBe(1);
-    expect(executedArgs[0].dryRun).toBe(true);
+    expect(executedCalls.length).toBe(1);
+    expect(executedCalls[0].functionName).toBe("resumes:fieldCoverage");
+    expect(executedCalls[0].args.batchSize).toBe(100);
   });
 
   it("chains cursors across multiple pages and aggregates scannedRows, staleCount, pages", async () => {
     const pages = [
       {
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 100,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: true,
         cursor: "cursor_page_1",
-        scannedRows: 100,
-        staleCount: 0,
       },
       {
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 100,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: true,
         cursor: "cursor_page_2",
-        scannedRows: 100,
-        staleCount: 0,
       },
       {
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 42,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: false,
         cursor: null,
-        scannedRows: 42,
-        staleCount: 0,
       },
     ];
 
@@ -600,6 +574,8 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     expect(result.evidence.summary.pages).toBe(3);
     expect(result.evidence.summary.scannedRows).toBe(242);
     expect(result.evidence.summary.staleCount).toBe(0);
+    expect(result.evidence.summary.missingCount).toBe(0);
+    expect(result.evidence.summary.laggingCount).toBe(0);
     expect(result.evidence.summary.scanComplete).toBe(true);
     expect(result.evidence.status).toBe("clean");
     expect(result.evidence.targetEpoch).toBe(CURRENT_COMPANY_KEY_PROJECTION_EPOCH);
@@ -610,18 +586,16 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     expect(result.evidence.appVersion).toBe(resolveAppVersion());
   });
 
-  it("exits with EXIT_STALE_ROWS_DETECTED (exit 2) when scan finishes with staleCount > 0", async () => {
+  it("exits with EXIT_STALE_ROWS_DETECTED (exit 2) when scan finishes with missing or lagging projections", async () => {
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 50,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 2,
+        laggingCompanyKeyProjection: 1,
         hasMore: false,
         cursor: null,
-        scannedRows: 50,
-        staleCount: 3,
       }),
       stderr: "",
     });
@@ -633,6 +607,8 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
 
     expect(result.exitCode).toBe(EXIT_STALE_ROWS_DETECTED);
     expect(result.evidence.summary.staleCount).toBe(3);
+    expect(result.evidence.summary.missingCount).toBe(2);
+    expect(result.evidence.summary.laggingCount).toBe(1);
     expect(result.evidence.summary.scanComplete).toBe(true);
     expect(result.evidence.status).toBe("stale_detected");
   });
@@ -641,14 +617,12 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH - 1,
+        scanned: 10,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH - 1,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: false,
         cursor: null,
-        scannedRows: 10,
-        staleCount: 0,
       }),
       stderr: "",
     });
@@ -671,14 +645,12 @@ describe("runFullScan execution & evidence contracts (Requirements 1, 6, 7)", ()
     const mockExecutor: CommandExecutor = async () => ({
       exitCode: 0,
       stdout: JSON.stringify({
-        dryRun: true,
-        scheduled: 0,
-        batches: 0,
-        currentEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        scanned: 5,
+        currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+        missingCompanyKeyProjection: 0,
+        laggingCompanyKeyProjection: 0,
         hasMore: false,
         cursor: null,
-        scannedRows: 5,
-        staleCount: 0,
       }),
       stderr: "",
     });

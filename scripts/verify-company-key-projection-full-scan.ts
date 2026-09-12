@@ -2,10 +2,11 @@
 /**
  * Reusable READ-ONLY full-cursor company-key projection evidence wrapper.
  *
- * Walks the resume corpus by repeatedly calling `migrations:recomputeCompanyKeyProjections`
- * with `dryRun: true` and chaining pagination cursors until `hasMore: false`.
+ * Walks the resume corpus by repeatedly calling the public, read-only
+ * `resumes:fieldCoverage` query with small pages and chaining cursors until
+ * `hasMore: false`.
  *
- * Never invokes write mode. Enforces dryRun=true in every batch payload.
+ * Never invokes an action or mutation.
  *
  * Exit codes:
  *   0 - Clean scan complete: full corpus traversed to hasMore=false, staleCount == 0.
@@ -63,8 +64,8 @@ export interface FullScanEvidenceSummary {
   pages: number;
   scannedRows: number;
   staleCount: number;
-  scheduledCount: number;
-  batchesCount: number;
+  missingCount: number;
+  laggingCount: number;
   scanComplete: boolean;
 }
 
@@ -99,14 +100,12 @@ export interface RunFullScanResult {
 }
 
 export interface ProjectionResponsePage {
-  dryRun: boolean;
-  scheduled: number;
-  batches: number;
-  currentEpoch: number;
+  currentCompanyKeyProjectionEpoch: number;
   hasMore: boolean;
   cursor: string | null;
-  scannedRows: number;
-  staleCount: number;
+  scanned: number;
+  missingCompanyKeyProjection: number;
+  laggingCompanyKeyProjection: number;
 }
 
 /**
@@ -311,16 +310,11 @@ export function buildConvexRunCommandArgs(params: {
   args: Record<string, unknown>;
   options: FullScanCliOptions;
 }): { file: string; args: string[] } {
-  const safePayload = {
-    ...params.args,
-    dryRun: true, // Invariant: dryRun is unconditionally true
-  };
-
   const commandArgs = [
     "convex",
     "run",
     params.functionName,
-    JSON.stringify(safePayload),
+    JSON.stringify(params.args),
   ];
 
   if (params.options.convexUrl) {
@@ -468,37 +462,49 @@ export function validateProjectionResponsePage(
 
   const p = page as Record<string, unknown>;
 
-  if (p.dryRun !== true) {
-    throw new Error(`Response dryRun must be strictly true; received ${p.dryRun}`);
-  }
-
-  if (p.scheduled !== 0) {
-    throw new Error(`Response scheduled must be 0 in dry-run mode; received ${p.scheduled}`);
-  }
-
-  if (p.batches !== 0) {
-    throw new Error(`Response batches must be 0 in dry-run mode; received ${p.batches}`);
-  }
-
   if (typeof p.hasMore !== "boolean") {
     throw new Error(`Response hasMore must be a boolean; received ${typeof p.hasMore}`);
   }
 
-  if (typeof p.scannedRows !== "number" || !Number.isInteger(p.scannedRows) || p.scannedRows < 0) {
-    throw new Error(`Response scannedRows must be a non-negative integer; received ${p.scannedRows}`);
+  if (typeof p.scanned !== "number" || !Number.isInteger(p.scanned) || p.scanned < 0) {
+    throw new Error(`Response scanned must be a non-negative integer; received ${p.scanned}`);
   }
 
-  if (typeof p.staleCount !== "number" || !Number.isInteger(p.staleCount) || p.staleCount < 0) {
-    throw new Error(`Response staleCount must be a non-negative integer; received ${p.staleCount}`);
-  }
-
-  if (typeof p.currentEpoch !== "number" || !Number.isInteger(p.currentEpoch)) {
-    throw new Error(`Response currentEpoch must be a finite integer; received ${p.currentEpoch}`);
-  }
-
-  if (expectedEpoch !== null && p.currentEpoch !== expectedEpoch) {
+  if (
+    typeof p.missingCompanyKeyProjection !== "number"
+    || !Number.isInteger(p.missingCompanyKeyProjection)
+    || p.missingCompanyKeyProjection < 0
+  ) {
     throw new Error(
-      `Inconsistent currentEpoch across pages: expected ${expectedEpoch}, received ${p.currentEpoch}`,
+      `Response missingCompanyKeyProjection must be a non-negative integer; received ${p.missingCompanyKeyProjection}`,
+    );
+  }
+
+  if (
+    typeof p.laggingCompanyKeyProjection !== "number"
+    || !Number.isInteger(p.laggingCompanyKeyProjection)
+    || p.laggingCompanyKeyProjection < 0
+  ) {
+    throw new Error(
+      `Response laggingCompanyKeyProjection must be a non-negative integer; received ${p.laggingCompanyKeyProjection}`,
+    );
+  }
+
+  if (
+    typeof p.currentCompanyKeyProjectionEpoch !== "number"
+    || !Number.isInteger(p.currentCompanyKeyProjectionEpoch)
+  ) {
+    throw new Error(
+      `Response currentCompanyKeyProjectionEpoch must be a finite integer; received ${p.currentCompanyKeyProjectionEpoch}`,
+    );
+  }
+
+  if (
+    expectedEpoch !== null
+    && p.currentCompanyKeyProjectionEpoch !== expectedEpoch
+  ) {
+    throw new Error(
+      `Inconsistent currentCompanyKeyProjectionEpoch across pages: expected ${expectedEpoch}, received ${p.currentCompanyKeyProjectionEpoch}`,
     );
   }
 
@@ -513,14 +519,12 @@ export function validateProjectionResponsePage(
   }
 
   return {
-    dryRun: p.dryRun as boolean,
-    scheduled: p.scheduled as number,
-    batches: p.batches as number,
-    currentEpoch: p.currentEpoch as number,
+    currentCompanyKeyProjectionEpoch: p.currentCompanyKeyProjectionEpoch as number,
     hasMore: p.hasMore as boolean,
     cursor: (p.cursor as string | null) ?? null,
-    scannedRows: p.scannedRows as number,
-    staleCount: p.staleCount as number,
+    scanned: p.scanned as number,
+    missingCompanyKeyProjection: p.missingCompanyKeyProjection as number,
+    laggingCompanyKeyProjection: p.laggingCompanyKeyProjection as number,
   };
 }
 
@@ -595,8 +599,8 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
             pages: 0,
             scannedRows: 0,
             staleCount: 0,
-            scheduledCount: 0,
-            batchesCount: 0,
+            missingCount: 0,
+            laggingCount: 0,
             scanComplete: false,
           },
           errors: [errMsg],
@@ -634,8 +638,8 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
         pages: 0,
         scannedRows: 0,
         staleCount: 0,
-        scheduledCount: 0,
-        batchesCount: 0,
+        missingCount: 0,
+        laggingCount: 0,
         scanComplete: false,
       },
       errors: [errorMsg],
@@ -651,9 +655,8 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
   let hasMore = true;
   let pageCount = 0;
   let totalScannedRows = 0;
-  let totalStaleCount = 0;
-  let totalScheduled = 0;
-  let totalBatches = 0;
+  let totalMissingCount = 0;
+  let totalLaggingCount = 0;
   let detectedEpoch: number | null = null;
   let scanComplete = false;
   const seenCursors = new Set<string>();
@@ -686,15 +689,14 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
     pageCount++;
 
     const callArgs: Record<string, unknown> = {
-      limit: options.pageSize,
-      dryRun: true,
+      batchSize: options.pageSize,
       ...(cursor ? { cursor } : {}),
     };
 
     let result: CommandExecutionResult;
     try {
       result = await executor({
-        functionName: "migrations:recomputeCompanyKeyProjections",
+        functionName: "resumes:fieldCoverage",
         args: callArgs,
         options,
         resolvedConvexDir: convexDir,
@@ -737,13 +739,12 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
       break;
     }
 
-    detectedEpoch = page.currentEpoch;
-    totalScannedRows += page.scannedRows;
-    totalStaleCount += page.staleCount;
-    totalScheduled += page.scheduled;
-    totalBatches += page.batches;
+    detectedEpoch = page.currentCompanyKeyProjectionEpoch;
+    totalScannedRows += page.scanned;
+    totalMissingCount += page.missingCompanyKeyProjection;
+    totalLaggingCount += page.laggingCompanyKeyProjection;
 
-    if (page.hasMore && page.scannedRows === 0) {
+    if (page.hasMore && page.scanned === 0) {
       const msg = "Scan aborted: No progress made (scannedRows=0 while hasMore=true).";
       errors.push(msg);
       status = "incomplete_scan";
@@ -760,6 +761,7 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
     cursor = page.cursor;
   }
 
+  const totalStaleCount = totalMissingCount + totalLaggingCount;
   const finishedAt = new Date();
 
   if (scanComplete) {
@@ -797,8 +799,8 @@ export async function runFullScan(params: RunFullScanParams): Promise<RunFullSca
       pages: pageCount,
       scannedRows: totalScannedRows,
       staleCount: totalStaleCount,
-      scheduledCount: totalScheduled,
-      batchesCount: totalBatches,
+      missingCount: totalMissingCount,
+      laggingCount: totalLaggingCount,
       scanComplete,
     },
     ...(errors.length > 0 ? { errors } : {}),
@@ -897,7 +899,7 @@ Required:
   --target-role <role>   Role of target deployment: 'local', 'preview', or 'production'
 
 Options:
-  --limit <n>            Page limit per call (default: 200)
+  --limit <n>            Read-only query page size per call (default: 200)
   --max-pages <n>        Maximum pages to traverse (default: 100)
   --convex-url <url>     Convex deployment URL (or CONVEX_URL env)
   --deployment <sel>     Convex deployment selector (e.g. dev, preview, or deployment name)
@@ -958,6 +960,8 @@ async function main() {
     console.log(`  Pages:        ${evidence.summary.pages}`);
     console.log(`  Scanned Rows: ${evidence.summary.scannedRows}`);
     console.log(`  Stale Count:  ${evidence.summary.staleCount}`);
+    console.log(`  Missing:      ${evidence.summary.missingCount}`);
+    console.log(`  Lagging:      ${evidence.summary.laggingCount}`);
     console.log(`  Scan Complete:${evidence.summary.scanComplete}`);
     if (evidence.errors && evidence.errors.length > 0) {
       console.error(`  Errors:`);
