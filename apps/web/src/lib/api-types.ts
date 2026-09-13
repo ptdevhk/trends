@@ -5617,6 +5617,7 @@ export interface paths {
                         /** @enum {string} */
                         mode?: "skills" | "compute" | "any";
                         dryRun?: boolean;
+                        adaptive?: boolean;
                     };
                 };
             };
@@ -5641,6 +5642,7 @@ export interface paths {
                             skillsStaleCount?: number;
                             computeStaleCount?: number;
                             matchedCount?: number;
+                            adaptiveLimit?: number;
                             processed?: number;
                             skipped?: number;
                         };
