@@ -6,6 +6,7 @@ import { v } from "convex/values";
 
 import {
     computeVerifiedRoleYears,
+    CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
     CURRENT_INGEST_COMPUTE_EPOCH,
     isRecord,
 } from "@trends/shared";
@@ -347,7 +348,10 @@ export const fieldCoverage = query({
         let hasVerifiedRoleYears = 0;
         let missingIngestComputeEpoch = 0;
         let laggingIngestComputeEpoch = 0;
+        let missingCompanyKeyProjection = 0;
+        let laggingCompanyKeyProjection = 0;
         const currentEpoch = CURRENT_INGEST_COMPUTE_EPOCH;
+        const currentCompanyKeyProjectionEpoch = CURRENT_COMPANY_KEY_PROJECTION_EPOCH;
 
         for (const resume of resumes.page) {
             if (!resume.searchText) {
@@ -359,6 +363,17 @@ export const fieldCoverage = query({
             } else if (epoch < currentEpoch) {
                 laggingIngestComputeEpoch += 1;
             }
+
+            // Exclude archived rows from stale projection counts, matching the projection drain.
+            if (resume.isArchived !== true) {
+                const proj = resume.companyKeyProjection;
+                if (!proj || typeof proj.epoch !== "number" || !Number.isFinite(proj.epoch)) {
+                    missingCompanyKeyProjection += 1;
+                } else if (proj.epoch < currentCompanyKeyProjectionEpoch) {
+                    laggingCompanyKeyProjection += 1;
+                }
+            }
+
             if (resume.ingestData?.roleSignals && resume.ingestData.roleSignals.length > 0) {
                 hasRoleSignals += 1;
                 const computed = computeVerifiedRoleYears(resume.ingestData.roleSignals);
@@ -380,6 +395,9 @@ export const fieldCoverage = query({
             hasVerifiedRoleYears,
             missingIngestComputeEpoch,
             laggingIngestComputeEpoch,
+            currentCompanyKeyProjectionEpoch,
+            missingCompanyKeyProjection,
+            laggingCompanyKeyProjection,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };

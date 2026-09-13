@@ -339,6 +339,15 @@ export function SearchResultsList({
     </Suspense>
   ) : null
 
+  const unverifiedLaneSection = (
+    <UnverifiedLaneSection
+      lane={unverifiedLane}
+      onToggle={onToggleUnverifiedLane}
+      canReview={showIndustryEvidenceReviewGuidance}
+      reviewHref={verifiedOnlyReviewHref}
+    />
+  )
+
   useEffect(() => {
     const updateScrollMargin = () => {
       setScrollMargin(listRef.current?.offsetTop ?? 0)
@@ -574,6 +583,7 @@ export function SearchResultsList({
             </div>
           ) : undefined}
         />
+        {unverifiedLaneSection}
         {detailDialog}
       </>
     )
@@ -705,12 +715,7 @@ export function SearchResultsList({
           ) : null}
         </div>
       ) : null}
-      <UnverifiedLaneSection
-        lane={unverifiedLane}
-        onToggle={onToggleUnverifiedLane}
-        canReview={showIndustryEvidenceReviewGuidance}
-        reviewHref={verifiedOnlyReviewHref}
-      />
+      {unverifiedLaneSection}
       {shouldVirtualize ? (
         <div
           className="relative"

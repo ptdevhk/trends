@@ -57,6 +57,9 @@ const FieldCoverageResponseSchema = z.object({
   missingIngestComputeEpoch: z.number().int(),
   laggingIngestComputeEpoch: z.number().int(),
   currentIngestComputeEpoch: z.number().int(),
+  currentCompanyKeyProjectionEpoch: z.number().int(),
+  missingCompanyKeyProjection: z.number().int(),
+  laggingCompanyKeyProjection: z.number().int(),
 });
 const SearchFreshnessResponseSchema = z.object({
   success: z.literal(true),
@@ -644,6 +647,9 @@ app.openapi(getFieldCoverageRoute, async (c) => {
     missingIngestComputeEpoch: 0,
     laggingIngestComputeEpoch: 0,
     currentIngestComputeEpoch: CURRENT_INGEST_COMPUTE_EPOCH,
+    currentCompanyKeyProjectionEpoch: CURRENT_COMPANY_KEY_PROJECTION_EPOCH,
+    missingCompanyKeyProjection: 0,
+    laggingCompanyKeyProjection: 0,
   };
   let cursor: string | null = null;
 
@@ -658,6 +664,9 @@ app.openapi(getFieldCoverageRoute, async (c) => {
       hasRoleSignals: number;
       missingIngestComputeEpoch?: number;
       laggingIngestComputeEpoch?: number;
+      currentCompanyKeyProjectionEpoch?: number;
+      missingCompanyKeyProjection?: number;
+      laggingCompanyKeyProjection?: number;
       hasMore: boolean;
       cursor: string | null;
     };
@@ -667,6 +676,11 @@ app.openapi(getFieldCoverageRoute, async (c) => {
     total.hasRoleSignals += batch.hasRoleSignals;
     total.missingIngestComputeEpoch += batch.missingIngestComputeEpoch ?? 0;
     total.laggingIngestComputeEpoch += batch.laggingIngestComputeEpoch ?? 0;
+    total.missingCompanyKeyProjection += batch.missingCompanyKeyProjection ?? 0;
+    total.laggingCompanyKeyProjection += batch.laggingCompanyKeyProjection ?? 0;
+    if (typeof batch.currentCompanyKeyProjectionEpoch === "number") {
+      total.currentCompanyKeyProjectionEpoch = batch.currentCompanyKeyProjectionEpoch;
+    }
 
     if (!batch.hasMore) break;
     cursor = batch.cursor;

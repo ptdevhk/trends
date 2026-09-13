@@ -175,6 +175,53 @@ describe("resumes: fieldCoverage", () => {
         expect(result.hasRoleSignals).toBe(1);
         expect(result.hasVerifiedRoleYears).toBe(1);
     });
+
+    it("counts missing and lagging companyKeyProjection, excluding archived rows from stale counts", async () => {
+        const t = convexTest(schema, modules);
+
+        // 1. Fresh resume (matching CURRENT_COMPANY_KEY_PROJECTION_EPOCH)
+        await seedResume(t, {
+            externalId: "fresh-1",
+            identityKey: "profileUrl:example.com/fresh-1",
+            companyKeyProjection: { epoch: 2, companyKeys: ["acme"], companyTokens: ["acme"] },
+        });
+
+        // 2. Missing projection (active)
+        await seedResume(t, {
+            externalId: "missing-1",
+            identityKey: "profileUrl:example.com/missing-1",
+            companyKeyProjection: undefined,
+        });
+
+        // 3. Lagging projection (active)
+        await seedResume(t, {
+            externalId: "lagging-1",
+            identityKey: "profileUrl:example.com/lagging-1",
+            companyKeyProjection: { epoch: 1, companyKeys: ["old"], companyTokens: ["old"] },
+        });
+
+        // 4. Archived resume without projection (should NOT count towards missing/lagging)
+        await seedResume(t, {
+            externalId: "archived-missing",
+            identityKey: "profileUrl:example.com/archived-missing",
+            isArchived: true,
+            companyKeyProjection: undefined,
+        });
+
+        // 5. Archived resume with lagging projection (should NOT count towards missing/lagging)
+        await seedResume(t, {
+            externalId: "archived-lagging",
+            identityKey: "profileUrl:example.com/archived-lagging",
+            isArchived: true,
+            companyKeyProjection: { epoch: 1, companyKeys: ["old"], companyTokens: ["old"] },
+        });
+
+        const result = await t.query(api.resumes.fieldCoverage, {});
+        expect(result.scanned).toBe(5);
+        expect(result.currentCompanyKeyProjectionEpoch).toBe(2);
+        expect(result.missingCompanyKeyProjection).toBe(1);
+        expect(result.laggingCompanyKeyProjection).toBe(1);
+    });
 });
 
 describe("resumes: archiveResumes", () => {

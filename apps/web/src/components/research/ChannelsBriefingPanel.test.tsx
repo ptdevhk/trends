@@ -94,6 +94,43 @@ describe('ChannelsBriefingPanel', () => {
     expect(postMock).not.toHaveBeenCalled()
   })
 
+  it('keeps generate disabled and explains invalid or excessive Channels URLs without POSTing', () => {
+    render(
+      <MemoryRouter>
+        <ChannelsBriefingPanel />
+      </MemoryRouter>,
+    )
+
+    const textarea = screen.getByTestId('research-channels-briefing-textarea')
+    const generate = screen.getByTestId('research-channels-briefing-generate')
+
+    fireEvent.change(textarea, {
+      target: {
+        value: `${CHANNELS_BRIEFING_GOLDEN_URLS[0]}\nhttps://example.com/not-channels`,
+      },
+    })
+
+    expect(generate).toBeDisabled()
+    expect(screen.getByTestId('research-channels-briefing-validation')).toHaveTextContent(
+      /Paste 1 to 8 valid WeChat Channels share links|请粘贴 1 至 8 条有效的微信视频号分享链接/,
+    )
+    fireEvent.click(generate)
+    expect(postMock).not.toHaveBeenCalled()
+
+    fireEvent.change(textarea, {
+      target: {
+        value: Array.from(
+          { length: 9 },
+          (_, index) => `https://weixin.qq.com/sph/Valid${index}`,
+        ).join('\n'),
+      },
+    })
+
+    expect(generate).toBeDisabled()
+    expect(screen.getByTestId('research-channels-briefing-validation')).toBeInTheDocument()
+    expect(postMock).not.toHaveBeenCalled()
+  })
+
   it('renders snap-x sample cards with category and title', () => {
     render(
       <MemoryRouter>

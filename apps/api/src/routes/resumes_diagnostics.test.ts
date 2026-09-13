@@ -1327,6 +1327,9 @@ describe("resumes_diagnostics", () => {
           hasRoleSignals: 150,
           missingIngestComputeEpoch: 40,
           laggingIngestComputeEpoch: 2,
+          currentCompanyKeyProjectionEpoch: 2,
+          missingCompanyKeyProjection: 15,
+          laggingCompanyKeyProjection: 3,
           hasMore: false,
           cursor: null,
         }),
@@ -1343,6 +1346,9 @@ describe("resumes_diagnostics", () => {
         missingIngestComputeEpoch: number;
         laggingIngestComputeEpoch: number;
         currentIngestComputeEpoch: number;
+        currentCompanyKeyProjectionEpoch: number;
+        missingCompanyKeyProjection: number;
+        laggingCompanyKeyProjection: number;
       }>(response);
       expect(payload.success).toBe(true);
       expect(payload.scanned).toBe(200);
@@ -1350,6 +1356,9 @@ describe("resumes_diagnostics", () => {
       expect(payload.laggingIngestComputeEpoch).toBe(2);
       expect(payload.currentIngestComputeEpoch).toBeGreaterThanOrEqual(1);
       expect(payload.missingSearchText).toBe(10);
+      expect(payload.currentCompanyKeyProjectionEpoch).toBe(2);
+      expect(payload.missingCompanyKeyProjection).toBe(15);
+      expect(payload.laggingCompanyKeyProjection).toBe(3);
     });
 
     it("aggregates across multiple pages", async () => {
@@ -1362,6 +1371,9 @@ describe("resumes_diagnostics", () => {
             missingSearchText: 10,
             missingVerifiedRoleYears: 5,
             hasRoleSignals: 150,
+            missingCompanyKeyProjection: 4,
+            laggingCompanyKeyProjection: 1,
+            currentCompanyKeyProjectionEpoch: 2,
             hasMore: true,
             cursor: "page2",
           });
@@ -1371,6 +1383,9 @@ describe("resumes_diagnostics", () => {
           missingSearchText: 2,
           missingVerifiedRoleYears: 1,
           hasRoleSignals: 80,
+          missingCompanyKeyProjection: 2,
+          laggingCompanyKeyProjection: 5,
+          currentCompanyKeyProjectionEpoch: 2,
           hasMore: false,
           cursor: null,
         });
@@ -1380,9 +1395,18 @@ describe("resumes_diagnostics", () => {
       const response = await app.request("/api/resumes/field-coverage");
 
       expect(response.status).toBe(200);
-      const payload = await parseJsonBody<{ scanned: number; missingSearchText: number }>(response);
+      const payload = await parseJsonBody<{
+        scanned: number;
+        missingSearchText: number;
+        missingCompanyKeyProjection: number;
+        laggingCompanyKeyProjection: number;
+        currentCompanyKeyProjectionEpoch: number;
+      }>(response);
       expect(payload.scanned).toBe(300);
       expect(payload.missingSearchText).toBe(12);
+      expect(payload.missingCompanyKeyProjection).toBe(6);
+      expect(payload.laggingCompanyKeyProjection).toBe(6);
+      expect(payload.currentCompanyKeyProjectionEpoch).toBe(2);
       expect(callCount).toBe(2);
     });
   });

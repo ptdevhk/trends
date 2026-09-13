@@ -22,7 +22,9 @@ const UNVERIFIED_LANE_STRINGS: Record<string, string> = {
 }
 
 const mockT = (key: string, opts?: Record<string, unknown>) => {
-  const value = UNVERIFIED_LANE_STRINGS[key]
+  const value =
+    UNVERIFIED_LANE_STRINGS[key] ??
+    (typeof opts?.defaultValue === 'string' ? opts.defaultValue : undefined)
   if (typeof value === 'string' && opts) {
     return value.replace(/\{\{(\w+)\}\}/g, (_, token: string) =>
       token in opts ? String(opts[token]) : `{{${token}}}`)
@@ -35,6 +37,10 @@ const authState: { memberships: Array<Record<string, string>> } = { memberships:
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockT }),
+}))
+
+vi.mock('@/components/search/SnippetCard', () => ({
+  SnippetCard: () => <div data-testid="strict-result-card" />,
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -224,5 +230,30 @@ describe('UnverifiedLaneSection', () => {
       }),
     )
     expect(screen.queryByTestId('unverified-lane-truncated')).not.toBeInTheDocument()
+  })
+
+  it('renders both strict empty state and unverified lane when items is empty and lane is active', () => {
+    const onToggle = vi.fn()
+    render(
+      <SearchResultsList
+        hasMore={false}
+        items={[]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        unverifiedLane={buildLane({
+          estimatedCount: 5,
+          expanded: false,
+        })}
+        onToggleUnverifiedLane={onToggle}
+      />,
+    )
+
+    const emptyTitle = screen.getByText('没有符合该搜索条件的简历')
+    const laneSection = screen.getByTestId('unverified-lane-section')
+    expect(emptyTitle).toBeInTheDocument()
+    expect(laneSection).toBeInTheDocument()
+
+    // Preserves strict-empty-before-lane ordering
+    expect(emptyTitle.compareDocumentPosition(laneSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
