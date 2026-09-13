@@ -249,7 +249,8 @@ else
   pass "gate derives paced calls from REINGEST_LIMIT"
 fi
 grep -q 'payload_obj\["cursor"\] = cursor' "$ROOT/deploy/search-freshness-gate.sh" \
-  && pass "gate sends the server continuation cursor"
+  && pass "gate sends the server continuation cursor" \
+  || fail "gate does not send the server continuation cursor"
 
 # FIX-C parity: paced operator reingest must request adaptive schedule cap
 if grep -Fq '"adaptive": True' "$ROOT/deploy/search-freshness-gate.sh"; then
@@ -257,8 +258,6 @@ if grep -Fq '"adaptive": True' "$ROOT/deploy/search-freshness-gate.sh"; then
 else
   fail "gate paced reingest missing adaptive:true (FIX-C parity with cron)"
 fi
- \
-  || fail "gate does not send the server continuation cursor"
 grep -q 'next_cursor = out.get("cursor")' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate advances to the returned continuation cursor" \
   || fail "gate does not advance the continuation cursor"
