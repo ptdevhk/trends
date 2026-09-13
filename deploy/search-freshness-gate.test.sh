@@ -225,7 +225,25 @@ grep -q 'node_rc' "$ROOT/deploy/search-freshness-gate.sh" && pass "node diagnose
 
 # Cursor-paced reingest + strict lag: prevent duplicate scheduling and greenwash
 grep -q 'REINGEST_BATCH' "$ROOT/deploy/search-freshness-gate.sh" \
-  && pass "gate paces reingest via REINGEST_BATCH" \
+  && pass "gate paces reingest via REINGEST_BATCH"
+
+# epoch-6 safe pacing defaults
+if grep -Eq 'REINGEST_BATCH=\"\$\{REINGEST_BATCH:-10\}\"' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate default REINGEST_BATCH=10"
+else
+  fail "gate default REINGEST_BATCH should be 10 (epoch-6 pacing)"
+fi
+if grep -Eq 'REINGEST_SLEEP_SECS=\"\$\{REINGEST_SLEEP_SECS:-15\}\"' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate default REINGEST_SLEEP_SECS=15"
+else
+  fail "gate default REINGEST_SLEEP_SECS should be 15 (epoch-6 pacing)"
+fi
+if grep -Fq '"maxScanPages": 3' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate sends maxScanPages:3 on paced trigger-reingest"
+else
+  fail "gate paced reingest missing maxScanPages:3"
+fi
+ \
   || fail "gate missing REINGEST_BATCH paced reingest"
 if grep -q 'REINGEST_PASSES' "$ROOT/deploy/search-freshness-gate.sh"; then
   fail "gate still caps cursor progress with REINGEST_PASSES"
