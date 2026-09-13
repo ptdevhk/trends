@@ -1252,6 +1252,8 @@ export const reIngestStaleSkillsVersion = action({
         dryRun: v.optional(v.boolean()),
         /** Match cron FIX-C: pass through to reIngestStaleResumes adaptive schedule cap. */
         adaptive: v.optional(v.boolean()),
+        /** Max listResumeScanBatch pages per invoke (epoch-6 cursor-anchored pacing). */
+        maxScanPages: v.optional(v.number()),
     },
     handler: async (ctx, args): Promise<ReIngestStaleSkillsVersionResult> => {
         return await ctx.runAction(internal.ingest_agent.reIngestStaleResumes, {
@@ -1260,6 +1262,7 @@ export const reIngestStaleSkillsVersion = action({
             mode: args.mode,
             dryRun: args.dryRun,
             adaptive: args.adaptive,
+            maxScanPages: args.maxScanPages,
         });
     },
 });

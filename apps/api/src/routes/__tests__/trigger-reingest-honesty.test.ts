@@ -267,6 +267,63 @@ describe("trigger-reingest honesty (F4/F5)", () => {
       hasMore: true,
     });
     expect(fetchSpy).toHaveBeenCalled();
+  }
+  it("passes maxScanPages through to Convex", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadModules(root);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        path?: string;
+        args?: Record<string, unknown>;
+      };
+      if (body.path === "migrations:reIngestStaleSkillsVersion") {
+        expect(body.args).toMatchObject({
+          limit: 25,
+          mode: "compute",
+          dryRun: true,
+          maxScanPages: 2,
+        });
+        return convexSuccess({
+          scheduled: 0,
+          batches: 0,
+          currentVersion: 1,
+          currentIngestComputeEpoch: 6,
+          hasMore: true,
+          cursor: "cursor:p2",
+          mode: "compute",
+          dryRun: true,
+          scannedRows: 4,
+          skillsStaleCount: 0,
+          computeStaleCount: 2,
+          matchedCount: 2,
+        });
+      }
+      return convexSuccess({ ok: true });
+    });
+
+    const app = createAdminApp(createApp);
+    const response = await app.request("/api/resumes/trigger-reingest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        limit: 25,
+        mode: "compute",
+        dryRun: true,
+        maxScanPages: 2,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      hasMore: true,
+      cursor: "cursor:p2",
+      dryRun: true,
+    });
+    expect(fetchSpy).toHaveBeenCalled();
   });
 
 });
