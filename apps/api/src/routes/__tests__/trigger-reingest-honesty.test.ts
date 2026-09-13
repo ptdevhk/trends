@@ -214,4 +214,59 @@ describe("trigger-reingest honesty (F4/F5)", () => {
     expect(payload.lag.scanComplete).toBe(true);
     expect(payload.messages.join(" ")).toContain("scan window complete");
   });
+
+  it("passes adaptive through to Convex and returns adaptiveLimit", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadModules(root);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        path?: string;
+        args?: Record<string, unknown>;
+      };
+      if (body.path === "migrations:reIngestStaleSkillsVersion") {
+        expect(body.args).toMatchObject({
+          limit: 50,
+          mode: "compute",
+          dryRun: false,
+          adaptive: true,
+        });
+        return convexSuccess({
+          scheduled: 10,
+          batches: 1,
+          currentVersion: 1,
+          currentIngestComputeEpoch: 6,
+          hasMore: true,
+          cursor: "cursor:adaptive",
+          mode: "compute",
+          dryRun: false,
+          scannedRows: 50,
+          skillsStaleCount: 0,
+          computeStaleCount: 50,
+          matchedCount: 50,
+          adaptiveLimit: 10,
+        });
+      }
+      return convexSuccess({ ok: true });
+    });
+
+    const app = createAdminApp(createApp);
+    const response = await app.request("/api/resumes/trigger-reingest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({ limit: 50, mode: "compute", adaptive: true }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      adaptiveLimit: 10,
+      scheduled: 10,
+      hasMore: true,
+    });
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
 });
