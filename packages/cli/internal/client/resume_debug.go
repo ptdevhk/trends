@@ -78,6 +78,7 @@ type ResumeTriggerReingestResponse struct {
 	SkillsStaleCount          int    `json:"skillsStaleCount,omitempty"`
 	ComputeStaleCount         int    `json:"computeStaleCount,omitempty"`
 	MatchedCount              int    `json:"matchedCount,omitempty"`
+	AdaptiveLimit             int    `json:"adaptiveLimit,omitempty"`
 }
 
 type ResumeSearchFreshnessResponse struct {
@@ -332,7 +333,7 @@ func (c *Client) GetResumeSkillsVersion(ctx context.Context) (*ResumeSkillsVersi
 }
 
 func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeTriggerReingestResponse, error) {
-	return c.TriggerResumeReingestWithOptions(ctx, limit, "any", false)
+	return c.TriggerResumeReingestWithOptions(ctx, limit, "any", false, false, 0)
 }
 
 func (c *Client) TriggerResumeReingestWithOptions(
@@ -340,6 +341,8 @@ func (c *Client) TriggerResumeReingestWithOptions(
 	limit int,
 	mode string,
 	dryRun bool,
+	adaptive bool,
+	maxScanPages int,
 ) (*ResumeTriggerReingestResponse, error) {
 	payload := map[string]any{}
 	if limit > 0 {
@@ -350,6 +353,12 @@ func (c *Client) TriggerResumeReingestWithOptions(
 	}
 	if dryRun {
 		payload["dryRun"] = true
+	}
+	if adaptive {
+		payload["adaptive"] = true
+	}
+	if maxScanPages > 0 {
+		payload["maxScanPages"] = maxScanPages
 	}
 
 	endpoint := fmt.Sprintf("%s/api/resumes/trigger-reingest", c.APIURL)

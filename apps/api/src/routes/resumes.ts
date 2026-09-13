@@ -163,6 +163,10 @@ const TriggerReingestRequestSchema = z.object({
   /** skills = skillsVersion lag only; compute = ingestComputeEpoch lag; any = either (default) */
   mode: z.enum(["skills", "compute", "any"]).optional(),
   dryRun: z.boolean().optional(),
+  /** Match cron FIX-C: cap schedule when the scan window is saturated with compute-stale rows. */
+  adaptive: z.boolean().optional(),
+  /** Max Convex scan pages per invoke (epoch-6 pacing; default 3 server-side). */
+  maxScanPages: z.number().int().min(1).max(20).optional(),
 });
 const TriggerReingestResponseSchema = z.object({
   success: z.literal(true),
@@ -177,6 +181,7 @@ const TriggerReingestResponseSchema = z.object({
   skillsStaleCount: z.number().int().optional(),
   computeStaleCount: z.number().int().optional(),
   matchedCount: z.number().int().optional(),
+  adaptiveLimit: z.number().int().optional(),
   processed: z.number().int().optional(),
   skipped: z.number().int().optional(),
 });
@@ -804,6 +809,8 @@ export type TriggerReingestOptions = {
   cursor?: string;
   mode?: "skills" | "compute" | "any";
   dryRun?: boolean;
+  adaptive?: boolean;
+  maxScanPages?: number;
 };
 
 export type TriggerReingestResult = {
@@ -819,6 +826,7 @@ export type TriggerReingestResult = {
   skillsStaleCount: number;
   computeStaleCount: number;
   matchedCount: number;
+  adaptiveLimit?: number;
 };
 
 /**
@@ -839,6 +847,8 @@ export async function triggerReingestStaleSkillsVersion(
   const mode = options.mode ?? "any";
   const cursor = options.cursor;
   const dryRun = options.dryRun === true;
+  const adaptive = options.adaptive === true;
+  const maxScanPages = options.maxScanPages;
 
   let value: unknown;
   try {
@@ -849,6 +859,8 @@ export async function triggerReingestStaleSkillsVersion(
       cursor,
       mode,
       dryRun,
+      adaptive,
+      ...(typeof maxScanPages === "number" ? { maxScanPages } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -880,6 +892,7 @@ export async function triggerReingestStaleSkillsVersion(
     skillsStaleCount: typeof result.skillsStaleCount === "number" ? result.skillsStaleCount : 0,
     computeStaleCount: typeof result.computeStaleCount === "number" ? result.computeStaleCount : 0,
     matchedCount: typeof result.matchedCount === "number" ? result.matchedCount : 0,
+    ...(typeof result.adaptiveLimit === "number" ? { adaptiveLimit: result.adaptiveLimit } : {}),
   };
 }
 
@@ -1463,7 +1476,7 @@ const triggerReingestRoute = createRoute({
   },
 });
 app.openapi(triggerReingestRoute, async (c) => {
-  const { limit, cursor, mode, dryRun } = c.req.valid("json");
+  const { limit, cursor, mode, dryRun, adaptive, maxScanPages } = c.req.valid("json");
 
   try {
     const result = await triggerReingestStaleSkillsVersion({
@@ -1471,6 +1484,8 @@ app.openapi(triggerReingestRoute, async (c) => {
       cursor,
       mode: mode ?? "any",
       dryRun: dryRun === true,
+      adaptive: adaptive === true,
+      maxScanPages,
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {

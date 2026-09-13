@@ -519,6 +519,8 @@ func newResumeDebugTriggerReingestCmd() *cobra.Command {
 	var limit int
 	var mode string
 	var dryRun bool
+	var adaptive bool
+	var maxScanPages int
 
 	cmd := &cobra.Command{
 		Use:   "trigger-reingest",
@@ -530,16 +532,18 @@ Modes:
   compute — ingestComputeEpoch lag only (parser / roleSignals materialization)
   any     — either lag (default; use after algorithm fixes without skills bump)
 
-Use --dry-run to count skillsStale vs computeStale without scheduling work.`,
+Use --dry-run to count skillsStale vs computeStale without scheduling work.
+Use --adaptive to match cron FIX-C (cap schedule when the scan window is saturated).
+Use --max-scan-pages to cap Convex listResumeScanBatch pages per invoke (epoch-6 pacing).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().TriggerResumeReingestWithOptions(context.Background(), limit, mode, dryRun)
+			response, err := newAPIClient().TriggerResumeReingestWithOptions(context.Background(), limit, mode, dryRun, adaptive, maxScanPages)
 			if err != nil {
 				return err
 			}
 
 			headers := []string{
 				"scheduled", "batches", "current_version", "current_epoch",
-				"mode", "dry_run", "skills_stale", "compute_stale", "matched", "has_more",
+				"mode", "dry_run", "skills_stale", "compute_stale", "matched", "has_more", "adaptive_limit",
 			}
 			rows := [][]string{{
 				strconv.Itoa(response.Scheduled),
@@ -552,6 +556,7 @@ Use --dry-run to count skillsStale vs computeStale without scheduling work.`,
 				strconv.Itoa(response.ComputeStaleCount),
 				strconv.Itoa(response.MatchedCount),
 				fmt.Sprintf("%t", response.HasMore),
+				strconv.Itoa(response.AdaptiveLimit),
 			}}
 			return writeOutput(cmd, headers, rows, response)
 		},
@@ -560,6 +565,8 @@ Use --dry-run to count skillsStale vs computeStale without scheduling work.`,
 	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum stale resumes to schedule (or count in dry-run)")
 	cmd.Flags().StringVar(&mode, "mode", "any", "Stale selection: skills | compute | any")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Count stale rows without scheduling reingest")
+	cmd.Flags().BoolVar(&adaptive, "adaptive", false, "Match cron FIX-C: cap schedule when the scan window is saturated")
+	cmd.Flags().IntVar(&maxScanPages, "max-scan-pages", 0, "Cap Convex scan pages per invoke (0 = server default; epoch-6 pacing)")
 	return cmd
 }
 

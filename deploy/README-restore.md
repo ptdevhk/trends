@@ -114,3 +114,35 @@ curl -s http://127.0.0.1:3000/api/system/maintenance
 sudo -u trends bash -c "cd /opt/trends/packages/convex && CONVEX_URL=http://127.0.0.1:3210 \
     npx convex run system_settings:set '{\"key\":\"maintenanceMode\",\"value\":false,\"updatedBy\":\"manual\"}'"
 ```
+
+## Safe dry-run rollback rehearsal scaffold (read-only)
+
+`deploy/rollback-rehearse-dryrun.sh` is a **read-only dry-run** that validates a
+selected `prod-complete-*` bundle and a rehearsal-only target, then emits a
+per-phase command plan. It never contacts a deployment and never executes a
+destructive step.
+
+```bash
+bash deploy/rollback-rehearse-dryrun.sh --backup-dir /var/backups/trends/prod-complete-20260101T000000Z
+```
+
+The target is rehearsal-only by construction:
+
+- App dir and SQLite must live under `REHEARSAL_ROOT` (default
+  `$HOME/.trends-rollback-rehearsals`)
+- Systemd unit must be named `rehearsal-*`
+- BFF port must be within `:3300-3399`; Convex port within `:4300-4399`
+- `REHEARSAL_APPLY=1` fails closed (destructive execution is not implemented)
+
+Per-run artifacts under `REHEARSAL_ROOT/dryrun-<ts>-<rand>`:
+
+- `plan.json` — phase ledger + command plan (sanitized; never contains env secrets)
+- `state.env` — per-phase status ledger
+- `evidence/backup/` — `source-inventory.json`, `backup-summary.json`
+
+This scaffold corresponds to the isolated-rehearsal requirement in the
+production rollback runbook draft (`skills/projects` planning); the scripts it
+plans for use the same `rehearsal-` / port-band / selector isolation the
+attended runbook's disposable VM rehearsal demands.
+
+Tests: `bash deploy/rollback-rehearse-dryrun.test.sh`
