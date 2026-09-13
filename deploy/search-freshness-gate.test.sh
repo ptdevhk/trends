@@ -235,6 +235,12 @@ fi
 grep -q 'payload_obj\["cursor"\] = cursor' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate sends the server continuation cursor" \
   || fail "gate does not send the server continuation cursor"
+
+if grep -Fq '"adaptive": True' "$ROOT/deploy/search-freshness-gate.sh"; then
+  pass "gate sends adaptive:true on paced trigger-reingest"
+else
+  fail "gate paced reingest missing adaptive:true"
+fi
 grep -q 'next_cursor = out.get("cursor")' "$ROOT/deploy/search-freshness-gate.sh" \
   && pass "gate advances to the returned continuation cursor" \
   || fail "gate does not advance the continuation cursor"

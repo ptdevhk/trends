@@ -283,7 +283,7 @@ call_count = 0
 while remaining > 0:
     call_count += 1
     n = min(batch, remaining)
-    payload_obj = {"limit": n, "mode": "compute", "dryRun": False}
+    payload_obj = {"limit": n, "mode": "compute", "dryRun": False, "adaptive": True}
     if cursor is not None:
         payload_obj["cursor"] = cursor
     payload = json.dumps(payload_obj).encode()
