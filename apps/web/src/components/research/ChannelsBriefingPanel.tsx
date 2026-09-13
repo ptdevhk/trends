@@ -93,6 +93,35 @@ function parsePastedUrls(raw: string): string[] {
     .filter((line) => line.length > 0)
 }
 
+function isAllowedChannelsUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.username ||
+    parsed.password ||
+    (parsed.port && parsed.port !== '443')
+  ) {
+    return false
+  }
+
+  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '')
+  if (hostname === 'weixin.qq.com') {
+    return /^\/sph\/[A-Za-z0-9]+\/?$/.test(parsed.pathname)
+  }
+
+  return (
+    hostname === 'channels.weixin.qq.com' &&
+    parsed.pathname === '/finder-preview/pages/sph' &&
+    /^[A-Za-z0-9]+$/.test(parsed.searchParams.get('id') ?? '')
+  )
+}
+
 function statusFromResult(result: { error?: unknown; response?: { status?: number } }): number | undefined {
   const responseStatus = result.response?.status
   if (typeof responseStatus === 'number' && responseStatus > 0) {
@@ -161,7 +190,9 @@ export function ChannelsBriefingPanel() {
   const [briefing, setBriefing] = useState<ChannelsBriefing | null>(null)
 
   const urls = useMemo(() => parsePastedUrls(paste), [paste])
-  const canGenerate = urls.length > 0 && !loading
+  const urlsAreValid = urls.length >= 1 && urls.length <= 8 && urls.every(isAllowedChannelsUrl)
+  const hasValidationError = urls.length > 0 && !urlsAreValid
+  const canGenerate = urlsAreValid && !loading
 
   const errorMessage = useMemo(() => {
     if (errorKind === '400') {
@@ -185,7 +216,11 @@ export function ChannelsBriefingPanel() {
   const requestBriefing = useCallback(
     async (explicitUrls?: readonly string[]) => {
       const submitted = explicitUrls ? [...explicitUrls] : parsePastedUrls(paste)
-      if (submitted.length === 0) {
+      if (
+        submitted.length < 1 ||
+        submitted.length > 8 ||
+        !submitted.every(isAllowedChannelsUrl)
+      ) {
         return
       }
       setLoading(true)
@@ -290,8 +325,22 @@ export function ChannelsBriefingPanel() {
           placeholder={t('research.channelsBriefing.pastePlaceholder', {
             defaultValue: 'https://weixin.qq.com/sph/…',
           })}
+          aria-invalid={hasValidationError || undefined}
+          aria-describedby={hasValidationError ? 'research-channels-briefing-validation' : undefined}
           className="min-h-[96px] font-mono text-xs"
         />
+        {hasValidationError ? (
+          <p
+            id="research-channels-briefing-validation"
+            className="text-xs text-red-600"
+            data-testid="research-channels-briefing-validation"
+            role="alert"
+          >
+            {t('research.channelsBriefing.validation', {
+              defaultValue: '请粘贴 1 至 8 条有效的微信视频号分享链接。',
+            })}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
         <Button

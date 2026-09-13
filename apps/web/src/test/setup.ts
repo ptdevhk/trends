@@ -6,6 +6,12 @@ process.env.NODE_ENV = 'test'
 
 expect.extend(matchers)
 
+if (typeof window !== 'undefined') {
+  window.scrollTo = () => {}
+  window.scrollBy = () => {}
+  window.scroll = () => {}
+}
+
 // ---------------------------------------------------------------------------
 // React version guard.
 //

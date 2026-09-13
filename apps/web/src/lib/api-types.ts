@@ -2884,6 +2884,9 @@ export interface paths {
                             missingIngestComputeEpoch: number;
                             laggingIngestComputeEpoch: number;
                             currentIngestComputeEpoch: number;
+                            currentCompanyKeyProjectionEpoch: number;
+                            missingCompanyKeyProjection: number;
+                            laggingCompanyKeyProjection: number;
                         };
                     };
                 };

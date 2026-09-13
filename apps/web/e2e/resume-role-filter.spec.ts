@@ -23,15 +23,20 @@ async function mockResumePageApis(
     searchResumes?: MockResume[]
     jobDescriptionRoleType?: string
     jobDescriptionMinYears?: number
+    bffUnverifiedResume?: MockResume
   }
 ) {
   // Authenticated HR shell (same pattern as mockAuthenticatedDevShell in
   // blacklist.spec.ts): the trends_csrf cookie lets fetchCurrentAuth call
   // /api/auth/me, and the hr membership makes the workspace routing render
   // /hr/resumes for both the public /resumes entry and legacy /dev/resumes.
-  await page.addInitScript((payload) => {
+  await page.addInitScript(() => {
     document.cookie = 'trends_csrf=csrf-e2e; path=/; SameSite=Lax'
     localStorage.setItem('i18nextLng', 'zh-Hans')
+  })
+
+  if (!options.bffUnverifiedResume) {
+    await page.addInitScript((payload) => {
     const params = new URLSearchParams(window.location.search)
     const roleType = params.get('roleType')?.trim().toLowerCase()
     const minRoleYears = Number(params.get('minRoleYears'))
@@ -64,6 +69,7 @@ async function mockResumePageApis(
       expansion: undefined,
     },
   })
+  }
 
   await page.route('**/api/auth/me', async (route) => {
     await route.fulfill({
@@ -80,6 +86,48 @@ async function mockResumePageApis(
         memberships: [{ userId: 'hr-e2e', workspaceSlug: 'hr', role: 'user' }],
         workspaceRole: 'user',
       }),
+    })
+  })
+
+  await page.route('**/api/system/resume-work-history-limit', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, limit: 20 }),
+    })
+  })
+
+  await page.route('**/api/resumes/analysis-tasks', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, items: [] }),
+    })
+  })
+
+  await page.route('**/api/company-industry-verified-employer-count**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, count: 0, evidenceMode: 'verified' }),
+    })
+  })
+
+  for (const pattern of ['**/api/policy-overrides**', '**/api/companies**', '**/api/company-policies**']) {
+    await page.route(pattern, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, items: [] }),
+      })
+    })
+  }
+
+  await page.route('**/api/search-analytics/log', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true }),
     })
   })
 
@@ -170,6 +218,23 @@ async function mockResumePageApis(
       }),
     })
   })
+
+  if (options.bffUnverifiedResume) {
+    await page.route('**/api/resumes?**', async (route) => {
+      const requestUrl = new URL(route.request().url())
+      const strictGateActive = requestUrl.searchParams.has('minRoleYears')
+      const data = strictGateActive ? [] : [options.bffUnverifiedResume]
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          summary: { total: data.length, statusCounts: {} },
+          data,
+        }),
+      })
+    })
+  }
 
   await page.route('**/api/industry/keywords**', async (route) => {
     await route.fulfill({
@@ -735,6 +800,25 @@ test.describe('Resume quick role filter', () => {
 
     const visibleSummary = page.getByText('销售工程师')
     await expect(visibleSummary.first()).toBeVisible()
+  })
+
+  test('strict empty state still exposes unverified keyword matches', async ({ page }) => {
+    await mockResumePageApis(page, {
+      bffUnverifiedResume: salesResume,
+    })
+
+    await page.goto('/dev/resumes?q=%E9%94%80%E5%94%AE&minRoleYears=2&roleType=engineer')
+
+    await expect(page.getByRole('heading', { name: '没有匹配到简历' })).toBeVisible()
+    const lane = page.getByTestId('unverified-lane-section')
+    await expect(lane).toBeVisible()
+    await expect(page.getByTestId('unverified-lane-toggle')).toContainText('匹配但未验证 (1)')
+
+    await page.getByTestId('unverified-lane-toggle').click()
+    const laneRow = page.getByTestId('unverified-lane-row')
+    await expect(laneRow).toHaveCount(1)
+    await expect(laneRow).toContainText('resume_2')
+    await expect(laneRow).toContainText('证据未验证')
   })
 
   test('enriched screening sample keeps evidence visible in card and detail views', async ({ page }) => {
