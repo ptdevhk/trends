@@ -99,6 +99,8 @@ fixtures and fake commands only; they must not SSH or contact preview/production
 
 **Search freshness after upgrade/migration:** app version green ≠ MY/CN `minRoleYears` search healthy. Preview Convex must reach host BFF (`BFF_API_URL`); then schedule `trigger-reingest --mode any|compute` when doctor exit 2/3.
 
+**Epoch-6 paced drain (preview, no Coolify):** Prefer the freshness gate's cursor-paced loop over a single huge `limit`. Operator defaults: `REINGEST_BATCH=10`, `REINGEST_SLEEP_SECS=15` (#1384), payload `adaptive=true` (#1386) + `maxScanPages=3` (#1383). Manual CLI: `trends resume debug trigger-reingest --mode compute --limit 10 --adaptive --max-scan-pages 3`, then continue with the returned `cursor`. Abort if available RAM drops under ~2.5 GiB. Do not force `preview-upgrade.sh` while compute-stale remains.
+
 `make deploy` / `./scripts/install.sh upgrade` from `/opt/trends` = **production**.  
 From `/home/ubuntu/trends-preview`, `make deploy` routes to `deploy/preview-upgrade.sh`.  
 `install.sh` refuses preview paths.
