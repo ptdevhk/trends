@@ -1250,6 +1250,8 @@ export const reIngestStaleSkillsVersion = action({
         /** skills | compute | any — default any (skills lag OR ingestComputeEpoch lag) */
         mode: v.optional(v.string()),
         dryRun: v.optional(v.boolean()),
+        /** Match cron FIX-C: pass through to reIngestStaleResumes adaptive schedule cap. */
+        adaptive: v.optional(v.boolean()),
     },
     handler: async (ctx, args): Promise<ReIngestStaleSkillsVersionResult> => {
         return await ctx.runAction(internal.ingest_agent.reIngestStaleResumes, {
@@ -1257,6 +1259,7 @@ export const reIngestStaleSkillsVersion = action({
             cursor: args.cursor,
             mode: args.mode,
             dryRun: args.dryRun,
+            adaptive: args.adaptive,
         });
     },
 });
