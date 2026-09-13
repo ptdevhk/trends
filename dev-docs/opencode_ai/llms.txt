@@ -1,15 +1,3 @@
-### Install OpenCode with Mise
-
-Source: https://opencode.ai/docs
-
-Install OpenCode using Mise.
-
-```bash
-mise use -g github:anomalyco/opencode
-```
-
---------------------------------
-
 ### Install OpenCode via script
 
 Source: https://opencode.ai/docs
@@ -18,6 +6,18 @@ The easiest way to install OpenCode is through this install script.
 
 ```bash
 curl -fsSL https://opencode.ai/install | bash
+```
+
+--------------------------------
+
+### Install OpenCode with Mise
+
+Source: https://opencode.ai/docs
+
+Install OpenCode using Mise.
+
+```bash
+mise use -g github:anomalyco/opencode
 ```
 
 --------------------------------
@@ -70,6 +70,18 @@ npm install -g opencode-ai
 
 --------------------------------
 
+### Ask OpenCode a question
+
+Source: https://opencode.ai/docs
+
+Example of asking OpenCode a question about the codebase, using the @ key for file search.
+
+```cli
+How is authentication handled in @packages/functions/src/api/index.ts
+```
+
+--------------------------------
+
 ### Install OpenCode with Scoop
 
 Source: https://opencode.ai/docs
@@ -82,24 +94,6 @@ scoop install opencode
 
 --------------------------------
 
-### Example: Start Web Backend and Attach TUI (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Demonstrates how to start an OpenCode backend server for web/mobile access and then attach a TUI from another terminal to that running backend.
-
-```bash
-# Start the backend server for web/mobile access
-opencode web --port 4096 --hostname 0.0.0.0
-```
-
-```bash
-# In another terminal, attach the TUI to the running backend
-opencode attach http://10.20.30.40:4096
-```
-
---------------------------------
-
 ### Install OpenCode with pnpm
 
 Source: https://opencode.ai/docs
@@ -108,18 +102,6 @@ Install OpenCode globally using pnpm.
 
 ```bash
 pnpm install -g opencode-ai
-```
-
---------------------------------
-
-### Ask OpenCode a question
-
-Source: https://opencode.ai/docs
-
-Example of asking OpenCode a question about the codebase, using the @ key for file search.
-
-```cli
-How is authentication handled in @packages/functions/src/api/index.ts
 ```
 
 --------------------------------
@@ -163,6 +145,19 @@ From this screen, the user can undelete a note or permanently delete it.
 
 --------------------------------
 
+### Install OpenCode on Arch Linux
+
+Source: https://opencode.ai/docs
+
+Install OpenCode on Arch Linux using pacman or paru.
+
+```bash
+sudo pacman -S opencode           # Arch Linux (Stable)
+paru -S opencode-bin              # Arch Linux (Latest from AUR)
+```
+
+--------------------------------
+
 ### API key input prompt
 
 Source: https://opencode.ai/docs
@@ -178,19 +173,6 @@ Example of the API key input prompt when configuring OpenCode.
 
 --------------------------------
 
-### Install OpenCode on Arch Linux
-
-Source: https://opencode.ai/docs
-
-Install OpenCode on Arch Linux using pacman or paru.
-
-```bash
-sudo pacman -S opencode           # Arch Linux (Stable)
-paru -S opencode-bin              # Arch Linux (Latest from AUR)
-```
-
---------------------------------
-
 ### Run OpenCode with Docker
 
 Source: https://opencode.ai/docs
@@ -199,6 +181,18 @@ Run OpenCode using Docker.
 
 ```bash
 docker run -it --rm ghcr.io/anomalyco/opencode
+```
+
+--------------------------------
+
+### Install OpenCode with Homebrew
+
+Source: https://opencode.ai/docs
+
+Install OpenCode on macOS and Linux using Homebrew.
+
+```bash
+brew install anomalyco/tap/opencode
 ```
 
 --------------------------------
@@ -217,18 +211,6 @@ the same logic in @packages/functions/src/settings.ts
 
 --------------------------------
 
-### Install OpenCode with Homebrew
-
-Source: https://opencode.ai/docs
-
-Install OpenCode on macOS and Linux using Homebrew.
-
-```bash
-brew install anomalyco/tap/opencode
-```
-
---------------------------------
-
 ### Initialize OpenCode for project
 
 Source: https://opencode.ai/docs
@@ -241,14 +223,14 @@ Initialize OpenCode for the current project to analyze it and create an AGENTS.m
 
 --------------------------------
 
-### Install GitHub Agent
+### Switch to Plan mode
 
-Source: https://opencode.ai/docs/cli
+Source: https://opencode.ai/docs
 
-Sets up the necessary GitHub Actions workflow and guides through the configuration process for the GitHub agent in a repository.
+Use the Tab key to switch to Plan mode.
 
-```bash
-opencode github install
+```text
+<TAB>
 ```
 
 --------------------------------
@@ -268,18 +250,6 @@ await client.auth.set({
 
 --------------------------------
 
-### Switch to Plan mode
-
-Source: https://opencode.ai/docs
-
-Use the Tab key to switch to Plan mode.
-
-```text
-<TAB>
-```
-
---------------------------------
-
 ### Navigate to project directory
 
 Source: https://opencode.ai/docs
@@ -288,6 +258,18 @@ Change the current directory to your project path before running OpenCode.
 
 ```bash
 cd /path/to/project
+```
+
+--------------------------------
+
+### Install a plugin with opencode plugin
+
+Source: https://opencode.ai/docs/cli
+
+Install a plugin module and update configuration.
+
+```bash
+opencode plugin <module>
 ```
 
 --------------------------------
@@ -308,11 +290,11 @@ const currentProject = await client.project.current()
 
 --------------------------------
 
-### Start OpenCode Web Interface (Bash)
+### Start headless web server with opencode web
 
 Source: https://opencode.ai/docs/cli
 
-Starts a headless OpenCode server with a web interface, opening a browser to access it. HTTP basic auth can be enabled with OPENCODE_SERVER_PASSWORD.
+Start an HTTP server and open a web browser to access OpenCode. Set OPENCODE_SERVER_PASSWORD to enable HTTP basic authentication.
 
 ```bash
 opencode web
@@ -328,22 +310,6 @@ Command to start the OpenCode web interface.
 
 ```bash
 opencode web
-```
-
---------------------------------
-
-### Install OpenCode Plugin (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Installs a plugin and updates the OpenCode configuration. An alias `plug` is also available.
-
-```bash
-opencode plugin <module>
-```
-
-```bash
-opencode plug <module>
 ```
 
 --------------------------------
@@ -391,6 +357,18 @@ Example configuration for OpenCode web server settings in opencode.json.
 
 --------------------------------
 
+### Install a plugin using alias opencode plug
+
+Source: https://opencode.ai/docs/cli
+
+Use the alias `plug` to install a plugin module.
+
+```bash
+opencode plug <module>
+```
+
+--------------------------------
+
 ### Config API Examples
 
 Source: https://opencode.ai/docs/sdk
@@ -413,6 +391,18 @@ Command to install the OpenCode SDK from npm.
 
 ```bash
 npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
+### Install OpenCode GitHub integration with CLI
+
+Source: https://opencode.ai/docs/github
+
+Run in a GitHub repository to walk through installing the GitHub app, creating the workflow file, and setting up secrets.
+
+```bash
+opencode github install
 ```
 
 --------------------------------
@@ -451,18 +441,6 @@ const agents = await client.app.agents()
 
 --------------------------------
 
-### Start OpenCode TUI with Project (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Starts the OpenCode terminal user interface, optionally specifying a project to load.
-
-```bash
-opencode [project]
-```
-
---------------------------------
-
 ### Install wl-clipboard for Copy/Paste on Wayland Linux
 
 Source: https://opencode.ai/docs/troubleshooting
@@ -471,30 +449,6 @@ Install wl-clipboard on Wayland-based Linux systems to enable copy/paste functio
 
 ```bash
 apt install -y wl-clipboard
-```
-
---------------------------------
-
-### Connect to Azure OpenAI provider in terminal
-
-Source: https://opencode.ai/docs/providers
-
-Run the connect command to initiate the interactive setup prompt for Azure OpenAI.
-
-```txt
-/connect
-```
-
---------------------------------
-
-### Install Helicone Session Plugin via npm
-
-Source: https://opencode.ai/docs/providers
-
-Install the global npm package to track OpenCode conversations as sessions in Helicone.
-
-```bash
-npm install -g opencode-helicone-session
 ```
 
 --------------------------------
@@ -508,6 +462,22 @@ After installing xvfb, execute these commands to start a virtual display server 
 ```bash
 Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 export DISPLAY=:99.0
+```
+
+--------------------------------
+
+### Start web backend and attach remote TUI
+
+Source: https://opencode.ai/docs/cli
+
+Starts the backend server on a specified port and hostname, then attaches the terminal TUI to the remote instance from another terminal.
+
+```bash
+# Start the backend server for web/mobile access
+opencode web --port 4096 --hostname 0.0.0.0
+
+# In another terminal, attach the TUI to the running backend
+opencode attach http://10.20.30.40:4096
 ```
 
 --------------------------------
@@ -539,60 +509,6 @@ This is an SST v3 monorepo with TypeScript. The project uses bun workspaces for 
 ## Monorepo Conventions
 
 - Import shared modules using workspace names: `@my-app/core/example`
-```
-
---------------------------------
-
-### Start OpenCode ACP Server (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Starts an ACP (Agent Client Protocol) server that communicates via stdin/stdout using nd-JSON.
-
-```bash
-opencode acp
-```
-
---------------------------------
-
-### Install OpenCode GitHub Integration via CLI
-
-Source: https://opencode.ai/docs/github
-
-Run this command inside a GitHub repository to interactively set up the GitHub app, workflow file, and secrets.
-
-```bash
-opencode github install
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/commands
-
-Example of using the `description` option to provide a brief description for a command.
-
-```json
-{
-  "command": {
-    "test": {
-      "description": "Run tests with coverage"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Running a custom command
-
-Source: https://opencode.ai/docs/commands
-
-Example of executing a custom command in the TUI.
-
-```bash
-/my-command
 ```
 
 --------------------------------
@@ -629,18 +545,6 @@ Ask clarifying questions if the target versioning scheme is unclear.
 
 --------------------------------
 
-### Start OpenCode server in WSL for external connections
-
-Source: https://opencode.ai/docs/windows-wsl
-
-Command to start the OpenCode server in WSL, making it accessible from outside the WSL environment by specifying the hostname and port.
-
-```bash
-opencode serve --hostname 0.0.0.0 --port 4096
-```
-
---------------------------------
-
 ### Start OpenCode TUI
 
 Source: https://opencode.ai/docs/tui
@@ -657,14 +561,14 @@ opencode /path/to/project
 
 --------------------------------
 
-### Example of Using a Reference in TUI Autocomplete
+### Running a custom command
 
-Source: https://opencode.ai/docs/references
+Source: https://opencode.ai/docs/commands
 
-This example demonstrates how to use the `@alias` syntax in the TUI to attach a reference or search for files within it.
+Example of executing a custom command in the TUI.
 
-```text
-Compare this implementation with @sdk/src/client.ts
+```bash
+/my-command
 ```
 
 --------------------------------
@@ -690,87 +594,6 @@ Example `opencode.json` configuration for skill permissions.
 
 --------------------------------
 
-### opencode.json
-
-Source: https://opencode.ai/docs/plugins
-
-Example of specifying npm packages in your config file.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-helicone-session", "opencode-wakatime", "@my-org/custom-plugin"]
-}
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/models
-
-Example OpenCode configuration file specifying a model.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-20250514"
-}
-```
-
---------------------------------
-
-### Specify Port
-
-Source: https://opencode.ai/docs/web
-
-Command to start the web interface on a specific port.
-
-```bash
-opencode web --port 4096
-```
-
---------------------------------
-
-### Logging
-
-Source: https://opencode.ai/docs/plugins
-
-Example of using `client.app.log()` for structured logging within an OpenCode plugin.
-
-```ts
-export const MyPlugin = async ({ client }) => {
-  await client.app.log({
-    body: {
-      service: "my-plugin",
-      level: "info",
-      message: "Plugin initialized",
-      extra: { foo: "bar" },
-    },
-  })
-}
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/agents
-
-Example demonstrating the `description` option for an agent, providing a brief explanation of its purpose.
-
-```json
-{
-  "agent": {
-    "review": {
-      "description": "Reviews code for best practices and potential issues"
-    }
-  }
-}
-```
-
---------------------------------
-
 ### Using the mcp_everything Tool in a Prompt
 
 Source: https://opencode.ai/docs/mcp-servers
@@ -783,20 +606,25 @@ use the mcp_everything tool to add the number 3 and 4
 
 --------------------------------
 
-### Attach OpenCode Run to a Headless Server (Bash)
+### Connect and configure OpenCode Zen
 
-Source: https://opencode.ai/docs/cli
+Source: https://opencode.ai/docs/providers
 
-Demonstrates how to start a headless OpenCode server and then attach a `run` command to it, avoiding cold boot times for subsequent runs.
+Run `/connect`, enter your OpenCode Zen API key when prompted, and execute `/models` to view recommended models.
 
-```bash
-# Start a headless server in one terminal
-opencode serve
+```text
+/connect
 ```
 
-```bash
-# In another terminal, run commands that attach to it
-opencode run --attach http://localhost:4096 "Explain async/await in JavaScript"
+```text
+┌ API key
+│
+│
+└ enter
+```
+
+```text
+/models
 ```
 
 --------------------------------
@@ -809,21 +637,6 @@ An example of a prompt to OpenCode AI asking it to refactor a function in a spec
 
 ```plaintext
 Can you refactor the function in @packages/functions/src/api/index.ts?
-```
-
---------------------------------
-
-### Configure model instructions
-
-Source: https://opencode.ai/docs/config
-
-Specify paths or glob patterns to instruction files that guide model behavior.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md", ".cursor/rules/*.md"]
-}
 ```
 
 --------------------------------
@@ -888,6 +701,18 @@ Example of calling the `path.get()` method to retrieve current path information.
 ```javascript
 // Get current path information
 const pathInfo = await client.path.get()
+```
+
+--------------------------------
+
+### Create a new agent with opencode agent create
+
+Source: https://opencode.ai/docs/cli
+
+Guides through creating a new agent with custom system prompts and permissions. Supplying all flags runs the command non-interactively.
+
+```bash
+opencode agent create
 ```
 
 --------------------------------
@@ -1035,66 +860,14 @@ opencode serve [--port <number>] [--hostname <string>] [--cors <origin>]
 
 --------------------------------
 
-### Configure server settings
-
-Source: https://opencode.ai/docs/config
-
-Set server port, hostname, mDNS discovery, and CORS origins in opencode.json.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "server": {
-    "port": 4096,
-    "hostname": "0.0.0.0",
-    "mdns": true,
-    "mdnsDomain": "myproject.local",
-    "cors": ["http://localhost:5173"]
-  }
-}
-```
-
---------------------------------
-
-### Define OpenCode configuration in JSONC
-
-Source: https://opencode.ai/docs/config
-
-Example of a standard configuration file using the JSONC format with schema validation.
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-5",
-  "autoupdate": true,
-  "server": {
-    "port": 4096,
-  },
-}
-```
-
---------------------------------
-
-### Start OpenCode TUI (Bash)
+### Start TUI for a specific project
 
 Source: https://opencode.ai/docs/cli
 
-Starts the OpenCode terminal user interface by default when no arguments are provided.
+Starts the OpenCode terminal user interface targeting an optional project.
 
 ```bash
-opencode
-```
-
---------------------------------
-
-### Start Headless OpenCode Server (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Initiates an HTTP server for API access to OpenCode functionality without the TUI. Set `OPENCODE_SERVER_PASSWORD` for basic auth.
-
-```bash
-opencode serve
+opencode [project]
 ```
 
 --------------------------------
@@ -1138,46 +911,72 @@ Configure a Cloudflare Worker script to cache JSON API responses for five minute
 
 --------------------------------
 
-### OpenCode Models Command Overview
+### Start ACP server with opencode acp
 
 Source: https://opencode.ai/docs/cli
 
-Displays all available models from configured providers, formatted as `provider/model`. Optionally filter by a specific provider.
+Start an Agent Client Protocol (ACP) server communicating via stdin/stdout using nd-JSON.
 
 ```bash
-opencode models [provider]
+opencode acp
 ```
 
 --------------------------------
 
-### Define remote and local MCP server configurations
+### Example of Using a Reference in TUI Autocomplete
 
-Source: https://opencode.ai/docs/config
+Source: https://opencode.ai/docs/references
 
-Demonstrates how to define a remote configuration base and override specific settings in a local project configuration.
+This example demonstrates how to use the `@alias` syntax in the TUI to attach a reference or search for files within it.
 
-```json
-{
-  "mcp": {
-    "jira": {
-      "type": "remote",
-      "url": "https://jira.example.com/mcp",
-      "enabled": false
-    }
-  }
-}
+```text
+Compare this implementation with @sdk/src/client.ts
 ```
 
-```json
-{
-  "mcp": {
-    "jira": {
-      "type": "remote",
-      "url": "https://jira.example.com/mcp",
-      "enabled": true
-    }
-  }
-}
+--------------------------------
+
+### Import session from local file or share URL
+
+Source: https://opencode.ai/docs/cli
+
+Demonstrates importing an OpenCode session from a local JSON file or directly from an OpenCode share URL.
+
+```bash
+opencode import session.json
+opencode import https://opncd.ai/s/abc123
+```
+
+--------------------------------
+
+### Configure OpenCode adapter in CodeCompanion.nvim
+
+Source: https://opencode.ai/docs/acp
+
+Set up CodeCompanion.nvim to use OpenCode as the chat adapter in Neovim.
+
+```lua
+require("codecompanion").setup({
+  interactions = {
+    chat = {
+      adapter = {
+        name = "opencode",
+        model = "claude-sonnet-4",
+      },
+    },
+  },
+})
+```
+
+--------------------------------
+
+### Select Bedrock models using /models command
+
+Source: https://opencode.ai/docs/providers
+
+Run the interactive /models command in OpenCode to view and select available Bedrock models.
+
+```txt
+/models
 ```
 
 --------------------------------
@@ -1190,18 +989,6 @@ Install xvfb to provide a virtual display server, which is required for copy/pas
 
 ```bash
 apt install -y xvfb
-```
-
---------------------------------
-
-### Run OpenCode with a Specific Prompt (Bash)
-
-Source: https://opencode.ai/docs/cli
-
-Provides an example of running OpenCode with a specific natural language prompt directly from the command line.
-
-```bash
-opencode run Explain the use of context in Go
 ```
 
 --------------------------------
@@ -1224,264 +1011,24 @@ export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
 
 --------------------------------
 
-### OpenCode Auth Command Overview
-
-Source: https://opencode.ai/docs/cli
-
-Provides the general syntax for managing credentials and logging in for various providers using the OpenCode CLI.
-
-```bash
-opencode auth [command]
-```
-
---------------------------------
-
-### ~/.config/opencode/agents/security-auditor.md
-
-Source: https://opencode.ai/docs/agents
-
-Example configuration for a security auditor subagent.
-
-```markdown
----
-description: Performs security audits and identifies vulnerabilities
-mode: subagent
-permission:
-  edit: deny
----
-
-You are a security expert. Focus on identifying potential security issues.
-
-Look for:
-
-- Input validation vulnerabilities
-- Authentication and authorization flaws
-- Data exposure risks
-- Dependency vulnerabilities
-- Configuration security issues
-```
-
---------------------------------
-
-### ~/.config/opencode/agents/docs-writer.md
-
-Source: https://opencode.ai/docs/agents
-
-Example configuration for a documentation writing subagent.
-
-```markdown
----
-description: Writes and maintains project documentation
-mode: subagent
-permission:
-  bash: deny
----
-
-You are a technical writer. Create clear, comprehensive documentation.
-
-Focus on:
-
-- Clear explanations
-- Proper structure
-- Code examples
-- User-friendly language
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/agents
-
-Example of overriding the model for a specific agent.
-
-```json
-{
-  "agent": {
-    "plan": {
-      "model": "anthropic/claude-haiku-4-20250514"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Prompting in TUI
-
-Source: https://opencode.ai/docs/tui
-
-Example of a standard prompt message within the TUI.
-
-```text
-Give me a quick summary of the codebase.
-```
-
---------------------------------
-
-### tui.json
-
-Source: https://opencode.ai/docs/themes
-
-Example of specifying a theme in the tui.json configuration file.
-
-```json
-{
-  "$schema": "https://opencode.ai/tui.json",
-  "theme": "tokyonight"
-}
-```
-
---------------------------------
-
-### AGENTS.md Manual Instructions Example
-
-Source: https://opencode.ai/docs/rules
-
-Illustrates how to define explicit instructions and reference external guideline files within an `AGENTS.md` file, including directives for lazy loading.
-
-```markdown
-# TypeScript Project Rules
-
-## External File Loading
-
-CRITICAL: When you encounter a file reference (e.g., @rules/general.md), use your Read tool to load it on a need-to-know basis. They're relevant to the SPECIFIC task at hand.
-
-Instructions:
-
-- Do NOT preemptively load all references - use lazy loading based on actual need
-- When loaded, treat content as mandatory instructions that override defaults
-- Follow references recursively when needed
-
-## Development Guidelines
-
-For TypeScript code style and best practices: @docs/typescript-guidelines.md
-For React component architecture and hooks patterns: @docs/react-patterns.md
-For REST API design and error handling: @docs/api-standards.md
-For testing strategies and coverage requirements: @test/testing-guidelines.md
-
-## General Guidelines
-
-Read the following file immediately as it's relevant to all workflows: @rules/general-guidelines.md.
-```
-
---------------------------------
-
-### opencode.json
-
-Source: https://opencode.ai/docs/models
-
-Example of setting a default model in the OpenCode config.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "lmstudio/google/gemma-3n-e4b"
-}
-```
-
---------------------------------
-
-### Select Authentication Method Prompt
+### Connect Anthropic provider using /connect command
 
 Source: https://opencode.ai/docs/providers
 
-Interactive CLI menu choice for selecting between browser OAuth and manual bearer token authentication.
+Run the /connect command to initiate the interactive authentication process for Anthropic.
 
 ```txt
-┌ Select auth method
-│
-│ Login with Snowflake (External Browser)
-│ Paste PAT or bearer token manually
-└
+/connect
 ```
 
 --------------------------------
 
-### opencode.json
+### Run OpenCode with Vertex AI Environment Variables
 
-Source: https://opencode.ai/docs/agents
+Source: https://opencode.ai/docs/providers
 
-Example of configuring tools globally and overriding them for a specific agent.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "tools": {
-    "write": true,
-    "bash": true
-  },
-  "agent": {
-    "plan": {
-      "tools": {
-        "write": false,
-        "bash": false
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Access Windows files from WSL
-
-Source: https://opencode.ai/docs/windows-wsl
-
-Example command to navigate to a project directory on a Windows drive from within WSL.
+Pass Google Vertex AI credentials and project ID inline when launching OpenCode.
 
 ```bash
-cd /mnt/c/Users/YourName/Documents/project
-opencode
-```
-
---------------------------------
-
-### OpenCode MCP Command Overview
-
-Source: https://opencode.ai/docs/cli
-
-Provides the general syntax for managing Model Context Protocol (MCP) servers.
-
-```bash
-opencode mcp [command]
-```
-
---------------------------------
-
-### Create OpenCode Client
-
-Source: https://opencode.ai/docs/sdk
-
-Initializes both a server and a client instance of OpenCode.
-
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
-
-const { client } = await createOpencode()
-```
-
---------------------------------
-
-### Pass initialization options to an LSP server
-
-Source: https://opencode.ai/docs/lsp
-
-Example of passing 'initialization' options, specifically 'importModuleSpecifierPreference', to a custom LSP server.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "lsp": {
-    "custom-lsp": {
-      "command": ["custom-lsp-server", "--stdio"],
-      "extensions": [".custom"],
-      "initialization": {
-        "preferences": {
-          "importModuleSpecifierPreference": "relative"
-        }
-      }
-    }
-  }
-}
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json GOOGLE_CLOUD_PROJECT=your-project-id opencode
 ```

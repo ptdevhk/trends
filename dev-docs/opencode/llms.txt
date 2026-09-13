@@ -58,25 +58,6 @@ Example of a JSON API response.
 
 --------------------------------
 
-### tmpdir with custom initialization
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
-
-Example demonstrating how to use a custom `init` function to perform setup and return extra data accessible via `tmp.extra`.
-
-```typescript
-await using tmp = await tmpdir<string>({
-  init: async (dir) => {
-    await Bun.write(path.join(dir, "file.txt"), "content")
-    return "extra data"
-  },
-})
-// Access extra data via tmp.extra
-console.log(tmp.extra) // "extra data"
-```
-
---------------------------------
-
 ### Install dependencies (Linux)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -126,18 +107,6 @@ brew install anomalyco/tap/opencode
 
 --------------------------------
 
-### Install OpenCode on Windows using Scoop
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Windows using Scoop.
-
-```bash
-scoop install opencode
-```
-
---------------------------------
-
 ### Advanced configuration example
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -166,6 +135,18 @@ npm install -g package-name
 
 --------------------------------
 
+### Install OpenCode on Windows using Scoop
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Windows using Scoop.
+
+```bash
+scoop install opencode
+```
+
+--------------------------------
+
 ### Install OpenCode on Windows using NPM
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -186,22 +167,6 @@ Example of configuring environment variables within a step.
 
 ```bash
 API_KEY=your_api_key_here
-```
-
---------------------------------
-
-### Install OpenCode on Arch Linux
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install OpenCode on Arch Linux using pacman or paru.
-
-```bash
-sudo pacman -S opencode
-```
-
-```bash
-paru -S opencode-bin
 ```
 
 --------------------------------
@@ -341,6 +306,25 @@ cd /path/to/project
 
 --------------------------------
 
+### tmpdir with custom initialization
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+
+Example demonstrating how to use a custom `init` function to perform setup and return extra data accessible via `tmp.extra`.
+
+```typescript
+await using tmp = await tmpdir<string>({
+  init: async (dir) => {
+    await Bun.write(path.join(dir, "file.txt"), "content")
+    return "extra data"
+  },
+})
+// Access extra data via tmp.extra
+console.log(tmp.extra) // "extra data"
+```
+
+--------------------------------
+
 ### Install OpenCode using Docker
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
@@ -407,6 +391,22 @@ const apiConfig = {
 
 --------------------------------
 
+### Install OpenCode on Arch Linux
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Install OpenCode on Arch Linux using pacman or paru.
+
+```bash
+sudo pacman -S opencode
+```
+
+```bash
+paru -S opencode-bin
+```
+
+--------------------------------
+
 ### Install dependencies (macOS)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -416,18 +416,6 @@ Commands to install Node.js and a package on macOS using Homebrew.
 ```bash
 brew install node
 npm install -g package-name
-```
-
---------------------------------
-
-### Run Development Server
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Command to start the local development server for Mintlify documentation.
-
-```bash
-mint dev
 ```
 
 --------------------------------
@@ -444,15 +432,14 @@ npm install -g @anthropic-ai/claude-code
 
 --------------------------------
 
-### Ask OpenCode a question
+### Run Development Server
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
 
-Example of asking OpenCode to explain a part of the codebase.
+Command to start the local development server for Mintlify documentation.
 
-```txt
-@packages/functions/src/api/index.ts
-How is authentication handled in @packages/functions/src/api/index.ts
+```bash
+mint dev
 ```
 
 --------------------------------
@@ -465,6 +452,19 @@ An example of a GET request to retrieve a file system tree, specifying a path, d
 
 ```HTTP
 GET /api/fs/tree?path=.&directory=/repo/app&workspace=ws_123
+```
+
+--------------------------------
+
+### Ask OpenCode a question
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of asking OpenCode to explain a part of the codebase.
+
+```txt
+@packages/functions/src/api/index.ts
+How is authentication handled in @packages/functions/src/api/index.ts
 ```
 
 --------------------------------
@@ -529,6 +529,21 @@ From this screen, the user can undelete a note or permanently delete it.
 
 --------------------------------
 
+### Paste API key
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Example of the prompt to paste your API key.
+
+```txt
+┌ API key
+│
+│
+└ enter
+```
+
+--------------------------------
+
 ### tmpdir with Git repository
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -541,17 +556,14 @@ await using tmp = await tmpdir({ git: true })
 
 --------------------------------
 
-### Paste API key
+### Install Mintlify CLI
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
 
-Example of the prompt to paste your API key.
+Command to install the Mintlify CLI globally using npm.
 
-```txt
-┌ API key
-│
-│
-└ enter
+```bash
+npm i -g mint
 ```
 
 --------------------------------
@@ -572,31 +584,6 @@ gh pr diff $ARGUMENTS
 
 --------------------------------
 
-### Install Mintlify CLI
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Command to install the Mintlify CLI globally using npm.
-
-```bash
-npm i -g mint
-```
-
---------------------------------
-
-### Path API Get Current Path
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
-
-Example of using `path.get()` to retrieve current path information.
-
-```javascript
-// Get current path information
-const pathInfo = await client.path.get()
-```
-
---------------------------------
-
 ### Instalando o aplicativo desktop OpenCode (BETA)
 
 Source: https://github.com/anomalyco/opencode/blob/dev/README.br.md
@@ -611,6 +598,19 @@ brew install --cask opencode-desktop
 ```bash
 # Windows (Scoop)
 scoop bucket add extras; scoop install extras/opencode-desktop
+```
+
+--------------------------------
+
+### Path API Get Current Path
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Example of using `path.get()` to retrieve current path information.
+
+```javascript
+// Get current path information
+const pathInfo = await client.path.get()
 ```
 
 --------------------------------
@@ -715,6 +715,18 @@ await client.session.prompt({
 
 --------------------------------
 
+### Prompting with a Local MCP Tool (TXT)
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
+
+Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
+
+```txt
+use the mcp_everything tool to add the number 3 and 4
+```
+
+--------------------------------
+
 ### Code group with multiple languages
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/cursor.mdx
@@ -758,82 +770,6 @@ await using tmp = await tmpdir({
     await fs.rm(path.join(dir, "special"), { recursive: true })
   },
 })
-```
-
---------------------------------
-
-### Prompting with a Local MCP Tool (TXT)
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
-
-Example of how to use a locally configured MCP tool, `mcp_everything`, within a prompt to leverage its functionality.
-
-```txt
-use the mcp_everything tool to add the number 3 and 4
-```
-
---------------------------------
-
-### CLAUDE.md file content
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/ai-tools/claude-code.mdx
-
-Example content for the CLAUDE.md file, used to train Claude Code on documentation standards.
-
-```markdown
-# Mintlify documentation
-
-## Working relationship
-
-- You can push back on ideas-this can lead to better documentation. Cite sources and explain your reasoning when you do so
-- ALWAYS ask for clarification rather than making assumptions
-- NEVER lie, guess, or make up information
-
-## Project context
-
-- Format: MDX files with YAML frontmatter
-- Config: docs.json for navigation, theme, settings
-- Components: Mintlify components
-
-## Content strategy
-
-- Document just enough for user success - not too much, not too little
-- Prioritize accuracy and usability of information
-- Make content evergreen when possible
-- Search for existing information before adding new content. Avoid duplication unless it is done for a strategic reason
-- Check existing patterns for consistency
-- Start by making the smallest reasonable changes
-
-## Frontmatter requirements for pages
-
-- title: Clear, descriptive page title
-- description: Concise summary for SEO/navigation
-
-## Writing standards
-
-- Second-person voice ("you")
-- Prerequisites at start of procedural content
-- Test all code examples before publishing
-- Match style and formatting of existing pages
-- Include both basic and advanced use cases
-- Language tags on all code blocks
-- Alt text on all images
-- Relative paths for internal links
-
-## Git workflow
-
-- NEVER use --no-verify when committing
-- Ask how to handle uncommitted changes before starting
-- Create a new branch when no clear branch exists for changes
-- Commit frequently throughout development
-- NEVER skip or disable pre-commit hooks
-
-## Do not
-
-- Skip frontmatter on any MDX file
-- Use absolute URLs for internal links
-- Include untested code examples
-- Make assumptions - always ask for clarification
 ```
 
 --------------------------------
