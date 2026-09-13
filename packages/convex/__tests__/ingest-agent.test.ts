@@ -22,7 +22,7 @@ const reIngestAllResumesHandler = (reIngestAllResumes as unknown as ConvexHandle
 >)._handler
 
 const reIngestStaleResumesHandler = (reIngestStaleResumes as unknown as ConvexHandler<
-  { limit?: number; cursor?: string; mode?: string; dryRun?: boolean; adaptive?: boolean },
+  { limit?: number; cursor?: string; mode?: string; dryRun?: boolean; adaptive?: boolean; maxScanPages?: number },
   {
     scheduled: number
     batches: number
@@ -940,3 +940,62 @@ describe("reIngestStaleResumes", () => {
     fetchSpy.mockRestore()
   })
 })
+
+  it("caps listResumeScanBatch pages per invoke and returns continuation cursor", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      makeBffResponse(200, { version: 6, ingestComputeEpoch: 6 }),
+    )
+
+    let queryCount = 0
+    const ctx = {
+      async runQuery(_fn: unknown, args?: { cursor?: string; limit?: number }) {
+        if (args?.limit === undefined) {
+          return false
+        }
+        queryCount += 1
+        // Sparse stale: one stale per page so filling limit=50 would walk many pages.
+        return {
+          continueCursor: `cursor:p${queryCount}`,
+          isDone: false,
+          page: [
+            {
+              _id: `fresh-${queryCount}`,
+              content: {},
+              ingestData: { skillsVersion: 6, ingestComputeEpoch: 6 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+            {
+              _id: `stale-${queryCount}`,
+              content: {},
+              ingestData: { skillsVersion: 1, ingestComputeEpoch: 1 },
+              primaryRuleScore: 0,
+              searchText: "",
+            },
+          ],
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const result = await reIngestStaleResumesHandler(ctx as never, {
+      limit: 50,
+      mode: "compute",
+      maxScanPages: 3,
+    })
+
+    expect(queryCount).toBe(3)
+    expect(result.scheduled).toBe(3)
+    expect(result.hasMore).toBe(true)
+    expect(result.cursor).toBe("cursor:p3")
+    expect(result.scannedRows).toBe(6)
+    expect(scheduledPayloads).toHaveLength(1)
+    expect(scheduledPayloads[0].resumeIds).toEqual(["stale-1", "stale-2", "stale-3"])
+    fetchSpy.mockRestore()
+  })
+

@@ -945,6 +945,10 @@ function resolveStaleSelectionMode(value: string | undefined): StaleSelectionMod
 export const ADAPTIVE_BACKPRESSURE_LIMIT = 50;
 /** processNewResumes BFF payload size. 50-id jobs over public HTTPS complete in ~10s without persisting epoch. */
 export const PROCESS_NEW_RESUMES_BATCH_SIZE = 10;
+/** Cap runQuery pages per reIngestStaleResumes invoke (epoch-6 pacing).
+ * Prevents open-ended walks that exhaust Convex 15s system-op budget. */
+const MAX_SCAN_PAGES_PER_ACTION = 3;
+
 
 /**
  * Bound Tantivy churn after an epoch bump: a 15-min cron with a fixed 200-row
@@ -1004,12 +1008,23 @@ export const reIngestStaleResumes = internalAction({
     dryRun: v.optional(v.boolean()),
     /** When true, cap the scheduled batch from scan-window saturation (FIX-C). */
     adaptive: v.optional(v.boolean()),
+    /** Max listResumeScanBatch pages per invoke (default 3). Cursor-anchored pacing. */
+    maxScanPages: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<ReIngestStaleResult> => {
     const limit = Math.max(1, Math.min(args.limit ?? 200, 1000));
     const mode = resolveStaleSelectionMode(args.mode);
     const dryRun = args.dryRun === true;
     const adaptive = args.adaptive === true;
+    const maxScanPages = Math.max(
+      1,
+      Math.min(
+        typeof args.maxScanPages === "number" && Number.isFinite(args.maxScanPages)
+          ? Math.floor(args.maxScanPages)
+          : MAX_SCAN_PAGES_PER_ACTION,
+        20,
+      ),
+    );
 
     const maintenance = await ctx.runQuery(internal.system_settings.isMaintenanceModeInternal, {});
     if (maintenance === true) {
@@ -1073,8 +1088,11 @@ export const reIngestStaleResumes = internalAction({
     let skillsStaleCount = 0;
     let computeStaleCount = 0;
     let matchedCount = 0;
+    let pagesScanned = 0;
 
-    while (resumeIds.length < limit) {
+    // Dual stop: fill `limit` OR hit scan-page budget (epoch-6 cursor-anchored pacing).
+    while (resumeIds.length < limit && pagesScanned < maxScanPages) {
+      pagesScanned += 1;
       const batch: {
         continueCursor: string;
         isDone: boolean;

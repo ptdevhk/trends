@@ -5621,6 +5621,7 @@ export interface paths {
                         mode?: "skills" | "compute" | "any";
                         dryRun?: boolean;
                         adaptive?: boolean;
+                        maxScanPages?: number;
                     };
                 };
             };

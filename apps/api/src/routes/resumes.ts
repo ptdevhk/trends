@@ -165,6 +165,8 @@ const TriggerReingestRequestSchema = z.object({
   dryRun: z.boolean().optional(),
   /** Match cron FIX-C: cap schedule when the scan window is saturated with compute-stale rows. */
   adaptive: z.boolean().optional(),
+  /** Max Convex scan pages per invoke (epoch-6 pacing; default 3 server-side). */
+  maxScanPages: z.number().int().min(1).max(20).optional(),
 });
 const TriggerReingestResponseSchema = z.object({
   success: z.literal(true),
@@ -808,6 +810,7 @@ export type TriggerReingestOptions = {
   mode?: "skills" | "compute" | "any";
   dryRun?: boolean;
   adaptive?: boolean;
+  maxScanPages?: number;
 };
 
 export type TriggerReingestResult = {
@@ -845,6 +848,7 @@ export async function triggerReingestStaleSkillsVersion(
   const cursor = options.cursor;
   const dryRun = options.dryRun === true;
   const adaptive = options.adaptive === true;
+  const maxScanPages = options.maxScanPages;
 
   let value: unknown;
   try {
@@ -856,6 +860,7 @@ export async function triggerReingestStaleSkillsVersion(
       mode,
       dryRun,
       adaptive,
+      ...(typeof maxScanPages === "number" ? { maxScanPages } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1471,7 +1476,7 @@ const triggerReingestRoute = createRoute({
   },
 });
 app.openapi(triggerReingestRoute, async (c) => {
-  const { limit, cursor, mode, dryRun, adaptive } = c.req.valid("json");
+  const { limit, cursor, mode, dryRun, adaptive, maxScanPages } = c.req.valid("json");
 
   try {
     const result = await triggerReingestStaleSkillsVersion({
@@ -1480,6 +1485,7 @@ app.openapi(triggerReingestRoute, async (c) => {
       mode: mode ?? "any",
       dryRun: dryRun === true,
       adaptive: adaptive === true,
+      maxScanPages,
     });
     return c.json({ success: true as const, ...result }, 200);
   } catch (error) {
