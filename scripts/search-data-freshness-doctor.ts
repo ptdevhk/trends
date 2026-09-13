@@ -203,7 +203,7 @@ async function main(): Promise<number> {
     const reRes = await fetch(`${base}/api/resumes/trigger-reingest`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true, adaptive: true }),
+      body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true, adaptive: true, maxScanPages: 3 }),
     });
     if (reRes.ok) {
       report.dryRunReingest = await reRes.json();

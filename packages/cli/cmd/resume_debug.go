@@ -520,6 +520,7 @@ func newResumeDebugTriggerReingestCmd() *cobra.Command {
 	var mode string
 	var dryRun bool
 	var adaptive bool
+	var maxScanPages int
 
 	cmd := &cobra.Command{
 		Use:   "trigger-reingest",
@@ -532,9 +533,10 @@ Modes:
   any     — either lag (default; use after algorithm fixes without skills bump)
 
 Use --dry-run to count skillsStale vs computeStale without scheduling work.
-Use --adaptive to match cron FIX-C (cap schedule when the scan window is saturated).`,
+Use --adaptive to match cron FIX-C (cap schedule when the scan window is saturated).
+Use --max-scan-pages to cap Convex listResumeScanBatch pages per invoke (epoch-6 pacing).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().TriggerResumeReingestWithOptions(context.Background(), limit, mode, dryRun, adaptive)
+			response, err := newAPIClient().TriggerResumeReingestWithOptions(context.Background(), limit, mode, dryRun, adaptive, maxScanPages)
 			if err != nil {
 				return err
 			}
@@ -564,6 +566,7 @@ Use --adaptive to match cron FIX-C (cap schedule when the scan window is saturat
 	cmd.Flags().StringVar(&mode, "mode", "any", "Stale selection: skills | compute | any")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Count stale rows without scheduling reingest")
 	cmd.Flags().BoolVar(&adaptive, "adaptive", false, "Match cron FIX-C: cap schedule when the scan window is saturated")
+	cmd.Flags().IntVar(&maxScanPages, "max-scan-pages", 0, "Cap Convex scan pages per invoke (0 = server default; epoch-6 pacing)")
 	return cmd
 }
 

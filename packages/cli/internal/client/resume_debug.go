@@ -333,7 +333,7 @@ func (c *Client) GetResumeSkillsVersion(ctx context.Context) (*ResumeSkillsVersi
 }
 
 func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeTriggerReingestResponse, error) {
-	return c.TriggerResumeReingestWithOptions(ctx, limit, "any", false, false)
+	return c.TriggerResumeReingestWithOptions(ctx, limit, "any", false, false, 0)
 }
 
 func (c *Client) TriggerResumeReingestWithOptions(
@@ -342,6 +342,7 @@ func (c *Client) TriggerResumeReingestWithOptions(
 	mode string,
 	dryRun bool,
 	adaptive bool,
+	maxScanPages int,
 ) (*ResumeTriggerReingestResponse, error) {
 	payload := map[string]any{}
 	if limit > 0 {
@@ -355,6 +356,9 @@ func (c *Client) TriggerResumeReingestWithOptions(
 	}
 	if adaptive {
 		payload["adaptive"] = true
+	}
+	if maxScanPages > 0 {
+		payload["maxScanPages"] = maxScanPages
 	}
 
 	endpoint := fmt.Sprintf("%s/api/resumes/trigger-reingest", c.APIURL)
