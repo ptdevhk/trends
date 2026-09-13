@@ -23,8 +23,8 @@
 #   PREVIEW_API_URL / PROD_API_URL / PREVIEW_PUBLIC_HOST (see deploy/lib-bff-defaults.sh)
 #   SCHEDULE_REINGEST=1   schedule bounded compute reingest when lag (default 1 on fail path when admin)
 #   REINGEST_LIMIT=200    total rows to schedule across all paced batches
-#   REINGEST_BATCH=25     rows per paced trigger-reingest call (capacity-safe for 8 GiB Convex)
-#   REINGEST_SLEEP_SECS=8 seconds between paced calls (prevents Convex OOM on large cloned datasets)
+#   REINGEST_BATCH=10     rows per paced trigger-reingest call (epoch-6 safe under Tantivy load)
+#   REINGEST_SLEEP_SECS=15 seconds between paced calls (prevents Convex OOM on large cloned datasets)
 #   SKIP_GOLDEN=0
 #   GATE_STRICT=1         fail the calling upgrade when exit != 0 (default 1)
 set -euo pipefail
@@ -45,8 +45,8 @@ WORKSPACE="${TRENDS_WORKSPACE:-dev}"
 # stale population — the gate warns when scanComplete=false.
 SCAN_LIMIT="${SCAN_LIMIT:-200}"
 REINGEST_LIMIT="${REINGEST_LIMIT:-200}"
-REINGEST_BATCH="${REINGEST_BATCH:-25}"
-REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-8}"
+REINGEST_BATCH="${REINGEST_BATCH:-10}"
+REINGEST_SLEEP_SECS="${REINGEST_SLEEP_SECS:-15}"
 SCHEDULE_REINGEST="${SCHEDULE_REINGEST:-1}"
 SKIP_GOLDEN="${SKIP_GOLDEN:-0}"
 GATE_STRICT="${GATE_STRICT:-1}"
@@ -249,7 +249,7 @@ fi
 
 # Cursor-continuation batches + inter-batch sleep avoid Convex overload while
 # ensuring each paced call advances past the rows scheduled by the prior call.
-# Defaults are set at the top of the script (REINGEST_BATCH=25, REINGEST_SLEEP_SECS=8)
+# Defaults are set at the top of the script (REINGEST_BATCH=10, REINGEST_SLEEP_SECS=15)
 # and can be overridden via env or --reingest-batch / --reingest-sleep CLI flags.
 
 if [[ "$should_schedule" -eq 1 ]]; then
@@ -283,7 +283,7 @@ call_count = 0
 while remaining > 0:
     call_count += 1
     n = min(batch, remaining)
-    payload_obj = {"limit": n, "mode": "compute", "dryRun": False, "adaptive": True}
+    payload_obj = {"limit": n, "mode": "compute", "dryRun": False, "adaptive": True, "maxScanPages": 3}
     if cursor is not None:
         payload_obj["cursor"] = cursor
     payload = json.dumps(payload_obj).encode()
