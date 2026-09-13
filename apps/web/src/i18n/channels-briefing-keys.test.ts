@@ -31,6 +31,7 @@ const CHANNELS_BRIEFING_KEYS = [
   'research.channelsBriefing.tryExample',
   'research.channelsBriefing.generate',
   'research.channelsBriefing.generating',
+  'research.channelsBriefing.validation',
   'research.channelsBriefing.empty',
   'research.channelsBriefing.error400',
   'research.channelsBriefing.error502',

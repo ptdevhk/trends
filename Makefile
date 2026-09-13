@@ -1366,7 +1366,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + canonical policy validation)
-check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret
+check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret check-keyword-tags
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware

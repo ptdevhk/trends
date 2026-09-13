@@ -2990,6 +2990,7 @@
       "generate": "Generate briefing",
       "generatedAt": "Generated at {{time}}",
       "generating": "Generating briefing…",
+      "validation": "Paste 1 to 8 valid WeChat Channels share links.",
       "howTo1": "In WeChat Channels, tap Share, then Copy link.",
       "howTo2": "Paste the links below, one per line.",
       "howTo3": "Tap Generate briefing.",
