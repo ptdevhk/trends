@@ -223,11 +223,50 @@ func TestTriggerResumeReingestAdaptive(t *testing.T) {
 
 	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
-	reingest, err := c.TriggerResumeReingestWithOptions(context.Background(), 50, "compute", false, true)
+	reingest, err := c.TriggerResumeReingestWithOptions(context.Background(), 50, "compute", false, true, 0)
 	if err != nil {
 		t.Fatalf("TriggerResumeReingestWithOptions returned error: %v", err)
 	}
 	if reingest.AdaptiveLimit != 10 || reingest.Scheduled != 10 {
+		t.Fatalf("unexpected reingest response: %+v", reingest)
+	}
+}
+
+func TestTriggerResumeReingestMaxScanPages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/resumes/trigger-reingest" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		pages, _ := payload["maxScanPages"].(float64)
+		if int(pages) != 3 {
+			t.Fatalf("expected maxScanPages=3, got %#v", payload["maxScanPages"])
+		}
+		if mode, _ := payload["mode"].(string); mode != "compute" {
+			t.Fatalf("expected mode=compute, got %v", payload["mode"])
+		}
+		_ = json.NewEncoder(w).Encode(ResumeTriggerReingestResponse{
+			Success:                   true,
+			Scheduled:                 3,
+			Batches:                   1,
+			CurrentVersion:            9,
+			CurrentIngestComputeEpoch: 6,
+			HasMore:                   true,
+			Mode:                      "compute",
+		})
+	}))
+	defer server.Close()
+
+	c := New(server.URL, server.URL, "dev")
+	c.HTTP = server.Client()
+	reingest, err := c.TriggerResumeReingestWithOptions(context.Background(), 50, "compute", false, false, 3)
+	if err != nil {
+		t.Fatalf("TriggerResumeReingestWithOptions returned error: %v", err)
+	}
+	if reingest.Scheduled != 3 || !reingest.HasMore {
 		t.Fatalf("unexpected reingest response: %+v", reingest)
 	}
 }
