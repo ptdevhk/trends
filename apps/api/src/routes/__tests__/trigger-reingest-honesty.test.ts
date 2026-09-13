@@ -267,7 +267,8 @@ describe("trigger-reingest honesty (F4/F5)", () => {
       hasMore: true,
     });
     expect(fetchSpy).toHaveBeenCalled();
-  }
+  });
+
   it("passes maxScanPages through to Convex", async () => {
     root = createFixtureRoot();
     const { createApp } = await loadModules(root);
