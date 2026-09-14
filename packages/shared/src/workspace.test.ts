@@ -45,6 +45,13 @@ describe('slugifyUsernameForWorkspace', () => {
   it('strips invalid characters', () => {
     expect(slugifyUsernameForWorkspace('a@b#c')).toBe('a-b-c')
   })
+
+  it('does not make reserved usernames valid personal seats', () => {
+    expect(slugifyUsernameForWorkspace('Admin')).toBe('admin')
+    expect(isValidWorkspace(slugifyUsernameForWorkspace('Admin'))).toBe(false)
+    expect(isValidWorkspace(slugifyUsernameForWorkspace('constructor'))).toBe(false)
+    expect(isValidWorkspace(slugifyUsernameForWorkspace('login'))).toBe(false)
+  })
 })
 
 describe('isReservedWorkspaceSlug', () => {
