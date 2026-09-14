@@ -154,6 +154,30 @@ describe("MY/TH Service Engineer search-quality harness", () => {
     expect(result.stdout).not.toMatch(/profileUrl|cookie|password|csrf|candidate/i);
   });
 
+  it("fails aggregate-only when qualityResponses omits a market key", () => {
+    const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
+      qualityResponses: Record<string, unknown>;
+    };
+    delete fixture.qualityResponses.MY;
+    const dir = mkdtempSync(join(tmpdir(), "trends-my-th-missing-"));
+    const missingFixture = join(dir, "fixture.json");
+    writeFileSync(missingFixture, JSON.stringify(fixture), "utf8");
+
+    const result = runFixture(missingFixture);
+
+    expect(result.status).toBe(2);
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      quality: Array<{ market: string; failures: string[] }>;
+    };
+    expect(report.ok).toBe(false);
+    expect(report.quality.find((item) => item.market === "MY")?.failures).toEqual([
+      "qualityResponses missing MY",
+    ]);
+    expect(report.quality.find((item) => item.market === "TH")?.failures).toEqual([]);
+    expect(result.stdout).not.toMatch(/profileUrl|cookie|password|csrf|candidate/i);
+  });
+
   it("fails with aggregate-only diagnostics when a quality floor is missed", () => {
     const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
       qualityResponses: { TH: { data: unknown[] } };
