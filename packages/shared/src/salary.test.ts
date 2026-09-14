@@ -135,6 +135,11 @@ describe('parseSalaryRange', () => {
       expect(parseSalaryRange('abc')).toBeNull()
     })
 
+    it('returns null for an inverted range so filters cannot match a backwards window', () => {
+      expect(parseSalaryRange('25K-15K')).toBeNull()
+      expect(parseRawSalaryRange('12000-8000')).toBeNull()
+    })
+
     it('handles K with slash suffix "15K/月"', () => {
       expect(parseSalaryRange('15K/月')).toEqual({ min: 15, max: undefined })
     })
