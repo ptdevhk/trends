@@ -34,6 +34,13 @@ describe("company-policy helpers", () => {
     expect(normalizeCompanyAlias("Pro Technic")).toBe("pro technic");
   });
 
+  it("strips punctuation and fullwidth spaces from aliases", () => {
+    expect(normalizeCompanyAlias("Polywell（Machinery）")).toBe("polywellmachinery");
+    expect(normalizeCompanyAlias("【宝惠】")).toBe("宝惠");
+    expect(normalizeCompanyAlias("Pro.Technic, Inc.")).toBe("protechnic inc");
+    expect(normalizeCompanyAlias("宝力\u3000机械")).toBe("宝力 机械");
+  });
+
   it("maps presets to multi-effect policy payloads", () => {
     expect(policyEffectsFromPreset("known_good").rankingEffect).toBe("band_known_good");
     expect(policyEffectsFromPreset("no_hire")).toMatchObject({
