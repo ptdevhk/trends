@@ -3,6 +3,7 @@ import {
   isSalesRequiredContext,
   getCurrentResumeAiPromptVersion,
   buildKeywordAnalysisId,
+  normalizeResumeAnalysisSourceKey,
 } from './analysis-key'
 
 describe('isSalesRequiredContext', () => {
@@ -80,6 +81,18 @@ describe('buildKeywordAnalysisId', () => {
     expect(buildKeywordAnalysisId([])).toBe('keyword-search')
     expect(buildKeywordAnalysisId(['', '  '])).toBe('keyword-search')
     expect(buildKeywordAnalysisId(['\t', '\n'])).toBe('keyword-search')
+  })
+})
+
+describe('normalizeResumeAnalysisSourceKey', () => {
+  it('returns undefined for empty, whitespace, and unknown tokens', () => {
+    expect(normalizeResumeAnalysisSourceKey('')).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey('   ')).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey('\t\n')).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey(null)).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey(undefined)).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey('linkedin')).toBeUndefined()
+    expect(normalizeResumeAnalysisSourceKey('unknown')).toBeUndefined()
   })
 })
 
