@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isSalesRequiredContext,
   getCurrentResumeAiPromptVersion,
+  buildKeywordAnalysisId,
 } from './analysis-key'
 
 describe('isSalesRequiredContext', () => {
@@ -71,6 +72,14 @@ describe('resume AI prompt source contract', () => {
         expect(source.sections.outputContract).toContain(key)
       }
     }
+  })
+})
+
+describe('buildKeywordAnalysisId', () => {
+  it('returns the literal keyword-search for empty or whitespace-only keywords', () => {
+    expect(buildKeywordAnalysisId([])).toBe('keyword-search')
+    expect(buildKeywordAnalysisId(['', '  '])).toBe('keyword-search')
+    expect(buildKeywordAnalysisId(['\t', '\n'])).toBe('keyword-search')
   })
 })
 
