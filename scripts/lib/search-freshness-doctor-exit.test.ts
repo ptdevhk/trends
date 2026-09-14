@@ -64,6 +64,15 @@ describe("resolveSearchFreshnessDoctorFallbackExit", () => {
     ).toBe(2);
   });
 
+  it("exits 2 when dry-run reports compute-stale rows even if hasMore=true", () => {
+    expect(
+      resolveSearchFreshnessDoctorFallbackExit({
+        authenticated: true,
+        dryRunReingest: { computeStaleCount: 12, hasMore: true },
+      }),
+    ).toBe(2);
+  });
+
   it("exits 3 when a golden query is explicitly not ok", () => {
     expect(
       resolveSearchFreshnessDoctorFallbackExit({
@@ -96,6 +105,15 @@ describe("resolveSearchFreshnessDoctorFallbackExit", () => {
       resolveSearchFreshnessDoctorFallbackExit({
         authenticated: true,
         dryRunReingest: { computeStaleCount: Number.NaN },
+      }),
+    ).toBe(1);
+  });
+
+  it("exits 1 when authenticated dry-run hasMore=true even if computeStaleCount is 0", () => {
+    expect(
+      resolveSearchFreshnessDoctorFallbackExit({
+        authenticated: true,
+        dryRunReingest: { computeStaleCount: 0, hasMore: true },
       }),
     ).toBe(1);
   });

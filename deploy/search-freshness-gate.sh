@@ -44,7 +44,8 @@ WORKSPACE="${TRENDS_WORKSPACE:-dev}"
 # SCAN_LIMIT is the doctor's lag-scan WINDOW, not a corpus count: the dry-run
 # reingest stops after scanning this many resume rows and reports
 # hasMore/scanComplete. Counts from an incomplete window understate the true
-# stale population — the gate warns when scanComplete=false.
+# stale population — the API hints exit 1 (not green) when that window also
+# reports computeStale=0; the gate still warns on scanComplete=false.
 SCAN_LIMIT="${SCAN_LIMIT:-200}"
 REINGEST_LIMIT="${REINGEST_LIMIT:-200}"
 REINGEST_BATCH="${REINGEST_BATCH:-10}"
@@ -229,8 +230,9 @@ fi
 # Window semantics: the doctor's lag scan is a dry-run reingest capped at
 # SCAN_LIMIT rows. When the corpus is larger, the scan stops mid-corpus and
 # reports hasMore=true / scanComplete=false — the stale counts in that case
-# UNDERSTATE the true population. The gate must say so explicitly instead of
-# reporting a window as if it were a full-corpus count.
+# UNDERSTATE the true population. The API hints exit 1 (unverifiable) when
+# that incomplete window also reports computeStale=0. The gate still says so
+# explicitly instead of treating the window as a full-corpus green count.
 if echo "$DOCTOR_OUT" | grep -q '"scanComplete": false'; then
   warn "Doctor lag scan window incomplete (scanComplete=false) — computeStale/missingEpoch counts understate the true stale population; re-run with a higher --scan-limit or continue the cursor scan"
 fi

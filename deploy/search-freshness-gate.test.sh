@@ -341,6 +341,11 @@ if grep -A8 'if (lagScanFailed)' "$ROOT/apps/api/src/routes/resumes_diagnostics.
 else
   fail "API lagScanFailed still hints 2 (GATE_STRICT=0 would swallow it)"
 fi
+if grep -A6 'else if (!lag.scanComplete)' "$ROOT/apps/api/src/routes/resumes_diagnostics.ts" | grep -q 'exitCodeHint = 1'; then
+  pass "API incomplete lag window hints exit 1 (not green)"
+else
+  fail "API incomplete lag window still treats computeStale=0 as exit 0"
+fi
 if grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/agent-runbook.md" \
   && grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/preview-upgrade-runbook.md" \
   && grep -q 'PREVIEW_REMAASURE_MIN_MEM_AVAILABLE_GIB' "$ROOT/scripts/lib/preview-remasure-pressure.ts"; then

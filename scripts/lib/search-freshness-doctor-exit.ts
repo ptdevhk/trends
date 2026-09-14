@@ -4,7 +4,7 @@ export type SearchFreshnessDoctorReport = {
   searchFreshnessHttp?: unknown;
   dryRunError?: unknown;
   dryRunReingestHttp?: unknown;
-  dryRunReingest?: { computeStaleCount?: number };
+  dryRunReingest?: { computeStaleCount?: number; hasMore?: unknown };
   goldenQueries?: Array<{ ok?: boolean | null }>;
 };
 
@@ -50,6 +50,11 @@ export function resolveSearchFreshnessDoctorFallbackExit(
     return 3;
   }
   if (report.authenticated === true && !isMeasuredNonNegativeInt(stale)) {
+    return 1;
+  }
+  // hasMore=true with a measured zero-stale window still understates the
+  // corpus. That is unverifiable (1), not a complete green window (0).
+  if (report.authenticated === true && report.dryRunReingest?.hasMore === true) {
     return 1;
   }
   return 0;
