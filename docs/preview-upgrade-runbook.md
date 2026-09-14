@@ -89,10 +89,19 @@ Current-production parity is informational only for historical verification.
 - After every preview (and production) upgrade, run the search-freshness gate:
   - `bash deploy/search-freshness-gate.sh --role preview --api-url http://127.0.0.1:3002`
   - or `make doctor-search-freshness` (local) / doctor `--full` on preview
+- Exit **1** = authenticated but unverifiable lag (fetch failed, HTTP error,
+  HTTP 200 with no `exitCodeHint` / no stale-window number, or API
+  `lagScanFailed` with `exitCodeHint=1`). `GATE_STRICT=0` may soften measured
+  lag (2) and golden (3) only — never treat exit 1 as OK.
+- Live preview remasure (port **4210** only) is pressure-gated:
+  `decidePreviewRemasurePressure` in `scripts/lib/preview-remasure-pressure.ts`
+  allows a scan only when host MemAvailable ≥ 2.5 GiB and preview Convex
+  memory is strictly under 75%. Skip the scan and keep coding when either
+  reading is missing or the gate fails. Never remasure prod **3210**.
 - Exit **3** = verified-only golden MY/CN `minRoleYears` availability or
   semantic checks failed. Treat this as a data/parity problem, not as a reason
   to do another version bump:
-  - `trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002`
+  - `trends resume debug trigger-reingest --mode compute --limit 200 --api-url http://127.0.0.1:3002`
 - Production equivalent: `bash deploy/search-freshness-gate.sh --role production --api-url http://127.0.0.1:3000` (hooked into `scripts/install.sh` full upgrade).
 
 Canonical script directory after code lands on the host:
@@ -668,7 +677,7 @@ bash "$PREVIEW_DIR/deploy/search-freshness-gate.sh" --role preview --api-url htt
 #   BFF_API_URL=https://preview.pt-mes.com in .env.preview
 #   PREVIEW_DIR=... bash deploy/sync-preview-convex-env.sh --sync-only
 # Repair lag / stale verified-role projections:
-#   trends resume debug trigger-reingest --mode any --limit 200 --api-url http://127.0.0.1:3002
+#   trends resume debug trigger-reingest --mode compute --limit 200 --api-url http://127.0.0.1:3002
 ```
 
 ### 11.3 HTTP health

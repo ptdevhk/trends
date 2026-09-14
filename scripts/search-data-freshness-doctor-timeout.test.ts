@@ -27,4 +27,11 @@ describe("search-data-freshness-doctor search-freshness fetch timeout", () => {
     expect(timeouts[0]).toBeGreaterThan(300_000);
     expect(timeouts[1]).toBeGreaterThan(300_000);
   });
+
+  it("preferred HTTP 200 path uses resolveSearchFreshnessPreferredExit (missing hint is not 0)", () => {
+    expect(doctorSource).toContain("resolveSearchFreshnessPreferredExit");
+    expect(doctorSource).not.toMatch(
+      /return typeof body\.exitCodeHint === "number" \? body\.exitCodeHint : 0/,
+    );
+  });
 });

@@ -321,6 +321,33 @@ if grep -q -- '--mode any' "$ROOT/deploy/search-freshness-gate.sh"; then
 else
   pass "gate no longer references --mode any"
 fi
+if grep -q 'resolveSearchFreshnessPreferredExit' "$ROOT/scripts/search-data-freshness-doctor.ts"; then
+  pass "doctor preferred path uses resolveSearchFreshnessPreferredExit"
+else
+  fail "doctor preferred path still treats missing exitCodeHint as 0"
+fi
+if grep -q -- '--mode any' "$ROOT/docs/preview-upgrade-runbook.md"; then
+  fail "preview-upgrade-runbook still recommends --mode any"
+else
+  pass "preview-upgrade-runbook repair path uses --mode compute only"
+fi
+if grep -q -- 'any|compute' "$ROOT/docs/agent-runbook.md"; then
+  fail "agent-runbook still schedules --mode any|compute for doctor 2/3"
+else
+  pass "agent-runbook repair path uses --mode compute"
+fi
+if grep -A8 'if (lagScanFailed)' "$ROOT/apps/api/src/routes/resumes_diagnostics.ts" | grep -q 'exitCodeHint = 1'; then
+  pass "API lagScanFailed hints exit 1 (unverifiable)"
+else
+  fail "API lagScanFailed still hints 2 (GATE_STRICT=0 would swallow it)"
+fi
+if grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/agent-runbook.md" \
+  && grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/preview-upgrade-runbook.md" \
+  && grep -q 'PREVIEW_REMAASURE_MIN_MEM_AVAILABLE_GIB' "$ROOT/scripts/lib/preview-remasure-pressure.ts"; then
+  pass "epoch-6 remasure pressure helper is documented and present"
+else
+  fail "epoch-6 remasure pressure helper missing from runbooks or scripts/lib"
+fi
 
 echo "Summary: $FAIL failure(s)"
 [[ "$FAIL" -eq 0 ]]

@@ -988,6 +988,47 @@ describe("resumes_diagnostics", () => {
       expect(payload.lagScanFailed).toBe(false);
     });
 
+    it("hints exit 1 (not 2) when the lag scan fails so GATE_STRICT=0 cannot swallow it", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/api/action")) {
+          const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+            path: string;
+          };
+          if (body.path === "migrations:recomputeCompanyKeyProjections") {
+            return convexSuccess({
+              scheduled: 0,
+              batches: 0,
+              currentEpoch: 1,
+              hasMore: false,
+              cursor: null,
+              dryRun: true,
+              scannedRows: 0,
+              staleCount: 0,
+            });
+          }
+          // 4xx is definitive — no fetchWithRetry delay.
+          return new Response("convex overload", { status: 400 });
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      });
+
+      const app = createTestApp();
+      const response = await app.request("/api/resumes/search-freshness?skipGolden=true");
+
+      expect(response.status).toBe(200);
+      const payload = await parseJsonBody<{
+        lagScanFailed?: boolean;
+        exitCodeHint?: number;
+        messages?: string[];
+      }>(response);
+      expect(payload.lagScanFailed).toBe(true);
+      expect(payload.exitCodeHint).toBe(1);
+      expect(payload.messages?.some((message) => message.includes("unverifiable"))).toBe(true);
+    });
+
     it("uses the current request origin for golden queries when no BFF env override is set", async () => {
       const originalBffApiUrl = process.env.BFF_API_URL;
       const originalApiUrl = process.env.API_URL;

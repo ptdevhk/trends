@@ -20,7 +20,10 @@ import {
   CURRENT_INGEST_COMPUTE_EPOCH,
   SEARCH_FRESHNESS_GOLDEN_QUERIES,
 } from "@trends/shared";
-import { resolveSearchFreshnessDoctorFallbackExit } from "./lib/search-freshness-doctor-exit.ts";
+import {
+  resolveSearchFreshnessDoctorFallbackExit,
+  resolveSearchFreshnessPreferredExit,
+} from "./lib/search-freshness-doctor-exit.ts";
 
 type Args = {
   apiUrl: string;
@@ -183,7 +186,7 @@ async function main(): Promise<number> {
       } else {
         console.log(JSON.stringify(body, null, 2));
       }
-      return typeof body.exitCodeHint === "number" ? body.exitCodeHint : 0;
+      return resolveSearchFreshnessPreferredExit(body);
     }
     report.searchFreshnessHttp = res.status;
   } catch (error) {
