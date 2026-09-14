@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeEducationLevel, parseExperienceYears, computeExperienceFromWorkHistory, resolveExperienceYears } from "../resume-filter-helpers.js";
+import { normalizeEducationLevel, parseExperienceYears, parseDateToMs, computeExperienceFromWorkHistory, resolveExperienceYears } from "../resume-filter-helpers.js";
 
 describe("normalizeEducationLevel", () => {
   it("normalizes Chinese education terms", () => {
@@ -68,6 +68,24 @@ describe("parseExperienceYears", () => {
     expect(parseExperienceYears(null)).toBeNull();
     expect(parseExperienceYears(undefined)).toBeNull();
     expect(parseExperienceYears("?")).toBeNull();
+  });
+});
+
+describe("parseDateToMs", () => {
+  it("returns null for non-string, empty, or invalid values", () => {
+    expect(parseDateToMs(null)).toBeNull();
+    expect(parseDateToMs(undefined)).toBeNull();
+    expect(parseDateToMs(2023)).toBeNull();
+    expect(parseDateToMs("")).toBeNull();
+    expect(parseDateToMs("   ")).toBeNull();
+    expect(parseDateToMs("invalid")).toBeNull();
+    expect(parseDateToMs("2023/06")).toBeNull();
+  });
+
+  it("parses YYYY, YYYY-MM, and YYYY-MM-DD as UTC epoch ms", () => {
+    expect(parseDateToMs("2023")).toBe(Date.UTC(2023, 0, 1));
+    expect(parseDateToMs("2023-06")).toBe(Date.UTC(2023, 5, 1));
+    expect(parseDateToMs("2023-06-15")).toBe(Date.UTC(2023, 5, 15));
   });
 });
 
