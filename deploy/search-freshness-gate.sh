@@ -27,6 +27,8 @@
 #   REINGEST_SLEEP_SECS=15 seconds between paced calls (prevents Convex OOM on large cloned datasets)
 #   SKIP_GOLDEN=0
 #   GATE_STRICT=1         fail the calling upgrade when exit != 0 (default 1)
+#                         GATE_STRICT=0 softens measured lag (2) and golden (3) only;
+#                         unverifiable/auth doctor rc 1 still fails.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -338,6 +340,8 @@ if [[ "$DOCTOR_RC" -eq 3 ]]; then
   if [[ "$GATE_STRICT" == "1" ]]; then
     exit 3
   fi
+  log "GATE_STRICT=0 — golden failure is non-fatal"
+  exit 0
 fi
 
 if [[ "$DOCTOR_RC" -eq 2 ]]; then
@@ -358,10 +362,9 @@ fi
 
 if [[ "$DOCTOR_RC" -ne 0 ]]; then
   err "Doctor failed with exit $DOCTOR_RC"
-  if [[ "$GATE_STRICT" == "1" ]]; then
-    exit "$DOCTOR_RC"
-  fi
-  log "GATE_STRICT=0 — treating doctor exit $DOCTOR_RC as non-fatal"
+  # Exit 1 (auth/request/unverifiable lag) is not "known compute lag".
+  # GATE_STRICT=0 may soften exit 2/3 only; never print OK for an unverifiable scan.
+  exit "$DOCTOR_RC"
 fi
 
 log "Search freshness gate OK"

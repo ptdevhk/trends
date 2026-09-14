@@ -279,6 +279,22 @@ if grep -A20 'DOCTOR_RC.*-eq 2' "$ROOT/deploy/search-freshness-gate.sh" | grep -
 else
   fail "gate no longer exits 2 under GATE_STRICT for doctor rc 2"
 fi
+# GATE_STRICT=0 may soften measured lag (rc 2) and golden (rc 3), never unverifiable rc 1
+if grep -A8 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'treating doctor exit \$DOCTOR_RC as non-fatal'; then
+  fail "gate still swallows unverifiable doctor rc under GATE_STRICT=0"
+else
+  pass "gate does not swallow unverifiable doctor rc under GATE_STRICT=0"
+fi
+if grep -A5 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'exit "$DOCTOR_RC"'; then
+  pass "unverifiable doctor rc exits the gate"
+else
+  fail "unverifiable doctor rc does not exit the gate"
+fi
+if grep -A5 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'Search freshness gate OK'; then
+  fail "unverifiable doctor rc can still print Search freshness gate OK"
+else
+  pass "unverifiable doctor rc cannot print Search freshness gate OK"
+fi
 # Golden query config: MY availability floor is semantic-only, CN remains high-volume
 if grep -A16 'id: "my-cnc-sales-minRoleYears"' "$ROOT/packages/shared/src/ingest-compute-epoch.ts" | grep -q 'minTotalFloor: 1'; then
   pass "MY golden minTotalFloor is 1 under verified-only semantics"
