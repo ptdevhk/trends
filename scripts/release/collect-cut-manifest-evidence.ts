@@ -23,8 +23,10 @@
  *   - Deterministic JSON: recursively sorted keys, sorted lists, a single non-decision
  *     `meta.generatedAt`, and a `decisionHash` over the decision body (timestamp excluded).
  *   - Fail closed on: dirty tree, HEAD ahead/behind/diverged from origin/main, version
- *     surface disagreement, missing/mismatched cut tag or immutable branch, migration drift,
- *     or an explicit frozen-expectation mismatch.
+ *     surface disagreement, OpenAPI yaml/json info.version cross-file mismatch, missing or stale
+ *     OpenAPI yaml/json HealthResponse example, health.ts vs yaml/json example mismatch,
+ *     api-types @example vs yaml/json example mismatch, missing/mismatched
+ *     cut tag or immutable branch, migration drift, or an explicit frozen-expectation mismatch.
  *
  * Exit codes:
  *   0 - clean: every fail-closed check passed
@@ -43,6 +45,13 @@ import {
   CURRENT_INGEST_COMPUTE_EPOCH,
   CURRENT_INDUSTRY_EVIDENCE_PROJECTION_VERSION,
 } from "@trends/shared";
+import {
+  e2eQuotedVersion,
+  healthExampleFromOpenApiJson,
+  healthExampleFromOpenApiYaml,
+  infoVersionFromOpenApiJson,
+  infoVersionFromOpenApiYaml,
+} from "../lib/openapi-health-example.ts";
 
 export const EVIDENCE_SCHEMA = "trends-cut-manifest-evidence/v1";
 export const EVIDENCE_SCHEMA_VERSION = "v1";
@@ -298,6 +307,57 @@ export interface VersionSurfaceRecord {
   matches: boolean;
 }
 
+export function surfaceValue(
+  surfaces: ReadonlyArray<Pick<VersionSurfaceRecord, "id" | "value">>,
+  id: string,
+): string | null {
+  return surfaces.find((surface) => surface.id === id)?.value ?? null;
+}
+
+export function versionParityResult(
+  left: string | null,
+  right: string | null,
+  expected: string,
+): { status: "pass" | "fail"; actual: string } {
+  if (!left || !right) {
+    return { status: "fail", actual: "missing" };
+  }
+  if (left !== right) {
+    return { status: "fail", actual: `${left} != ${right}` };
+  }
+  if (left !== expected) {
+    return { status: "fail", actual: left };
+  }
+  return { status: "pass", actual: left };
+}
+
+export function staleSurfaceResult(
+  value: string | null,
+  expected: string,
+): { status: "pass" | "fail"; actual: string } {
+  if (!value) {
+    return { status: "fail", actual: "missing" };
+  }
+  if (value !== expected) {
+    return { status: "fail", actual: value };
+  }
+  return { status: "pass", actual: value };
+}
+
+export function requiredSurfaceResult(
+  value: string | null,
+  expected: string,
+  required: boolean,
+): { status: "pass" | "fail" | "warn"; actual: string } {
+  if (value !== null && value === expected) {
+    return { status: "pass", actual: value };
+  }
+  return {
+    status: required ? "fail" : "warn",
+    actual: value ?? "unreadable",
+  };
+}
+
 export interface CutIdentityEvidence {
   branch: string | null;
   headSha: string | null;
@@ -518,15 +578,24 @@ export function parseCliArgs(argv: string[]): CliOptions {
 // Static surface definitions
 // ---------------------------------------------------------------------------
 
-export type VersionSurfaceKind =
-  | "raw"
-  | "packageJson"
-  | "pyproject"
-  | "dunderVersion"
-  | "tsVersionProp"
-  | "tsExampleProp"
-  | "openapiInfoVersion"
-  | "tsExampleComment";
+export const VERSION_SURFACE_KINDS = [
+  "raw",
+  "packageJson",
+  "pyproject",
+  "dunderVersion",
+  "tsVersionProp",
+  "tsExampleProp",
+  "openapiInfoVersion",
+  "openapiJsonInfoVersion",
+  "tsExampleComment",
+  "e2eAppVersion",
+  "e2eApiVersion",
+  "e2eWebVersion",
+  "openapiYamlHealthExample",
+  "openapiJsonHealthExample",
+] as const;
+
+export type VersionSurfaceKind = (typeof VERSION_SURFACE_KINDS)[number];
 
 export const VERSION_SURFACES: ReadonlyArray<{
   id: string;
@@ -569,12 +638,265 @@ export const VERSION_SURFACES: ReadonlyArray<{
     required: true,
   },
   {
+    id: "openapi_json_info_version",
+    path: "apps/api/openapi.json",
+    kind: "openapiJsonInfoVersion",
+    required: true,
+  },
+  {
     id: "api_types_example",
     path: "apps/web/src/lib/api-types.ts",
     kind: "tsExampleComment",
     required: true,
   },
+  {
+    id: "schemas_validation",
+    path: "apps/api/src/schemas/schemas-validation.test.ts",
+    kind: "tsVersionProp",
+    required: true,
+  },
+  {
+    id: "e2e_app_version",
+    path: "apps/web/e2e/resume-role-filter.spec.ts",
+    kind: "e2eAppVersion",
+    required: true,
+  },
+  {
+    id: "e2e_api_version",
+    path: "apps/web/e2e/resume-role-filter.spec.ts",
+    kind: "e2eApiVersion",
+    required: true,
+  },
+  {
+    id: "e2e_web_version",
+    path: "apps/web/e2e/resume-role-filter.spec.ts",
+    kind: "e2eWebVersion",
+    required: true,
+  },
+  {
+    id: "openapi_yaml_health_example",
+    path: "apps/api/openapi.yaml",
+    kind: "openapiYamlHealthExample",
+    required: true,
+  },
+  {
+    id: "openapi_json_health_example",
+    path: "apps/api/openapi.json",
+    kind: "openapiJsonHealthExample",
+    required: true,
+  },
 ];
+
+/** Paths bump-version.sh rewrites; each must appear on at least one VERSION_SURFACE. */
+export const BUMP_VERSION_LEFTOVER_PATHS: ReadonlyArray<string> = [
+  "version",
+  "package.json",
+  "apps/api/package.json",
+  "apps/web/package.json",
+  "packages/shared/package.json",
+  "packages/convex/package.json",
+  "apps/browser-extension/package.json",
+  "pyproject.toml",
+  "apps/worker/pyproject.toml",
+  "apps/worker/__init__.py",
+  "trendradar/__init__.py",
+  "apps/api/src/services/config.ts",
+  "apps/api/src/schemas/health.ts",
+  "apps/api/src/schemas/schemas-validation.test.ts",
+  "apps/api/openapi.yaml",
+  "apps/api/openapi.json",
+  "apps/web/src/lib/api-types.ts",
+  "apps/web/e2e/resume-role-filter.spec.ts",
+];
+
+/** Files in bump-version.sh leftover grep for-loop (subset of BUMP_VERSION_LEFTOVER_PATHS). */
+export const BUMP_VERSION_GREP_LEFTOVER_PATHS: ReadonlyArray<string> = [
+  "apps/api/src/schemas/schemas-validation.test.ts",
+  "apps/web/e2e/resume-role-filter.spec.ts",
+];
+
+export function parseBumpVersionGrepLeftoverPaths(script: string): string[] {
+  const block = script.match(/for leftover in \\\n([\s\S]*?)\ndo/)?.[1];
+  if (!block) {
+    return [];
+  }
+  return [...block.matchAll(/^\s+(\S+?)(?:\s+\\)?$/gm)].map((match) => match[1]!);
+}
+
+export const BUMP_VERSION_VERIFY_PATHS: ReadonlyArray<string> = [
+  "apps/api/openapi.json",
+  "apps/api/openapi.yaml",
+  "apps/api/package.json",
+  "apps/api/src/schemas/health.ts",
+  "apps/api/src/schemas/schemas-validation.test.ts",
+  "apps/api/src/services/config.ts",
+  "apps/browser-extension/package.json",
+  "apps/web/e2e/resume-role-filter.spec.ts",
+  "apps/web/package.json",
+  "apps/web/src/lib/api-types.ts",
+  "apps/worker/__init__.py",
+  "apps/worker/pyproject.toml",
+  "package.json",
+  "packages/convex/package.json",
+  "packages/shared/package.json",
+  "pyproject.toml",
+  "trendradar/__init__.py",
+];
+
+export function parseBumpVersionVerifyPaths(script: string): string[] {
+  const paths = new Set<string>();
+  const grepPath =
+    /if ! grep -qE? (?:'(?:\\.|[^'])+'|"(?:\\.|[^"])+") ([A-Za-z0-9_./-]+); then/g;
+  let match: RegExpExecArray | null;
+  while ((match = grepPath.exec(script)) !== null) {
+    paths.add(match[1]!);
+  }
+  const pipedPath = /grep -A\d+ '(?:\\.|[^'])+' ([A-Za-z0-9_./-]+) \|/g;
+  while ((match = pipedPath.exec(script)) !== null) {
+    paths.add(match[1]!);
+  }
+  const pythonPath = /Path\("([A-Za-z0-9_./-]+)"\)/g;
+  while ((match = pythonPath.exec(script)) !== null) {
+    paths.add(match[1]!);
+  }
+  for (const leftover of parseBumpVersionGrepLeftoverPaths(script)) {
+    paths.add(leftover);
+  }
+  return [...paths];
+}
+
+export const BUMP_VERSION_FIND_SED_PATHS: ReadonlyArray<string> = [
+  "apps/api/package.json",
+  "apps/browser-extension/package.json",
+  "apps/web/package.json",
+  "package.json",
+  "packages/convex/package.json",
+  "packages/shared/package.json",
+];
+
+export const BUMP_VERSION_SED_PATHS: ReadonlyArray<string> = [
+  "apps/api/openapi.json",
+  "apps/api/openapi.yaml",
+  "apps/api/src/schemas/health.ts",
+  "apps/api/src/schemas/schemas-validation.test.ts",
+  "apps/api/src/services/config.ts",
+  "apps/web/e2e/resume-role-filter.spec.ts",
+  "apps/web/src/lib/api-types.ts",
+  "apps/worker/__init__.py",
+  "apps/worker/pyproject.toml",
+  "pyproject.toml",
+  "trendradar/__init__.py",
+];
+
+export function parseBumpVersionSedPaths(script: string): string[] {
+  const paths = new Set<string>();
+  const sedPath = /sed -i '' (?:'(?:\\.|[^'])+'|"(?:\\.|[^"])+") ([A-Za-z0-9_./-]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = sedPath.exec(script)) !== null) {
+    paths.add(match[1]!);
+  }
+  return [...paths];
+}
+
+export const LEFTOVER_PATH_BUCKETS = ["version", "sed", "findSed"] as const;
+
+export type LeftoverPathBucket = (typeof LEFTOVER_PATH_BUCKETS)[number];
+
+export interface LeftoverPathPartition {
+  version: string[];
+  sed: string[];
+  findSed: string[];
+  unknown: string[];
+}
+
+export function addLeftoverPath(
+  index: Map<string, LeftoverPathBucket>,
+  path: string,
+  bucket: LeftoverPathBucket,
+): void {
+  const existing = index.get(path);
+  if (existing !== undefined && existing !== bucket) {
+    throw new Error(`leftover path ${path} is in both ${existing} and ${bucket}`);
+  }
+  index.set(path, bucket);
+}
+
+export const LEFTOVER_CATALOG_SOURCES: ReadonlyArray<{
+  bucket: LeftoverPathBucket;
+  paths: ReadonlyArray<string>;
+}> = [
+  { bucket: "version", paths: ["version"] },
+  { bucket: "sed", paths: BUMP_VERSION_SED_PATHS },
+  { bucket: "findSed", paths: BUMP_VERSION_FIND_SED_PATHS },
+];
+
+export function leftoverPathIndex(): ReadonlyMap<string, LeftoverPathBucket> {
+  const index = new Map<string, LeftoverPathBucket>();
+  for (const source of LEFTOVER_CATALOG_SOURCES) {
+    for (const path of source.paths) {
+      addLeftoverPath(index, path, source.bucket);
+    }
+  }
+  return index;
+}
+
+export function leftoverPathKind(path: string): LeftoverPathBucket | null {
+  return leftoverPathIndex().get(path) ?? null;
+}
+
+export function emptyLeftoverBuckets(): Record<LeftoverPathBucket, string[]> {
+  const buckets = {} as Record<LeftoverPathBucket, string[]>;
+  for (const bucket of LEFTOVER_PATH_BUCKETS) {
+    buckets[bucket] = [];
+  }
+  return buckets;
+}
+
+export function leftoverCatalogSourceUnions(): Record<LeftoverPathBucket, string[]> {
+  const unions = emptyLeftoverBuckets();
+  for (const source of LEFTOVER_CATALOG_SOURCES) {
+    unions[source.bucket].push(...source.paths);
+  }
+  return unions;
+}
+
+export function isDefaultLeftoverCatalog(paths: ReadonlyArray<string>): boolean {
+  return paths === BUMP_VERSION_LEFTOVER_PATHS;
+}
+
+export function leftoverDefaultPartition(): LeftoverPathPartition {
+  return {
+    ...leftoverCatalogSourceUnions(),
+    unknown: [],
+  };
+}
+
+export function classifyLeftoverPaths(
+  paths: ReadonlyArray<string>,
+): LeftoverPathPartition {
+  const partition: LeftoverPathPartition = {
+    ...emptyLeftoverBuckets(),
+    unknown: [],
+  };
+  for (const path of paths) {
+    const kind = leftoverPathKind(path);
+    if (kind === null) {
+      partition.unknown.push(path);
+    } else {
+      partition[kind].push(path);
+    }
+  }
+  return partition;
+}
+
+export function leftoverPathPartition(
+  paths: ReadonlyArray<string> = BUMP_VERSION_LEFTOVER_PATHS,
+): LeftoverPathPartition {
+  if (isDefaultLeftoverCatalog(paths)) {
+    return leftoverDefaultPartition();
+  }
+  return classifyLeftoverPaths(paths);
+}
 
 /**
  * Browser-extension manifest version is an independent artifact version and is
@@ -692,16 +1014,53 @@ export function parseVersionSurface(kind: VersionSurfaceKind, text: string): str
       return match ? match[1]! : null;
     }
     case "openapiInfoVersion": {
-      const match = text.match(/^\s{2}version:\s*([0-9][0-9.]*)\s*$/m);
-      return match ? match[1]! : null;
+      return infoVersionFromOpenApiYaml(text);
+    }
+    case "openapiJsonInfoVersion": {
+      return infoVersionFromOpenApiJson(text);
     }
     case "tsExampleComment": {
       const match = text.match(/@example\s+(\d+\.\d+\.\d+)/);
       return match ? match[1]! : null;
     }
-    default:
-      return null;
+    case "e2eAppVersion": {
+      return e2eQuotedVersion(text, "appVersion");
+    }
+    case "e2eApiVersion": {
+      return e2eQuotedVersion(text, "apiVersion");
+    }
+    case "e2eWebVersion": {
+      return e2eQuotedVersion(text, "webVersion");
+    }
+    case "openapiYamlHealthExample": {
+      return healthExampleFromOpenApiYaml(text);
+    }
+    case "openapiJsonHealthExample": {
+      return healthExampleFromOpenApiJson(text);
+    }
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
   }
+}
+
+export function readVersionSurface(text: string | null, kind: VersionSurfaceKind): string | null {
+  return text === null ? null : parseVersionSurface(kind, text);
+}
+
+export function countIdentifierCalls(src: string, name: string): number {
+  const pattern = new RegExp(`\\b${name}\\(`, "g");
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(src)) !== null) {
+    const before = src.slice(0, match.index);
+    if (/(?:export\s+)?function\s+$/.test(before)) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
 }
 
 /** Ordered migration names as declared in the quiesce registry (from migrations.ts and resumes_search.ts). */
@@ -971,6 +1330,49 @@ export function collectCutManifestEvidence(
   }
   const expectedVersion = options.expectedVersion ?? canonicalVersion;
 
+  const addVersionParityCheck = (
+    id: string,
+    left: string | null,
+    right: string | null,
+    details: { missing: string; disagree: string; stale: string; pass: string },
+  ): void => {
+    const parity = versionParityResult(left, right, expectedVersion);
+    addCheck({
+      id,
+      status: parity.status,
+      detail:
+        parity.actual === "missing"
+          ? details.missing
+          : parity.status === "pass"
+            ? details.pass
+            : parity.actual.includes(" != ")
+              ? details.disagree
+              : details.stale,
+      expected: expectedVersion,
+      actual: parity.actual,
+    });
+  };
+
+  const addStaleSurfaceCheck = (
+    id: string,
+    value: string | null,
+    details: { missing: string; stale: string; pass: string },
+  ): void => {
+    const result = staleSurfaceResult(value, expectedVersion);
+    addCheck({
+      id,
+      status: result.status,
+      detail:
+        result.actual === "missing"
+          ? details.missing
+          : result.status === "pass"
+            ? details.pass
+            : details.stale,
+      expected: expectedVersion,
+      actual: result.actual,
+    });
+  };
+
   // ---- identity ----------------------------------------------------------
   const statusOutcome = git(deps, ["status", "--porcelain=v1", "-uall"]);
   const clean = statusOutcome.ok && statusOutcome.stdout.trim().length === 0;
@@ -1165,52 +1567,286 @@ export function collectCutManifestEvidence(
   // ---- version surfaces --------------------------------------------------
   const surfaces: VersionSurfaceRecord[] = VERSION_SURFACES.map((surface) => {
     const text = readText(surface.path);
-    const value = text === null ? null : parseVersionSurface(surface.kind, text);
+    const value = readVersionSurface(text, surface.kind);
+    const result = requiredSurfaceResult(value, expectedVersion, surface.required);
+    addCheck({
+      id: `versions.${surface.id}`,
+      status: result.status,
+      detail:
+        result.status === "pass"
+          ? `${surface.path} = ${value}`
+          : `${surface.path} value ${result.actual} != expected ${expectedVersion}`,
+      expected: expectedVersion,
+      actual: result.actual,
+    });
     return {
       id: surface.id,
       path: surface.path,
       kind: surface.kind,
       required: surface.required,
       value,
-      matches: value !== null && value === expectedVersion,
+      matches: result.status === "pass",
     };
   });
 
-  for (const surface of surfaces) {
-    const ok = surface.matches;
-    addCheck({
-      id: `versions.${surface.id}`,
-      status: ok ? "pass" : surface.required ? "fail" : "warn",
-      detail: ok
-        ? `${surface.path} = ${surface.value}`
-        : `${surface.path} value ${surface.value ?? "unreadable"} != expected ${expectedVersion}`,
-      expected: expectedVersion,
-      actual: surface.value ?? "unreadable",
-    });
-  }
+  const openapiHealthExample =
+    surfaceValue(surfaces, "openapi_yaml_health_example");
+  addStaleSurfaceCheck("versions.openapi_health_example_stale", openapiHealthExample, {
+    missing: `OpenAPI HealthResponse example is missing; expected ${expectedVersion} (bump-version.sh exits 1 on the same gap)`,
+    stale: `OpenAPI health example is ${openapiHealthExample} != ${expectedVersion}`,
+    pass: `OpenAPI health example matches ${expectedVersion}`,
+  });
 
-  const openapiText = readText("apps/api/openapi.yaml");
-  const openapiHealthExample = openapiText
-    ? (openapiText.match(/version:\s*\n\s*type:\s*string\s*\n\s*example:\s*'(\d+\.\d+\.\d+)'/) ?? [])[1] ??
-      null
-    : null;
-  if (openapiHealthExample && openapiHealthExample !== expectedVersion) {
-    addCheck({
-      id: "versions.openapi_health_example_stale",
-      status: "warn",
-      detail: `OpenAPI health example is ${openapiHealthExample} != ${expectedVersion}; resolve or explicitly waive before signing`,
-      expected: expectedVersion,
-      actual: openapiHealthExample,
-    });
-  } else {
-    addCheck({
-      id: "versions.openapi_health_example_stale",
-      status: "pass",
-      detail: openapiHealthExample
-        ? `OpenAPI health example matches ${expectedVersion}`
-        : "no OpenAPI health example version found",
-    });
-  }
+  const openapiJsonHealthExample =
+    surfaceValue(surfaces, "openapi_json_health_example");
+  addStaleSurfaceCheck("versions.openapi_json_health_example_stale", openapiJsonHealthExample, {
+    missing: `OpenAPI JSON HealthResponse example is missing; expected ${expectedVersion} (bump-version.sh exits 1 on the same gap)`,
+    stale: `OpenAPI JSON health example is ${openapiJsonHealthExample} != ${expectedVersion}`,
+    pass: `OpenAPI JSON health example matches ${expectedVersion}`,
+  });
+
+  const yamlInfoVersion =
+    surfaceValue(surfaces, "openapi_info_version");
+  const jsonInfoVersion =
+    surfaceValue(surfaces, "openapi_json_info_version");
+  addVersionParityCheck("versions.openapi_info_version_parity", yamlInfoVersion, jsonInfoVersion, {
+    missing: `OpenAPI yaml/json info.version parity is missing; expected both ${expectedVersion}`,
+    disagree: `OpenAPI yaml/json info.version disagree (${yamlInfoVersion} != ${jsonInfoVersion}); both must equal ${expectedVersion}`,
+    stale: `OpenAPI yaml/json info.version agree at ${yamlInfoVersion} != canonical ${expectedVersion}`,
+    pass: `OpenAPI yaml/json info.version parity matches ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.openapi_health_example_parity", openapiHealthExample, openapiJsonHealthExample, {
+    missing: `OpenAPI yaml/json HealthResponse example parity is missing; expected both ${expectedVersion}`,
+    disagree: `OpenAPI yaml/json HealthResponse examples disagree (${openapiHealthExample} != ${openapiJsonHealthExample}); both must equal ${expectedVersion}`,
+    stale: `OpenAPI yaml/json HealthResponse examples agree at ${openapiHealthExample} != canonical ${expectedVersion}`,
+    pass: `OpenAPI yaml/json HealthResponse example parity matches ${expectedVersion}`,
+  });
+
+  const healthSchemaExample = surfaceValue(surfaces, "api_health_example");
+  addVersionParityCheck("versions.health_schema_openapi_example_parity", healthSchemaExample, openapiHealthExample, {
+    missing: `health.ts vs OpenAPI HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `health.ts example ${healthSchemaExample} != OpenAPI HealthResponse example ${openapiHealthExample}; both must equal ${expectedVersion}`,
+    stale: `health.ts and OpenAPI HealthResponse examples agree at ${healthSchemaExample} != canonical ${expectedVersion}`,
+    pass: `health.ts and OpenAPI HealthResponse examples match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.health_schema_openapi_json_example_parity", healthSchemaExample, openapiJsonHealthExample, {
+    missing: `health.ts vs openapi.json HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `health.ts example ${healthSchemaExample} != openapi.json HealthResponse example ${openapiJsonHealthExample}; both must equal ${expectedVersion}`,
+    stale: `health.ts and openapi.json HealthResponse examples agree at ${healthSchemaExample} != canonical ${expectedVersion}`,
+    pass: `health.ts and openapi.json HealthResponse examples match ${expectedVersion}`,
+  });
+
+  const apiTypesExample = surfaceValue(surfaces, "api_types_example");
+  addVersionParityCheck("versions.api_types_openapi_json_example_parity", apiTypesExample, openapiJsonHealthExample, {
+    missing: `api-types @example vs openapi.json HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `api-types @example ${apiTypesExample} != openapi.json HealthResponse example ${openapiJsonHealthExample}; both must equal ${expectedVersion}`,
+    stale: `api-types and openapi.json examples agree at ${apiTypesExample} != canonical ${expectedVersion}`,
+    pass: `api-types @example and openapi.json HealthResponse example match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.api_types_openapi_yaml_example_parity", apiTypesExample, openapiHealthExample, {
+    missing: `api-types @example vs openapi.yaml HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `api-types @example ${apiTypesExample} != openapi.yaml HealthResponse example ${openapiHealthExample}; both must equal ${expectedVersion}`,
+    stale: `api-types and openapi.yaml examples agree at ${apiTypesExample} != canonical ${expectedVersion}`,
+    pass: `api-types @example and openapi.yaml HealthResponse example match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.api_types_health_schema_example_parity", apiTypesExample, healthSchemaExample, {
+    missing: `api-types @example vs health.ts example parity is missing; expected ${expectedVersion}`,
+    disagree: `api-types @example ${apiTypesExample} != health.ts example ${healthSchemaExample}; both must equal ${expectedVersion}`,
+    stale: `api-types and health.ts examples agree at ${apiTypesExample} != canonical ${expectedVersion}`,
+    pass: `api-types @example and health.ts example match ${expectedVersion}`,
+  });
+
+  const configVersion = surfaceValue(surfaces, "api_config_version");
+  addVersionParityCheck("versions.config_health_schema_example_parity", configVersion, healthSchemaExample, {
+    missing: `config.ts version vs health.ts example parity is missing; expected ${expectedVersion}`,
+    disagree: `config.ts version ${configVersion} != health.ts example ${healthSchemaExample}; both must equal ${expectedVersion}`,
+    stale: `config.ts and health.ts agree at ${configVersion} != canonical ${expectedVersion}`,
+    pass: `config.ts version and health.ts example match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.config_openapi_yaml_example_parity", configVersion, openapiHealthExample, {
+    missing: `config.ts version vs openapi.yaml HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `config.ts version ${configVersion} != openapi.yaml HealthResponse example ${openapiHealthExample}; both must equal ${expectedVersion}`,
+    stale: `config.ts and openapi.yaml examples agree at ${configVersion} != canonical ${expectedVersion}`,
+    pass: `config.ts version and openapi.yaml HealthResponse example match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.config_openapi_json_example_parity", configVersion, openapiJsonHealthExample, {
+    missing: `config.ts version vs openapi.json HealthResponse example parity is missing; expected ${expectedVersion}`,
+    disagree: `config.ts version ${configVersion} != openapi.json HealthResponse example ${openapiJsonHealthExample}; both must equal ${expectedVersion}`,
+    stale: `config.ts and openapi.json examples agree at ${configVersion} != canonical ${expectedVersion}`,
+    pass: `config.ts version and openapi.json HealthResponse example match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.config_api_types_example_parity", configVersion, apiTypesExample, {
+    missing: `config.ts version vs api-types @example parity is missing; expected ${expectedVersion}`,
+    disagree: `config.ts version ${configVersion} != api-types @example ${apiTypesExample}; both must equal ${expectedVersion}`,
+    stale: `config.ts and api-types examples agree at ${configVersion} != canonical ${expectedVersion}`,
+    pass: `config.ts version and api-types @example match ${expectedVersion}`,
+  });
+
+  const packageApiVersion = surfaceValue(surfaces, "package_api");
+  addVersionParityCheck("versions.package_api_config_version_parity", packageApiVersion, configVersion, {
+    missing: `apps/api/package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `apps/api/package.json ${packageApiVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `apps/api/package.json and config.ts agree at ${packageApiVersion} != canonical ${expectedVersion}`,
+    pass: `apps/api/package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const packageWebVersion = surfaceValue(surfaces, "package_web");
+  addVersionParityCheck("versions.package_web_config_version_parity", packageWebVersion, configVersion, {
+    missing: `apps/web/package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `apps/web/package.json ${packageWebVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `apps/web/package.json and config.ts agree at ${packageWebVersion} != canonical ${expectedVersion}`,
+    pass: `apps/web/package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const packageRootVersion = surfaceValue(surfaces, "package_root");
+  addVersionParityCheck("versions.package_root_config_version_parity", packageRootVersion, configVersion, {
+    missing: `root package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `root package.json ${packageRootVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `root package.json and config.ts agree at ${packageRootVersion} != canonical ${expectedVersion}`,
+    pass: `root package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const packageSharedVersion = surfaceValue(surfaces, "package_shared");
+  addVersionParityCheck("versions.package_shared_config_version_parity", packageSharedVersion, configVersion, {
+    missing: `packages/shared/package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `packages/shared/package.json ${packageSharedVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `packages/shared/package.json and config.ts agree at ${packageSharedVersion} != canonical ${expectedVersion}`,
+    pass: `packages/shared/package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const packageConvexVersion = surfaceValue(surfaces, "package_convex");
+  addVersionParityCheck("versions.package_convex_config_version_parity", packageConvexVersion, configVersion, {
+    missing: `packages/convex/package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `packages/convex/package.json ${packageConvexVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `packages/convex/package.json and config.ts agree at ${packageConvexVersion} != canonical ${expectedVersion}`,
+    pass: `packages/convex/package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const packageExtensionVersion =
+    surfaceValue(surfaces, "package_browser_extension");
+  addVersionParityCheck("versions.package_browser_extension_config_version_parity", packageExtensionVersion, configVersion, {
+    missing: `apps/browser-extension/package.json vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `apps/browser-extension/package.json ${packageExtensionVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `apps/browser-extension/package.json and config.ts agree at ${packageExtensionVersion} != canonical ${expectedVersion}`,
+    pass: `apps/browser-extension/package.json and config.ts version match ${expectedVersion}`,
+  });
+
+  const pyprojectRootVersion = surfaceValue(surfaces, "pyproject_root");
+  addVersionParityCheck("versions.pyproject_root_config_version_parity", pyprojectRootVersion, configVersion, {
+    missing: `root pyproject.toml vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `root pyproject.toml ${pyprojectRootVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `root pyproject.toml and config.ts agree at ${pyprojectRootVersion} != canonical ${expectedVersion}`,
+    pass: `root pyproject.toml and config.ts version match ${expectedVersion}`,
+  });
+
+  const pyprojectWorkerVersion =
+    surfaceValue(surfaces, "pyproject_worker");
+  addVersionParityCheck("versions.pyproject_worker_config_version_parity", pyprojectWorkerVersion, configVersion, {
+    missing: `apps/worker/pyproject.toml vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `apps/worker/pyproject.toml ${pyprojectWorkerVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `apps/worker/pyproject.toml and config.ts agree at ${pyprojectWorkerVersion} != canonical ${expectedVersion}`,
+    pass: `apps/worker/pyproject.toml and config.ts version match ${expectedVersion}`,
+  });
+
+  const workerInitVersion = surfaceValue(surfaces, "worker_init");
+  addVersionParityCheck("versions.worker_init_config_version_parity", workerInitVersion, configVersion, {
+    missing: `apps/worker/__init__.py vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `apps/worker/__init__.py ${workerInitVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `apps/worker/__init__.py and config.ts agree at ${workerInitVersion} != canonical ${expectedVersion}`,
+    pass: `apps/worker/__init__.py and config.ts version match ${expectedVersion}`,
+  });
+
+  const trendradarInitVersion =
+    surfaceValue(surfaces, "trendradar_init");
+  addVersionParityCheck("versions.trendradar_init_config_version_parity", trendradarInitVersion, configVersion, {
+    missing: `trendradar/__init__.py vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `trendradar/__init__.py ${trendradarInitVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `trendradar/__init__.py and config.ts agree at ${trendradarInitVersion} != canonical ${expectedVersion}`,
+    pass: `trendradar/__init__.py and config.ts version match ${expectedVersion}`,
+  });
+
+  const versionFileValue = surfaceValue(surfaces, "version_file");
+  addVersionParityCheck("versions.version_file_config_version_parity", versionFileValue, configVersion, {
+    missing: `canonical version file vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `canonical version file ${versionFileValue} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `canonical version file and config.ts agree at ${versionFileValue} != canonical ${expectedVersion}`,
+    pass: `canonical version file and config.ts version match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.openapi_yaml_info_config_version_parity", yamlInfoVersion, configVersion, {
+    missing: `openapi.yaml info.version vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `openapi.yaml info.version ${yamlInfoVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `openapi.yaml info.version and config.ts agree at ${yamlInfoVersion} != canonical ${expectedVersion}`,
+    pass: `openapi.yaml info.version and config.ts version match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.openapi_json_info_config_version_parity", jsonInfoVersion, configVersion, {
+    missing: `openapi.json info.version vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `openapi.json info.version ${jsonInfoVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `openapi.json info.version and config.ts agree at ${jsonInfoVersion} != canonical ${expectedVersion}`,
+    pass: `openapi.json info.version and config.ts version match ${expectedVersion}`,
+  });
+
+  const schemasValidationVersion =
+    surfaceValue(surfaces, "schemas_validation");
+  addVersionParityCheck("versions.schemas_validation_config_version_parity", schemasValidationVersion, configVersion, {
+    missing: `schemas-validation.test.ts version vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `schemas-validation.test.ts ${schemasValidationVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `schemas-validation.test.ts and config.ts agree at ${schemasValidationVersion} != canonical ${expectedVersion}`,
+    pass: `schemas-validation.test.ts version and config.ts version match ${expectedVersion}`,
+  });
+
+  const e2eAppVersion = surfaceValue(surfaces, "e2e_app_version");
+  addVersionParityCheck("versions.e2e_app_version_config_version_parity", e2eAppVersion, configVersion, {
+    missing: `e2e appVersion vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e appVersion ${e2eAppVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e appVersion and config.ts agree at ${e2eAppVersion} != canonical ${expectedVersion}`,
+    pass: `e2e appVersion and config.ts version match ${expectedVersion}`,
+  });
+
+  const e2eApiVersion = surfaceValue(surfaces, "e2e_api_version");
+  addVersionParityCheck("versions.e2e_api_version_config_version_parity", e2eApiVersion, configVersion, {
+    missing: `e2e apiVersion vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e apiVersion ${e2eApiVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e apiVersion and config.ts agree at ${e2eApiVersion} != canonical ${expectedVersion}`,
+    pass: `e2e apiVersion and config.ts version match ${expectedVersion}`,
+  });
+
+  const e2eWebVersion = surfaceValue(surfaces, "e2e_web_version");
+  addVersionParityCheck("versions.e2e_web_version_config_version_parity", e2eWebVersion, configVersion, {
+    missing: `e2e webVersion vs config.ts version parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e webVersion ${e2eWebVersion} != config.ts ${configVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e webVersion and config.ts agree at ${e2eWebVersion} != canonical ${expectedVersion}`,
+    pass: `e2e webVersion and config.ts version match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.e2e_app_api_version_parity", e2eAppVersion, e2eApiVersion, {
+    missing: `e2e appVersion vs apiVersion parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e appVersion ${e2eAppVersion} != apiVersion ${e2eApiVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e appVersion and apiVersion agree at ${e2eAppVersion} != canonical ${expectedVersion}`,
+    pass: `e2e appVersion and apiVersion match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.e2e_app_web_version_parity", e2eAppVersion, e2eWebVersion, {
+    missing: `e2e appVersion vs webVersion parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e appVersion ${e2eAppVersion} != webVersion ${e2eWebVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e appVersion and webVersion agree at ${e2eAppVersion} != canonical ${expectedVersion}`,
+    pass: `e2e appVersion and webVersion match ${expectedVersion}`,
+  });
+
+  addVersionParityCheck("versions.e2e_api_web_version_parity", e2eApiVersion, e2eWebVersion, {
+    missing: `e2e apiVersion vs webVersion parity is missing; expected ${expectedVersion}`,
+    disagree: `e2e apiVersion ${e2eApiVersion} != webVersion ${e2eWebVersion}; both must equal ${expectedVersion}`,
+    stale: `e2e apiVersion and webVersion agree at ${e2eApiVersion} != canonical ${expectedVersion}`,
+    pass: `e2e apiVersion and webVersion match ${expectedVersion}`,
+  });
 
   // ---- migrations --------------------------------------------------------
   const registryText = readText(MUTATION_REGISTRY_FILE) ?? "";
