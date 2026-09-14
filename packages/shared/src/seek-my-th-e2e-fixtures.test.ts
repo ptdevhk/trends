@@ -5,6 +5,7 @@ import {
   seekMyThApiProfile,
   seekMyThQuickStartRank,
   seekMyThServiceProfileFixtures,
+  seekMyThTalentsearchJobUrl,
   seekServiceStackRoleTitles,
 } from "./seek-my-th-e2e-fixtures";
 
@@ -66,6 +67,7 @@ describe("seek MY/TH service-engineer profile contract", () => {
     ];
     for (const { profile, market } of cases) {
       const url = new URL(profile.sources[0]?.jobUrl ?? "");
+      expect(url.protocol).toBe("https:");
       expect(url.host).toBe("hk.employer.seek.com");
       expect(url.pathname).toBe("/talentsearch");
       expect(url.searchParams.get("market")).toBe(market);
@@ -78,6 +80,18 @@ describe("seek MY/TH service-engineer profile contract", () => {
       expect(url.searchParams.get("minSalary")).toBe("0");
       expect(url.searchParams.get("salaryUnspecified")).toBe("true");
     }
+  });
+
+  it("fails closed when a talentsearch jobUrl drifts from the per-market contract", () => {
+    const myUrl = seekMyThApiProfile("my").sources[0]?.jobUrl ?? "";
+    expect(seekMyThTalentsearchJobUrl("my", myUrl).searchParams.get("market")).toBe("MY");
+    expect(seekMyThTalentsearchJobUrl("th", seekMyThApiProfile("th").sources[0]?.jobUrl).searchParams.get("market")).toBe("TH");
+
+    expect(() => seekMyThTalentsearchJobUrl("my", myUrl.replace("market=MY", "market=TH"))).toThrow(/market/);
+    expect(() => seekMyThTalentsearchJobUrl("my", myUrl.replace("hk.employer.seek.com", "th.employer.seek.com"))).toThrow(/hk.employer.seek.com/);
+    expect(() => seekMyThTalentsearchJobUrl("my", myUrl.replace("https://", "http://"))).toThrow(/HTTPS/);
+    expect(() => seekMyThTalentsearchJobUrl("my", myUrl.replace("searchQuery=CNC", "searchQuery=Sales"))).toThrow(/searchQuery/);
+    expect(() => seekMyThTalentsearchJobUrl("my", myUrl.replace("matchAll=false", "matchAll=true"))).toThrow(/matchAll/);
   });
 
   it("pins worker-side collect limits and the landing launch tr_* contract", () => {

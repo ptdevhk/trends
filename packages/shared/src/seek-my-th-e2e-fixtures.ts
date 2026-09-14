@@ -137,6 +137,44 @@ function parseJobUrl(which: "my" | "th", jobUrl: string): URL {
   }
 }
 
+const TALENTSEARCH_JOBURL_PARAMS = {
+  searchQuery: "CNC",
+  keywords: "CNC",
+  pageNumber: "1",
+  sortBy: "RELEVANCE",
+  matchAll: "false",
+  salaryType: "MONTHLY",
+  minSalary: "0",
+  salaryUnspecified: "true",
+} as const;
+
+export function seekMyThTalentsearchJobUrl(which: "my" | "th", jobUrl: unknown): URL {
+  if (typeof jobUrl !== "string" || !jobUrl.trim()) {
+    fail(which, "sources[0].jobUrl missing");
+  }
+  const url = parseJobUrl(which, jobUrl);
+  const market = PROFILE_MARKETS[which];
+  if (url.protocol !== "https:") {
+    fail(which, `jobUrl must use HTTPS, got ${url.protocol}`);
+  }
+  if (url.host !== "hk.employer.seek.com") {
+    fail(which, `jobUrl host is ${url.host}, expected hk.employer.seek.com`);
+  }
+  if (url.pathname !== "/talentsearch") {
+    fail(which, `jobUrl path is ${url.pathname}, expected /talentsearch`);
+  }
+  if (url.searchParams.get("market") !== market) {
+    fail(which, `jobUrl market is ${url.searchParams.get("market")}, expected ${market}`);
+  }
+  for (const [key, expected] of Object.entries(TALENTSEARCH_JOBURL_PARAMS)) {
+    const actual = url.searchParams.get(key);
+    if (actual !== expected) {
+      fail(which, `jobUrl ${key} is ${actual}, expected ${expected}`);
+    }
+  }
+  return url;
+}
+
 export function seekMyThApiProfile(which: "my" | "th"): SeekMyThApiProfile {
   const yaml = loadProfileYaml(which);
   const expectedId = PROFILE_IDS[which];
@@ -169,20 +207,7 @@ export function seekMyThApiProfile(which: "my" | "th"): SeekMyThApiProfile {
     fail(which, `sources[0].mode is ${String(source.mode)}, expected talentsearch`);
   }
   const jobUrl = source.jobUrl;
-  if (!jobUrl) {
-    fail(which, "sources[0].jobUrl missing");
-  }
-  const market = PROFILE_MARKETS[which];
-  const url = parseJobUrl(which, jobUrl);
-  if (url.host !== "hk.employer.seek.com") {
-    fail(which, `jobUrl host is ${url.host}, expected hk.employer.seek.com`);
-  }
-  if (url.pathname !== "/talentsearch") {
-    fail(which, `jobUrl path is ${url.pathname}, expected /talentsearch`);
-  }
-  if (url.searchParams.get("market") !== market) {
-    fail(which, `jobUrl market is ${url.searchParams.get("market")}, expected ${market}`);
-  }
+  seekMyThTalentsearchJobUrl(which, jobUrl);
   if (!yaml.quickStart || yaml.quickStart.enabled !== true) {
     fail(which, "quickStart.enabled must be true");
   }
