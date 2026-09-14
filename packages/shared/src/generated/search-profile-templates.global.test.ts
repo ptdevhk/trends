@@ -53,45 +53,63 @@ describe('MY/TH CNC Service Engineer talent-search profiles', () => {
     'Service Coordinator',
     'Service Supervisor',
   ]
+  const IDS = {
+    MY: 'seek-malaysia-talent-search-service-engineer',
+    TH: 'seek-thailand-talent-search-service-engineer',
+  } as const
+
+  function seekSource(template: ReturnType<typeof getWorkspaceSearchProfileTemplates>[number] | undefined) {
+    return template?.profile.sources?.find((source) => source.type === 'seek' && source.enabled)
+  }
 
   it('seeds two location-split Seek talent-search profiles without sales titles', () => {
-    const hr = getWorkspaceSearchProfileTemplates('hr')
-    const my = hr.find((t) => t.profile.id === 'seek-malaysia-talent-search-service-engineer')
-    const th = hr.find((t) => t.profile.id === 'seek-thailand-talent-search-service-engineer')
+    for (const workspace of ['hr', 'dev'] as const) {
+      const templates = getWorkspaceSearchProfileTemplates(workspace)
+      const my = templates.find((t) => t.profile.id === IDS.MY)
+      const th = templates.find((t) => t.profile.id === IDS.TH)
 
-    expect(my).toBeDefined()
-    expect(th).toBeDefined()
-    expect(my?.profile.location).toBe('Malaysia')
-    expect(th?.profile.location).toBe('Thailand')
-    expect(my?.profile.jobDescription).toBe('seek-malaysia-service-engineer')
-    expect(th?.profile.jobDescription).toBe('seek-thailand-service-engineer')
-    expect(my?.profile.filters?.roleFilterType).toBe('engineer')
-    expect(th?.profile.filters?.roleFilterType).toBe('engineer')
-    expect(my?.profile.keywords).not.toContain('Sales')
-    expect(th?.profile.keywords).not.toContain('Sales')
+      expect(my, `${workspace}/${IDS.MY}`).toBeDefined()
+      expect(th, `${workspace}/${IDS.TH}`).toBeDefined()
+      expect(my?.profile.location).toBe('Malaysia')
+      expect(th?.profile.location).toBe('Thailand')
+      expect(my?.profile.filters?.locations).toEqual(['Malaysia'])
+      expect(th?.profile.filters?.locations).toEqual(['Thailand'])
+      expect(my?.profile.jobDescription).toBe('seek-malaysia-service-engineer')
+      expect(th?.profile.jobDescription).toBe('seek-thailand-service-engineer')
+      expect(my?.profile.filters?.roleFilterType).toBe('engineer')
+      expect(th?.profile.filters?.roleFilterType).toBe('engineer')
+      expect(my?.profile.keywords).not.toContain('Sales')
+      expect(th?.profile.keywords).not.toContain('Sales')
 
-    const myUrl = my?.profile.sources?.[0]?.jobUrl ?? ''
-    const thUrl = th?.profile.sources?.[0]?.jobUrl ?? ''
-    expect(my?.profile.sources?.[0]?.mode).toBe('talentsearch')
-    expect(th?.profile.sources?.[0]?.mode).toBe('talentsearch')
-    expect(myUrl.startsWith('https://hk.employer.seek.com/talentsearch?')).toBe(true)
-    expect(thUrl.startsWith('https://hk.employer.seek.com/talentsearch?')).toBe(true)
-    expect(myUrl).toContain('market=MY')
-    expect(thUrl).toContain('market=TH')
-    expect(myUrl).not.toContain('th.employer.seek.com')
-    expect(thUrl).not.toContain('th.employer.seek.com')
-    expect(myUrl).toContain('searchQuery=CNC')
-    expect(myUrl).toContain('keywords=CNC')
-    expect(myUrl).toContain('matchAll=false')
+      const mySeek = seekSource(my)
+      const thSeek = seekSource(th)
+      expect(mySeek?.mode).toBe('talentsearch')
+      expect(thSeek?.mode).toBe('talentsearch')
 
-    const decodedMy = decodeURIComponent(myUrl).replace(/\+/g, ' ')
-    const decodedTh = decodeURIComponent(thUrl).replace(/\+/g, ' ')
-    for (const title of ROLE_STACK) {
-      expect(decodedMy).toContain(title)
-      expect(decodedTh).toContain(title)
+      const myUrl = new URL(mySeek?.jobUrl ?? '')
+      const thUrl = new URL(thSeek?.jobUrl ?? '')
+      expect(myUrl.protocol).toBe('https:')
+      expect(thUrl.protocol).toBe('https:')
+      expect(myUrl.host).toBe('hk.employer.seek.com')
+      expect(thUrl.host).toBe('hk.employer.seek.com')
+      expect(myUrl.pathname).toBe('/talentsearch')
+      expect(thUrl.pathname).toBe('/talentsearch')
+      expect(myUrl.searchParams.get('market')).toBe('MY')
+      expect(thUrl.searchParams.get('market')).toBe('TH')
+      expect(myUrl.host).not.toBe('th.employer.seek.com')
+      expect(thUrl.host).not.toBe('th.employer.seek.com')
+      expect(myUrl.searchParams.get('searchQuery')).toBe('CNC')
+      expect(myUrl.searchParams.get('keywords')).toBe('CNC')
+      expect(myUrl.searchParams.get('matchAll')).toBe('false')
+      expect(thUrl.searchParams.get('searchQuery')).toBe('CNC')
+      expect(thUrl.searchParams.get('keywords')).toBe('CNC')
+
+      for (const url of [myUrl, thUrl]) {
+        const roleTitles = (url.searchParams.get('roleTitles') ?? '').split(',').filter(Boolean)
+        expect(roleTitles).toEqual(ROLE_STACK)
+        expect(roleTitles.some((title) => /sales/i.test(title))).toBe(false)
+      }
     }
-    expect(decodedMy).not.toContain('Sales Engineer')
-    expect(decodedTh).not.toContain('Sales Engineer')
   })
 })
 
