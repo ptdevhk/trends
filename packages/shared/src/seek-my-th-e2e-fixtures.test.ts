@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   expectedCollectLaunchUrl,
   seekMyThApiProfile,
+  seekMyThQuickStartRank,
   seekMyThServiceProfileFixtures,
   seekServiceStackRoleTitles,
 } from "./seek-my-th-e2e-fixtures";
@@ -41,6 +42,15 @@ describe("seek MY/TH service-engineer profile contract", () => {
     expect(th.quickStart?.enabled).toBe(true);
     expect(my.quickStart?.rank).toBe(5);
     expect(th.quickStart?.rank).toBe(6);
+  });
+
+  it("fails closed when a quick-start rank is NaN, swapped, or missing", () => {
+    expect(seekMyThQuickStartRank("my", 5)).toBe(5);
+    expect(seekMyThQuickStartRank("th", 6)).toBe(6);
+    expect(() => seekMyThQuickStartRank("my", Number.NaN)).toThrow(/expected 5/);
+    expect(() => seekMyThQuickStartRank("my", 6)).toThrow(/expected 5/);
+    expect(() => seekMyThQuickStartRank("th", 5)).toThrow(/expected 6/);
+    expect(() => seekMyThQuickStartRank("th", 6.5)).toThrow(/expected 6/);
   });
 
   it("pins the service role 5-stack for both markets", () => {

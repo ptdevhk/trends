@@ -29,6 +29,9 @@ const PROFILE_MARKETS: Record<"my" | "th", "MY" | "TH"> = {
   th: "TH",
 };
 
+/** Landing quick-start ranks: MY card precedes TH. */
+export const SEEK_MY_TH_QUICK_START_RANKS = { my: 5, th: 6 } as const;
+
 export type SeekMyThApiProfile = {
   id: string;
   name: string;
@@ -54,6 +57,14 @@ export type SeekMyThApiProfile = {
 
 function fail(which: "my" | "th", message: string): never {
   throw new Error(`seek ${PROFILE_IDS[which]} fixture: ${message}`);
+}
+
+export function seekMyThQuickStartRank(which: "my" | "th", rank: unknown): number {
+  const expected = SEEK_MY_TH_QUICK_START_RANKS[which];
+  if (!Number.isInteger(rank) || rank !== expected) {
+    fail(which, `quickStart.rank is ${String(rank)}, expected ${expected}`);
+  }
+  return rank;
 }
 
 function findRepoRoot(start: string): string {
@@ -175,10 +186,7 @@ export function seekMyThApiProfile(which: "my" | "th"): SeekMyThApiProfile {
   if (!yaml.quickStart || yaml.quickStart.enabled !== true) {
     fail(which, "quickStart.enabled must be true");
   }
-  const rank = yaml.quickStart.rank;
-  if (typeof rank !== "number") {
-    fail(which, "quickStart.rank missing");
-  }
+  const rank = seekMyThQuickStartRank(which, yaml.quickStart.rank);
   return {
     id: yaml.id,
     name: yaml.name,
