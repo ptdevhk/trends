@@ -177,6 +177,11 @@ describe("company-policy helpers", () => {
     expect(isAdvancingCandidateStatus("rejected")).toBe(false);
   });
 
+  it("treats empty and unknown statuses as not advancing", () => {
+    expect(isAdvancingCandidateStatus("")).toBe(false);
+    expect(isAdvancingCandidateStatus("unknown")).toBe(false);
+  });
+
   it("prefers durable companyKey stamps over surface strings", () => {
     const policies = new Map([
       ["pro-technic-machinery", policyEffectsFromPreset("no_hire")],
