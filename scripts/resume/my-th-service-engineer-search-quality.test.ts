@@ -127,6 +127,33 @@ describe("MY/TH Service Engineer search-quality harness", () => {
     expect(result.stdout).not.toMatch(/profileUrl|cookie|password|csrf|candidate/i);
   });
 
+  it("fails aggregate-only when TH returns zero results", () => {
+    const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
+      qualityResponses: { TH: { summary?: { total?: number }; data?: unknown[] } };
+    };
+    fixture.qualityResponses.TH = { summary: { total: 0 }, data: [] };
+    const dir = mkdtempSync(join(tmpdir(), "trends-th-empty-"));
+    const emptyFixture = join(dir, "fixture.json");
+    writeFileSync(emptyFixture, JSON.stringify(fixture), "utf8");
+
+    const result = runFixture(emptyFixture);
+
+    expect(result.status).toBe(2);
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      quality: Array<{ market: string; failures: string[] }>;
+    };
+    expect(report.ok).toBe(false);
+    expect(report.quality.find((item) => item.market === "TH")?.failures).toEqual([
+      "total results must be at least 1",
+      "sampled results must be at least 1",
+      "service evidence 0.0% is below 80.0%",
+      "CNC/machine evidence 0.0% is below 60.0%",
+      "location consistency 0.0% is below 80.0%",
+    ]);
+    expect(result.stdout).not.toMatch(/profileUrl|cookie|password|csrf|candidate/i);
+  });
+
   it("fails with aggregate-only diagnostics when a quality floor is missed", () => {
     const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
       qualityResponses: { TH: { data: unknown[] } };
