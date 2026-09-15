@@ -6,6 +6,7 @@ import {
   normalizeResumeAnalysisSourceKey,
   buildResumeAnalysisLookupKeys,
   isResumeAnalysisKeyForJobDescription,
+  buildResumeAnalysisStorageKey,
 } from './analysis-key'
 
 describe('isSalesRequiredContext', () => {
@@ -111,6 +112,14 @@ describe('isResumeAnalysisKeyForJobDescription', () => {
     expect(isResumeAnalysisKeyForJobDescription('default', '')).toBe(true)
     expect(isResumeAnalysisKeyForJobDescription('other-jd', undefined)).toBe(false)
     expect(isResumeAnalysisKeyForJobDescription('other-jd', '')).toBe(false)
+  })
+})
+
+describe('buildResumeAnalysisStorageKey', () => {
+  it('returns the jobDescriptionId when sourceKey and locale are missing', () => {
+    expect(buildResumeAnalysisStorageKey('jd-123')).toBe('jd-123')
+    expect(buildResumeAnalysisStorageKey('jd-123', {})).toBe('jd-123')
+    expect(buildResumeAnalysisStorageKey('jd-123', { sourceKey: '', locale: '' })).toBe('jd-123')
   })
 })
 
