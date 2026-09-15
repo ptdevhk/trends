@@ -64,7 +64,7 @@ export function seekMyThQuickStartRank(which: "my" | "th", rank: unknown): numbe
   if (!Number.isInteger(rank) || rank !== expected) {
     fail(which, `quickStart.rank is ${String(rank)}, expected ${expected}`);
   }
-  return rank;
+  return expected;
 }
 
 function findRepoRoot(start: string): string {
