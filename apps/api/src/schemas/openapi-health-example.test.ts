@@ -11,7 +11,7 @@ import {
   infoVersionFromOpenApiJson,
   infoVersionFromOpenApiYaml,
   packageJsonVersion,
-} from "../../../../scripts/lib/openapi-health-example.ts";
+} from "../../../../scripts/lib/openapi-health-example";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..", "..");
 
