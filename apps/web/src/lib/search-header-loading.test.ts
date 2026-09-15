@@ -66,4 +66,14 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(src).toMatch(/loading=\{headerLoading\}/)
     expect(src.match(/loading=\{headerLoading\}/g)?.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('documents that Analyze stays disabled for the same loading gate', () => {
+    // Eager analysisCandidates can be non-empty while deferred results still
+    // lag; Analyze must not become clickable until headerLoading clears.
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/hooks/useResumeSearchState.ts'),
+      'utf8',
+    )
+    expect(src).toMatch(/const disableAnalyzeResults =[\s\S]*headerLoading/)
+  })
 })

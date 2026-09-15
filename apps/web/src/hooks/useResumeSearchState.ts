@@ -1231,10 +1231,12 @@ export function useResumeSearchState() {
       ),
     [analysisTasks],
   )
+  // Use headerLoading (not bare `loading`) so deferred-list lag cannot leave
+  // Analyze clickable while SearchResultsList / BulkActionBar still show loading.
   const disableAnalyzeResults =
     !aiModeEnabled ||
     isLanding ||
-    loading ||
+    headerLoading ||
     results.length === 0 ||
     analysisCandidateResumeIds.length === 0 ||
     analyzingResults ||
