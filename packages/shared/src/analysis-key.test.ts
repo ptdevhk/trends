@@ -5,6 +5,7 @@ import {
   buildKeywordAnalysisId,
   normalizeResumeAnalysisSourceKey,
   buildResumeAnalysisLookupKeys,
+  isResumeAnalysisKeyForJobDescription,
 } from './analysis-key'
 
 describe('isSalesRequiredContext', () => {
@@ -101,6 +102,15 @@ describe('buildResumeAnalysisLookupKeys', () => {
   it('returns an empty list when jobDescriptionId is missing and keywords are empty', () => {
     expect(buildResumeAnalysisLookupKeys(undefined, [])).toEqual([])
     expect(buildResumeAnalysisLookupKeys('', [])).toEqual([])
+  })
+})
+
+describe('isResumeAnalysisKeyForJobDescription', () => {
+  it('matches only the default key when jobDescriptionId is empty or undefined', () => {
+    expect(isResumeAnalysisKeyForJobDescription('default', undefined)).toBe(true)
+    expect(isResumeAnalysisKeyForJobDescription('default', '')).toBe(true)
+    expect(isResumeAnalysisKeyForJobDescription('other-jd', undefined)).toBe(false)
+    expect(isResumeAnalysisKeyForJobDescription('other-jd', '')).toBe(false)
   })
 })
 
