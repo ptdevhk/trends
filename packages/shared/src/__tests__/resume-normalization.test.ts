@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isRecord, normalizeResumeLocationHierarchy } from "../resume-normalization";
+import {
+  isRecord,
+  normalizeJob5156ProfileUrlForDisplay,
+  normalizeResumeLocationHierarchy,
+} from "../resume-normalization";
 
 describe("normalizeResumeLocationHierarchy with source fallback", () => {
   it("returns explicit location hierarchy when present", () => {
@@ -152,5 +156,12 @@ describe("isRecord", () => {
     expect(isRecord(undefined)).toBe(false);
     expect(isRecord("object")).toBe(false);
     expect(isRecord({})).toBe(true);
+  });
+});
+
+describe("normalizeJob5156ProfileUrlForDisplay", () => {
+  it("returns empty string for empty or whitespace input", () => {
+    expect(normalizeJob5156ProfileUrlForDisplay("")).toBe("");
+    expect(normalizeJob5156ProfileUrlForDisplay("   ")).toBe("");
   });
 });
