@@ -526,8 +526,13 @@ export function FacetSidebar({
   loadedCount,
 }: FacetSidebarProps) {
   const { t } = useTranslation()
+  // Disable the whole facet surface while results are still settling
+  // (headerLoading / filter pending) so toggles cannot race deferred lists.
   const content = (
-    <div className="space-y-6">
+    <fieldset
+      disabled={isFilterTransitionPending}
+      className="m-0 min-w-0 space-y-6 border-0 p-0 disabled:opacity-60"
+    >
       {loadedCount !== undefined && loadedCount > 0 && (
         <div className="text-xs text-muted-foreground">
           {t('resumes.searchPage.facets.loadedCount', {
@@ -616,7 +621,7 @@ export function FacetSidebar({
         onSelect={onSetExperienceLevel}
       />
       <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: 'Education' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
-    </div>
+    </fieldset>
   )
 
   if (embedded) {

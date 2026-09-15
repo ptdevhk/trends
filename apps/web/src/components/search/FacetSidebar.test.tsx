@@ -101,6 +101,7 @@ describe('FacetSidebar', () => {
       />
     )
 
+    expect(container.firstElementChild?.tagName).toBe('FIELDSET')
     expect(container.firstElementChild).toHaveClass('space-y-6')
     expect(container.firstElementChild).not.toHaveClass('rounded-[1.75rem]')
     expect(screen.getByText('Refine the currently loaded search results.')).toBeInTheDocument()
@@ -108,6 +109,31 @@ describe('FacetSidebar', () => {
     await user.click(screen.getByRole('button', { name: 'Reset' }))
 
     expect(onClearAll).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables facet controls while a filter transition is pending', async () => {
+    const user = userEvent.setup()
+    const onClearAll = vi.fn()
+    const onToggleTag = vi.fn()
+
+    render(
+      <FacetSidebar
+        {...buildProps()}
+        isFilterTransitionPending
+        onClearAll={onClearAll}
+        onToggleTag={onToggleTag}
+      />,
+    )
+
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset).toBeDisabled()
+    await user.click(reset)
+    expect(onClearAll).not.toHaveBeenCalled()
+
+    const tag = screen.getByRole('button', { name: /Machine Tools/i })
+    expect(tag).toBeDisabled()
+    await user.click(tag)
+    expect(onToggleTag).not.toHaveBeenCalled()
   })
 
   it('forwards reset and filter toggle actions', async () => {

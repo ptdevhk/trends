@@ -93,4 +93,17 @@ describe('shouldShowSearchHeaderLoading', () => {
     )
     expect(src).toMatch(/disabled=\{loading\}/)
   })
+
+  it('documents that FacetSidebar uses headerLoading as the pending gate', () => {
+    const page = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    const sidebar = readFileSync(
+      path.join(process.cwd(), 'src/components/search/FacetSidebar.tsx'),
+      'utf8',
+    )
+    expect(page).toMatch(/isFilterTransitionPending:\s*headerLoading/)
+    expect(sidebar).toMatch(/<fieldset[\s\S]*disabled=\{isFilterTransitionPending\}/)
+  })
 })
