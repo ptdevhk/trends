@@ -629,7 +629,10 @@ export function ResumeSearchPage() {
                   <ModeToggle
                     mode={aiModeEnabled ? 'ai' : 'original'}
                     onModeChange={(mode) => setAiModeEnabled(mode === 'ai')}
-                    aiStats={aiModeStats}
+                    // Hide eager matched badge + block toggles while deferred
+                    // results still lag under headerLoading (same gate as Analyze).
+                    aiStats={headerLoading ? undefined : aiModeStats}
+                    disabled={headerLoading}
                   />
                   <Button
                     type="button"

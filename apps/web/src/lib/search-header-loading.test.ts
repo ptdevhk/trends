@@ -76,4 +76,13 @@ describe('shouldShowSearchHeaderLoading', () => {
     )
     expect(src).toMatch(/const disableAnalyzeResults =[\s\S]*headerLoading/)
   })
+
+  it('documents that ModeToggle suppresses eager aiStats while headerLoading', () => {
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/aiStats=\{headerLoading \? undefined : aiModeStats\}/)
+    expect(src).toMatch(/disabled=\{headerLoading\}/)
+  })
 })

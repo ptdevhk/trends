@@ -54,4 +54,25 @@ describe('ModeToggle', () => {
 
     expect(onModeChange).toHaveBeenCalledWith('ai')
   })
+
+  it('does not toggle or show matched badge when disabled', async () => {
+    const user = userEvent.setup()
+    const onModeChange = vi.fn()
+
+    render(
+      <ModeToggle
+        mode="ai"
+        onModeChange={onModeChange}
+        disabled
+        // Callers suppress aiStats while headerLoading; keep badge absent here too.
+      />,
+    )
+
+    const switchToggle = screen.getByRole('switch', { name: 'AI Mode' })
+    expect(switchToggle).toBeDisabled()
+    expect(screen.queryByText('3')).not.toBeInTheDocument()
+
+    await user.click(switchToggle)
+    expect(onModeChange).not.toHaveBeenCalled()
+  })
 })
