@@ -126,7 +126,7 @@ export function GoogleSearchBar({
         )}
         onSubmit={(event) => {
           event.preventDefault()
-          if (isComposing) {
+          if (isComposing || loading) {
             return
           }
           setJdPopoverOpen(false)
@@ -177,7 +177,7 @@ export function GoogleSearchBar({
                   setJdPopoverOpen(false)
                   return
                 }
-                if (trimmedValue) {
+                if (trimmedValue && !loading) {
                   onChange('')
                   inputRef.current?.blur()
                 }
@@ -213,7 +213,7 @@ export function GoogleSearchBar({
                 event.preventDefault()
                 setFocused(false)
                 setActiveIndex(-1)
-                if (trimmedValue) {
+                if (trimmedValue && !loading) {
                   onChange('')
                   inputRef.current?.blur()
                 }
@@ -276,7 +276,7 @@ export function GoogleSearchBar({
         }) : null}
       </div>
 
-      {jdPopoverOpen && onApplyExtractedKeywords ? (
+      {jdPopoverOpen && !loading && onApplyExtractedKeywords ? (
         <JdPastePopover
           compact={compact}
           onApplyKeywords={onApplyExtractedKeywords}

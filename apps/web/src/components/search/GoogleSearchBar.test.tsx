@@ -259,6 +259,34 @@ describe('GoogleSearchBar', () => {
     expect(onApplyRecentSearch).not.toHaveBeenCalled()
   })
 
+  it('does not clear the draft on escape while search is still loading', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderSearchBar({
+      value: 'machine tools',
+      recentSearches: [],
+      loading: true,
+    })
+
+    await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
+    await user.keyboard('{Escape}')
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('does not submit the query while search is still loading', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderSearchBar({
+      value: 'machine tools',
+      recentSearches: [],
+      loading: true,
+    })
+
+    await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
+    await user.keyboard('{Enter}')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('clears only the draft on escape, preserving the committed query', async () => {
     const user = userEvent.setup()
     const { onClear, onChange } = renderSearchBar({

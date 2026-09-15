@@ -198,4 +198,15 @@ describe('shouldShowSearchHeaderLoading', () => {
       /disabled=\{loading\}[\s\S]{0,300}?aria-label=\{t\('resumes\.searchPage\.header\.copyLink'/,
     )
   })
+
+  it('documents that submit and escape-clear gate on loading', () => {
+    const bar = readFileSync(
+      path.join(process.cwd(), 'src/components/search/GoogleSearchBar.tsx'),
+      'utf8',
+    )
+    // Enter can still submit a form whose submit button is disabled; Escape
+    // still remutates via onChange('') — both must share the loading gate.
+    expect(bar).toMatch(/if\s*\(\s*isComposing\s*\|\|\s*loading\s*\)/)
+    expect(bar).toMatch(/trimmedValue\s*&&\s*!loading/)
+  })
 })
