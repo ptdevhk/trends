@@ -184,6 +184,8 @@ export function SearchHeader({
             variant="ghost"
             size="sm"
             className="h-8 gap-1.5"
+            disabled={loading}
+            aria-label={t('resumes.searchPage.header.copyLink', { defaultValue: '复制搜索链接' })}
             onClick={() => {
               navigator.clipboard.writeText(window.location.href).then(() => {
                 toast.success(t('resumes.searchPage.header.linkCopied', { defaultValue: '链接已复制' }))
@@ -191,7 +193,6 @@ export function SearchHeader({
                 toast.error(t('resumes.searchPage.header.copyFailed', { defaultValue: '复制失败' }))
               })
             }}
-            aria-label={t('resumes.searchPage.header.copyLink', { defaultValue: '复制搜索链接' })}
           >
             <Link className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">

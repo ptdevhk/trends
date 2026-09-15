@@ -238,6 +238,27 @@ describe('GoogleSearchBar', () => {
     expect(onApplyRecentSearch).toHaveBeenCalledWith(recentItem)
   })
 
+  it('hides recent-search listbox while search is still loading', async () => {
+    const user = userEvent.setup()
+    const recentItem = buildRecentSearch({
+      id: 'history-loading' as ResumeSearchRecentItem['id'],
+      title: 'CNC sales',
+      keywords: ['CNC Sales'],
+    })
+    const onApplyRecentSearch = vi.fn()
+
+    renderSearchBar({
+      recentSearches: [recentItem],
+      onApplyRecentSearch,
+      loading: true,
+    })
+
+    await user.click(screen.getByPlaceholderText('Search resumes by keywords, brands, roles, or locations'))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /CNC Sales/i })).not.toBeInTheDocument()
+    expect(onApplyRecentSearch).not.toHaveBeenCalled()
+  })
+
   it('clears only the draft on escape, preserving the committed query', async () => {
     const user = userEvent.setup()
     const { onClear, onChange } = renderSearchBar({

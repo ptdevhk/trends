@@ -270,6 +270,37 @@ describe('SearchHeader', () => {
     expect(onClearJobDescription).not.toHaveBeenCalled()
   })
 
+  it('disables copy-link while search is still loading', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    render(
+      <SearchHeader
+        activeQuery="CNC"
+        activeResultCount={0}
+        loading
+        queryInput="CNC"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    const copyLink = screen.getByRole('button', { name: /复制搜索链接|Copy search link/i })
+    expect(copyLink).toBeDisabled()
+    await user.click(copyLink)
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
   it('counts all non-new candidate statuses as processed in the summary badges', () => {
     render(
       <SearchHeader

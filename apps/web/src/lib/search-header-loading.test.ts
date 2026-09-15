@@ -183,4 +183,19 @@ describe('shouldShowSearchHeaderLoading', () => {
       /aria-label=\{t\('resumes\.searchPage\.header\.clearJobDescription'[\s\S]{0,400}?disabled=\{loading\}/,
     )
   })
+
+  it('documents that recent-search listbox and copy-link gate on loading', () => {
+    const bar = readFileSync(
+      path.join(process.cwd(), 'src/components/search/GoogleSearchBar.tsx'),
+      'utf8',
+    )
+    const header = readFileSync(
+      path.join(process.cwd(), 'src/components/search/SearchHeader.tsx'),
+      'utf8',
+    )
+    expect(bar).toMatch(/isListboxOpen\s*=\s*focused\s*&&\s*!jdPopoverOpen\s*&&\s*!loading/)
+    expect(header).toMatch(
+      /disabled=\{loading\}[\s\S]{0,300}?aria-label=\{t\('resumes\.searchPage\.header\.copyLink'/,
+    )
+  })
 })

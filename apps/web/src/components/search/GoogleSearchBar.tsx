@@ -80,7 +80,7 @@ export function GoogleSearchBar({
       || item.location.toLowerCase().includes(normalizedQuery)
     ).slice(0, 6)
   }, [recentSearches, trimmedValue])
-  const isListboxOpen = focused && !jdPopoverOpen && filteredRecentSearches.length > 0
+  const isListboxOpen = focused && !jdPopoverOpen && !loading && filteredRecentSearches.length > 0
   const listboxId = 'recent-searches-listbox'
   const activeOptionId = activeIndex >= 0 ? `recent-search-option-${activeIndex}` : undefined
 
