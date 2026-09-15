@@ -207,6 +207,38 @@ describe('SearchHeader', () => {
     expect(screen.getByRole('status')).toHaveTextContent('正在加载...')
   })
 
+  it('hides status summary badges while search is still loading', () => {
+    render(
+      <SearchHeader
+        activeQuery="CNC"
+        activeResultCount={0}
+        loading
+        queryInput="CNC"
+        recentSearches={[]}
+        sortValue="score"
+        statusSummary={{
+          new: 5700,
+          shortlisted: 70,
+          rejected: 80,
+          total: 5850,
+        }}
+        collectedTodayCount={12}
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    // Stale status chips next to 加载中 contradict the in-flight header.
+    expect(screen.queryByText(/全部状态/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/今日采集/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/已处理/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('正在加载...').length).toBeGreaterThanOrEqual(1)
+  })
+
   it('counts all non-new candidate statuses as processed in the summary badges', () => {
     render(
       <SearchHeader

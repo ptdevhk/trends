@@ -131,7 +131,9 @@ export function SearchHeader({
                 ) : null}
               </Badge>
             ) : null}
-            {statusSummary && statusSummary.total > activeResultCount ? (
+            {/* Status chips are settled counts — hide while in flight so they
+                cannot contradict the loading label (deferred-lag follow-up). */}
+            {!loading && statusSummary && statusSummary.total > activeResultCount ? (
               <Badge variant="outline">
                 {t('resumes.searchPage.header.allStatuses', {
                   count: statusSummary.total.toLocaleString(),
@@ -139,7 +141,7 @@ export function SearchHeader({
                 })}
               </Badge>
             ) : null}
-            {collectedTodayCount > 0 ? (
+            {!loading && collectedTodayCount > 0 ? (
               <Badge variant="outline">
                 {t('resumes.searchPage.header.collectedToday', {
                   count: collectedTodayCount.toLocaleString(),
@@ -147,7 +149,7 @@ export function SearchHeader({
                 })}
               </Badge>
             ) : null}
-            {processedStatusCount > 0 ? (
+            {!loading && processedStatusCount > 0 ? (
               <Badge variant="outline">
                 {t('resumes.searchPage.header.processedStatuses', {
                   count: processedStatusCount.toLocaleString(),
