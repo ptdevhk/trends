@@ -668,7 +668,7 @@ export function ResumeSearchPage() {
                       </>
                     )}
                   </Button>
-                  <AnalysisTaskMonitor />
+                  <AnalysisTaskMonitor disabled={headerLoading} />
                   <ShareLinkButton
                     shareTitle={shareTitle}
                     state={shareState}

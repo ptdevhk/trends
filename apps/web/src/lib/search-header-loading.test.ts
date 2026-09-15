@@ -221,4 +221,37 @@ describe('shouldShowSearchHeaderLoading', () => {
       /useEffect\(\(\)\s*=>\s*\{[\s\S]*?if\s*\(\s*headerLoading\s*\)\s*\{[\s\S]*?setFiltersOpen\(false\)/,
     )
   })
+
+  it('documents that AnalysisTaskMonitor stays disabled while headerLoading', () => {
+    // Opening the history dialog mid deferred-lag is fine UX-wise, but cancel
+    // and other actions from an unsettled search context should wait — gate the
+    // trigger the same way as ShareLink / Analyze.
+    const page = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    const monitor = readFileSync(
+      path.join(process.cwd(), 'src/components/AnalysisTaskMonitor.tsx'),
+      'utf8',
+    )
+    expect(monitor).toMatch(/disabled\??:\s*boolean/)
+    expect(monitor).toMatch(/disabled=\{disabled\}/)
+    expect(page).toMatch(/<AnalysisTaskMonitor\s+disabled=\{headerLoading\}\s*\/>/)
+  })
+
+  it('documents that PublicShare FacetBadge and sheet share the resultsLoading gate', () => {
+    // Public share loads resume docs asynchronously; filter opens must match
+    // ResumeSearchPage headerLoading parity so toggles cannot race docs===undefined.
+    const page = readFileSync(
+      path.join(process.cwd(), 'src/pages/PublicSharePage.tsx'),
+      'utf8',
+    )
+    expect(page).toMatch(/const resultsLoading = docs === undefined/)
+    expect(page).toMatch(/isFilterTransitionPending:\s*resultsLoading/)
+    expect(page.match(/<FacetBadge[\s\S]*?disabled=\{resultsLoading\}/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(page).toMatch(
+      /useEffect\(\(\)\s*=>\s*\{[\s\S]*?if\s*\(\s*resultsLoading\s*\)\s*\{[\s\S]*?setFiltersOpen\(false\)/,
+    )
+    expect(page).toMatch(/resultsLoading=\{resultsLoading\}/)
+  })
 })

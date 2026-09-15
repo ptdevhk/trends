@@ -1101,6 +1101,16 @@ function MemberPublicShareResults({
     ],
   )
 
+  const resultsLoading = docs === undefined
+
+  // Match ResumeSearchPage: refuse new filter opens and close an already-open
+  // sheet while resume docs are still loading so toggles cannot race the list.
+  useEffect(() => {
+    if (resultsLoading) {
+      setFiltersOpen(false)
+    }
+  }, [resultsLoading])
+
   const facetSidebarProps = {
     facetCounts,
     minAge,
@@ -1117,6 +1127,7 @@ function MemberPublicShareResults({
     selectedSources,
     selectedStatuses,
     selectedTags,
+    isFilterTransitionPending: resultsLoading,
     onClearAll: handleClearFilters,
     onSetAgeRange: handleSetAgeRange,
     onSetExperienceLevel: setSelectedExperienceLevel,
@@ -1143,7 +1154,7 @@ function MemberPublicShareResults({
         activeResultCount={displayItems.length}
         activeResultCountIsLowerBound={false}
         jobDescriptionId={jobDescriptionId}
-        loading={docs === undefined}
+        loading={resultsLoading}
         location={location}
         prefetchSearch={false}
         queryInput={queryInput}
@@ -1173,6 +1184,7 @@ function MemberPublicShareResults({
           <div className="sticky top-24">
             <FacetBadge
               activeCount={filterCount}
+              disabled={resultsLoading}
               onClick={() => setFiltersOpen(true)}
             />
           </div>
@@ -1218,7 +1230,8 @@ function MemberPublicShareResults({
               selectedCount={selectedIds.size}
               highScoreCount={highScoreCount}
               exportFormat={exportFormat}
-              disabled={!canReview || docs === undefined}
+              disabled={!canReview || resultsLoading}
+              resultsLoading={resultsLoading}
               onExportFormatChange={setExportFormat}
               onSelectAll={handleSelectAll}
               onSelectHighScore={handleSelectHighScore}
@@ -1235,7 +1248,7 @@ function MemberPublicShareResults({
             expandedIds={expandedIds}
             hasMore={false}
             items={displayItems}
-            loading={docs === undefined}
+            loading={resultsLoading}
             onLoadMore={() => {}}
             onToggleExpanded={handleToggleExpanded}
             selectedIds={selectedIds}
@@ -1257,6 +1270,7 @@ function MemberPublicShareResults({
         <FacetBadge
           floating
           activeCount={filterCount}
+          disabled={resultsLoading}
           onClick={() => setFiltersOpen(true)}
         />
       </div>

@@ -141,7 +141,7 @@ function TaskItem({
   )
 }
 
-export function AnalysisTaskMonitor() {
+export function AnalysisTaskMonitor({ disabled = false }: { disabled?: boolean }) {
   const { t } = useTranslation()
   const { tasks, cancel: cancelTask } = useAnalysisTasks()
 
@@ -160,6 +160,7 @@ export function AnalysisTaskMonitor() {
         <Button
           variant="outline"
           size="icon"
+          disabled={disabled}
           aria-label={historyTriggerLabel}
           title={historyTriggerLabel}
           className={`h-9 w-9 ${hasActive ? 'border-primary/50 text-primary bg-primary/5' : 'text-muted-foreground'}`}

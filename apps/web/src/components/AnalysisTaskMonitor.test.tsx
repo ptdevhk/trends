@@ -97,6 +97,12 @@ describe('AnalysisTaskMonitor', () => {
     expect(screen.getByRole('button')).toBeInTheDocument()
   })
 
+  it('disables the history trigger when disabled is set', () => {
+    mockAnalysisTasks([makeTask()])
+    render(<AnalysisTaskMonitor disabled />)
+    expect(screen.getByRole('button')).toBeDisabled()
+  })
+
   it('gives the history trigger an accessible name', () => {
     mockAnalysisTasks([makeTask()])
     render(<AnalysisTaskMonitor />)
