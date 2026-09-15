@@ -168,6 +168,7 @@ export function SearchHeader({
             <Select
               aria-label={sortResultsLabel}
               className="min-w-40"
+              disabled={loading}
               options={[
                 { value: 'score', label: aiScoreLabel },
                 { value: 'newest', label: newestLabel },
@@ -177,8 +178,7 @@ export function SearchHeader({
               onChange={(event) =>
                 onSortChange(event.target.value as SearchSortValue)
               }
-            />
-          </div>
+            />          </div>
           <Button
             variant="ghost"
             size="sm"

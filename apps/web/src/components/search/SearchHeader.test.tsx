@@ -205,6 +205,8 @@ describe('SearchHeader', () => {
     // Visible + sr-only both show loading while in flight
     expect(screen.getAllByText('正在加载...').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('status')).toHaveTextContent('正在加载...')
+    // Sort must stay disabled so deferred-lag cannot race a mid-load reorder.
+    expect(screen.getByLabelText('结果排序')).toBeDisabled()
   })
 
   it('hides status summary badges while search is still loading', () => {

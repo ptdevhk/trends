@@ -85,4 +85,12 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(src).toMatch(/aiStats=\{headerLoading \? undefined : aiModeStats\}/)
     expect(src).toMatch(/disabled=\{headerLoading\}/)
   })
+
+  it('documents that SearchHeader sort stays disabled while loading', () => {
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/components/search/SearchHeader.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/disabled=\{loading\}/)
+  })
 })
