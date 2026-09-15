@@ -85,6 +85,12 @@ export function SearchHeader({
   const experienceLabel = t('resumes.searchPage.header.sortOptions.experience', {
     defaultValue: '工作经验',
   })
+  const loadingLabel = t('resumes.searchPage.header.loading', {
+    defaultValue: '正在加载...',
+  })
+  // Visible label must not look settled-empty while search is in flight
+  // (UAT pass 7 false CNC empty: snapshot during 搜索中...).
+  const headerLabel = loading ? loadingLabel : resultsLabel
   return (
     <div className="space-y-4">
       <div className="mx-auto max-w-5xl">
@@ -104,9 +110,9 @@ export function SearchHeader({
 
       <div className="flex flex-col gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-2">
-          <div className="text-sm font-medium text-slate-900">{resultsLabel}</div>
+          <div className="text-sm font-medium text-slate-900">{headerLabel}</div>
           <div role="status" aria-live="polite" className="sr-only">
-            {loading ? t('resumes.searchPage.header.loading', { defaultValue: '正在加载...' }) : resultsLabel}
+            {headerLabel}
           </div>
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}

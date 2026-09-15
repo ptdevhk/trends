@@ -181,6 +181,32 @@ describe('SearchHeader', () => {
     expect(screen.queryByText('为"machine tools"找到 0+ 条结果')).not.toBeInTheDocument()
   })
 
+  it('does not show a settled zero-result label while search is still loading', () => {
+    render(
+      <SearchHeader
+        activeQuery="CNC"
+        activeResultCount={0}
+        loading
+        queryInput="CNC"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    // Visible header must not look settled-empty during in-flight search
+    // (pass 7 false CNC empty: snapshot during 搜索中...).
+    expect(screen.queryByText('为"CNC"找到 0 条结果')).not.toBeInTheDocument()
+    // Visible + sr-only both show loading while in flight
+    expect(screen.getAllByText('正在加载...').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载...')
+  })
+
   it('counts all non-new candidate statuses as processed in the summary badges', () => {
     render(
       <SearchHeader
