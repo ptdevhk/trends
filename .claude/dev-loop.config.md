@@ -99,7 +99,7 @@ critical_paths:
       - apps/worker/
       - packages/cli/cmd/resume/
       - packages/convex/convex/resumes.ts
-      - packages/shared/src/parseSalaryRange.ts
+      - packages/shared/src/salary.ts
     vault:
       - concepts/multi-source-resume-collection
       - concepts/resume-source-locale

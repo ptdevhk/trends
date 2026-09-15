@@ -26,7 +26,7 @@ Run commands from the Trends repo root.
 
 ```bash
 git rev-parse --short HEAD
-./bin/trends system config --output json
+./bin/trends system metadata --output json
 ./bin/trends resume list --limit 5 --output json
 ```
 

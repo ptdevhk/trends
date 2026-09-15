@@ -94,6 +94,9 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends system metadata`
 - `./bin/trends system sources`
 - `./bin/trends system source <key>`
+- `./bin/trends workspace backup --profile hr-ops --out output/workspace-backups/hr-ops.json`
+- `./bin/trends workspace backup --profile full --out output/workspace-backups/full.json`
+- `./bin/trends workspace restore output/workspace-backups/hr-ops.json --yes`
 - `./bin/trends mcp serve`
 
 ## Rules
