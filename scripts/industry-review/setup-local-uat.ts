@@ -4,6 +4,8 @@ import { dirname, resolve } from 'node:path'
 import { ConvexHttpClient } from 'convex/browser'
 import { makeFunctionReference, type DefaultFunctionArgs } from 'convex/server'
 
+import { existingUatStateShouldSkip, skippedExistingUatStateReport } from './setup-local-uat-state'
+
 type IndustryClass = 'cnc' | 'automation' | 'metrology' | 'industrial' | 'non_industry' | 'unknown'
 type IndustryProposalStatus = 'new' | 'researching' | 'ready_for_review' | 'needs_more_evidence' | 'approved' | 'rejected' | 'superseded'
 type SourceType = 'official_site' | 'registry' | 'taxonomy' | 'oem_partner' | 'trade_body' | 'directory' | 'reporting' | 'other' | 'search_result'
@@ -165,11 +167,13 @@ async function main(): Promise<void> {
   const configuredCompanyKeys = { ...(fixture.localSetup?.companyKeyByCase ?? {}) }
   if (options.explicitCompanyKey) configuredCompanyKeys[manualApprovalCase] = options.explicitCompanyKey
 
-  if (existsSync(options.stateFile)) {
-    const existingState = JSON.parse(readFileSync(options.stateFile, 'utf8')) as Partial<UatState>
-    if (existingState.namespace === fixture.namespace) {
-      fail(`state file already exists at ${options.stateFile}; preserve the pre-approval snapshot and do not overwrite it`)
-    }
+  const stateFileExists = existsSync(options.stateFile)
+  const existingState = stateFileExists
+    ? JSON.parse(readFileSync(options.stateFile, 'utf8')) as Partial<UatState>
+    : null
+  if (existingUatStateShouldSkip(stateFileExists, existingState, fixture.namespace)) {
+    process.stdout.write(`${JSON.stringify(skippedExistingUatStateReport(options.stateFile, fixture.namespace), null, 2)}\n`)
+    return
   }
 
   const client = new ConvexHttpClient(convexUrl)
