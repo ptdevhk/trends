@@ -148,12 +148,17 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
       expect(jobUrls).not.toContain('seek.com')
     }
 
-    expect(cmm?.profile.keywords).toContain('三坐标')
-    expect(scanning?.profile.keywords).toContain('3D扫描仪')
+    // Review closeout: precision CMM query + JD wiring (no live 51job re-benchmark).
+    expect(cmm?.profile.keywords).toEqual(['三坐标测量机', '销售'])
+    expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])
+    expect(cmm?.profile.jobDescription).toBe('cmm-sales')
+    expect(scanning?.profile.jobDescription).toBe('3d-scanner-sales')
     expect(cmm?.profile.quickStart?.rank).toBe(7)
     expect(scanning?.profile.quickStart?.rank).toBe(8)
     expect(cmm?.profile.quickStart?.label).toBe('China · 51job · CMM 销售')
     expect(scanning?.profile.quickStart?.label).toBe('China · 51job · 3D扫描销售')
+    expect(cmm?.profile.quickStart?.description).toBe('三坐标测量机, 销售 · China')
+    expect(scanning?.profile.quickStart?.description).toBe('3D扫描仪, 销售 · China')
 
     expect(hr.some((t) => t.profile.id === '51job-cn-cnc-sales')).toBe(true)
     expect(cmm?.profile.id).not.toBe('51job-cn-cnc-sales')

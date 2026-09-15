@@ -2,10 +2,11 @@ id: 51job-cn-3d-scanning-sales
 name: China 51job 3D Scanning Sales
 description: China 51job 3D scanner and optical inspection equipment sales search profile
 createdAt: "2026-09-10"
-updatedAt: "2026-09-10"
+updatedAt: "2026-09-15"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 900000
+jobDescription: 3d-scanner-sales
 
 location: China
 keywords:

@@ -765,13 +765,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & Metrology Sales",
       "description": "China 51job coordinate measuring machine (CMM) and metrology sales search profile",
       "createdAt": "2026-09-10",
-      "updatedAt": "2026-09-10",
+      "updatedAt": "2026-09-15",
       "status": "active",
       "location": "China",
       "keywords": [
-        "三坐标",
+        "三坐标测量机",
         "销售"
       ],
+      "jobDescription": "cmm-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -808,7 +809,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · CMM 销售",
-        "description": "三坐标, 销售 · China"
+        "description": "三坐标测量机, 销售 · China"
       }
     }
   },
@@ -820,13 +821,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & Metrology Sales",
       "description": "China 51job coordinate measuring machine (CMM) and metrology sales search profile",
       "createdAt": "2026-09-10",
-      "updatedAt": "2026-09-10",
+      "updatedAt": "2026-09-15",
       "status": "active",
       "location": "China",
       "keywords": [
-        "三坐标",
+        "三坐标测量机",
         "销售"
       ],
+      "jobDescription": "cmm-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -863,7 +865,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · CMM 销售",
-        "description": "三坐标, 销售 · China"
+        "description": "三坐标测量机, 销售 · China"
       }
     }
   },
@@ -875,13 +877,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job 3D Scanning Sales",
       "description": "China 51job 3D scanner and optical inspection equipment sales search profile",
       "createdAt": "2026-09-10",
-      "updatedAt": "2026-09-10",
+      "updatedAt": "2026-09-15",
       "status": "active",
       "location": "China",
       "keywords": [
         "3D扫描仪",
         "销售"
       ],
+      "jobDescription": "3d-scanner-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -930,13 +933,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job 3D Scanning Sales",
       "description": "China 51job 3D scanner and optical inspection equipment sales search profile",
       "createdAt": "2026-09-10",
-      "updatedAt": "2026-09-10",
+      "updatedAt": "2026-09-15",
       "status": "active",
       "location": "China",
       "keywords": [
         "3D扫描仪",
         "销售"
       ],
+      "jobDescription": "3d-scanner-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
