@@ -177,6 +177,7 @@ export function BulkActionBar({
                         variant="bar"
                         hiddenCount={companyPolicyHiddenCount}
                         showHidden={showCompanyPolicyHidden}
+                        disabled={resultsLoading}
                         onShowHiddenChange={onShowCompanyPolicyHiddenChange!}
                     />
                 </>

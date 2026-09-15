@@ -42,4 +42,21 @@ describe('CompanyPolicyHiddenToggle', () => {
     await user.click(screen.getByTestId('company-policy-show-hidden'))
     expect(onChange).toHaveBeenCalledWith(true)
   })
+
+  it('does not toggle show-hidden while disabled during resultsLoading', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <CompanyPolicyHiddenToggle
+        hiddenCount={2}
+        showHidden={false}
+        disabled
+        onShowHiddenChange={onChange}
+      />,
+    )
+    const checkbox = screen.getByTestId('company-policy-show-hidden')
+    expect(checkbox).toBeDisabled()
+    await user.click(checkbox)
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })

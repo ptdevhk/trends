@@ -225,4 +225,26 @@ describe('BulkActionBar', () => {
         expect(onStatusFilterChange).not.toHaveBeenCalled()
         expect(onStatusToggle).not.toHaveBeenCalled()
     })
+
+    it('disables company-policy show-hidden while search results are still loading', async () => {
+        const user = userEvent.setup()
+        const onShowCompanyPolicyHiddenChange = vi.fn()
+
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    resultsLoading
+                    companyPolicyHiddenCount={2}
+                    showCompanyPolicyHidden={false}
+                    onShowCompanyPolicyHiddenChange={onShowCompanyPolicyHiddenChange}
+                />
+            </MemoryRouter>,
+        )
+
+        const checkbox = screen.getByTestId('company-policy-show-hidden')
+        expect(checkbox).toBeDisabled()
+        await user.click(checkbox)
+        expect(onShowCompanyPolicyHiddenChange).not.toHaveBeenCalled()
+    })
 })

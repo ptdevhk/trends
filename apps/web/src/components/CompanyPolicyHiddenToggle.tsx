@@ -8,6 +8,7 @@ type CompanyPolicyHiddenToggleProps = {
   showHidden: boolean
   onShowHiddenChange: (show: boolean) => void
   className?: string
+  disabled?: boolean
   /**
    * `bar` — compact row meant for inside BulkActionBar (default).
    * `standalone` — self-contained border (legacy/tests).
@@ -24,6 +25,7 @@ export function CompanyPolicyHiddenToggle({
   showHidden,
   onShowHiddenChange,
   className,
+  disabled = false,
   variant = 'bar',
 }: CompanyPolicyHiddenToggleProps) {
   const { t } = useTranslation()
@@ -55,6 +57,7 @@ export function CompanyPolicyHiddenToggle({
             // Match status chip density (全部状态 / 新候选人)
             'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
             'border-red-200 bg-red-50 font-medium text-red-700',
+            disabled && 'opacity-50',
           )}
           data-testid="company-policy-hidden-count"
           title={countLabel}
@@ -66,7 +69,8 @@ export function CompanyPolicyHiddenToggle({
 
       <label
         className={cn(
-          'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors',
+          'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors',
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
           showHidden
             ? 'border-primary bg-primary/10 font-medium text-primary'
             : 'border-border text-muted-foreground hover:bg-muted',
@@ -74,6 +78,7 @@ export function CompanyPolicyHiddenToggle({
       >
         <Checkbox
           checked={showHidden}
+          disabled={disabled}
           onCheckedChange={(checked) => onShowHiddenChange(checked === true)}
           data-testid="company-policy-show-hidden"
           className="h-3.5 w-3.5"

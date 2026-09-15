@@ -153,4 +153,17 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(bar).toMatch(/disabled=\{resultsLoading\}/)
     expect(bar).toMatch(/onStatusToggle/)
   })
+
+  it('documents that company-policy toggle shares the resultsLoading gate', () => {
+    const bar = readFileSync(
+      path.join(process.cwd(), 'src/components/BulkActionBar.tsx'),
+      'utf8',
+    )
+    const toggle = readFileSync(
+      path.join(process.cwd(), 'src/components/CompanyPolicyHiddenToggle.tsx'),
+      'utf8',
+    )
+    expect(toggle).toMatch(/disabled\??:\s*boolean/)
+    expect(bar).toMatch(/CompanyPolicyHiddenToggle[\s\S]*disabled=\{resultsLoading\}/)
+  })
 })
