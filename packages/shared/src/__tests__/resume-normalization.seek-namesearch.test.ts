@@ -64,6 +64,11 @@ describe("inferSeekMarket", () => {
     expect(inferSeekMarket("hk.employer.seek.com", "HK")).toBe("HK");
   });
 
+  it("returns TH for th or TH hints", () => {
+    expect(inferSeekMarket("hk.employer.seek.com", "th")).toBe("TH");
+    expect(inferSeekMarket("hk.employer.seek.com", "TH")).toBe("TH");
+  });
+
   it("returns MY by default", () => {
     expect(inferSeekMarket("unknown")).toBe("MY");
   });
