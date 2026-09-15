@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { createApp, openApiConfig } from "../app.js";
 import {
   apiTypesSemverExample,
   configTsVersion,
@@ -32,7 +33,7 @@ describe("OpenAPI HealthResponse version example", () => {
     expect(yamlExample, "apps/api/openapi.yaml HealthResponse example missing").not.toBeNull();
     expect(yamlExample, "apps/api/openapi.yaml HealthResponse example stale").toBe(expected);
 
-    const jsonText = readFileSync(resolve(repoRoot, "apps/api/openapi.json"), "utf8");
+    const jsonText = JSON.stringify(createApp().getOpenAPI31Document(openApiConfig));
     const jsonExample = healthExampleFromOpenApiJson(jsonText);
     expect(jsonExample, "apps/api/openapi.json HealthResponse example missing").not.toBeNull();
     expect(jsonExample, "apps/api/openapi.json HealthResponse example stale").toBe(expected);
