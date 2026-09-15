@@ -39,6 +39,10 @@ const JOB5156_LOGIN_URL_PREFIX = 'https://hr.job5156.com/login'
 const JOB5156_SEARCH_URL_PREFIX = 'https://hr.job5156.com/search'
 const RUN_JOB5156_SMOKE_FLAG = '--run-job5156'
 
+export function e2eExitCode(failed: boolean): number {
+    return failed ? 1 : 0;
+}
+
 type WorkspaceSeedResult = {
     resumes: {
         inserted: number;
@@ -804,37 +808,39 @@ async function main() {
     await ensureDeterministicSmokeFixtures();
     const { browser, page } = await connectToChrome();
 
+    let failed = false;
     try {
         await ensureDevAdminSession(page);
         await runCollectUrlKeywordModeTest(page);
         if (collectOnly) {
             console.log('\n🌟 Collect URL smoke test passed!');
-            return;
-        }
-        await runCollectionTest(page);
-        await waitForAnalysisQuiescence(page);
-        await runSearchTest(page);
-        await runAnalysisTest(page);
-        await runBulkActionsTest(page);
-        await runErrorStateTest(page);
+        } else {
+            await runCollectionTest(page);
+            await waitForAnalysisQuiescence(page);
+            await runSearchTest(page);
+            await runAnalysisTest(page);
+            await runBulkActionsTest(page);
+            await runErrorStateTest(page);
 
-        if (liveJob5156Detail && runJob5156Smoke) {
-            await runJob5156DetailLiveSmoke(page, liveJob5156Detail);
-        } else if (liveJob5156Detail) {
-            console.log('⚠️ Job5156 detail-page live smoke skipped: Job5156 smoke is disabled by default.');
-        }
+            if (liveJob5156Detail && runJob5156Smoke) {
+                await runJob5156DetailLiveSmoke(page, liveJob5156Detail);
+            } else if (liveJob5156Detail) {
+                console.log('⚠️ Job5156 detail-page live smoke skipped: Job5156 smoke is disabled by default.');
+            }
 
-        if (liveSeekMyRecommended) {
-            await runSeekMyRecommendedLiveSmoke(page, liveSeekMyRecommended);
-        }
+            if (liveSeekMyRecommended) {
+                await runSeekMyRecommendedLiveSmoke(page, liveSeekMyRecommended);
+            }
 
-        console.log('\n🌟 All E2E smoke tests passed!');
+            console.log('\n🌟 All E2E smoke tests passed!');
+        }
     } catch (error) {
+        failed = true;
         console.error('\n❌ E2E tests failed:', error);
-        process.exit(1);
     } finally {
         await browser.close();
     }
+    process.exit(e2eExitCode(failed));
 }
 
 main();
