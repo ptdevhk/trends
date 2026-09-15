@@ -50,6 +50,8 @@ interface BulkActionBarProps {
     onShowCompanyPolicyHiddenChange?: (show: boolean) => void
     /** Open review-packets page with the selected IDs */
     onOpenReviewPacket?: () => void
+    /** Search/filter results still settling (deferred lag) — hide settled 0/0 */
+    resultsLoading?: boolean
 }
 
 export function BulkActionBar({
@@ -74,6 +76,7 @@ export function BulkActionBar({
     showCompanyPolicyHidden = false,
     onShowCompanyPolicyHiddenChange,
     onOpenReviewPacket,
+    resultsLoading = false,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
@@ -82,6 +85,7 @@ export function BulkActionBar({
         typeof onShowCompanyPolicyHiddenChange === 'function' &&
         (companyPolicyHiddenCount > 0 || showCompanyPolicyHidden)
     const totalCountLabel = `${totalCount}${totalCountIsLowerBound ? '+' : ''}`
+    const actionsDisabled = disabled || resultsLoading
     const allStatusActive = statusFilter?.length === ALL_STATUS_FILTERS.length
         && ALL_STATUS_FILTERS.every((status) => statusFilter.includes(status))
     const allStatusCount = statusFacetCounts
@@ -138,7 +142,9 @@ export function BulkActionBar({
                     {t('bulkActions.selected', { defaultValue: '已选择' })}:
                 </span>
                 <span className="font-medium">
-                    {selectedCount} / {totalCountLabel}
+                    {resultsLoading
+                        ? t('resumes.searchPage.header.loading', { defaultValue: '正在加载...' })
+                        : `${selectedCount} / ${totalCountLabel}`}
                 </span>
             </div>
 
@@ -240,7 +246,7 @@ export function BulkActionBar({
                     size="sm"
                     data-testid="bulk-select-all"
                     onClick={onSelectAll}
-                    disabled={disabled}
+                    disabled={actionsDisabled}
                 >
                     {t('bulkActions.selectAll', { defaultValue: '全选' })}
                 </Button>
@@ -248,7 +254,7 @@ export function BulkActionBar({
                     variant="ghost"
                     size="sm"
                     onClick={onSelectHighScore}
-                    disabled={disabled || highScoreCount === 0}
+                    disabled={actionsDisabled || highScoreCount === 0}
                     className={cn(highScoreCount > 0 && 'text-emerald-700 hover:text-emerald-800')}
                 >
                     {t('bulkActions.selectHighScore', { defaultValue: '选 80+ 分' })} ({highScoreCount})
@@ -259,7 +265,7 @@ export function BulkActionBar({
                         size="sm"
                         data-testid="bulk-clear-selection"
                         onClick={onClearSelection}
-                        disabled={disabled}
+                        disabled={actionsDisabled}
                     >
                         {t('bulkActions.clearSelection', { defaultValue: '取消选择' })}
                     </Button>
@@ -276,7 +282,7 @@ export function BulkActionBar({
                     size="sm"
                     data-testid="bulk-shortlist"
                     onClick={() => handleAction('shortlist')}
-                    disabled={disabled || selectedCount === 0 || loading !== null}
+                    disabled={actionsDisabled || selectedCount === 0 || loading !== null}
                     className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                 >
                     <CheckCircle className={cn('mr-1 h-4 w-4', loading === 'shortlist' && 'animate-spin')} />
@@ -286,7 +292,7 @@ export function BulkActionBar({
                     variant="outline"
                     size="sm"
                     onClick={() => handleAction('reject')}
-                    disabled={disabled || selectedCount === 0 || loading !== null}
+                    disabled={actionsDisabled || selectedCount === 0 || loading !== null}
                     className="text-destructive border-destructive/20 hover:bg-destructive/5"
                 >
                     <XCircle className={cn('mr-1 h-4 w-4', loading === 'reject' && 'animate-spin')} />
@@ -296,7 +302,7 @@ export function BulkActionBar({
                     variant="outline"
                     size="sm"
                     onClick={() => handleAction('block')}
-                    disabled={disabled || selectedCount === 0 || loading !== null}
+                    disabled={actionsDisabled || selectedCount === 0 || loading !== null}
                     className="text-red-600 border-red-200 hover:bg-red-50"
                 >
                     <Ban className={cn('mr-1 h-4 w-4', loading === 'block' && 'animate-spin')} />
@@ -308,7 +314,7 @@ export function BulkActionBar({
                         size="sm"
                         data-testid="bulk-review-packet"
                         onClick={onOpenReviewPacket}
-                        disabled={disabled || selectedCount === 0 || loading !== null}
+                        disabled={actionsDisabled || selectedCount === 0 || loading !== null}
                         className="text-sky-700 border-sky-200 hover:bg-sky-50"
                     >
                         <ClipboardList className="mr-1 h-4 w-4" />
@@ -319,7 +325,7 @@ export function BulkActionBar({
                     <Select
                         value={exportFormat}
                         aria-label={t('bulkActions.exportFormat')}
-                        disabled={disabled}
+                        disabled={actionsDisabled}
                         onChange={(e) => {
                             const val = e.target.value
                             const format = val === 'xlsx' ? 'xlsx' : 'csv'
@@ -337,7 +343,7 @@ export function BulkActionBar({
                         data-testid="bulk-export"
                         aria-label={t('bulkActions.export')}
                         onClick={() => handleAction('export')}
-                        disabled={disabled || selectedCount === 0 || loading !== null}
+                        disabled={actionsDisabled || selectedCount === 0 || loading !== null}
                         className="rounded-l-none border-l-0 px-2.5"
                     >
                         <Download className={cn('h-4 w-4', loading === 'export' && 'animate-spin')} />

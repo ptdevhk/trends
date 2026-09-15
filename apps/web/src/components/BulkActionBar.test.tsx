@@ -176,4 +176,24 @@ describe('BulkActionBar', () => {
         render(<MemoryRouter><BulkActionBar {...defaultProps} /></MemoryRouter>)
         expect(screen.queryByTestId('bulk-review-packet')).not.toBeInTheDocument()
     })
+
+    it('does not show a settled zero selection count while search results are still loading', () => {
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    totalCount={0}
+                    selectedCount={0}
+                    highScoreCount={0}
+                    resultsLoading
+                />
+            </MemoryRouter>,
+        )
+
+        // Deferred-lag follow-up: BulkActionBar used policyVisibleResults.length
+        // and could flash "0 / 0" while SearchHeader still showed 加载中.
+        expect(screen.queryByText('0 / 0')).not.toBeInTheDocument()
+        expect(screen.getByText(/加载中|正在加载/)).toBeInTheDocument()
+        expect(screen.getByText('全选')).toBeDisabled()
+    })
 })

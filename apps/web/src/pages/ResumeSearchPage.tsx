@@ -695,6 +695,7 @@ export function ResumeSearchPage() {
                   highScoreCount={policyVisibleHighScoreCount}
                   exportFormat={exportFormat}
                   disabled={!canManageCandidateData}
+                  resultsLoading={headerLoading}
                   onExportFormatChange={setExportFormat}
                   onSelectAll={selectAllVisible}
                   onSelectHighScore={selectHighScoreVisible}
