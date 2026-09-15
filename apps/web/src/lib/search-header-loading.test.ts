@@ -209,4 +209,16 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(bar).toMatch(/if\s*\(\s*isComposing\s*\|\|\s*loading\s*\)/)
     expect(bar).toMatch(/trimmedValue\s*&&\s*!loading/)
   })
+
+  it('documents that MobileFilterSheet auto-closes while headerLoading', () => {
+    // FacetBadge refuses new opens during headerLoading, but an already-open
+    // sheet must also close so filter toggles cannot race deferred results.
+    const page = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    expect(page).toMatch(
+      /useEffect\(\(\)\s*=>\s*\{[\s\S]*?if\s*\(\s*headerLoading\s*\)\s*\{[\s\S]*?setFiltersOpen\(false\)/,
+    )
+  })
 })

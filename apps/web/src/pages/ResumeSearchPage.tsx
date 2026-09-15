@@ -215,6 +215,15 @@ export function ResumeSearchPage() {
   useEffect(() => {
     pruneSelection(policyVisibleKeys)
   }, [policyVisibleKeys, pruneSelection])
+
+  // FacetBadge refuses new opens during headerLoading; also close an already-
+  // open mobile/tablet sheet so pending filters cannot race deferred results.
+  useEffect(() => {
+    if (headerLoading) {
+      setFiltersOpen(false)
+    }
+  }, [headerLoading])
+
   const aiSummary = useAiSearchSummary({
     enabled: resumeAiSummaryEnabled,
     query: activeQuery,
