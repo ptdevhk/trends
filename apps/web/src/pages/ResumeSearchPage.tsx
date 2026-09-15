@@ -667,7 +667,7 @@ export function ResumeSearchPage() {
                     // Avoid sharing an unsettled deferred result set mid-load.
                     disabled={headerLoading}
                   />
-                  <HrFeedbackImportDialog disabled={!canManageCandidateData} />
+                  <HrFeedbackImportDialog disabled={!canManageCandidateData || headerLoading} />
                 </div>
               </div>
 
@@ -684,11 +684,12 @@ export function ResumeSearchPage() {
               {resumeAiSummaryEnabled && (
                 <ErrorBoundary fallback={<InlineErrorFallback message={errorAiSummaryLabel} />}>
                   <AiSummaryPanel
-                    generatedAt={aiSummary.generatedAt}
-                    loading={aiSummary.loading}
-                    summary={aiSummary.summary}
-                  />
-                </ErrorBoundary>
+                    generatedAt={headerLoading ? undefined : aiSummary.generatedAt}
+                    // Keep skeleton while deferred results lag so the panel
+                    // cannot flash "No summary" for an empty deferred list.
+                    loading={aiSummary.loading || headerLoading}
+                    summary={headerLoading ? undefined : aiSummary.summary}
+                  />                </ErrorBoundary>
               )}
 
               <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">

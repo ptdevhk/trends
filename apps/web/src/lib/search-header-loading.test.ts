@@ -114,4 +114,16 @@ describe('shouldShowSearchHeaderLoading', () => {
     )
     expect(src).toMatch(/<ShareLinkButton[\s\S]*disabled=\{headerLoading\}/)
   })
+
+  it('documents that AiSummary and HrFeedback share the headerLoading gate', () => {
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/loading=\{aiSummary\.loading \|\| headerLoading\}/)
+    expect(src).toMatch(/summary=\{headerLoading \? undefined : aiSummary\.summary\}/)
+    expect(src).toMatch(
+      /HrFeedbackImportDialog disabled=\{!canManageCandidateData \|\| headerLoading\}/,
+    )
+  })
 })
