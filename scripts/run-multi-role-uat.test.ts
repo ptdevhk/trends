@@ -72,6 +72,14 @@ describe("attached CDP teardown", () => {
         expect(src).toMatch(/browser = cdp\.browser/);
         expect(src).toMatch(/process\.exit\(uatExitCode\(summary\.allPassed\)\)/);
     });
+
+    it("captures screenshots with animations disabled through one helper", () => {
+        const src = readFileSync(new URL("./run-multi-role-uat.ts", import.meta.url), "utf8");
+        expect(src).toMatch(/export async function captureUatScreenshot/);
+        expect(src).toMatch(/animations:\s*['"]disabled['"]/);
+        expect(src.match(/page\.screenshot\(/g)?.length).toBe(1);
+        expect(src.match(/captureUatScreenshot\(/g)?.length).toBeGreaterThan(5);
+    });
 });
 
 describe("generateUatSummary", () => {

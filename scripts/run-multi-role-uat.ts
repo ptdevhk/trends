@@ -140,6 +140,37 @@ export async function closeUatBrowser(browser: Browser | null): Promise<void> {
     }
 }
 
+export async function captureUatScreenshot(page: Page, path: string): Promise<void> {
+    await page.evaluate(async () => {
+        try {
+            await Promise.race([
+                document.fonts.ready,
+                new Promise((resolve) => setTimeout(resolve, 1500)),
+            ]);
+        } catch {
+            // Attached CDP sessions can leave document.fonts unsettled forever.
+        }
+    });
+
+    const options = { path, fullPage: true, animations: "disabled" as const, timeout: 8000 };
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await page.screenshot(options);
+            return;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (attempt === 1 || !/timeout|fonts/i.test(message)) {
+                throw err;
+            }
+            await page.evaluate(() => {
+                const style = document.createElement("style");
+                style.textContent = "* { font-family: system-ui, sans-serif !important; }";
+                document.head.appendChild(style);
+            });
+        }
+    }
+}
+
 export function generateUatSummary(results: RoleUatResult[]): UatSummaryReport {
     const totalRoles = results.length;
     const passedRoles = results.filter((r) => r.passed).length;
@@ -192,7 +223,7 @@ async function runHrDemoWalk(
     steps.push('load-resumes-page');
 
     const shot1 = resolve(options.screenshotDir, 'hr-demo-resumes-home.png');
-    await page.screenshot({ path: shot1, fullPage: true });
+    await captureUatScreenshot(page, shot1);
     screenshots.push(shot1);
 
     // Step 3: Search keyword 'sales'
@@ -203,7 +234,7 @@ async function runHrDemoWalk(
     steps.push('search-sales');
 
     const shot2 = resolve(options.screenshotDir, 'hr-demo-search-results.png');
-    await page.screenshot({ path: shot2, fullPage: true });
+    await captureUatScreenshot(page, shot2);
     screenshots.push(shot2);
 
     // Step 4: Negative Admin Gate check — non-admin cannot access admin-only settings
@@ -212,7 +243,7 @@ async function runHrDemoWalk(
     steps.push('negative-admin-gate');
 
     const shot3 = resolve(options.screenshotDir, 'hr-demo-negative-admin-gate.png');
-    await page.screenshot({ path: shot3, fullPage: true });
+    await captureUatScreenshot(page, shot3);
     screenshots.push(shot3);
 
     return steps;
@@ -236,7 +267,7 @@ async function runDemoAdminWalk(
     steps.push('policies-page');
 
     const shot1 = resolve(options.screenshotDir, 'demo-admin-policies.png');
-    await page.screenshot({ path: shot1, fullPage: true });
+    await captureUatScreenshot(page, shot1);
     screenshots.push(shot1);
 
     // Step 3: Industry verification admin page
@@ -245,7 +276,7 @@ async function runDemoAdminWalk(
     steps.push('industry-verification-admin');
 
     const shot2 = resolve(options.screenshotDir, 'demo-admin-industry-verification.png');
-    await page.screenshot({ path: shot2, fullPage: true });
+    await captureUatScreenshot(page, shot2);
     screenshots.push(shot2);
 
     // Step 4: Workspace settings page
@@ -254,7 +285,7 @@ async function runDemoAdminWalk(
     steps.push('workspace-settings');
 
     const shot3 = resolve(options.screenshotDir, 'demo-admin-workspace-settings.png');
-    await page.screenshot({ path: shot3, fullPage: true });
+    await captureUatScreenshot(page, shot3);
     screenshots.push(shot3);
 
     return steps;
@@ -278,7 +309,7 @@ async function runUatReviewerWalk(
     steps.push('industry-verification-inbox');
 
     const shot1 = resolve(options.screenshotDir, 'uat-reviewer-inbox.png');
-    await page.screenshot({ path: shot1, fullPage: true });
+    await captureUatScreenshot(page, shot1);
     screenshots.push(shot1);
 
     return steps;
