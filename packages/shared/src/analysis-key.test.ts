@@ -4,6 +4,7 @@ import {
   getCurrentResumeAiPromptVersion,
   buildKeywordAnalysisId,
   normalizeResumeAnalysisSourceKey,
+  buildResumeAnalysisLookupKeys,
 } from './analysis-key'
 
 describe('isSalesRequiredContext', () => {
@@ -93,6 +94,13 @@ describe('normalizeResumeAnalysisSourceKey', () => {
     expect(normalizeResumeAnalysisSourceKey(undefined)).toBeUndefined()
     expect(normalizeResumeAnalysisSourceKey('linkedin')).toBeUndefined()
     expect(normalizeResumeAnalysisSourceKey('unknown')).toBeUndefined()
+  })
+})
+
+describe('buildResumeAnalysisLookupKeys', () => {
+  it('returns an empty list when jobDescriptionId is missing and keywords are empty', () => {
+    expect(buildResumeAnalysisLookupKeys(undefined, [])).toEqual([])
+    expect(buildResumeAnalysisLookupKeys('', [])).toEqual([])
   })
 })
 
