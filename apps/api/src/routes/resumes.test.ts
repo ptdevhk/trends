@@ -440,7 +440,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      // Digest-scan path (AND, and OR with active filters): phase 1 via scanResumeDigestPage
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         // Phase 1: slim projection — only searchText and basic fields
@@ -522,6 +522,145 @@ describe("resume routes", () => {
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes_search:scanResumeDigestPage",
     }));
+  });
+
+  it("routes OR-mode convex search with active filters through digest scan", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:scanResumeDigestPage") {
+        return convexSuccess({
+          docs: [
+            {
+              _id: "d1",
+              resumeId: "resume-live-1",
+              source: "seek",
+              sourceKey: "seek",
+              searchText: "cnc sales engineer fanuc",
+              locationText: "China",
+              roleTypes: ["sales"],
+              roleYearsByType: { sales: 3 },
+              isArchived: false,
+            },
+          ],
+          isDone: true,
+          cursor: null,
+        });
+      }
+
+      if (call.pathName === "resumes_search:getResumeDocsByIds") {
+        return convexSuccess([
+          {
+            ...buildConvexResumeRecord("resume-live-1", {
+              name: "Filtered Or",
+              location: "China",
+            }),
+            searchText: "cnc sales engineer fanuc",
+            isArchived: false,
+          },
+        ]);
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        return convexSuccess([]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request(
+      "/api/resumes?source=convex&q=CNC%20OR%20sales&limit=5&locations=China",
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; summary: Record<string, unknown>; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item) => item.name)).toEqual(["Filtered Or"]);
+    const searchPaths = calls.map((call) => call.pathName);
+    expect(searchPaths).toContain("resumes_search:scanResumeDigestPage");
+    expect(searchPaths).toContain("resumes_search:getResumeDocsByIds");
+    expect(searchPaths).not.toContain("resumes_search:searchWithTagExpansion");
+    expect(searchPaths).not.toContain("resumes_search:searchWithTagExpansionScanPage");
+  });
+
+  it("keeps filter-free OR-mode convex search off the digest scan", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes_search:searchWithTagExpansion") {
+        return convexSuccess({
+          expansion: {
+            original: "CNC OR sales",
+            expanded: ["cnc", "sales"],
+            groups: [],
+            mode: "OR",
+          },
+          results: [
+            {
+              resume: {
+                ...buildConvexResumeRecord("resume-live-1", { name: "Cursor Or" }),
+                searchText: "cnc sales engineer",
+              },
+              provenance: [{ term: "cnc", source: "searchText" }],
+            },
+          ],
+        });
+      }
+
+      if (call.pathName === "resumes_search:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: [
+            {
+              resume: {
+                ...buildConvexResumeRecord("resume-live-1", { name: "Cursor Or" }),
+                searchText: "cnc sales engineer",
+              },
+              provenance: [{ term: "cnc", source: "searchText" }],
+            },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      if (call.pathName === "companies:listVerifiedIndustryEmployerAliases") { return convexSuccess([]); }
+      if (call.pathName === "companies:list") { return convexSuccess([]); }
+      if (call.pathName === "companies:listPoliciesForScope") { return convexSuccess([]); }
+      if (call.pathName === "candidate_policy_overrides:list") { return convexSuccess([]); }
+      if (call.pathName === "candidate_status:list" || call.pathName === "candidate_blocks:list") {
+        return convexSuccess([]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes?source=convex&q=CNC%20OR%20sales&limit=5");
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ success: unknown; data: { name: string }[] }>(response);
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item) => item.name)).toEqual(["Cursor Or"]);
+    const searchPaths = calls.map((call) => call.pathName);
+    expect(searchPaths).not.toContain("resumes_search:scanResumeDigestPage");
+    expect(searchPaths).not.toContain("resumes_search:getResumeDocsByIds");
+    expect(
+      searchPaths.some((path) =>
+        path === "resumes_search:searchWithTagExpansion"
+        || path === "resumes_search:searchWithTagExpansionScanPage",
+      ),
+    ).toBe(true);
   });
 
   it("excludes workspace blocked candidates from convex statusCounts by default", async () => {
@@ -1137,7 +1276,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      // Digest-scan path (AND, and OR with active filters): phase 1 via scanResumeDigestPage
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
@@ -1197,7 +1336,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      // Digest-scan path (AND, and OR with active filters): phase 1 via scanResumeDigestPage
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
@@ -1280,7 +1419,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      // Digest-scan path (AND, and OR with active filters): phase 1 via scanResumeDigestPage
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({
@@ -1341,7 +1480,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      // AND-mode queries use two-phase scan: phase 1 via scanResumeDigestPage
+      // Digest-scan path (AND, and OR with active filters): phase 1 via scanResumeDigestPage
       if (call.pathName === "resumes_search:scanResumeDigestPage") {
         const cursor = typeof call.args.cursor === "string" ? call.args.cursor : null;
         return convexSuccess({

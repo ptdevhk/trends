@@ -1,0 +1,22 @@
+/**
+ * Profile-exported vars that made `make ci-local` non-deterministic on
+ * runner hosts (2026-09-06 pvelxc: CONVEX_DEPLOYMENT=anonymous plus
+ * AI_FALLBACK_MODEL / AUTH_HR_DEMO_TOKEN leaked into api tests).
+ *
+ * Keep the Makefile `ci-local` `env -u` list in sync with this array.
+ */
+export const CI_LOCAL_SCRUB_KEYS = [
+  "CONVEX_DEPLOYMENT",
+  "AI_FALLBACK_MODEL",
+  "AUTH_HR_DEMO_TOKEN",
+] as const;
+
+export type CiLocalEnv = Record<string, string | undefined>;
+
+export function scrubCiLocalEnv(env: CiLocalEnv): CiLocalEnv {
+  const next: CiLocalEnv = { ...env };
+  for (const key of CI_LOCAL_SCRUB_KEYS) {
+    delete next[key];
+  }
+  return next;
+}

@@ -1496,7 +1496,13 @@ check-build: check
 # loop-class failures of 2026-07 (React 18 root hoist, unstable i18n-mock `t`,
 # vitest hangs) surface locally instead of burning a 30-minute CI run.
 # NODE_VERSION_STRICT=1 makes the node-major check a hard failure.
+# Profile-exported CONVEX_DEPLOYMENT / AI_FALLBACK_MODEL / AUTH_HR_DEMO_TOKEN
+# leaked into api tests on pvelxc (2026-09-06); unset them so runner shells
+# stay deterministic. Keep in sync with scripts/lib/ci-local-env.ts.
 ci-local:
+	@env -u CONVEX_DEPLOYMENT -u AI_FALLBACK_MODEL -u AUTH_HR_DEMO_TOKEN $(MAKE) ci-local-gates
+
+ci-local-gates:
 	@bash scripts/check-node-version.sh
 	@$(MAKE) i18n-check
 	@$(MAKE) check-agent-policy

@@ -1,7 +1,8 @@
 /**
  * BFF-side resume filter matching — extracted from routes/resumes.ts for
  * testability.  Mirrors the Convex `matchesResumeListFilters` logic so the
- * three execution paths (Convex, BFF AND-mode, BFF OR-mode) stay aligned.
+ * four execution paths stay aligned: Convex server-side, AND digest scan,
+ * filtered-OR digest scan, and filter-free OR cursor scan.
  */
 import {
   deriveMarketFromSourceKey,
