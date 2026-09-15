@@ -241,6 +241,35 @@ describe('SearchHeader', () => {
     expect(screen.getAllByText('正在加载...').length).toBeGreaterThanOrEqual(1)
   })
 
+  it('disables clear job-description while search is still loading', async () => {
+    const user = userEvent.setup()
+    const onClearJobDescription = vi.fn()
+
+    render(
+      <SearchHeader
+        activeQuery="CNC"
+        activeResultCount={0}
+        loading
+        jobDescriptionId="jd-42"
+        queryInput="CNC"
+        recentSearches={[]}
+        sortValue="score"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onClearJobDescription={onClearJobDescription}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    const clearJd = screen.getByRole('button', { name: /清除职位描述|Clear job description/i })
+    expect(clearJd).toBeDisabled()
+    await user.click(clearJd)
+    expect(onClearJobDescription).not.toHaveBeenCalled()
+  })
+
   it('counts all non-new candidate statuses as processed in the summary badges', () => {
     render(
       <SearchHeader

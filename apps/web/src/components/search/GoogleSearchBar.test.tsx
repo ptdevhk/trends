@@ -83,6 +83,7 @@ function renderSearchBar({
 
   return {
     onApplyRecentSearch,
+    onApplyExtractedKeywords,
     onChange,
     onClear,
     onSubmit,
@@ -272,6 +273,26 @@ describe('GoogleSearchBar', () => {
     await user.click(screen.getByRole('button', { name: 'Clear search' }))
 
     expect(onClear).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables clear and JD paste while search is still loading', async () => {
+    const user = userEvent.setup()
+    const onApplyExtractedKeywords = vi.fn()
+    const { onClear } = renderSearchBar({
+      value: 'machine tools',
+      loading: true,
+      onApplyExtractedKeywords,
+    })
+
+    const clearButton = screen.getByRole('button', { name: 'Clear search' })
+    const jdButton = screen.getByRole('button', { name: /Paste job description|粘贴职位描述/i })
+    expect(clearButton).toBeDisabled()
+    expect(jdButton).toBeDisabled()
+
+    await user.click(clearButton)
+    await user.click(jdButton)
+    expect(onClear).not.toHaveBeenCalled()
+    expect(onApplyExtractedKeywords).not.toHaveBeenCalled()
   })
 
   it('shows a keyboard shortcut hint badge for an empty query and hides it once the query is present', () => {

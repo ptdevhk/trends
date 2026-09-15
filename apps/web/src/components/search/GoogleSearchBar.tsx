@@ -239,6 +239,7 @@ export function GoogleSearchBar({
             variant="ghost"
             size="icon"
             className="mr-1 rounded-full text-muted-foreground"
+            disabled={loading}
             onClick={() => {
               setFocused(false)
               setJdPopoverOpen((current) => !current)
@@ -254,6 +255,7 @@ export function GoogleSearchBar({
             variant="ghost"
             size="icon"
             className="mr-1 rounded-full text-muted-foreground"
+            disabled={loading}
             onClick={onClear}
           >
             <X className="h-4 w-4" />

@@ -123,7 +123,8 @@ export function SearchHeader({
                   <button
                     type="button"
                     aria-label={t('resumes.searchPage.header.clearJobDescription', { defaultValue: '清除职位描述' })}
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                    disabled={loading}
                     onClick={onClearJobDescription}
                   >
                     <X className="h-3 w-3" />

@@ -166,4 +166,21 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(toggle).toMatch(/disabled\??:\s*boolean/)
     expect(bar).toMatch(/CompanyPolicyHiddenToggle[\s\S]*disabled=\{resultsLoading\}/)
   })
+
+  it('documents that search clear controls gate on loading', () => {
+    const bar = readFileSync(
+      path.join(process.cwd(), 'src/components/search/GoogleSearchBar.tsx'),
+      'utf8',
+    )
+    const header = readFileSync(
+      path.join(process.cwd(), 'src/components/search/SearchHeader.tsx'),
+      'utf8',
+    )
+    // Clear/JD paste remutate the query while deferred results lag; keep them
+    // closed until loading clears, matching the submit button gate.
+    expect(bar.match(/disabled=\{loading\}/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(header).toMatch(
+      /aria-label=\{t\('resumes\.searchPage\.header\.clearJobDescription'[\s\S]{0,400}?disabled=\{loading\}/,
+    )
+  })
 })
