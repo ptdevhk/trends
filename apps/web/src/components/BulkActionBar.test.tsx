@@ -196,4 +196,33 @@ describe('BulkActionBar', () => {
         expect(screen.getByText(/加载中|正在加载/)).toBeInTheDocument()
         expect(screen.getByText('全选')).toBeDisabled()
     })
+
+    it('disables status filter chips while search results are still loading', async () => {
+        const user = userEvent.setup()
+        const onStatusToggle = vi.fn()
+        const onStatusFilterChange = vi.fn()
+
+        render(
+            <MemoryRouter>
+                <BulkActionBar
+                    {...defaultProps}
+                    resultsLoading
+                    onStatusToggle={onStatusToggle}
+                    onStatusFilterChange={onStatusFilterChange}
+                    statusFilter={['new']}
+                    statusFacetCounts={{ new: 3, shortlisted: 1 }}
+                />
+            </MemoryRouter>,
+        )
+
+        const allStatus = screen.getByRole('button', { name: /全部状态/ })
+        const newStatus = screen.getByRole('button', { name: /new|新/i })
+        expect(allStatus).toBeDisabled()
+        expect(newStatus).toBeDisabled()
+
+        await user.click(allStatus)
+        await user.click(newStatus)
+        expect(onStatusFilterChange).not.toHaveBeenCalled()
+        expect(onStatusToggle).not.toHaveBeenCalled()
+    })
 })

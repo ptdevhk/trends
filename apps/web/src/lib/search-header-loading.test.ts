@@ -142,4 +142,15 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(badge).toMatch(/disabled\??:\s*boolean/)
     expect(page.match(/<FacetBadge[\s\S]*?disabled=\{headerLoading\}/g)?.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('documents that BulkActionBar status chips gate on resultsLoading', () => {
+    const bar = readFileSync(
+      path.join(process.cwd(), 'src/components/BulkActionBar.tsx'),
+      'utf8',
+    )
+    // Status chips mutate filters; they must share the resultsLoading gate with
+    // select/export actions so deferred lag cannot apply a status toggle mid-load.
+    expect(bar).toMatch(/disabled=\{resultsLoading\}/)
+    expect(bar).toMatch(/onStatusToggle/)
+  })
 })

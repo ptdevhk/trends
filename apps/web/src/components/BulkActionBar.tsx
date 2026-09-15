@@ -191,6 +191,7 @@ export function BulkActionBar({
                     {onStatusFilterChange && (
                         <button
                             type="button"
+                            disabled={resultsLoading}
                             onClick={() => {
                                 onStatusFilterChange(allStatusActive ? undefined : ALL_STATUS_FILTERS)
                             }}
@@ -199,6 +200,7 @@ export function BulkActionBar({
                                 allStatusActive
                                     ? 'bg-primary/10 border-primary text-primary font-medium'
                                     : 'border-border text-muted-foreground hover:bg-muted',
+                                resultsLoading && 'opacity-50',
                             )}
                         >
                             {t('bulkActions.statusAll', { defaultValue: '全部状态' })}
@@ -218,12 +220,14 @@ export function BulkActionBar({
                             <button
                                 key={status}
                                 type="button"
+                                disabled={resultsLoading}
                                 onClick={() => onStatusToggle(status)}
                                 className={cn(
                                     'px-2 py-0.5 rounded-full text-xs border transition-colors',
                                     isActive
                                         ? 'bg-primary/10 border-primary text-primary font-medium'
                                         : 'border-border text-muted-foreground hover:bg-muted',
+                                    resultsLoading && 'opacity-50',
                                 )}
                             >
                                 {t(`resumes.status.options.${status}`, status)}
