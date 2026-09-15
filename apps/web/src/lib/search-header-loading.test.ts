@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { shouldShowSearchHeaderLoading } from './search-header-loading'
 
@@ -52,5 +54,16 @@ describe('shouldShowSearchHeaderLoading', () => {
         deferredCount: 127,
       }),
     ).toBe(false)
+  })
+
+  it('documents that list empty-state must share the same loading gate', () => {
+    // ResumeSearchPage passes headerLoading into SearchResultsList so deferred
+    // lag cannot flash 没有匹配到简历 while the header still says 加载中.
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/loading=\{headerLoading\}/)
+    expect(src.match(/loading=\{headerLoading\}/g)?.length).toBeGreaterThanOrEqual(2)
   })
 })

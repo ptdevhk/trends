@@ -717,7 +717,7 @@ export function ResumeSearchPage() {
                   expandedIds={expandedIds}
                   hasMore={hasMore}
                   items={policyVisibleResults}
-                  loading={loading}
+                  loading={headerLoading}
                   loadingMore={loadingMore}
                   searchFailed={convexSearchFailed}
                   onRetrySearch={convexRetrySearch}
