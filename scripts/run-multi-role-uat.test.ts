@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
-import { parseUatCliArgs, ROLES, generateUatSummary } from "./run-multi-role-uat";
+import { parseUatCliArgs, ROLES, generateUatSummary, uatExitCode } from "./run-multi-role-uat";
 
 describe("run-multi-role-uat CLI parser", () => {
     it("parses default options with no flags", () => {
@@ -56,6 +58,19 @@ describe("ROLES definition", () => {
         expect(ROLES["demo-admin"].targetRoutes).toContain("/dev/settings/policies");
         expect(ROLES["demo-admin"].targetRoutes).toContain("/admin/system/settings/industry-verification");
         expect(ROLES["uat-reviewer"].targetRoutes).toContain("/dev/system/settings/industry-verification");
+    });
+});
+
+describe("attached CDP teardown", () => {
+    it("exits 0 on success and 1 on failure so Node does not linger", () => {
+        expect(uatExitCode(true)).toBe(0);
+        expect(uatExitCode(false)).toBe(1);
+    });
+
+    it("disconnects the CDP browser after attached runs", () => {
+        const src = readFileSync(new URL("./run-multi-role-uat.ts", import.meta.url), "utf8");
+        expect(src).toMatch(/browser = cdp\.browser/);
+        expect(src).toMatch(/process\.exit\(uatExitCode\(summary\.allPassed\)\)/);
     });
 });
 

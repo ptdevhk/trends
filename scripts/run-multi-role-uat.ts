@@ -130,6 +130,16 @@ export function parseUatCliArgs(argv: string[]): UatCliOptions {
     };
 }
 
+export function uatExitCode(allPassed: boolean): number {
+    return allPassed ? 0 : 1;
+}
+
+export async function closeUatBrowser(browser: Browser | null): Promise<void> {
+    if (browser) {
+        await browser.close();
+    }
+}
+
 export function generateUatSummary(results: RoleUatResult[]): UatSummaryReport {
     const totalRoles = results.length;
     const passedRoles = results.filter((r) => r.passed).length;
@@ -346,6 +356,7 @@ export async function main() {
     } else {
         console.log(`Connecting to Chrome on port ${options.port}...`);
         const cdp = await connectToChrome(options);
+        browser = cdp.browser;
         context = cdp.context;
         page = cdp.page;
     }
@@ -358,9 +369,7 @@ export async function main() {
             results.push(res);
         }
     } finally {
-        if (browser) {
-            await browser.close();
-        }
+        await closeUatBrowser(browser);
     }
 
     const summary = generateUatSummary(results);
@@ -375,9 +384,7 @@ export async function main() {
     console.log(`Report JSON:  ${options.outputReportPath}`);
     console.log('========================================\n');
 
-    if (!summary.allPassed) {
-        process.exit(1);
-    }
+    process.exit(uatExitCode(summary.allPassed));
 }
 
 if (process.argv[1] && process.argv[1].endsWith('run-multi-role-uat.ts')) {
