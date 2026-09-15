@@ -609,6 +609,7 @@ export function ResumeSearchPage() {
               <div className="sticky top-24">
                 <FacetBadge
                   activeCount={filterCount}
+                  disabled={headerLoading}
                   onClick={() => setFiltersOpen(true)}
                 />
               </div>
@@ -772,6 +773,7 @@ export function ResumeSearchPage() {
             <FacetBadge
               floating
               activeCount={filterCount}
+              disabled={headerLoading}
               onClick={() => setFiltersOpen(true)}
             />
           </div>

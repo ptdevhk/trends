@@ -126,4 +126,20 @@ describe('shouldShowSearchHeaderLoading', () => {
       /HrFeedbackImportDialog disabled=\{!canManageCandidateData \|\| headerLoading\}/,
     )
   })
+
+  it('documents that FacetBadge stays disabled while headerLoading', () => {
+    // FacetSidebar fields already respect isFilterTransitionPending, but the
+    // badge that opens the mobile/tablet sheet must also refuse clicks until
+    // deferred results settle — otherwise filters open on a lagging set.
+    const page = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    const badge = readFileSync(
+      path.join(process.cwd(), 'src/components/search/FacetBadge.tsx'),
+      'utf8',
+    )
+    expect(badge).toMatch(/disabled\??:\s*boolean/)
+    expect(page.match(/<FacetBadge[\s\S]*?disabled=\{headerLoading\}/g)?.length).toBeGreaterThanOrEqual(2)
+  })
 })

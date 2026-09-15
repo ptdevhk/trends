@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button'
 type FacetBadgeProps = {
   activeCount: number
   floating?: boolean
+  disabled?: boolean
   onClick: () => void
 }
 
-export function FacetBadge({ activeCount, floating = false, onClick }: FacetBadgeProps) {
+export function FacetBadge({ activeCount, floating = false, disabled = false, onClick }: FacetBadgeProps) {
   return (
     <Button
       type="button"
       variant="outline"
       className={floating ? 'rounded-full bg-white shadow-lg' : 'rounded-full bg-white'}
+      disabled={disabled}
       onClick={onClick}
     >
       <SlidersHorizontal className="mr-2 h-4 w-4" />

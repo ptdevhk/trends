@@ -30,4 +30,16 @@ describe('FacetBadge', () => {
     expect(button).toHaveClass('shadow-lg')
     expect(screen.getByText('3')).toBeInTheDocument()
   })
+
+  it('does not open filters when disabled during headerLoading', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+
+    render(<FacetBadge activeCount={2} disabled onClick={onClick} />)
+
+    const button = screen.getByRole('button', { name: /Filters\s*2/i })
+    expect(button).toBeDisabled()
+    await user.click(button)
+    expect(onClick).not.toHaveBeenCalled()
+  })
 })
