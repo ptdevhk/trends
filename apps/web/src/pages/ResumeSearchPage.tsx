@@ -664,6 +664,8 @@ export function ResumeSearchPage() {
                     state={shareState}
                     ensureApiSession={ensureShareSession}
                     createPublicShare={canManageCandidateData ? createPublicShare : undefined}
+                    // Avoid sharing an unsettled deferred result set mid-load.
+                    disabled={headerLoading}
                   />
                   <HrFeedbackImportDialog disabled={!canManageCandidateData} />
                 </div>

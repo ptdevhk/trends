@@ -20,6 +20,7 @@ type ShareLinkButtonProps = {
   state: ResumeSearchShareState
   ensureApiSession: (options?: EnsureApiSessionOptions) => Promise<string | undefined>
   createPublicShare?: (options: CreatePublicShareOptions) => Promise<PublicShareCreateResult | undefined>
+  disabled?: boolean
   onCopyState?: (payload: {
     shareUrl: string
     sessionId?: string
@@ -128,6 +129,7 @@ export function ShareLinkButton({
   state,
   ensureApiSession,
   createPublicShare,
+  disabled = false,
   onCopyState,
 }: ShareLinkButtonProps) {
   const { t } = useTranslation()
@@ -258,6 +260,7 @@ export function ShareLinkButton({
           size="sm"
           variant="ghost"
           className="h-10 gap-1.5 px-3"
+          disabled={disabled}
           onClick={() => {
             void handleCopy()
           }}
@@ -271,6 +274,7 @@ export function ShareLinkButton({
             size="sm"
             variant="ghost"
             className="h-10 gap-1.5 px-3"
+            disabled={disabled}
             onClick={() => setPublicConfirmOpen(true)}
           >
             <Globe2 className="h-3.5 w-3.5" />

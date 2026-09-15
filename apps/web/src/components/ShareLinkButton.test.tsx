@@ -314,4 +314,32 @@ describe('ShareLinkButton', () => {
     expect(screen.getByDisplayValue(`${window.location.origin}/dev/resumes?sid=session-share-1`)).toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('Automatic copy failed. Copy the link below manually.')
   })
+
+  it('does not open share actions while disabled', () => {
+    const ensureApiSession = vi.fn(async () => 'session-share-1')
+    const createPublicShare = vi.fn(async () => ({ publicPath: '/s/x' }))
+
+    render(
+      <ShareLinkButton
+        shareTitle="CNC · Operator"
+        state={{
+          location: 'Shenzhen',
+          keywords: ['CNC'],
+          requiredKeywords: [],
+          collectionSource: undefined,
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+        }}
+        ensureApiSession={ensureApiSession}
+        createPublicShare={createPublicShare}
+        disabled
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Share' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Public share' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    expect(ensureApiSession).not.toHaveBeenCalled()
+  })
 })

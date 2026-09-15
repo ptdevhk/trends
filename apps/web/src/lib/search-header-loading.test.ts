@@ -106,4 +106,12 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(page).toMatch(/isFilterTransitionPending:\s*headerLoading/)
     expect(sidebar).toMatch(/<fieldset[\s\S]*disabled=\{isFilterTransitionPending\}/)
   })
+
+  it('documents that ShareLink stays disabled while headerLoading', () => {
+    const src = readFileSync(
+      path.join(process.cwd(), 'src/pages/ResumeSearchPage.tsx'),
+      'utf8',
+    )
+    expect(src).toMatch(/<ShareLinkButton[\s\S]*disabled=\{headerLoading\}/)
+  })
 })
