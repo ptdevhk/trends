@@ -13,6 +13,7 @@ import {
   matchResumeCompanyPolicies,
   normalizeCompanyAlias,
   policyEffectsFromPreset,
+  primaryCompanyPolicyHit,
   resolveCompanyAlias,
   resolveMostSpecificPolicy,
   resolvePolicyEffectsForCompanies,
@@ -184,6 +185,10 @@ describe("company-policy helpers", () => {
 
   it("treats empty hits as not hidden", () => {
     expect(isCompanyPolicyHidden([])).toBe(false);
+  });
+
+  it("treats empty hits as having no primary company policy", () => {
+    expect(primaryCompanyPolicyHit([])).toBeNull();
   });
 
   it("prefers durable companyKey stamps over surface strings", () => {
