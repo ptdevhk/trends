@@ -96,6 +96,7 @@ export function ResumeSearchPage() {
     hasActiveAnalysisTask,
     isLanding,
     loading,
+    headerLoading,
     loadingMore,
     convexSearchFailed,
     convexRetrySearch,
@@ -580,7 +581,7 @@ export function ResumeSearchPage() {
               activeResultCountIsLowerBound={hasMore}
               collectedTodayCount={loadedCollectedTodayCount}
               jobDescriptionId={parsedState.jobDescriptionId}
-              loading={loading}
+              loading={headerLoading}
               location={parsedState.location}
               onClearJobDescription={clearJobDescription}
               queryInput={queryInput}

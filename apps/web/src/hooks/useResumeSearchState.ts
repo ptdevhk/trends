@@ -5,6 +5,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, us
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { logSearchEvent } from '@/lib/search-analytics'
+import { shouldShowSearchHeaderLoading } from '@/lib/search-header-loading'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
@@ -1148,6 +1149,12 @@ export function useResumeSearchState() {
   const convexSearchFailed = resumeQuery.searchFailed === true
   const convexRetrySearch = resumeQuery.retrySearch
   const isFiltering = isFilterPending || (loading && results.length > 0)
+  const headerLoading = shouldShowSearchHeaderLoading({
+    loading,
+    isFilterPending,
+    eagerCount: filteredResults.length,
+    deferredCount: deferredFilteredResults.length,
+  })
 
   // Log search analytics (fire-and-forget, debounced by query change)
   const lastLoggedQueryRef = useRef<string | null>(null)
@@ -2200,6 +2207,7 @@ export function useResumeSearchState() {
     hasActiveAnalysisTask,
     isLanding,
     loading,
+    headerLoading,
     loadingMore,
     convexSearchFailed,
     convexRetrySearch,
