@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   aggregateHash,
@@ -20,12 +22,39 @@ import {
   parseRemoteBranchSha,
   parseRemoteList,
   parseRemoteTagSha,
+  countIdentifierCalls,
+  addLeftoverPath,
+  leftoverPathIndex,
+  emptyLeftoverBuckets,
+  leftoverCatalogSourceUnions,
+  leftoverPathKind,
+  isDefaultLeftoverCatalog,
+  leftoverDefaultPartition,
+  classifyLeftoverPaths,
+  leftoverPathPartition,
+  LEFTOVER_CATALOG_SOURCES,
+  LEFTOVER_PATH_BUCKETS,
+  parseBumpVersionGrepLeftoverPaths,
+  parseBumpVersionSedPaths,
+  parseBumpVersionVerifyPaths,
   parseVersionSurface,
+  readVersionSurface,
   redactSecrets,
+  requiredSurfaceResult,
+  staleSurfaceResult,
+  surfaceValue,
+  versionParityResult,
   runCollector,
   sha256Hex,
   DRIFT_GATES,
   ENV_FILE_CANDIDATES,
+  VERSION_SURFACES,
+  VERSION_SURFACE_KINDS,
+  BUMP_VERSION_LEFTOVER_PATHS,
+  BUMP_VERSION_GREP_LEFTOVER_PATHS,
+  BUMP_VERSION_FIND_SED_PATHS,
+  BUMP_VERSION_SED_PATHS,
+  BUMP_VERSION_VERIFY_PATHS,
   EXIT_CONFIG_OR_INVOCATION_ERROR,
   EXIT_EVIDENCE_FAILURE,
   EXIT_OK,
@@ -34,6 +63,7 @@ import {
   type CliOptions,
   type CollectorDeps,
   type FileSystemPort,
+  type LeftoverPathBucket,
 } from "./collect-cut-manifest-evidence.js";
 
 // ---------------------------------------------------------------------------
@@ -62,7 +92,23 @@ function baseFiles(): Record<string, string> {
     "trendradar/__init__.py": `__version__ = "${VERSION}"\n`,
     "apps/api/src/services/config.ts": `export const config = {\n  version: "${VERSION}",\n};\n`,
     "apps/api/src/schemas/health.ts": `    version: z.string().optional().openapi({\n      example: "${VERSION}",\n    }),\n`,
-    "apps/api/openapi.yaml": `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`,
+    "apps/api/src/schemas/schemas-validation.test.ts": `      version: "${VERSION}",\n`,
+    "apps/web/e2e/resume-role-filter.spec.ts":
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`,
+    "apps/api/openapi.yaml":
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '${VERSION}'\n`,
+    "apps/api/openapi.json": JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: {
+            properties: { version: { type: "string", example: VERSION } },
+          },
+        },
+      },
+    }),
     "apps/web/src/lib/api-types.ts": `        /** @example ${VERSION} */\n        version?: string;\n`,
     "packages/convex/convex/_mutations_registry.ts":
       `export const MUTATIONS_REGISTRY = [\n` +
@@ -317,6 +363,183 @@ describe("redaction", () => {
   });
 });
 
+describe("surfaceValue", () => {
+  const surfaces = [
+    { id: "openapi_yaml_health_example", value: "0.4.23" },
+    { id: "openapi_json_health_example", value: null },
+  ];
+
+  it("returns the surface value for a known id", () => {
+    expect(surfaceValue(surfaces, "openapi_yaml_health_example")).toBe("0.4.23");
+  });
+
+  it("returns null when the surface value is null", () => {
+    expect(surfaceValue(surfaces, "openapi_json_health_example")).toBeNull();
+  });
+
+  it("returns null when the id is missing", () => {
+    expect(surfaceValue(surfaces, "missing_surface")).toBeNull();
+  });
+});
+
+describe("versionParityResult", () => {
+  it("fails closed when either side is missing", () => {
+    expect(versionParityResult(null, "0.4.23", "0.4.23")).toEqual({ status: "fail", actual: "missing" });
+    expect(versionParityResult("0.4.23", null, "0.4.23")).toEqual({ status: "fail", actual: "missing" });
+  });
+
+  it("fails closed when the sides disagree", () => {
+    expect(versionParityResult("0.4.23", "0.4.6", "0.4.23")).toEqual({
+      status: "fail",
+      actual: "0.4.23 != 0.4.6",
+    });
+  });
+
+  it("fails closed when both sides agree but are not canonical", () => {
+    expect(versionParityResult("0.4.6", "0.4.6", "0.4.23")).toEqual({ status: "fail", actual: "0.4.6" });
+  });
+
+  it("passes when both sides equal canonical", () => {
+    expect(versionParityResult("0.4.23", "0.4.23", "0.4.23")).toEqual({ status: "pass", actual: "0.4.23" });
+  });
+});
+
+describe("staleSurfaceResult", () => {
+  it("fails closed when the surface is missing", () => {
+    expect(staleSurfaceResult(null, "0.4.23")).toEqual({ status: "fail", actual: "missing" });
+  });
+
+  it("fails closed when the surface is not canonical", () => {
+    expect(staleSurfaceResult("0.4.6", "0.4.23")).toEqual({ status: "fail", actual: "0.4.6" });
+  });
+
+  it("passes when the surface equals canonical", () => {
+    expect(staleSurfaceResult("0.4.23", "0.4.23")).toEqual({ status: "pass", actual: "0.4.23" });
+  });
+});
+
+describe("requiredSurfaceResult", () => {
+  it("passes when the surface equals canonical", () => {
+    expect(requiredSurfaceResult("0.4.23", "0.4.23", true)).toEqual({ status: "pass", actual: "0.4.23" });
+  });
+
+  it("fails closed when a required surface is unreadable", () => {
+    expect(requiredSurfaceResult(null, "0.4.23", true)).toEqual({ status: "fail", actual: "unreadable" });
+  });
+
+  it("fails closed when a required surface is stale", () => {
+    expect(requiredSurfaceResult("0.4.6", "0.4.23", true)).toEqual({ status: "fail", actual: "0.4.6" });
+  });
+
+  it("warns when an optional surface is unreadable or stale", () => {
+    expect(requiredSurfaceResult(null, "0.4.23", false)).toEqual({ status: "warn", actual: "unreadable" });
+    expect(requiredSurfaceResult("0.4.6", "0.4.23", false)).toEqual({ status: "warn", actual: "0.4.6" });
+  });
+});
+
+describe("requiredSurfaceResult leftover lock", () => {
+  it("is the only VERSION_SURFACES loop contract used by the collector", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(src).toContain("requiredSurfaceResult(value, expectedVersion, surface.required)");
+    expect(countIdentifierCalls(src, "requiredSurfaceResult")).toBe(1);
+    expect(src).not.toContain("requiredSurfaceResult(surface.value, expectedVersion, surface.required)");
+    expect(src).toContain("matches: result.status === \"pass\"");
+    expect(src).not.toMatch(/surface\.required \? "fail" : "warn"/);
+    expect(src).not.toMatch(/matches: value !== null && value === expectedVersion/);
+  });
+});
+
+describe("staleSurfaceResult leftover lock", () => {
+  it("is the only single-surface stale contract used by the collector", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const withoutHelpers = src
+      .replace(/export function staleSurfaceResult\([\s\S]*?\n\}/, "")
+      .replace(/const addStaleSurfaceCheck = \([\s\S]*?\n  \};/, "");
+    expect(withoutHelpers).not.toMatch(/staleSurfaceResult\(/);
+    expect(countIdentifierCalls(src, "staleSurfaceResult")).toBe(1);
+    expect(withoutHelpers).not.toMatch(/else if \(\w+ !== expectedVersion\) \{/);
+    expect(src).toContain('addStaleSurfaceCheck("versions.openapi_health_example_stale"');
+    expect(src).toContain('addStaleSurfaceCheck("versions.openapi_json_health_example_stale"');
+    expect(countIdentifierCalls(src, "addStaleSurfaceCheck")).toBe(2);
+  });
+});
+
+describe("countIdentifierCalls leftover lock", () => {
+  it("is unused on collector production paths", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "countIdentifierCalls")).toBe(0);
+    expect(src).toContain("export function countIdentifierCalls(");
+    expect(src).not.toMatch(/countIdentifierCalls\([^)]+\);/);
+  });
+});
+
+describe("countIdentifierCalls", () => {
+  it("counts calls and skips function definitions", () => {
+    const src = [
+      "export function parseVersionSurface(kind: string): null {",
+      "  return null;",
+      "}",
+      "export function readVersionSurface(text: string | null): string | null {",
+      "  return text === null ? null : parseVersionSurface(kind);",
+      "}",
+    ].join("\n");
+    expect(countIdentifierCalls(src, "parseVersionSurface")).toBe(1);
+    expect(countIdentifierCalls(src, "readVersionSurface")).toBe(0);
+  });
+
+  it("fails closed when a second call site appears", () => {
+    const src = "parseVersionSurface(a);\nparseVersionSurface(b);\n";
+    expect(countIdentifierCalls(src, "parseVersionSurface")).toBe(2);
+  });
+});
+
+describe("parseVersionSurface leftover lock", () => {
+  it("is only called from readVersionSurface", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "parseVersionSurface")).toBe(1);
+    expect(src).toContain("return text === null ? null : parseVersionSurface(kind, text);");
+    expect(src).toContain("readVersionSurface(text, surface.kind)");
+    expect(src).not.toMatch(/parseVersionSurface\(surface\.kind/);
+  });
+});
+
+describe("readVersionSurface leftover lock", () => {
+  it("is the only collector parse entry", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "readVersionSurface")).toBe(1);
+    expect(src).toContain("readVersionSurface(text, surface.kind)");
+    expect(src).not.toMatch(/parseVersionSurface\(surface\.kind, text\)/);
+  });
+});
+
+describe("surfaceValue leftover lock", () => {
+  it("is the only VERSION_SURFACES lookup used by the collector", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const withoutHelper = src.replace(/export function surfaceValue\([\s\S]*?\n\}/, "");
+    expect(withoutHelper).not.toMatch(/surfaces\.find\(/);
+    expect(src).toContain('surfaceValue(surfaces, "openapi_yaml_health_example")');
+    expect(src).toContain('surfaceValue(surfaces, "e2e_app_version")');
+    expect(countIdentifierCalls(src, "surfaceValue")).toBe(22);
+  });
+});
+
+describe("versionParityResult leftover lock", () => {
+  it("is only called from addVersionParityCheck", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const withoutHelpers = src
+      .replace(/export function versionParityResult\([\s\S]*?\n\}/, "")
+      .replace(/const addVersionParityCheck = \([\s\S]*?\n  \};/, "");
+    expect(withoutHelpers).not.toMatch(/versionParityResult\(/);
+    expect(countIdentifierCalls(src, "versionParityResult")).toBe(1);
+    expect(withoutHelpers).not.toMatch(/if \(!\w+ \|\| !\w+\) \{/);
+    expect(src).toContain('addVersionParityCheck("versions.config_health_schema_example_parity"');
+    expect(src).toContain('addVersionParityCheck("versions.config_openapi_yaml_example_parity"');
+    expect(src).toContain('addVersionParityCheck("versions.config_openapi_json_example_parity"');
+    expect(src).toContain('addVersionParityCheck("versions.openapi_info_version_parity"');
+    expect(countIdentifierCalls(src, "addVersionParityCheck")).toBe(31);
+  });
+});
+
 describe("parsers", () => {
   it("parses each version surface kind", () => {
     expect(parseVersionSurface("raw", " 0.4.23 \n")).toBe("0.4.23");
@@ -327,7 +550,50 @@ describe("parsers", () => {
     expect(parseVersionSurface("tsVersionProp", '  version: "1.2.3",')).toBe("1.2.3");
     expect(parseVersionSurface("tsExampleProp", '      example: "1.2.3",')).toBe("1.2.3");
     expect(parseVersionSurface("openapiInfoVersion", "info:\n  version: 1.2.3\n")).toBe("1.2.3");
+    expect(parseVersionSurface("openapiJsonInfoVersion", '{"info":{"version":"1.2.3"}}')).toBe("1.2.3");
+    expect(parseVersionSurface("openapiJsonInfoVersion", '{"info":{}}')).toBeNull();
     expect(parseVersionSurface("tsExampleComment", "  /** @example 1.2.3 */")).toBe("1.2.3");
+    expect(parseVersionSurface("e2eAppVersion", "            appVersion: '1.2.3',\n")).toBe("1.2.3");
+    expect(parseVersionSurface("e2eAppVersion", "            apiVersion: '1.2.3',\n")).toBeNull();
+    expect(parseVersionSurface("e2eApiVersion", "            apiVersion: '1.2.3',\n")).toBe("1.2.3");
+    expect(parseVersionSurface("e2eApiVersion", "            appVersion: '1.2.3',\n")).toBeNull();
+    expect(parseVersionSurface("e2eWebVersion", "            webVersion: '1.2.3',\n")).toBe("1.2.3");
+    expect(parseVersionSurface("e2eWebVersion", "            appVersion: '1.2.3',\n")).toBeNull();
+    expect(
+      parseVersionSurface(
+        "openapiYamlHealthExample",
+        "components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '1.2.3'\n",
+      ),
+    ).toBe("1.2.3");
+    expect(parseVersionSurface("openapiYamlHealthExample", "info:\n  version: 1.2.3\n")).toBeNull();
+    expect(
+      parseVersionSurface(
+        "openapiJsonHealthExample",
+        JSON.stringify({
+          components: { schemas: { HealthResponse: { properties: { version: { example: "1.2.3" } } } } },
+        }),
+      ),
+    ).toBe("1.2.3");
+    expect(parseVersionSurface("openapiJsonHealthExample", JSON.stringify({ info: { version: "1.2.3" } }))).toBeNull();
+  });
+
+  it("keeps parseVersionSurface exhaustive against VERSION_SURFACE_KINDS", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    for (const kind of VERSION_SURFACE_KINDS) {
+      expect(src).toContain(`case "${kind}":`);
+    }
+    expect(src).toContain("const _exhaustive: never = kind");
+    expect(VERSION_SURFACES.every((surface) => (VERSION_SURFACE_KINDS as readonly string[]).includes(surface.kind))).toBe(
+      true,
+    );
+    expect([...new Set(VERSION_SURFACES.map((surface) => surface.kind))].sort()).toEqual(
+      [...VERSION_SURFACE_KINDS].sort(),
+    );
+  });
+
+  it("readVersionSurface fails closed on missing text and delegates parseVersionSurface", () => {
+    expect(readVersionSurface(null, "raw")).toBeNull();
+    expect(readVersionSurface(" 0.4.23 \n", "raw")).toBe("0.4.23");
   });
 
   it("does not confuse the OpenAPI info version with nested operation examples", () => {
@@ -804,6 +1070,896 @@ describe("collectCutManifestEvidence: tag and immutable branch drift", () => {
   });
 });
 
+describe("VERSION_SURFACES catalog", () => {
+  it("requires schemas-validation and e2e trio surfaces", () => {
+    const byId = Object.fromEntries(VERSION_SURFACES.map((surface) => [surface.id, surface]));
+    for (const id of ["schemas_validation", "e2e_app_version", "e2e_api_version", "e2e_web_version"]) {
+      expect(byId[id], id).toBeDefined();
+      expect(byId[id]!.required).toBe(true);
+    }
+    expect(byId.schemas_validation!.path).toBe("apps/api/src/schemas/schemas-validation.test.ts");
+    expect(byId.e2e_app_version!.path).toBe("apps/web/e2e/resume-role-filter.spec.ts");
+    expect(byId.e2e_api_version!.path).toBe("apps/web/e2e/resume-role-filter.spec.ts");
+    expect(byId.e2e_web_version!.path).toBe("apps/web/e2e/resume-role-filter.spec.ts");
+    expect(byId.schemas_validation!.kind).toBe("tsVersionProp");
+    expect(byId.e2e_app_version!.kind).toBe("e2eAppVersion");
+    expect(byId.e2e_api_version!.kind).toBe("e2eApiVersion");
+    expect(byId.e2e_web_version!.kind).toBe("e2eWebVersion");
+    expect(byId.openapi_yaml_health_example).toBeDefined();
+    expect(byId.openapi_yaml_health_example!.required).toBe(true);
+    expect(byId.openapi_yaml_health_example!.path).toBe("apps/api/openapi.yaml");
+    expect(byId.openapi_yaml_health_example!.kind).toBe("openapiYamlHealthExample");
+    expect(byId.openapi_json_health_example).toBeDefined();
+    expect(byId.openapi_json_health_example!.required).toBe(true);
+    expect(byId.openapi_json_health_example!.path).toBe("apps/api/openapi.json");
+    expect(byId.openapi_json_health_example!.kind).toBe("openapiJsonHealthExample");
+  });
+
+  it("covers every bump-version leftover path with at least one required surface", () => {
+    const paths = new Set(VERSION_SURFACES.map((surface) => surface.path));
+    const requiredPaths = new Set(
+      VERSION_SURFACES.filter((surface) => surface.required).map((surface) => surface.path),
+    );
+    for (const leftoverPath of BUMP_VERSION_LEFTOVER_PATHS) {
+      expect(paths.has(leftoverPath), leftoverPath).toBe(true);
+      expect(requiredPaths.has(leftoverPath), leftoverPath).toBe(true);
+    }
+  });
+
+  it("keeps bump-version.sh leftover for-loop files inside BUMP_VERSION_LEFTOVER_PATHS", () => {
+    const script = readFileSync(resolve("scripts/bump-version.sh"), "utf8");
+    const leftoverPaths = parseBumpVersionGrepLeftoverPaths(script);
+    expect(leftoverPaths.length).toBeGreaterThan(0);
+    for (const leftoverPath of leftoverPaths) {
+      expect(BUMP_VERSION_LEFTOVER_PATHS, leftoverPath).toContain(leftoverPath);
+    }
+    expect(BUMP_VERSION_GREP_LEFTOVER_PATHS.every((path) => BUMP_VERSION_LEFTOVER_PATHS.includes(path))).toBe(true);
+    expect([...leftoverPaths].sort()).toEqual([...BUMP_VERSION_GREP_LEFTOVER_PATHS].sort());
+  });
+
+  it("parses bump-version.sh leftover for-loop paths and fails closed on a missing block", () => {
+    expect(
+      parseBumpVersionGrepLeftoverPaths(
+        "for leftover in \\\n  apps/api/src/schemas/schemas-validation.test.ts \\\n  apps/web/e2e/resume-role-filter.spec.ts\ndo\n",
+      ),
+    ).toEqual([...BUMP_VERSION_GREP_LEFTOVER_PATHS]);
+    expect(parseBumpVersionGrepLeftoverPaths("echo no leftover loop")).toEqual([]);
+  });
+
+  it("parses bump-version.sh verify paths and keeps them inside BUMP_VERSION_LEFTOVER_PATHS", () => {
+    expect(parseBumpVersionVerifyPaths("echo no verifies")).toEqual([]);
+    expect(
+      parseBumpVersionVerifyPaths(
+        'if ! grep -q "\\"version\\": \\"$NEW_VERSION\\"" package.json; then\n',
+      ),
+    ).toEqual(["package.json"]);
+    const script = readFileSync(resolve("scripts/bump-version.sh"), "utf8");
+    const verifyPaths = parseBumpVersionVerifyPaths(script);
+    expect(verifyPaths.length).toBeGreaterThan(0);
+    for (const verifyPath of verifyPaths) {
+      expect(BUMP_VERSION_LEFTOVER_PATHS, verifyPath).toContain(verifyPath);
+    }
+    expect(verifyPaths).toEqual(expect.arrayContaining([...BUMP_VERSION_GREP_LEFTOVER_PATHS]));
+    expect(verifyPaths).toEqual(
+      expect.arrayContaining([
+        "package.json",
+        "apps/api/openapi.yaml",
+        "apps/api/openapi.json",
+        "apps/web/src/lib/api-types.ts",
+      ]),
+    );
+    expect([...verifyPaths].sort()).toEqual([...BUMP_VERSION_VERIFY_PATHS].sort());
+    expect(BUMP_VERSION_VERIFY_PATHS.every((path) => BUMP_VERSION_LEFTOVER_PATHS.includes(path))).toBe(true);
+    expect([...BUMP_VERSION_LEFTOVER_PATHS].filter((path) => path !== "version").sort()).toEqual(
+      [...BUMP_VERSION_VERIFY_PATHS].sort(),
+    );
+  });
+
+  it("parses bump-version.sh sed paths and keeps them inside BUMP_VERSION_LEFTOVER_PATHS", () => {
+    expect(parseBumpVersionSedPaths("echo no sed")).toEqual([]);
+    expect(
+      parseBumpVersionSedPaths('sed -i \'\' "s/version: \\"$CURRENT\\"/version: \\"$NEW_VERSION\\"/" apps/api/src/services/config.ts\n'),
+    ).toEqual(["apps/api/src/services/config.ts"]);
+    const script = readFileSync(resolve("scripts/bump-version.sh"), "utf8");
+    const sedPaths = parseBumpVersionSedPaths(script);
+    expect(sedPaths.length).toBeGreaterThan(0);
+    for (const sedPath of sedPaths) {
+      expect(BUMP_VERSION_LEFTOVER_PATHS, sedPath).toContain(sedPath);
+    }
+    expect(sedPaths).toEqual(
+      expect.arrayContaining([
+        "apps/api/src/services/config.ts",
+        "apps/api/openapi.yaml",
+        "apps/api/openapi.json",
+        "apps/web/e2e/resume-role-filter.spec.ts",
+      ]),
+    );
+    expect([...sedPaths].sort()).toEqual([...BUMP_VERSION_SED_PATHS].sort());
+    expect(BUMP_VERSION_SED_PATHS.every((path) => BUMP_VERSION_LEFTOVER_PATHS.includes(path))).toBe(true);
+    expect(BUMP_VERSION_SED_PATHS.every((path) => BUMP_VERSION_VERIFY_PATHS.includes(path))).toBe(true);
+    const findSedPaths = [...BUMP_VERSION_LEFTOVER_PATHS]
+      .filter((path) => path !== "version" && !BUMP_VERSION_SED_PATHS.includes(path))
+      .sort();
+    expect(findSedPaths).toEqual([...BUMP_VERSION_FIND_SED_PATHS].sort());
+    expect(findSedPaths).toEqual(
+      VERSION_SURFACES.filter((surface) => surface.kind === "packageJson")
+        .map((surface) => surface.path)
+        .sort(),
+    );
+    expect(script).toContain('find . -name package.json -not -path');
+    const partition = leftoverPathPartition();
+    expect(partition.unknown).toEqual([]);
+    expect(partition.version).toEqual(["version"]);
+    expect([...partition.sed].sort()).toEqual([...BUMP_VERSION_SED_PATHS].sort());
+    expect([...partition.findSed].sort()).toEqual([...BUMP_VERSION_FIND_SED_PATHS].sort());
+    expect([...partition.version, ...partition.sed, ...partition.findSed].sort()).toEqual(
+      [...BUMP_VERSION_LEFTOVER_PATHS].sort(),
+    );
+  });
+});
+
+describe("leftoverPathPartition", () => {
+  it("classifies version, sed, and find-sed leftover paths", () => {
+    expect(leftoverPathKind("version")).toBe("version");
+    expect(leftoverPathKind("apps/api/src/services/config.ts")).toBe("sed");
+    expect(leftoverPathKind("package.json")).toBe("findSed");
+    expect(leftoverPathKind("mystery.path")).toBeNull();
+  });
+
+  it("fails closed when a leftover path has no bucket", () => {
+    expect(leftoverPathPartition(["mystery.path"])).toEqual({
+      version: [],
+      sed: [],
+      findSed: [],
+      unknown: ["mystery.path"],
+    });
+  });
+
+  it("keeps the leftover catalog partitioned with no unknown paths", () => {
+    const partition = leftoverPathPartition(BUMP_VERSION_LEFTOVER_PATHS);
+    expect(partition.unknown).toEqual([]);
+    expect(partition.version).toEqual(["version"]);
+    expect([...partition.sed].sort()).toEqual([...BUMP_VERSION_SED_PATHS].sort());
+    expect([...partition.findSed].sort()).toEqual([...BUMP_VERSION_FIND_SED_PATHS].sort());
+  });
+
+  it("seeds known buckets from leftoverCatalogSourceUnions for the default leftover catalog", () => {
+    const unions = leftoverCatalogSourceUnions();
+    const seeded = leftoverDefaultPartition();
+    expect(seeded).toEqual({
+      ...unions,
+      unknown: [],
+    });
+    expect(leftoverPathPartition()).toEqual(seeded);
+    expect(leftoverPathPartition(BUMP_VERSION_LEFTOVER_PATHS)).toEqual(seeded);
+    const copied = leftoverPathPartition([...BUMP_VERSION_LEFTOVER_PATHS]);
+    expect(copied.unknown).toEqual([]);
+    for (const bucket of LEFTOVER_PATH_BUCKETS) {
+      expect([...copied[bucket]].sort()).toEqual([...unions[bucket]].sort());
+    }
+  });
+});
+
+describe("leftoverDefaultPartition", () => {
+  it("seeds known buckets from leftoverCatalogSourceUnions with no unknown paths", () => {
+    expect(leftoverDefaultPartition()).toEqual({
+      ...leftoverCatalogSourceUnions(),
+      unknown: [],
+    });
+  });
+});
+
+describe("addLeftoverPath", () => {
+  it("fails closed when a leftover path is in two buckets", () => {
+    const index = new Map<string, LeftoverPathBucket>();
+    addLeftoverPath(index, "package.json", "findSed");
+    expect(() => addLeftoverPath(index, "package.json", "sed")).toThrow(
+      "leftover path package.json is in both findSed and sed",
+    );
+  });
+
+  it("is idempotent when the same path is added to the same bucket", () => {
+    const index = new Map<string, LeftoverPathBucket>();
+    addLeftoverPath(index, "package.json", "findSed");
+    addLeftoverPath(index, "package.json", "findSed");
+    expect(index.get("package.json")).toBe("findSed");
+    expect(index.size).toBe(1);
+  });
+});
+
+describe("leftoverPathIndex", () => {
+  it("indexes every leftover catalog path exactly once", () => {
+    const index = leftoverPathIndex();
+    expect(index.get("version")).toBe("version");
+    expect(index.get("apps/api/src/services/config.ts")).toBe("sed");
+    expect(index.get("package.json")).toBe("findSed");
+    expect(index.get("mystery.path")).toBeUndefined();
+    expect(index.size).toBe(BUMP_VERSION_LEFTOVER_PATHS.length);
+    expect([...index.keys()].sort()).toEqual([...BUMP_VERSION_LEFTOVER_PATHS].sort());
+  });
+});
+
+describe("classifyLeftoverPaths", () => {
+  it("classifies copies and unknown leftover paths", () => {
+    expect(classifyLeftoverPaths(["mystery.path"])).toEqual({
+      version: [],
+      sed: [],
+      findSed: [],
+      unknown: ["mystery.path"],
+    });
+    const copied = classifyLeftoverPaths([...BUMP_VERSION_LEFTOVER_PATHS]);
+    expect(copied.unknown).toEqual([]);
+    expect(copied.version).toEqual(["version"]);
+    expect([...copied.sed].sort()).toEqual([...BUMP_VERSION_SED_PATHS].sort());
+    expect([...copied.findSed].sort()).toEqual([...BUMP_VERSION_FIND_SED_PATHS].sort());
+  });
+});
+
+describe("leftoverPathKind leftover lock", () => {
+  it("body only calls leftoverPathIndex", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = leftoverPathKindSource(src);
+    expect(leftoverIdentifierCalls(body)).toEqual(["leftoverPathIndex"]);
+    expect(body).toContain("return leftoverPathIndex().get(path) ?? null;");
+    expect(body).not.toContain("addLeftoverPath");
+    expect(body).not.toContain("LEFTOVER_CATALOG_SOURCES");
+  });
+
+  it("is unused on collector production paths except classifyLeftoverPaths", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverPathKind")).toBe(1);
+    expect(src).toContain("const kind = leftoverPathKind(path);");
+    expect(src).toContain("return leftoverPathIndex().get(path) ?? null;");
+  });
+
+  it("is only used on the non-default leftoverPathPartition path", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const classifyFn = src.slice(
+      src.indexOf("export function classifyLeftoverPaths("),
+      src.indexOf("export function leftoverPathPartition("),
+    );
+    const partitionFn = src.slice(
+      src.indexOf("export function leftoverPathPartition("),
+      src.indexOf("export const EXCLUDED_VERSION_SURFACES"),
+    );
+    expect(countIdentifierCalls(src, "leftoverPathKind")).toBe(1);
+    expect(countIdentifierCalls(src, "classifyLeftoverPaths")).toBe(1);
+    expect(classifyFn).toContain("const kind = leftoverPathKind(path);");
+    expect(partitionFn).toContain("if (isDefaultLeftoverCatalog(paths))");
+    expect(partitionFn).toContain("return leftoverDefaultPartition();");
+    expect(partitionFn).toContain("return classifyLeftoverPaths(paths);");
+    expect(partitionFn).not.toContain("leftoverPathKind");
+    expect(partitionFn).not.toContain("leftoverCatalogSourceUnions");
+  });
+});
+
+describe("leftoverDefaultPartition leftover lock", () => {
+  it("is the only leftoverCatalogSourceUnions call site and leftoverPathPartition is seed-or-classify", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const defaultFn = src.slice(
+      src.indexOf("export function leftoverDefaultPartition("),
+      src.indexOf("export function classifyLeftoverPaths("),
+    );
+    const partitionFn = src.slice(
+      src.indexOf("export function leftoverPathPartition("),
+      src.indexOf("export const EXCLUDED_VERSION_SURFACES"),
+    );
+    expect(countIdentifierCalls(src, "leftoverDefaultPartition")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverCatalogSourceUnions")).toBe(1);
+    expect(defaultFn).toContain("...leftoverCatalogSourceUnions()");
+    expect(defaultFn).not.toContain("leftoverPathKind");
+    expect(partitionFn).toContain("return leftoverDefaultPartition();");
+    expect(partitionFn).toContain("return classifyLeftoverPaths(paths);");
+    expect(partitionFn).not.toContain("leftoverCatalogSourceUnions");
+    expect(partitionFn).not.toContain("emptyLeftoverBuckets");
+  });
+
+  it("takes no leftover path list so the default catalog cannot classify", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(src).toContain("export function leftoverDefaultPartition(): LeftoverPathPartition");
+    expect(countIdentifierCalls(src, "leftoverDefaultPartition")).toBe(1);
+  });
+
+  it("body only calls leftoverCatalogSourceUnions", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = src.slice(
+      src.indexOf("export function leftoverDefaultPartition("),
+      src.indexOf("export function classifyLeftoverPaths("),
+    );
+    expect(leftoverIdentifierCalls(body)).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(body).toContain("...leftoverCatalogSourceUnions()");
+    expect(body).toContain("unknown: []");
+    expect(body).not.toContain("leftoverPathKind");
+    expect(body).not.toContain("emptyLeftoverBuckets");
+    expect(body).not.toContain("addLeftoverPath");
+    expect(body).not.toContain("leftoverPathIndex");
+  });
+});
+
+describe("classifyLeftoverPaths leftover lock", () => {
+  it("is the only leftoverPathKind call site and leftoverPathPartition is seed-or-classify", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverPathKind")).toBe(1);
+    expect(countIdentifierCalls(src, "classifyLeftoverPaths")).toBe(1);
+    expect(src).toContain("return classifyLeftoverPaths(paths);");
+    expect(src).toContain("const kind = leftoverPathKind(path);");
+  });
+
+  it("body only calls leftoverPathKind and emptyLeftoverBuckets", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = src.slice(
+      src.indexOf("export function classifyLeftoverPaths("),
+      src.indexOf("export function leftoverPathPartition("),
+    );
+    expect(leftoverIdentifierCalls(body)).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(body).toContain("...emptyLeftoverBuckets()");
+    expect(body).toContain("const kind = leftoverPathKind(path);");
+    expect(body).not.toContain("leftoverCatalogSourceUnions");
+    expect(body).not.toContain("leftoverDefaultPartition");
+    expect(body).not.toContain("addLeftoverPath");
+  });
+
+  it("owns the leftover classify loop; leftoverPathPartition has none", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const classifyFn = src.slice(
+      src.indexOf("export function classifyLeftoverPaths("),
+      src.indexOf("export function leftoverPathPartition("),
+    );
+    const partitionFn = src.slice(
+      src.indexOf("export function leftoverPathPartition("),
+      src.indexOf("export const EXCLUDED_VERSION_SURFACES"),
+    );
+    expect(classifyFn).toContain("for (const path of paths)");
+    expect(partitionFn).not.toContain("for (const path of paths)");
+    expect(partitionFn).not.toContain("leftoverPathKind");
+  });
+});
+
+function leftoverDefaultPartitionSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function leftoverDefaultPartition("),
+    src.indexOf("export function classifyLeftoverPaths("),
+  );
+}
+
+function leftoverClassifyLeftoverPathsSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function classifyLeftoverPaths("),
+    src.indexOf("export function leftoverPathPartition("),
+  );
+}
+
+function leftoverPathPartitionSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function leftoverPathPartition("),
+    src.indexOf("export const EXCLUDED_VERSION_SURFACES"),
+  );
+}
+
+function leftoverPathPartitionCalls(src: string): string[] {
+  return leftoverIdentifierCalls(leftoverPathPartitionSource(src));
+}
+
+function leftoverPathIndexSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function leftoverPathIndex("),
+    src.indexOf("export function leftoverPathKind("),
+  );
+}
+
+function leftoverPathKindSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function leftoverPathKind("),
+    src.indexOf("export function emptyLeftoverBuckets("),
+  );
+}
+
+function leftoverCatalogSourceUnionsSource(src: string): string {
+  return src.slice(
+    src.indexOf("export function leftoverCatalogSourceUnions("),
+    src.indexOf("export function isDefaultLeftoverCatalog("),
+  );
+}
+
+function leftoverIdentifierCalls(body: string): string[] {
+  const calls: string[] = [];
+  const pattern = /\b([A-Za-z_][A-Za-z0-9_]*)\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(body)) !== null) {
+    const before = body.slice(0, match.index);
+    if (/(?:export\s+)?function\s+$/.test(before)) continue;
+    if (/\.\s*$/.test(before) && !/\.\.\.\s*$/.test(before)) continue;
+    calls.push(match[1]!);
+  }
+  return calls;
+}
+
+function leftoverIdentifierCallsOverlap(left: string[], right: string[]): string[] {
+  return left.filter((name) => right.includes(name));
+}
+
+describe("leftover seed-or-classify leftover lock", () => {
+  it("leftoverDefaultPartition and classifyLeftoverPaths leftoverIdentifierCalls are disjoint", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(seeded, classified)).toEqual([]);
+    expect(seeded).not.toContain("leftoverPathKind");
+    expect(classified).not.toContain("leftoverCatalogSourceUnions");
+  });
+
+  it("leftoverPathPartition leftoverIdentifierCalls are disjoint from leftoverDefaultPartition and classifyLeftoverPaths internals", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(wired).toEqual([
+      "isDefaultLeftoverCatalog",
+      "leftoverDefaultPartition",
+      "classifyLeftoverPaths",
+    ]);
+    expect(leftoverIdentifierCallsOverlap(wired, seeded)).toEqual([]);
+    expect(leftoverIdentifierCallsOverlap(wired, classified)).toEqual([]);
+    expect(wired).not.toContain("leftoverCatalogSourceUnions");
+    expect(wired).not.toContain("leftoverPathKind");
+    expect(wired).not.toContain("emptyLeftoverBuckets");
+  });
+});
+
+describe("leftoverPathIndex leftoverIdentifierCalls leftover lock", () => {
+  it("overlap leftoverDefaultPartition leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(leftoverIdentifierCallsOverlap(indexed, seeded)).toEqual([]);
+  });
+
+  it("overlap leftoverPathPartition leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    const wired = leftoverPathPartitionCalls(src);
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(wired).toEqual([
+      "isDefaultLeftoverCatalog",
+      "leftoverDefaultPartition",
+      "classifyLeftoverPaths",
+    ]);
+    expect(leftoverIdentifierCallsOverlap(indexed, wired)).toEqual([]);
+  });
+
+  it("overlap classifyLeftoverPaths leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(indexed, classified)).toEqual([]);
+  });
+
+  it("overlap leftoverPathKind leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(kinded).toEqual(["leftoverPathIndex"]);
+    expect(leftoverIdentifierCallsOverlap(indexed, kinded)).toEqual([]);
+  });
+
+  it("overlap leftoverCatalogSourceUnions leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(leftoverIdentifierCallsOverlap(indexed, unions)).toEqual([]);
+  });
+});
+
+describe("leftoverCatalogSourceUnions leftoverIdentifierCalls leftover lock", () => {
+  it("are disjoint from leftoverPathIndex leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(leftoverIdentifierCallsOverlap(unions, indexed)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverDefaultPartition leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(leftoverIdentifierCallsOverlap(unions, seeded)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverPathPartition leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    const wired = leftoverPathPartitionCalls(src);
+    expect(leftoverIdentifierCallsOverlap(unions, wired)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverPathKind leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    expect(kinded).toEqual(["leftoverPathIndex"]);
+    expect(leftoverIdentifierCallsOverlap(unions, kinded)).toEqual([]);
+  });
+
+  it("overlap classifyLeftoverPaths leftoverIdentifierCalls only on emptyLeftoverBuckets", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(unions, classified)).toEqual(["emptyLeftoverBuckets"]);
+    expect(classified.filter((name) => name !== "emptyLeftoverBuckets")).toEqual(["leftoverPathKind"]);
+  });
+});
+
+describe("leftoverPathKind leftoverIdentifierCalls leftover lock", () => {
+  it("are disjoint from leftoverDefaultPartition leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    expect(kinded).toEqual(["leftoverPathIndex"]);
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(leftoverIdentifierCallsOverlap(kinded, seeded)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverCatalogSourceUnions leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(leftoverIdentifierCallsOverlap(kinded, unions)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverPathIndex leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(leftoverIdentifierCallsOverlap(kinded, indexed)).toEqual([]);
+  });
+
+  it("are disjoint from leftoverPathPartition leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    const wired = leftoverPathPartitionCalls(src);
+    expect(leftoverIdentifierCallsOverlap(kinded, wired)).toEqual([]);
+  });
+
+  it("are disjoint from classifyLeftoverPaths leftoverIdentifierCalls", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(kinded, classified)).toEqual([]);
+  });
+});
+
+describe("leftoverDefaultPartition leftoverIdentifierCalls leftover lock", () => {
+  it("overlap leftoverPathPartition leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const wired = leftoverPathPartitionCalls(src);
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(wired).toEqual([
+      "isDefaultLeftoverCatalog",
+      "leftoverDefaultPartition",
+      "classifyLeftoverPaths",
+    ]);
+    expect(leftoverIdentifierCallsOverlap(seeded, wired)).toEqual([]);
+  });
+
+  it("overlap leftoverPathKind leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(kinded).toEqual(["leftoverPathIndex"]);
+    expect(leftoverIdentifierCallsOverlap(seeded, kinded)).toEqual([]);
+  });
+
+  it("overlap leftoverPathIndex leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(leftoverIdentifierCallsOverlap(seeded, indexed)).toEqual([]);
+  });
+
+  it("overlap leftoverCatalogSourceUnions leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(leftoverIdentifierCallsOverlap(seeded, unions)).toEqual([]);
+  });
+
+  it("overlap classifyLeftoverPaths leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(seeded, classified)).toEqual([]);
+  });
+});
+
+describe("leftoverPathPartition leftoverIdentifierCalls leftover lock", () => {
+  it("overlap leftoverDefaultPartition leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const seeded = leftoverIdentifierCalls(leftoverDefaultPartitionSource(src));
+    expect(wired).toEqual([
+      "isDefaultLeftoverCatalog",
+      "leftoverDefaultPartition",
+      "classifyLeftoverPaths",
+    ]);
+    expect(seeded).toEqual(["leftoverCatalogSourceUnions"]);
+    expect(leftoverIdentifierCallsOverlap(wired, seeded)).toEqual([]);
+  });
+
+  it("overlap leftoverPathKind leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const kinded = leftoverIdentifierCalls(leftoverPathKindSource(src));
+    expect(kinded).toEqual(["leftoverPathIndex"]);
+    expect(leftoverIdentifierCallsOverlap(wired, kinded)).toEqual([]);
+  });
+
+  it("overlap leftoverPathIndex leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const indexed = leftoverIdentifierCalls(leftoverPathIndexSource(src));
+    expect(indexed).toEqual(["addLeftoverPath"]);
+    expect(leftoverIdentifierCallsOverlap(wired, indexed)).toEqual([]);
+  });
+
+  it("overlap leftoverCatalogSourceUnions leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const unions = leftoverIdentifierCalls(leftoverCatalogSourceUnionsSource(src));
+    expect(unions).toEqual(["emptyLeftoverBuckets"]);
+    expect(leftoverIdentifierCallsOverlap(wired, unions)).toEqual([]);
+  });
+
+  it("overlap classifyLeftoverPaths leftoverIdentifierCalls is empty", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const wired = leftoverPathPartitionCalls(src);
+    const classified = leftoverIdentifierCalls(leftoverClassifyLeftoverPathsSource(src));
+    expect(classified).toEqual(["emptyLeftoverBuckets", "leftoverPathKind"]);
+    expect(leftoverIdentifierCallsOverlap(wired, classified)).toEqual([]);
+  });
+});
+
+describe("leftoverPathPartition leftover lock", () => {
+  it("body contains only isDefaultLeftoverCatalog + leftoverDefaultPartition + classifyLeftoverPaths", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = leftoverPathPartitionSource(src);
+    expect(leftoverPathPartitionCalls(src)).toEqual([
+      "isDefaultLeftoverCatalog",
+      "leftoverDefaultPartition",
+      "classifyLeftoverPaths",
+    ]);
+    expect(body).not.toContain("leftoverPathKind");
+    expect(body).not.toContain("leftoverCatalogSourceUnions");
+    expect(body).not.toContain("emptyLeftoverBuckets");
+    expect(body).not.toContain("leftoverPathIndex");
+    expect(body).not.toContain("addLeftoverPath");
+    expect(body).not.toContain("unknown:");
+  });
+
+  it("has exactly two named returns", () => {
+    const body = leftoverPathPartitionSource(
+      readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8"),
+    );
+    expect(body.match(/return /g)).toHaveLength(2);
+    expect(body).toContain("return leftoverDefaultPartition();");
+    expect(body).toContain("return classifyLeftoverPaths(paths);");
+  });
+
+  it("defaults only to the leftover catalog reference", () => {
+    const body = leftoverPathPartitionSource(
+      readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8"),
+    );
+    expect(body).toContain("paths: ReadonlyArray<string> = BUMP_VERSION_LEFTOVER_PATHS");
+    expect(body).not.toContain("[...BUMP_VERSION_LEFTOVER_PATHS]");
+  });
+
+  it("is unused on collector production paths", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(src).toContain("export function leftoverPathPartition(");
+    expect(countIdentifierCalls(src, "leftoverPathPartition")).toBe(0);
+  });
+
+  it("is the only leftover catalog partition and leftoverPathKind is only used there", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverPathKind")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverPathIndex")).toBe(1);
+    expect(countIdentifierCalls(src, "addLeftoverPath")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverPathPartition")).toBe(0);
+    expect(src).toContain("if (isDefaultLeftoverCatalog(paths))");
+    expect(src).toContain("return leftoverDefaultPartition();");
+    expect(src).toContain("...leftoverCatalogSourceUnions()");
+    expect(countIdentifierCalls(src, "isDefaultLeftoverCatalog")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverDefaultPartition")).toBe(1);
+    expect(src).toContain("return leftoverPathIndex().get(path) ?? null;");
+    expect(src).toContain("const kind = leftoverPathKind(path);");
+    expect(src).toContain("return classifyLeftoverPaths(paths);");
+    expect(leftoverPathPartition().unknown).toEqual([]);
+    expect(BUMP_VERSION_GREP_LEFTOVER_PATHS.every((path) => leftoverPathKind(path) === "sed")).toBe(true);
+    const partition = leftoverPathPartition();
+    expect([...partition.sed, ...partition.findSed].sort()).toEqual([...BUMP_VERSION_VERIFY_PATHS].sort());
+    expect(LEFTOVER_PATH_BUCKETS).toEqual(["version", "sed", "findSed"]);
+    expect(Object.keys(partition).filter((key) => key !== "unknown").sort()).toEqual(
+      [...LEFTOVER_PATH_BUCKETS].sort(),
+    );
+  });
+});
+
+describe("leftover partition production leftover lock", () => {
+  it("keeps leftoverPathPartition unused and leftoverDefaultPartition/classifyLeftoverPaths only wired from leftoverPathPartition", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverPathPartition")).toBe(0);
+    expect(countIdentifierCalls(src, "leftoverDefaultPartition")).toBe(1);
+    expect(countIdentifierCalls(src, "classifyLeftoverPaths")).toBe(1);
+    expect(countIdentifierCalls(src, "isDefaultLeftoverCatalog")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverCatalogSourceUnions")).toBe(1);
+    expect(countIdentifierCalls(src, "leftoverPathKind")).toBe(1);
+    expect(src).toContain("return leftoverDefaultPartition();");
+    expect(src).toContain("return classifyLeftoverPaths(paths);");
+  });
+});
+
+describe("LEFTOVER_CATALOG_SOURCES leftover lock", () => {
+  it("path unions equal leftoverPathPartition buckets", () => {
+    const unions = leftoverCatalogSourceUnions();
+    const partition = leftoverPathPartition();
+    expect(LEFTOVER_CATALOG_SOURCES.map((source) => source.bucket)).toEqual([...LEFTOVER_PATH_BUCKETS]);
+    for (const bucket of LEFTOVER_PATH_BUCKETS) {
+      expect([...unions[bucket]].sort()).toEqual([...partition[bucket]].sort());
+    }
+    expect(partition.unknown).toEqual([]);
+    expect([...unions.version, ...unions.sed, ...unions.findSed].sort()).toEqual(
+      [...BUMP_VERSION_LEFTOVER_PATHS].sort(),
+    );
+  });
+
+  it("fails closed when leftoverPathPartition sees a path outside the catalog sources", () => {
+    expect(leftoverCatalogSourceUnions().sed).not.toContain("mystery.path");
+    expect(leftoverPathPartition(["mystery.path"]).unknown).toEqual(["mystery.path"]);
+  });
+});
+
+describe("leftoverPathIndex leftover lock", () => {
+  it("is unused on collector production paths except leftoverPathKind", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverPathIndex")).toBe(1);
+    expect(src).toContain("return leftoverPathIndex().get(path) ?? null;");
+  });
+
+  it("reads only LEFTOVER_CATALOG_SOURCES", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(src).toContain("for (const source of LEFTOVER_CATALOG_SOURCES)");
+    expect(src).toContain("addLeftoverPath(index, path, source.bucket)");
+    expect(src).not.toContain('addLeftoverPath(index, "version", "version")');
+    expect(src).not.toContain("for (const path of BUMP_VERSION_SED_PATHS)");
+    expect(src).not.toContain("for (const path of BUMP_VERSION_FIND_SED_PATHS)");
+    expect(countIdentifierCalls(src, "leftoverCatalogSourceUnions")).toBe(1);
+    expect(countIdentifierCalls(src, "emptyLeftoverBuckets")).toBe(2);
+    expect(src).toContain("const unions = emptyLeftoverBuckets();");
+    expect(src).toContain("...emptyLeftoverBuckets()");
+  });
+
+  it("body only calls addLeftoverPath from LEFTOVER_CATALOG_SOURCES", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = leftoverPathIndexSource(src);
+    expect(leftoverIdentifierCalls(body)).toEqual(["addLeftoverPath"]);
+    expect(body).toContain("for (const source of LEFTOVER_CATALOG_SOURCES)");
+    expect(body).toContain("for (const path of source.paths)");
+    expect(body).toContain("addLeftoverPath(index, path, source.bucket)");
+    expect(body).not.toContain("BUMP_VERSION_SED_PATHS");
+    expect(body).not.toContain("BUMP_VERSION_FIND_SED_PATHS");
+    expect(body).not.toContain("BUMP_VERSION_LEFTOVER_PATHS");
+    expect(body).not.toContain("BUMP_VERSION_GREP_LEFTOVER_PATHS");
+    expect(body).not.toContain('"version"');
+    expect(body).not.toContain("package.json");
+  });
+});
+
+describe("addLeftoverPath leftover lock", () => {
+  it("is unused on collector production paths except leftoverPathIndex", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const indexFn = src.slice(
+      src.indexOf("export function leftoverPathIndex("),
+      src.indexOf("export function leftoverPathKind("),
+    );
+    const afterIndex = src.slice(
+      src.indexOf("export function leftoverPathKind("),
+      src.indexOf("export const EXCLUDED_VERSION_SURFACES"),
+    );
+    expect(src).toContain("export function addLeftoverPath(");
+    expect(countIdentifierCalls(src, "addLeftoverPath")).toBe(1);
+    expect(indexFn).toContain("addLeftoverPath(index, path, source.bucket)");
+    expect(afterIndex).not.toContain("addLeftoverPath");
+  });
+});
+
+describe("leftoverCatalogSourceUnions leftover lock", () => {
+  it("body only unions LEFTOVER_CATALOG_SOURCES", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const body = src.slice(
+      src.indexOf("export function leftoverCatalogSourceUnions("),
+      src.indexOf("export function isDefaultLeftoverCatalog("),
+    );
+    expect(leftoverIdentifierCalls(body)).toEqual(["emptyLeftoverBuckets"]);
+    expect(body).toContain("for (const source of LEFTOVER_CATALOG_SOURCES)");
+    expect(body).toContain("unions[source.bucket].push(...source.paths)");
+    expect(body).not.toContain("BUMP_VERSION_SED_PATHS");
+    expect(body).not.toContain("BUMP_VERSION_FIND_SED_PATHS");
+    expect(body).not.toContain("addLeftoverPath");
+  });
+
+  it("is only called from leftoverDefaultPartition", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "leftoverCatalogSourceUnions")).toBe(1);
+    expect(src).toContain("export function leftoverCatalogSourceUnions(");
+    expect(src).toContain("...leftoverCatalogSourceUnions()");
+    expect(src).toContain("unions[source.bucket].push(...source.paths)");
+    expect(src).toContain("return leftoverDefaultPartition();");
+  });
+});
+
+describe("isDefaultLeftoverCatalog leftover lock", () => {
+  it("is the only default-catalog gate used by leftoverPathPartition", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    expect(countIdentifierCalls(src, "isDefaultLeftoverCatalog")).toBe(1);
+    expect(src).toContain("if (isDefaultLeftoverCatalog(paths))");
+    expect(src).not.toContain("if (paths === BUMP_VERSION_LEFTOVER_PATHS)");
+  });
+});
+
+describe("isDefaultLeftoverCatalog", () => {
+  it("is true only for the leftover catalog reference", () => {
+    expect(isDefaultLeftoverCatalog(BUMP_VERSION_LEFTOVER_PATHS)).toBe(true);
+    expect(isDefaultLeftoverCatalog([...BUMP_VERSION_LEFTOVER_PATHS])).toBe(false);
+    expect(isDefaultLeftoverCatalog(["version"])).toBe(false);
+  });
+});
+
+describe("emptyLeftoverBuckets leftover lock", () => {
+  it("is unused on collector production paths except leftoverCatalogSourceUnions and classifyLeftoverPaths", () => {
+    const src = readFileSync(resolve("scripts/release/collect-cut-manifest-evidence.ts"), "utf8");
+    const defaultFn = src.slice(
+      src.indexOf("export function leftoverDefaultPartition("),
+      src.indexOf("export function classifyLeftoverPaths("),
+    );
+    const partitionFn = leftoverPathPartitionSource(src);
+    expect(countIdentifierCalls(src, "emptyLeftoverBuckets")).toBe(2);
+    expect(src).toContain("const unions = emptyLeftoverBuckets();");
+    expect(src).toContain("...emptyLeftoverBuckets()");
+    expect(defaultFn).not.toContain("emptyLeftoverBuckets");
+    expect(partitionFn).not.toContain("emptyLeftoverBuckets");
+  });
+});
+
+describe("emptyLeftoverBuckets", () => {
+  it("seeds one empty array per leftover path bucket", () => {
+    const buckets = emptyLeftoverBuckets();
+    expect(Object.keys(buckets).sort()).toEqual([...LEFTOVER_PATH_BUCKETS].sort());
+    for (const bucket of LEFTOVER_PATH_BUCKETS) {
+      expect(buckets[bucket]).toEqual([]);
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Fail-closed: version surface mismatch
 // ---------------------------------------------------------------------------
@@ -829,6 +1985,204 @@ describe("collectCutManifestEvidence: version surface mismatch", () => {
     expect(evidence.checks.find((c) => c.id === "versions.worker_init")!.status).toBe("fail");
   });
 
+  it("fails when schemas-validation.test.ts version drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/schemas-validation.test.ts"] = `      version: "0.4.6",\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when schemas-validation.test.ts is missing as a required surface", () => {
+    const files = baseFiles();
+    delete files["apps/api/src/schemas/schemas-validation.test.ts"];
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when schemas-validation.test.ts equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails when e2e appVersion drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '0.4.6',\n            apiVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when e2e appVersion is missing as a required surface", () => {
+    const files = baseFiles();
+    delete files["apps/web/e2e/resume-role-filter.spec.ts"];
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e appVersion equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails when e2e apiVersion drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '0.4.6',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when e2e apiVersion is missing as a required surface", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e apiVersion equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails when e2e webVersion drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n            webVersion: '0.4.6',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when e2e webVersion is missing as a required surface", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e webVersion equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails when openapi.yaml HealthResponse example drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_health_example")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when openapi.yaml HealthResponse example is missing as a required surface", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_health_example")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when openapi.yaml HealthResponse example equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_health_example")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails when openapi.json HealthResponse example drifts from canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails when openapi.json HealthResponse example is missing as a required surface", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("unreadable");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when openapi.json HealthResponse example equals canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
   it("fails when the canonical version differs from --expected-version", () => {
     const { deps } = createMockDeps();
     const evidence = collectCutManifestEvidence({ ...DEFAULT_OPTIONS, expectedVersion: "0.5.0" }, deps);
@@ -839,7 +2193,7 @@ describe("collectCutManifestEvidence: version surface mismatch", () => {
     expect(versionChecks.some((c) => c.status === "fail")).toBe(true);
   });
 
-  it("warns (does not fail) on a stale OpenAPI health example", () => {
+  it("fails closed when the OpenAPI HealthResponse example is stale", () => {
     const files = baseFiles();
     files["apps/api/openapi.yaml"] =
       `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
@@ -847,8 +2201,1625 @@ describe("collectCutManifestEvidence: version surface mismatch", () => {
     const { deps } = createMockDeps({ files });
     const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
     const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_stale")!;
-    expect(check.status).toBe("warn");
-    expect(evidence.status).toBe("clean");
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(check.expected).toBe(VERSION);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when the OpenAPI HealthResponse example is missing", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_stale")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(check.expected).toBe(VERSION);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("passes when the OpenAPI HealthResponse example matches the canonical version", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_stale")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+    expect(check.detail).toContain(`matches ${VERSION}`);
+  });
+
+  it("fails closed when the OpenAPI JSON HealthResponse example is stale", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example_stale")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(check.expected).toBe(VERSION);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when the OpenAPI JSON HealthResponse example is missing", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example_stale")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(check.expected).toBe(VERSION);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when apps/api/openapi.json is absent", () => {
+    const files = baseFiles();
+    delete files["apps/api/openapi.json"];
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example_stale")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when the OpenAPI JSON HealthResponse example matches the canonical version", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example_stale")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+    expect(check.detail).toContain(`matches ${VERSION}`);
+  });
+
+  it("reads yaml HealthResponse stale check from the VERSION_SURFACE value", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const surface = evidence.checks.find((c) => c.id === "versions.openapi_yaml_health_example")!;
+    const stale = evidence.checks.find((c) => c.id === "versions.openapi_health_example_stale")!;
+    expect(surface.actual).toBe("0.4.6");
+    expect(stale.actual).toBe(surface.actual);
+    expect(evidence.versions.openapiHealthExample).toBe(surface.actual);
+    expect(stale.status).toBe("fail");
+  });
+
+  it("reads json HealthResponse stale check from the VERSION_SURFACE value", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const surface = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example")!;
+    const stale = evidence.checks.find((c) => c.id === "versions.openapi_json_health_example_stale")!;
+    expect(surface.actual).toBe("0.4.6");
+    expect(stale.actual).toBe(surface.actual);
+    expect(stale.status).toBe("fail");
+  });
+
+  it("treats a missing yaml HealthResponse surface value as a missing stale check", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const surface = evidence.checks.find((c) => c.id === "versions.openapi_yaml_health_example")!;
+    const stale = evidence.checks.find((c) => c.id === "versions.openapi_health_example_stale")!;
+    expect(surface.actual).toBe("unreadable");
+    expect(stale.actual).toBe("missing");
+    expect(evidence.versions.openapiHealthExample).toBeNull();
+    expect(stale.status).toBe("fail");
+  });
+
+  it("fails when OpenAPI JSON info.version drifts from the canonical version", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: "0.4.22" },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: VERSION } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_version")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.22");
+    expect(check.expected).toBe(VERSION);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when OpenAPI JSON info.version matches the canonical version", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_version")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when yaml and json info.version disagree (json stale)", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: "0.4.22" },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: VERSION } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe(`${VERSION} != 0.4.22`);
+    expect(check.detail).toMatch(/disagree|parity/i);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when yaml and json info.version disagree (yaml stale)", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: 0.4.22\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '${VERSION}'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`0.4.22 != ${VERSION}`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when yaml and json info.version agree with each other but not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: 0.4.22\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '${VERSION}'\n`;
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: "0.4.22" },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: VERSION } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe("0.4.22");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when yaml info.version is missing for parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when yaml and json info.version both equal the canonical version", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+    expect(check.expected).toBe(VERSION);
+  });
+
+  it("reads yaml/json info.version parity from VERSION_SURFACE values", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: "0.4.22" },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: VERSION } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const yamlSurface = evidence.checks.find((c) => c.id === "versions.openapi_info_version")!;
+    const jsonSurface = evidence.checks.find((c) => c.id === "versions.openapi_json_info_version")!;
+    const parity = evidence.checks.find((c) => c.id === "versions.openapi_info_version_parity")!;
+    expect(yamlSurface.actual).toBe(VERSION);
+    expect(jsonSurface.actual).toBe("0.4.22");
+    expect(parity.actual).toBe(`${yamlSurface.actual} != ${jsonSurface.actual}`);
+    expect(parity.status).toBe("fail");
+  });
+
+  it("fails closed when yaml and json HealthResponse examples disagree", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when yaml and json HealthResponse examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when yaml and json HealthResponse examples both equal the canonical version", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_health_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when health.ts example disagrees with OpenAPI HealthResponse examples", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`0.4.6 != ${VERSION}`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when health.ts and OpenAPI HealthResponse examples equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when health.ts example disagrees with openapi.json HealthResponse example", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when health.ts and openapi.json examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.json HealthResponse example is missing for health.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when health.ts and openapi.json HealthResponse examples equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.health_schema_openapi_json_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+    expect(check.expected).toBe(VERSION);
+  });
+
+  it("fails closed when api-types @example disagrees with openapi.json HealthResponse example", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when api-types and openapi.json examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/src/lib/api-types.ts"] = `        /** @example 0.4.6 */\n        version?: string;\n`;
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when api-types @example and openapi.json HealthResponse example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_json_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when api-types @example disagrees with openapi.yaml HealthResponse example", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+    expect(evidence.exitCode).toBe(2);
+  });
+
+  it("fails closed when api-types and openapi.yaml examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/src/lib/api-types.ts"] = `        /** @example 0.4.6 */\n        version?: string;\n`;
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.expected).toBe(VERSION);
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.yaml HealthResponse example is missing for api-types parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when api-types @example and openapi.yaml HealthResponse example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+    expect(check.expected).toBe(VERSION);
+  });
+
+  it("fails closed when api-types @example disagrees with health.ts example", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_health_schema_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when api-types and health.ts examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/src/lib/api-types.ts"] = `        /** @example 0.4.6 */\n        version?: string;\n`;
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_health_schema_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when api-types @example and health.ts example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.api_types_health_schema_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when config.ts version disagrees with health.ts example", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_health_schema_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts and health.ts examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    files["apps/api/src/schemas/health.ts"] =
+      `    version: z.string().optional().openapi({\n      example: "0.4.6",\n    }),\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_health_schema_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts version is missing for health.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  timezone: "UTC",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_health_schema_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when config.ts version and health.ts example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_health_schema_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when config.ts version disagrees with openapi.yaml HealthResponse example", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts and openapi.yaml examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '0.4.6'\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.yaml HealthResponse example is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: ${VERSION}\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when config.ts version and openapi.yaml HealthResponse example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_yaml_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when config.ts version disagrees with openapi.json HealthResponse example", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts and openapi.json examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: "0.4.6" } } },
+        },
+      },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.json HealthResponse example is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: VERSION },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_json_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when config.ts version and openapi.json HealthResponse example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_openapi_json_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when config.ts version disagrees with api-types @example", () => {
+    const files = baseFiles();
+    files["apps/web/src/lib/api-types.ts"] = `        /** @example 0.4.6 */\n        version?: string;\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_api_types_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts and api-types examples agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    files["apps/web/src/lib/api-types.ts"] = `        /** @example 0.4.6 */\n        version?: string;\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_api_types_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when api-types @example is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/web/src/lib/api-types.ts"] = `        version?: string;\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_api_types_example_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when config.ts version and api-types @example equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.config_api_types_example_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when apps/api/package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_api_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/api/package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/package.json"] = JSON.stringify({ name: "api", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_api_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/api/package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/package.json"] = JSON.stringify({ name: "api" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_api_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when apps/api/package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_api_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when apps/web/package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_web_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/web/package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/package.json"] = JSON.stringify({ name: "web", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_web_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/web/package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/web/package.json"] = JSON.stringify({ name: "web" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_web_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when apps/web/package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_web_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when root package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when root package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["package.json"] = JSON.stringify({ name: "trends", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when root package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["package.json"] = JSON.stringify({ name: "trends" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when root package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_root_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when packages/shared/package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_shared_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when packages/shared/package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["packages/shared/package.json"] = JSON.stringify({ name: "shared", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_shared_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when packages/shared/package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["packages/shared/package.json"] = JSON.stringify({ name: "shared" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_shared_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when packages/shared/package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_shared_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when packages/convex/package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_convex_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when packages/convex/package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["packages/convex/package.json"] = JSON.stringify({ name: "convex", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_convex_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when packages/convex/package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["packages/convex/package.json"] = JSON.stringify({ name: "convex" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_convex_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when packages/convex/package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.package_convex_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when apps/browser-extension/package.json disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find(
+      (c) => c.id === "versions.package_browser_extension_config_version_parity",
+    )!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/browser-extension/package.json and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/browser-extension/package.json"] = JSON.stringify({ name: "ext", version: "0.4.6" });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find(
+      (c) => c.id === "versions.package_browser_extension_config_version_parity",
+    )!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when apps/browser-extension/package.json version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/browser-extension/package.json"] = JSON.stringify({ name: "ext" });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find(
+      (c) => c.id === "versions.package_browser_extension_config_version_parity",
+    )!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when apps/browser-extension/package.json and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find(
+      (c) => c.id === "versions.package_browser_extension_config_version_parity",
+    )!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when root pyproject.toml disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when root pyproject.toml and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["pyproject.toml"] = `[project]\nname = "trends"\nversion = "0.4.6"\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when root pyproject.toml version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["pyproject.toml"] = `[project]\nname = "trends"\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_root_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when root pyproject.toml and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_root_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when worker pyproject.toml disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_worker_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when worker pyproject.toml and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/worker/pyproject.toml"] = `[project]\nname = "worker"\nversion = "0.4.6"\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_worker_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when worker pyproject.toml version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/worker/pyproject.toml"] = `[project]\nname = "worker"\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_worker_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when worker pyproject.toml and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.pyproject_worker_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when worker __init__.py disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.worker_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when worker __init__.py and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/worker/__init__.py"] = `__version__ = "0.4.6"\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.worker_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when worker __init__.py version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/worker/__init__.py"] = `"""worker package"""\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.worker_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when worker __init__.py and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.worker_init_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when trendradar __init__.py disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.trendradar_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when trendradar __init__.py and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["trendradar/__init__.py"] = `__version__ = "0.4.6"\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.trendradar_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when trendradar __init__.py version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["trendradar/__init__.py"] = `"""trendradar package"""\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.trendradar_init_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when trendradar __init__.py and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.trendradar_init_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when the version file disagrees with config.ts version", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.version_file_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when the version file and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files.version = "0.4.6";
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(
+      { ...DEFAULT_OPTIONS, expectedVersion: VERSION },
+      deps,
+    );
+    const check = evidence.checks.find((c) => c.id === "versions.version_file_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when config.ts version is missing for version-file parity", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  timezone: "UTC",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.version_file_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when the version file and config.ts version equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.version_file_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when openapi.yaml info.version disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.yaml info.version and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] =
+      `openapi: 3.1.0\ninfo:\n  title: Trends API\n  version: 0.4.6\n` +
+      `components:\n  schemas:\n    HealthResponse:\n      properties:\n        version:\n          type: string\n          example: '${VERSION}'\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.yaml info.version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.yaml"] = `openapi: 3.1.0\ninfo:\n  title: Trends API\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when openapi.yaml info.version and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_yaml_info_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when openapi.json info.version disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.json info.version and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API", version: "0.4.6" },
+      components: {
+        schemas: {
+          HealthResponse: { properties: { version: { type: "string", example: VERSION } } },
+        },
+      },
+    });
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when openapi.json info.version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/api/openapi.json"] = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "Trends API" },
+    });
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when openapi.json info.version and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.openapi_json_info_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when schemas-validation.test.ts disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when schemas-validation.test.ts and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/schemas-validation.test.ts"] = `      version: "0.4.6",\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when schemas-validation.test.ts version is missing for config.ts parity", () => {
+    const files = baseFiles();
+    delete files["apps/api/src/schemas/schemas-validation.test.ts"];
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when schemas-validation.test.ts and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.schemas_validation_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("reads schemas-validation config parity from the VERSION_SURFACE value", () => {
+    const files = baseFiles();
+    files["apps/api/src/schemas/schemas-validation.test.ts"] = `      version: "0.4.6",\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const surface = evidence.checks.find((c) => c.id === "versions.schemas_validation")!;
+    const parity = evidence.checks.find((c) => c.id === "versions.schemas_validation_config_version_parity")!;
+    expect(surface.actual).toBe("0.4.6");
+    expect(parity.actual).toBe(`${surface.actual} != ${VERSION}`);
+    expect(parity.status).toBe("fail");
+  });
+
+  it("fails closed when e2e appVersion disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e appVersion and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '0.4.6',\n            apiVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e appVersion is missing for config.ts parity", () => {
+    const files = baseFiles();
+    delete files["apps/web/e2e/resume-role-filter.spec.ts"];
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e appVersion and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_version_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("reads e2e app/api/web config parity from VERSION_SURFACE values", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '0.4.6',\n            apiVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const surface = evidence.checks.find((c) => c.id === "versions.e2e_app_version")!;
+    const parity = evidence.checks.find((c) => c.id === "versions.e2e_app_version_config_version_parity")!;
+    expect(surface.actual).toBe("0.4.6");
+    expect(parity.actual).toBe(`${surface.actual} != ${VERSION}`);
+    expect(parity.status).toBe("fail");
+  });
+
+  it("fails closed when e2e apiVersion disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e apiVersion and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '0.4.6',\n            webVersion: '${VERSION}',\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e apiVersion is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e apiVersion and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_version_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when e2e webVersion disagrees with config.ts", () => {
+    const files = baseFiles();
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e webVersion and config.ts agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n            webVersion: '0.4.6',\n`;
+    files["apps/api/src/services/config.ts"] = `export const config = {\n  version: "0.4.6",\n};\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e webVersion is missing for config.ts parity", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version_config_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e webVersion and config.ts equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_web_version_config_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when e2e appVersion disagrees with apiVersion", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '0.4.6',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_api_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e appVersion and apiVersion agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '0.4.6',\n            apiVersion: '0.4.6',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_api_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e apiVersion is missing for appVersion parity", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            webVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_api_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e appVersion and apiVersion equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_api_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when e2e appVersion disagrees with webVersion", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n            webVersion: '0.4.6',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e appVersion and webVersion agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '0.4.6',\n            apiVersion: '${VERSION}',\n            webVersion: '0.4.6',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e webVersion is missing for appVersion parity", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e appVersion and webVersion equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_app_web_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
+  });
+
+  it("fails closed when e2e apiVersion disagrees with webVersion", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n            webVersion: '0.4.6',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe(`${VERSION} != 0.4.6`);
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e apiVersion and webVersion agree but are not canonical", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '0.4.6',\n            webVersion: '0.4.6',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("0.4.6");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("fails closed when e2e webVersion is missing for apiVersion parity", () => {
+    const files = baseFiles();
+    files["apps/web/e2e/resume-role-filter.spec.ts"] =
+      `            appVersion: '${VERSION}',\n            apiVersion: '${VERSION}',\n`;
+    const { deps } = createMockDeps({ files });
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_web_version_parity")!;
+    expect(check.status).toBe("fail");
+    expect(check.actual).toBe("missing");
+    expect(evidence.status).toBe("failed");
+  });
+
+  it("passes when e2e apiVersion and webVersion equal canonical", () => {
+    const { deps } = createMockDeps();
+    const evidence = collectCutManifestEvidence(DEFAULT_OPTIONS, deps);
+    const check = evidence.checks.find((c) => c.id === "versions.e2e_api_web_version_parity")!;
+    expect(check.status).toBe("pass");
+    expect(check.actual).toBe(VERSION);
   });
 });
 

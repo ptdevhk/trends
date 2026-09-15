@@ -93,9 +93,10 @@ const SearchFreshnessResponseSchema = z.object({
     error: z.string().optional(),
   })),
   /**
-   * Non-zero when: lag scan failed (2), compute-stale above threshold (2),
-   * or a golden availability / semantic check fails while API is up (3).
-   * Golden takes priority over 2.
+   * Non-zero when: lag scan failed (1, unverifiable — no stale-window number),
+   * compute-stale above threshold (2), or a golden availability / semantic
+   * check fails while API is up (3). Golden takes priority over 1/2.
+   * GATE_STRICT=0 may soften 2/3 only; never treat 1 as OK.
    */
   exitCodeHint: z.number().int(),
   messages: z.array(z.string()),
@@ -919,19 +920,27 @@ app.openapi(getSearchFreshnessRoute, async (c) => {
     }
   }
 
-  // Exit code priority: golden fail (3) > lag-scan fail / compute-stale (2) > ok (0).
-  // Lag-scan failure must NOT greenwash: previously exitCodeHint stayed 0 when
-  // Convex timed out but golden floor (then 10) still passed with under-repaired data.
+  // Exit code priority: golden fail (3) > measured compute-stale (2) >
+  // unverifiable lag-scan fail or incomplete window (1) > ok (0).
+  // Lag-scan failure is not a measured stale count. Hint 2 would let
+  // GATE_STRICT=0 swallow it as "known lag". Hint 1 stays fail-closed.
+  // An incomplete window with computeStale=0 is also unverifiable: counts
+  // understate the true population, so hint 0 would be a false green.
   let exitCodeHint = 0;
   if (lagScanFailed) {
-    exitCodeHint = 2;
+    exitCodeHint = 1;
     messages.push(
-      "lag scan failed — treat as compute-stale until dry-run reingest succeeds; do not trust golden alone",
+      "lag scan failed — unverifiable compute lag; do not treat as OK and do not trust golden alone",
     );
   } else if (lag.computeStale >= COMPUTE_STALE_DOCTOR_THRESHOLD) {
     exitCodeHint = 2;
     messages.push(
       `compute-stale rows detected (${lag.computeStale}); schedule: trends resume debug trigger-reingest --mode compute --limit 200`,
+    );
+  } else if (!lag.scanComplete) {
+    exitCodeHint = 1;
+    messages.push(
+      "lag scan window incomplete (scanComplete=false) — stale counts understate the true population; unverifiable, not green",
     );
   }
   if (apiReachable && goldenQueries.some((g) => g.ok === false)) {

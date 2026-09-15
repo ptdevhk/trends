@@ -279,6 +279,22 @@ if grep -A20 'DOCTOR_RC.*-eq 2' "$ROOT/deploy/search-freshness-gate.sh" | grep -
 else
   fail "gate no longer exits 2 under GATE_STRICT for doctor rc 2"
 fi
+# GATE_STRICT=0 may soften measured lag (rc 2) and golden (rc 3), never unverifiable rc 1
+if grep -A8 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'treating doctor exit \$DOCTOR_RC as non-fatal'; then
+  fail "gate still swallows unverifiable doctor rc under GATE_STRICT=0"
+else
+  pass "gate does not swallow unverifiable doctor rc under GATE_STRICT=0"
+fi
+if grep -A5 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'exit "$DOCTOR_RC"'; then
+  pass "unverifiable doctor rc exits the gate"
+else
+  fail "unverifiable doctor rc does not exit the gate"
+fi
+if grep -A5 'Doctor failed with exit' "$ROOT/deploy/search-freshness-gate.sh" | grep -q 'Search freshness gate OK'; then
+  fail "unverifiable doctor rc can still print Search freshness gate OK"
+else
+  pass "unverifiable doctor rc cannot print Search freshness gate OK"
+fi
 # Golden query config: MY availability floor is semantic-only, CN remains high-volume
 if grep -A16 'id: "my-cnc-sales-minRoleYears"' "$ROOT/packages/shared/src/ingest-compute-epoch.ts" | grep -q 'minTotalFloor: 1'; then
   pass "MY golden minTotalFloor is 1 under verified-only semantics"
@@ -304,6 +320,38 @@ if grep -q -- '--mode any' "$ROOT/deploy/search-freshness-gate.sh"; then
   fail "gate still references --mode any"
 else
   pass "gate no longer references --mode any"
+fi
+if grep -q 'resolveSearchFreshnessPreferredExit' "$ROOT/scripts/search-data-freshness-doctor.ts"; then
+  pass "doctor preferred path uses resolveSearchFreshnessPreferredExit"
+else
+  fail "doctor preferred path still treats missing exitCodeHint as 0"
+fi
+if grep -q -- '--mode any' "$ROOT/docs/preview-upgrade-runbook.md"; then
+  fail "preview-upgrade-runbook still recommends --mode any"
+else
+  pass "preview-upgrade-runbook repair path uses --mode compute only"
+fi
+if grep -q -- 'any|compute' "$ROOT/docs/agent-runbook.md"; then
+  fail "agent-runbook still schedules --mode any|compute for doctor 2/3"
+else
+  pass "agent-runbook repair path uses --mode compute"
+fi
+if grep -A8 'if (lagScanFailed)' "$ROOT/apps/api/src/routes/resumes_diagnostics.ts" | grep -q 'exitCodeHint = 1'; then
+  pass "API lagScanFailed hints exit 1 (unverifiable)"
+else
+  fail "API lagScanFailed still hints 2 (GATE_STRICT=0 would swallow it)"
+fi
+if grep -A6 'else if (!lag.scanComplete)' "$ROOT/apps/api/src/routes/resumes_diagnostics.ts" | grep -q 'exitCodeHint = 1'; then
+  pass "API incomplete lag window hints exit 1 (not green)"
+else
+  fail "API incomplete lag window still treats computeStale=0 as exit 0"
+fi
+if grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/agent-runbook.md" \
+  && grep -q 'decidePreviewRemasurePressure' "$ROOT/docs/preview-upgrade-runbook.md" \
+  && grep -q 'PREVIEW_REMAASURE_MIN_MEM_AVAILABLE_GIB' "$ROOT/scripts/lib/preview-remasure-pressure.ts"; then
+  pass "epoch-6 remasure pressure helper is documented and present"
+else
+  fail "epoch-6 remasure pressure helper missing from runbooks or scripts/lib"
 fi
 
 echo "Summary: $FAIL failure(s)"

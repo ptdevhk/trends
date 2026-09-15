@@ -46,6 +46,8 @@ export function parseSalaryRange(
 
   const min = convertSalaryValue(minValue, minUnit, isRaw);
   const max = maxValue === undefined ? undefined : convertSalaryValue(maxValue, maxUnit, isRaw);
+  if (!Number.isFinite(min)) return null;
+  if (max !== undefined && (!Number.isFinite(max) || min > max)) return null;
   return { min, max };
 }
 

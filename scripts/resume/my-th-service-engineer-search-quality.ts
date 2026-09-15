@@ -328,6 +328,27 @@ function locationIsConsistent(row: JsonRecord, market: Market): boolean {
   return isLocationMatch(evidence, market === "MY" ? "Malaysia" : "Thailand");
 }
 
+function emptyTitleFamilies(): Record<TitleFamily, number> {
+  return Object.fromEntries(TITLE_FAMILIES.map((family) => [family, 0])) as Record<TitleFamily, number>;
+}
+
+function missingMarketQualityReport(market: Market): QualityReport {
+  return {
+    market,
+    ok: false,
+    total: 0,
+    sampled: 0,
+    serviceEvidenceCount: 0,
+    serviceEvidenceRate: 0,
+    cncMachineEvidenceCount: 0,
+    cncMachineEvidenceRate: 0,
+    locationConsistencyCount: 0,
+    locationConsistencyRate: 0,
+    titleFamilies: emptyTitleFamilies(),
+    failures: [`qualityResponses missing ${market}`],
+  };
+}
+
 function qualityReport(market: Market, response: JsonRecord): QualityReport {
   const summary = objectAt(response, "summary");
   const rows = Array.isArray(response.data) ? response.data.filter(isRecord) : [];
@@ -339,7 +360,7 @@ function qualityReport(market: Market, response: JsonRecord): QualityReport {
   const serviceEvidenceRate = sampled > 0 ? serviceEvidenceCount / sampled : 0;
   const cncMachineEvidenceRate = sampled > 0 ? cncMachineEvidenceCount / sampled : 0;
   const locationConsistencyRate = sampled > 0 ? locationConsistencyCount / sampled : 0;
-  const titleFamilies = Object.fromEntries(TITLE_FAMILIES.map((family) => [family, 0])) as Record<TitleFamily, number>;
+  const titleFamilies = emptyTitleFamilies();
   for (const row of rows) titleFamilies[titleFamily(row)] += 1;
 
   const failures: string[] = [];
@@ -490,7 +511,10 @@ async function main(): Promise<void> {
   }
 
   const liveProfileContract = validateLiveProfiles(input.profileResponses, sourceProfiles);
-  const quality = MARKETS.map((market) => qualityReport(market, input.qualityResponses[market] ?? {}));
+  const quality = MARKETS.map((market) => {
+    const response = input.qualityResponses[market];
+    return isRecord(response) ? qualityReport(market, response) : missingMarketQualityReport(market);
+  });
   const report: Report = {
     ok: sourceContract.ok && liveProfileContract.ok && quality.every((item) => item.ok),
     mode,

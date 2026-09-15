@@ -76,6 +76,12 @@ describe("defaultBffApiUrlForRole / isContainerLocalBffUrl", () => {
     expect(isContainerLocalBffUrl(`http://localhost:${BFF_API_URL_DEFAULTS.productionApiPort}`)).toBe(true);
     expect(isContainerLocalBffUrl(previewPublicBffOrigin())).toBe(false);
   });
+
+  it("treats empty or whitespace as not container-local", () => {
+    expect(isContainerLocalBffUrl("")).toBe(false);
+    expect(isContainerLocalBffUrl("   ")).toBe(false);
+    expect(isContainerLocalBffUrl("\t\n")).toBe(false);
+  });
 });
 
 describe("diagnoseBffApiUrl", () => {

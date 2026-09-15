@@ -13,6 +13,7 @@ import {
   matchResumeCompanyPolicies,
   normalizeCompanyAlias,
   policyEffectsFromPreset,
+  primaryCompanyPolicyHit,
   resolveCompanyAlias,
   resolveMostSpecificPolicy,
   resolvePolicyEffectsForCompanies,
@@ -32,6 +33,13 @@ describe("company-policy helpers", () => {
     expect(normalizeCompanyAlias("  Pro-Technic Machinery ")).toBe("pro-technic machinery");
     expect(normalizeCompanyAlias("宝力机械有限公司")).toBe("宝力机械有限公司");
     expect(normalizeCompanyAlias("Pro Technic")).toBe("pro technic");
+  });
+
+  it("strips punctuation and fullwidth spaces from aliases", () => {
+    expect(normalizeCompanyAlias("Polywell（Machinery）")).toBe("polywellmachinery");
+    expect(normalizeCompanyAlias("【宝惠】")).toBe("宝惠");
+    expect(normalizeCompanyAlias("Pro.Technic, Inc.")).toBe("protechnic inc");
+    expect(normalizeCompanyAlias("宝力\u3000机械")).toBe("宝力 机械");
   });
 
   it("maps presets to multi-effect policy payloads", () => {
@@ -168,6 +176,19 @@ describe("company-policy helpers", () => {
     expect(isCompanyWorkflowBlocked(hits)).toBe(true);
     expect(isAdvancingCandidateStatus("shortlisted")).toBe(true);
     expect(isAdvancingCandidateStatus("rejected")).toBe(false);
+  });
+
+  it("treats empty and unknown statuses as not advancing", () => {
+    expect(isAdvancingCandidateStatus("")).toBe(false);
+    expect(isAdvancingCandidateStatus("unknown")).toBe(false);
+  });
+
+  it("treats empty hits as not hidden", () => {
+    expect(isCompanyPolicyHidden([])).toBe(false);
+  });
+
+  it("treats empty hits as having no primary company policy", () => {
+    expect(primaryCompanyPolicyHit([])).toBeNull();
   });
 
   it("prefers durable companyKey stamps over surface strings", () => {

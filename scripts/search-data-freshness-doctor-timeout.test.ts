@@ -21,9 +21,17 @@ describe("search-data-freshness-doctor search-freshness fetch timeout", () => {
     expect(doctorSource).toContain("AbortSignal.timeout");
 
     // Extract the timeout value passed to AbortSignal.timeout.
-    const match = doctorSource.match(/AbortSignal\.timeout\(([\d_]+)\)/);
-    expect(match).not.toBeNull();
-    const timeoutMs = Number(match![1].replace(/_/g, ""));
-    expect(timeoutMs).toBeGreaterThan(300_000);
+    const matches = [...doctorSource.matchAll(/AbortSignal\.timeout\(([\d_]+)\)/g)];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+    const timeouts = matches.map((m) => Number(m[1]!.replace(/_/g, "")));
+    expect(timeouts[0]).toBeGreaterThan(300_000);
+    expect(timeouts[1]).toBeGreaterThan(300_000);
+  });
+
+  it("preferred HTTP 200 path uses resolveSearchFreshnessPreferredExit (missing hint is not 0)", () => {
+    expect(doctorSource).toContain("resolveSearchFreshnessPreferredExit");
+    expect(doctorSource).not.toMatch(
+      /return typeof body\.exitCodeHint === "number" \? body\.exitCodeHint : 0/,
+    );
   });
 });

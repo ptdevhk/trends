@@ -67,6 +67,12 @@ describe("ingest-compute-epoch", () => {
     expect(shouldSelectForReingest(row, "any", 9)).toBe(true);
   });
 
+  it("missing ingestData is false for skills-only and true for compute/any", () => {
+    expect(shouldSelectForReingest(undefined, "skills", 9)).toBe(false);
+    expect(shouldSelectForReingest(undefined, "compute", 9)).toBe(true);
+    expect(shouldSelectForReingest(undefined, "any", 9)).toBe(true);
+  });
+
   it("appends epoch 2 for the global verified-only role-year projection change", () => {
     expect(INGEST_COMPUTE_EPOCH_HISTORY).toContainEqual(
       expect.objectContaining({

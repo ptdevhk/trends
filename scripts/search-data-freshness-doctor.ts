@@ -7,10 +7,10 @@
  * is reachable.
  *
  * Exit codes:
- *   0 — ok (or API unreachable and only offline unit path used)
+ *   0 — ok, or login unreachable / unauthenticated offline note
  *   2 — compute-stale rows above threshold
  *   3 — golden query availability or semantic check failed
- *   1 — request/auth error
+ *   1 — request/auth error, or authenticated but lag unverifiable
  *
  * Usage:
  *   TRENDS_AUTH_USERNAME=demo-admin TRENDS_AUTH_PASSWORD=demo-admin \
@@ -20,6 +20,10 @@ import {
   CURRENT_INGEST_COMPUTE_EPOCH,
   SEARCH_FRESHNESS_GOLDEN_QUERIES,
 } from "@trends/shared";
+import {
+  resolveSearchFreshnessDoctorFallbackExit,
+  resolveSearchFreshnessPreferredExit,
+} from "./lib/search-freshness-doctor-exit.ts";
 
 type Args = {
   apiUrl: string;
@@ -182,7 +186,7 @@ async function main(): Promise<number> {
       } else {
         console.log(JSON.stringify(body, null, 2));
       }
-      return typeof body.exitCodeHint === "number" ? body.exitCodeHint : 0;
+      return resolveSearchFreshnessPreferredExit(body);
     }
     report.searchFreshnessHttp = res.status;
   } catch (error) {
@@ -204,6 +208,7 @@ async function main(): Promise<number> {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true, adaptive: true, maxScanPages: 3 }),
+      signal: AbortSignal.timeout(420_000),
     });
     if (reRes.ok) {
       report.dryRunReingest = await reRes.json();
@@ -251,15 +256,7 @@ async function main(): Promise<number> {
     console.log(JSON.stringify(report, null, 2));
   }
 
-  const dry = report.dryRunReingest as { computeStaleCount?: number } | undefined;
-  if (typeof dry?.computeStaleCount === "number" && dry.computeStaleCount >= 1) {
-    return 2;
-  }
-  const goldenList = report.goldenQueries as Array<{ ok?: boolean | null }> | undefined;
-  if (goldenList?.some((g) => g.ok === false)) {
-    return 3;
-  }
-  return 0;
+  return resolveSearchFreshnessDoctorFallbackExit(report);
 }
 
 main()

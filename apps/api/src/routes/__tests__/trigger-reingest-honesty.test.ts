@@ -177,6 +177,9 @@ describe("trigger-reingest honesty (F4/F5)", () => {
     expect(payload.lag.computeStale).toBe(200);
     expect(payload.lag.missingEpoch).toBe(200);
     expect(payload.messages.join(" ")).toContain("scan window INCOMPLETE");
+    expect(
+      (payload as { exitCodeHint?: number }).exitCodeHint,
+    ).toBe(2);
   });
 
   it("doctor marks a complete scan as complete", async () => {

@@ -21,6 +21,12 @@ describe('normalizeSearchQuery', () => {
   it('boundary-spaces a fully-joined query', () => {
     expect(normalizeSearchQuery('CNC机床销售Sales')).toBe('cnc 机床销售 sales')
   })
+
+  it('returns an empty string for empty or whitespace-only queries', () => {
+    expect(normalizeSearchQuery('')).toBe('')
+    expect(normalizeSearchQuery('   ')).toBe('')
+    expect(normalizeSearchQuery('\t\n')).toBe('')
+  })
 })
 
 describe('addScriptBoundarySpaces', () => {
