@@ -159,9 +159,6 @@ async function main(): Promise<void> {
   if (!options.allowLocalWrite) {
     fail('fixture setup is a local write; rerun with --allow-local-write')
   }
-  const convexUrl = assertLocalConvexUrl(options.convexUrl)
-  const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim()
-  if (!writeSecret) fail('CONVEX_WRITE_SECRET is required for local fixture setup')
   const fixture = readFixture(options.fixturePath)
   const manualApprovalCase = fixture.localSetup?.manualApprovalCase ?? `${fixture.namespace}/explicit-cnc`
   const configuredCompanyKeys = { ...(fixture.localSetup?.companyKeyByCase ?? {}) }
@@ -175,6 +172,10 @@ async function main(): Promise<void> {
     process.stdout.write(`${JSON.stringify(skippedExistingUatStateReport(options.stateFile, fixture.namespace), null, 2)}\n`)
     return
   }
+
+  const convexUrl = assertLocalConvexUrl(options.convexUrl)
+  const writeSecret = process.env.CONVEX_WRITE_SECRET?.trim()
+  if (!writeSecret) fail('CONVEX_WRITE_SECRET is required for local fixture setup')
 
   const client = new ConvexHttpClient(convexUrl)
   const query = <Args extends DefaultFunctionArgs, Result>(name: string, args: Args) => client.query(queryRef<Args, Result>(name), args as never) as Promise<Result>

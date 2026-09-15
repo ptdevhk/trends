@@ -24,4 +24,13 @@ describe("existing industry-review UAT state", () => {
     expect(src).toMatch(/skippedExistingUatStateReport/);
     expect(src).not.toMatch(/fail\(`state file already exists/);
   });
+
+  it("skips existing snapshots before requiring a Convex write secret", () => {
+    const src = readFileSync(new URL("./setup-local-uat.ts", import.meta.url), "utf8");
+    const skipIdx = src.indexOf("if (existingUatStateShouldSkip");
+    const secretIdx = src.indexOf("CONVEX_WRITE_SECRET is required");
+    expect(skipIdx).toBeGreaterThan(-1);
+    expect(secretIdx).toBeGreaterThan(-1);
+    expect(skipIdx).toBeLessThan(secretIdx);
+  });
 });
