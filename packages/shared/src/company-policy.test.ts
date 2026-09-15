@@ -182,6 +182,10 @@ describe("company-policy helpers", () => {
     expect(isAdvancingCandidateStatus("unknown")).toBe(false);
   });
 
+  it("treats empty hits as not hidden", () => {
+    expect(isCompanyPolicyHidden([])).toBe(false);
+  });
+
   it("prefers durable companyKey stamps over surface strings", () => {
     const policies = new Map([
       ["pro-technic-machinery", policyEffectsFromPreset("no_hire")],
