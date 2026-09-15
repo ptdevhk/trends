@@ -141,14 +141,28 @@ export async function closeUatBrowser(browser: Browser | null): Promise<void> {
 }
 
 export async function captureUatScreenshot(page: Page, path: string): Promise<void> {
+    // Attached CDP sessions often leave document.fonts unsettled forever;
+    // Playwright's screenshot then waits on fonts until timeout. Force a
+    // settled local stack before the first attempt, and treat remaining
+    // font timeouts as best-effort evidence (do not fail the role walk).
+    await page.evaluate(() => {
+        try {
+            const style = document.createElement("style");
+            style.setAttribute("data-uat-font-fallback", "1");
+            style.textContent = "* { font-family: system-ui, sans-serif !important; }";
+            document.head.appendChild(style);
+        } catch {
+            // ignore injection failures
+        }
+    });
     await page.evaluate(async () => {
         try {
             await Promise.race([
                 document.fonts.ready,
-                new Promise((resolve) => setTimeout(resolve, 1500)),
+                new Promise((resolve) => setTimeout(resolve, 500)),
             ]);
         } catch {
-            // Attached CDP sessions can leave document.fonts unsettled forever.
+            // ignore
         }
     });
 
@@ -159,14 +173,15 @@ export async function captureUatScreenshot(page: Page, path: string): Promise<vo
             return;
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            if (attempt === 1 || !/timeout|fonts/i.test(message)) {
-                throw err;
+            const fontOrTimeout = /timeout|fonts/i.test(message);
+            if (attempt === 0 && fontOrTimeout) {
+                continue;
             }
-            await page.evaluate(() => {
-                const style = document.createElement("style");
-                style.textContent = "* { font-family: system-ui, sans-serif !important; }";
-                document.head.appendChild(style);
-            });
+            if (fontOrTimeout) {
+                console.warn(`⚠️ Screenshot skipped (CDP font/timeout): ${path}`);
+                return;
+            }
+            throw err;
         }
     }
 }

@@ -80,6 +80,23 @@ describe("attached CDP teardown", () => {
         expect(src.match(/page\.screenshot\(/g)?.length).toBe(1);
         expect(src.match(/captureUatScreenshot\(/g)?.length).toBeGreaterThan(5);
     });
+
+    it("pre-injects system fonts and treats CDP font timeouts as best-effort", async () => {
+        const { captureUatScreenshot } = await import("./run-multi-role-uat");
+        const evaluateCalls: string[] = [];
+        const page = {
+            evaluate: async (fn: (() => unknown) | string) => {
+                evaluateCalls.push(typeof fn === "function" ? fn.toString() : String(fn));
+                return undefined;
+            },
+            screenshot: async () => {
+                throw new Error("page.screenshot: Timeout 8000ms exceeded.\nwaiting for fonts to load...");
+            },
+        };
+
+        await expect(captureUatScreenshot(page as never, "/tmp/uat-font-timeout.png")).resolves.toBeUndefined();
+        expect(evaluateCalls.some((src) => /system-ui/.test(src))).toBe(true);
+    });
 });
 
 describe("generateUatSummary", () => {
