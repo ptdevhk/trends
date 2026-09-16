@@ -136,7 +136,8 @@ export function SearchHero({
             <ModeToggle
               mode={aiModeEnabled ? 'ai' : 'original'}
               onModeChange={(mode) => onAiModeChange(mode === 'ai')}
-              aiStats={aiModeStats}
+              aiStats={loading ? undefined : aiModeStats}
+              disabled={loading}
             />
           </div>
         </div>
@@ -198,8 +199,12 @@ export function SearchHero({
                   >
                     <button
                       type="button"
-                      className="min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
-                      onClick={() =>
+                      className="min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={loading}
+                      onClick={() => {
+                        if (loading) {
+                          return
+                        }
                         void onApplyQuickStart?.({
                           keywords: seed.keywords,
                           location: seed.location,
@@ -209,7 +214,7 @@ export function SearchHero({
                           maxAge: seed.maxAge,
                           minExperience: seed.minExperience,
                         })
-                      }
+                      }}
                     >
                       <div className="truncate text-sm font-medium text-slate-900">
                         {seed.label}
@@ -265,8 +270,14 @@ export function SearchHero({
                 <button
                   key={keyword.id}
                   type="button"
-                  className="rounded-full border bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => void onToggleHotKeyword?.(keyword.keyword)}
+                  className="rounded-full border bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={loading}
+                  onClick={() => {
+                    if (loading) {
+                      return
+                    }
+                    void onToggleHotKeyword?.(keyword.keyword)
+                  }}
                   aria-label={t('resumes.searchPage.hero.searchKeyword', { keyword: keyword.keyword, defaultValue: 'Search for {{keyword}}' })}
                 >
                   {keyword.keyword}

@@ -1220,6 +1220,8 @@ function MemberPublicShareResults({
                 shareTitle={shareTitle ?? 'Shared resume search'}
                 state={shareState}
                 ensureApiSession={ensureShareSession}
+                // Match ResumeSearchPage: do not mint/copy a share of unsettled docs.
+                disabled={resultsLoading}
               />
             </div>
           </div>

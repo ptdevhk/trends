@@ -9,6 +9,11 @@ vi.mock('convex/react', () => ({
   useQuery: () => undefined,
 }))
 
+const useSearchPreloadMock = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useSearchPrefetch', () => ({
+  useSearchPreload: (...args: unknown[]) => useSearchPreloadMock(...args),
+}))
+
 const mockT = (key: string, options?: string | Record<string, unknown>) => {
   if (typeof options === 'string') {
     return options
@@ -342,6 +347,14 @@ describe('GoogleSearchBar', () => {
     await user.click(jdButton)
     expect(onClear).not.toHaveBeenCalled()
     expect(onApplyExtractedKeywords).not.toHaveBeenCalled()
+  })
+
+  it('skips search prefetch while the bar is loading', () => {
+    renderSearchBar({ value: 'machine tools', loading: true })
+    expect(useSearchPreloadMock).toHaveBeenCalledWith('machine tools', false)
+
+    renderSearchBar({ value: 'machine tools', loading: false })
+    expect(useSearchPreloadMock).toHaveBeenLastCalledWith('machine tools', true)
   })
 
   it('shows a keyboard shortcut hint badge for an empty query and hides it once the query is present', () => {

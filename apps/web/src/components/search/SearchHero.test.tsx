@@ -537,6 +537,39 @@ describe('SearchHero', () => {
     expect(onToggleHotKeyword).toHaveBeenCalledWith('CNC')
   })
 
+  it('disables ModeToggle, quick-start apply, and hot tags while loading', async () => {
+    const user = userEvent.setup()
+    const onToggleHotKeyword = vi.fn()
+    const onApplyQuickStart = vi.fn()
+    const onAiModeChange = vi.fn()
+
+    renderSearchHero({
+      loading: true,
+      aiModeEnabled: true,
+      aiModeStats: { avgScore: 80, matched: 3 },
+      hotKeywords: [buildHotKeyword()],
+      quickStarts: [buildQuickStart()],
+      onToggleHotKeyword,
+      onApplyQuickStart,
+      onAiModeChange,
+    })
+
+    const modeSwitch = screen.getByTestId('resume-ai-mode-switch')
+    const hotChip = screen.getByRole('button', { name: 'Search for CNC' })
+    const quickStart = screen.getByRole('button', { name: /China · Job5156 · CNC 销售/i })
+    expect(modeSwitch).toBeDisabled()
+    expect(hotChip).toBeDisabled()
+    expect(quickStart).toBeDisabled()
+    expect(screen.queryByText('3')).not.toBeInTheDocument()
+
+    await user.click(modeSwitch)
+    await user.click(hotChip)
+    await user.click(quickStart)
+    expect(onAiModeChange).not.toHaveBeenCalled()
+    expect(onToggleHotKeyword).not.toHaveBeenCalled()
+    expect(onApplyQuickStart).not.toHaveBeenCalled()
+  })
+
   it('renders duplicate hot keywords only once', () => {
     renderSearchHero({
       hotKeywords: [
