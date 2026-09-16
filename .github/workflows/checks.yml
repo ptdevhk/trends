@@ -74,6 +74,12 @@ jobs:
       - name: Run blacklist E2E gate
         run: npm --workspace @trends/web run test:e2e:blacklist
 
+      # Research desk hub: locale-deterministic + membership-agnostic, so the
+      # 66/71 UAT's harness/locale misses (dev-membership bounce, Accept-Language
+      # flip, en "feed" copy) cannot silently recur. Fully mocked API shell.
+      - name: Run research pulse hub E2E gate
+        run: npm --workspace @trends/web run test:e2e:research-pulse
+
       - name: Run agent policy checks
         run: make check-agent-policy
 
