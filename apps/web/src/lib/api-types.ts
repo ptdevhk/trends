@@ -13435,6 +13435,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/mp-briefing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build a briefing card list from pasted public WeChat official-account (mp) article URLs */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Public WeChat official-account article URLs (1–8). Accepted: mp.weixin.qq.com/s/<id> or legacy mp.weixin.qq.com/s?__biz=... . Channels sph is a separate lane.
+                         * @example [
+                         *       "https://mp.weixin.qq.com/s/AbC123xyz_89",
+                         *       "https://mp.weixin.qq.com/s?__biz=MzA3NDk&mid=2247&idx=1&sn=a1b2c3"
+                         *     ]
+                         */
+                        urls: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Briefing cards for the pasted mp articles (metadata-free; no WeChat scrape) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            briefing: {
+                                generatedAt: string;
+                                cards: {
+                                    url: string;
+                                    articleId?: string;
+                                    /** @enum {string} */
+                                    kind: "mp";
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid body or a URL not on the mp.weixin.qq.com allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/candidate-status": {
         parameters: {
             query?: never;
