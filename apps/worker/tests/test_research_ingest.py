@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
 from apps.worker.research_convex import ResearchConvexClient
 from apps.worker.research_ingest import (
     ResearchIngestJob,
     legacy_trendradar_crawl_enabled,
+    load_mp_connector_feeds,
+    load_rss_feeds,
     research_ingest_enabled,
     run_research_ingest,
 )
@@ -345,3 +349,170 @@ def test_load_rss_feeds_phase_b_werss_stubs_stay_commented():
     start = [a for p, a in rec.mutations if p == "research_ops:startIngestRun"][0]
     assert "rss:werss-cnc-diecast" in start["enabledPlatforms"]
     assert "werss-cnc-diecast" not in start["enabledPlatforms"]
+
+
+def _write_catalog(plugins: List[Dict[str, Any]], tmp_path: Path) -> Path:
+    path = tmp_path / "research-mp-connectors.yaml"
+    path.write_text(yaml.safe_dump({"plugins": plugins}, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+def test_connector_feed_id_derives_rss_platform_at_job_level():
+    """An enabled connector feed reaches enabledPlatforms as `rss:<id>`, never bare."""
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+    job = ResearchIngestJob(
+        client=client,
+        hotlist_port=StaticHotlistPort(items_by_platform={}),
+        rss_port=StaticRssPort(),
+        platforms=[],
+        rss_feeds=[{"id": "mp2rss-cnc-diecast", "url": "https://mp.example/feeds/mp1.xml"}],
+        now_ms=lambda: 1,
+    )
+    assert job.run() is True
+    start = [a for p, a in rec.mutations if p == "research_ops:startIngestRun"][0]
+    assert "rss:mp2rss-cnc-diecast" in start["enabledPlatforms"]
+    assert "mp2rss-cnc-diecast" not in start["enabledPlatforms"]
+
+
+def test_load_mp_connector_feeds_default_catalog_adds_zero_feeds():
+    """Shipped catalog: every plugin disabled + urls empty → zero extra feeds."""
+    feeds = load_mp_connector_feeds()
+    ids = {f["id"] for f in feeds}
+    assert ids == set()
+    assert not any("werss-" in i or "wechat2rss-" in i or "mp2rss-" in i for i in ids)
+    assert not any("wewe" in i for i in ids)
+
+
+def test_load_rss_feeds_default_shipped_catalog_adds_zero_extra_ids():
+    """End-to-end default: config.yaml feeds only; the shipped catalog adds nothing."""
+    ids = {f["id"] for f in load_rss_feeds()}
+    assert "gnews-fanuc-cn" in ids
+    assert not any(
+        i.startswith(("werss-", "wechat2rss-", "mp2rss-", "wewe-")) for i in ids
+    )
+
+
+def test_load_rss_feeds_merges_enabled_connector_after_config_yaml(tmp_path):
+    """With a real config.yaml stub + an enabled mp2rss plugin + a URL, the feed is merged."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "rss": {
+                    "enabled": True,
+                    "feeds": [{"id": "gnews-fanuc-cn", "url": "https://g.example/rss"}],
+                }
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+    catalog = _write_catalog(
+        [
+            {
+                "id": "mp2rss",
+                "kind": "saas",
+                "enabled": True,
+                "feeds": [
+                    {"id": "mp2rss-cnc-diecast", "url": "https://mp.example/feeds/mp1.xml"}
+                ],
+            }
+        ],
+        tmp_path,
+    )
+    feeds = load_rss_feeds(config_path=cfg, connectors_path=catalog)
+    ids = [f["id"] for f in feeds]
+    assert "gnews-fanuc-cn" in ids
+    assert "mp2rss-cnc-diecast" in ids
+    # Connector feeds merge AFTER config.yaml rss.feeds.
+    assert ids.index("mp2rss-cnc-diecast") > ids.index("gnews-fanuc-cn")
+
+
+def test_load_rss_feeds_enabled_connector_without_url_never_reaches_rss_port(tmp_path):
+    """An enabled-but-URL-less connector feed must not appear in the job's feed list."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        yaml.safe_dump({"rss": {"enabled": True, "feeds": []}}, allow_unicode=True),
+        encoding="utf-8",
+    )
+    catalog = _write_catalog(
+        [{"id": "mp2rss", "enabled": True, "feeds": [{"id": "mp2rss-cnc-diecast", "url": ""}]}],
+        tmp_path,
+    )
+    feeds = load_rss_feeds(config_path=cfg, connectors_path=catalog)
+    assert feeds == []
+
+    # End-to-end: the job never calls the RSS port for that id.
+    fetched: List[str] = []
+
+    class RecordingRss:
+        def fetch(self, feed_id: str, feed_url: str, captured_at: int):
+            fetched.append(feed_id)
+            return []
+
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+    job = ResearchIngestJob(
+        client=client,
+        hotlist_port=StaticHotlistPort(items_by_platform={}),
+        rss_port=RecordingRss(),
+        platforms=[],
+        rss_feeds=feeds,
+        now_ms=lambda: 1,
+    )
+    assert job.run() is True
+    assert fetched == []
+    start = [a for p, a in rec.mutations if p == "research_ops:startIngestRun"][0]
+    assert not any("mp2rss" in p for p in start["enabledPlatforms"])
+
+
+def test_load_mp_connector_feeds_enabled_but_empty_url_excluded_and_error(tmp_path, caplog):
+    """Enabled plugin + empty/missing url → HARD SKIP (excluded) with an error log."""
+    catalog = _write_catalog(
+        [
+            {
+                "id": "mp2rss",
+                "enabled": True,
+                "feeds": [{"id": "mp2rss-cnc-diecast", "url": ""}],
+            }
+        ],
+        tmp_path,
+    )
+    with caplog.at_level("ERROR", logger="apps.worker.research_ingest"):
+        feeds = load_mp_connector_feeds(catalog)
+    ids = {f["id"] for f in feeds}
+    assert "mp2rss-cnc-diecast" not in ids
+    assert any("enabled but has no url" in r.message for r in caplog.records)
+
+
+def test_load_mp_connector_feeds_wewe_rss_never_ingested(tmp_path, caplog):
+    """wewe-rss (archived) is refused even if someone flips enabled to true."""
+    catalog = _write_catalog(
+        [
+            {
+                "id": "wewe-rss",
+                "status": "archived",
+                "enabled": True,
+                "feeds": [
+                    {"id": "wewe-rss-cnc-diecast", "url": "https://w.example/feeds/mp1.xml"}
+                ],
+            }
+        ],
+        tmp_path,
+    )
+    with caplog.at_level("ERROR", logger="apps.worker.research_ingest"):
+        feeds = load_mp_connector_feeds(catalog)
+    ids = {f["id"] for f in feeds}
+    assert "wewe-rss-cnc-diecast" not in ids
+    assert any("archived" in r.message for r in caplog.records)

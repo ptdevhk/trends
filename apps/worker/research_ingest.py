@@ -63,7 +63,84 @@ def load_enabled_platforms(config_path: Optional[Path] = None) -> List[str]:
     return [str(s["id"]) for s in sources if isinstance(s, dict) and s.get("id")]
 
 
-def load_rss_feeds(config_path: Optional[Path] = None) -> List[Dict[str, str]]:
+def default_mp_connectors_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "config" / "research-mp-connectors.yaml"
+
+
+def load_mp_connector_feeds(connectors_path: Optional[Path] = None) -> List[Dict[str, str]]:
+    """Opt-in mp (公众号 → RSS) connector feeds from the static catalog.
+
+    NOT a plugin runtime: this only reads `config/research-mp-connectors.yaml`
+    and returns feeds from plugins the operator explicitly set `enabled: true`.
+
+    Rules (fail-safe, no network, no sidecar contact):
+      - plugin `enabled` must be exactly True (truthy is not enough) to be considered;
+      - a plugin with `status: archived` is skipped unconditionally (error log only
+        when someone actually enabled it) — e.g. `wewe-rss`;
+      - `enabled: true` + a non-empty `url` → feed included;
+      - `enabled: true` + empty/missing `url` → HARD SKIP with an error log; the
+        feed id is never returned, so it can never reach HttpRssPort.
+
+    Platform derivation (`rss:{id}`) stays in `research_ports.parse_rss_xml` /
+    `ResearchIngestJob.run` — this function returns plain `{id, url}` feeds.
+    """
+    path = connectors_path or default_mp_connectors_path()
+    if not path.is_file():
+        return []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            catalog = yaml.safe_load(handle) or {}
+    except (OSError, yaml.YAMLError) as error:
+        logger.warning("Failed to load mp connector catalog: %s", error)
+        return []
+
+    plugins = catalog.get("plugins") or []
+    if not isinstance(plugins, list):
+        logger.warning("mp connector catalog `plugins` is not a list; ignoring")
+        return []
+
+    feeds: List[Dict[str, str]] = []
+    for plugin in plugins:
+        if not isinstance(plugin, dict):
+            continue
+        plugin_id = str(plugin.get("id") or "unknown")
+        enabled = plugin.get("enabled") is True
+        if str(plugin.get("status") or "").strip().lower() == "archived":
+            # Refuse archived connectors outright. Only log loudly when someone
+            # actually enabled one — a disabled archived entry is expected state
+            # and would otherwise log an error on every ingest cycle.
+            if enabled:
+                logger.error(
+                    "mp connector %s is archived; refusing to ingest its feeds", plugin_id
+                )
+            continue
+        if not enabled:
+            continue
+        raw_feeds = plugin.get("feeds") or []
+        if not isinstance(raw_feeds, list):
+            continue
+        for feed in raw_feeds:
+            if not isinstance(feed, dict):
+                continue
+            feed_id = feed.get("id")
+            if not feed_id:
+                continue
+            url = str(feed.get("url") or "").strip()
+            if not url:
+                logger.error(
+                    "mp connector %s feed %s is enabled but has no url; skipping",
+                    plugin_id,
+                    feed_id,
+                )
+                continue
+            feeds.append({"id": str(feed_id), "url": url})
+    return feeds
+
+
+def load_rss_feeds(
+    config_path: Optional[Path] = None,
+    connectors_path: Optional[Path] = None,
+) -> List[Dict[str, str]]:
     path = config_path or Path(__file__).resolve().parents[2] / "config" / "config.yaml"
     if not path.is_file():
         return []
@@ -89,6 +166,17 @@ def load_rss_feeds(config_path: Optional[Path] = None) -> List[Dict[str, str]]:
         url = source.get("url")
         if feed_id and url:
             feeds.append({"id": str(feed_id), "url": str(url)})
+
+    # Opt-in mp connector feeds merge AFTER config.yaml rss.feeds. The shipped
+    # catalog has every plugin disabled (and every url empty), so the default
+    # adds zero feeds; an operator opts in per the runbook.
+    seen_ids = {feed["id"] for feed in feeds}
+    for feed in load_mp_connector_feeds(connectors_path):
+        if feed["id"] in seen_ids:
+            logger.warning("mp connector feed %s duplicates an rss.feeds id; skipping", feed["id"])
+            continue
+        seen_ids.add(feed["id"])
+        feeds.append(feed)
     return feeds
 
 
@@ -288,6 +376,8 @@ __all__ = [
     "legacy_trendradar_crawl_enabled",
     "load_enabled_platforms",
     "load_rss_feeds",
+    "load_mp_connector_feeds",
+    "default_mp_connectors_path",
     "StaticHotlistPort",
     "StaticRssPort",
 ]

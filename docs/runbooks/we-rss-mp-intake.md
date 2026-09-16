@@ -16,11 +16,58 @@ Plan: `projects/trends/work/2026-09-16-research-wechat-mp-rss-intake/plan.md`
 | Fork | Notes |
 |------|-------|
 | [we-mp-rss](https://github.com/rachelos/we-mp-rss) | Python; scrape-style with scheduled polling. |
-| [wewe-rss](https://github.com/cooderl/wewe-rss) | Node; reads via **WeRead**; QR login, stable feed URLs. |
+| [wewe-rss](https://github.com/cooderl/wewe-rss) | Node; reads via **WeRead**; QR login, stable feed URLs. **ARCHIVED upstream — do not choose.** |
 
 Host: local `macos-dev` (dev only) **or** a `ptcloud` sidecar (shared/preview).
 Prefer the sidecar for anything other than a one-off local test — the login
 session must persist, and dev laptops sleep.
+
+### 1a. Connector catalog (`config/research-mp-connectors.yaml`)
+
+`config/research-mp-connectors.yaml` is the **opt-in connector catalog** for mp
+(公众号 → RSS) sources. It is a *static catalog*, **not a plugin runtime**: nothing
+in it installs, authenticates, or starts anything, and no code contacts a
+connector until an operator enables a feed with a real URL.
+
+| Plugin | `kind` | Recommendation | Notes |
+|--------|--------|----------------|-------|
+| `we-mp-rss` | `self-host` | **recommended** | Self-hosted; needs the §2 install + login on the host. |
+| `wechat2rss` | `hosted-mirror` | not recommended | Externally owned mirror; availability/ToS vary. No local install. |
+| `mp2rss` | `saas` | not recommended | SaaS; requires an Mp2RSS signup **by the operator** (not done here, no QR flow in this repo). |
+| `wewe-rss` | `self-host` | **do not use** | `status: archived` — preserved for awareness only; `load_mp_connector_feeds()` skips it unconditionally, even if `enabled: true`. |
+
+**Every shipped plugin is `enabled: false` and every example feed has an empty
+`url:`, so the default adds zero feeds** — `load_rss_feeds()` returns exactly the
+`config.yaml rss.feeds` set.
+
+To enable one later (operator, after §2):
+
+1. Set that plugin's `enabled: true` in `config/research-mp-connectors.yaml`.
+2. Paste the **real** feed URL into its feed's `url:` (e.g.
+   `http://127.0.0.1:<port>/feeds/<mp_id>.xml`, or the hosted mirror's URL).
+3. Restart the worker (or wait for the next scheduled run).
+
+`load_rss_feeds()` merges enabled connector feeds **after** `config.yaml rss.feeds`.
+A feed whose plugin is `enabled: true` but whose `url` is empty/missing is a
+**hard skip with an error log** — that id is never returned, so it can never reach
+`HttpRssPort`. An archived plugin (`wewe-rss`) is skipped with an error regardless
+of its `enabled` flag.
+
+Example feed ids (all currently disabled, empty `url`):
+
+| Feed id | Platform on ingest |
+|---------|--------------------|
+| `werss-cnc-diecast` | `rss:werss-cnc-diecast` |
+| `wechat2rss-cnc-diecast` | `rss:wechat2rss-cnc-diecast` |
+| `mp2rss-cnc-diecast` | `rss:mp2rss-cnc-diecast` |
+
+The `rss:` prefix lock below (§3) applies to **every** connector id, not just the
+WeRSS fork: the id in the catalog must stay bare (`mp2rss-cnc-diecast`) because the
+worker derives `platform = f"rss:{feed_id}"`.
+
+> This PR ships the catalog + loader only. It does **not** install a connector,
+> perform a WeChat/WeRead login/QR scan, run `docker`, sign up for Mp2RSS, or scrape
+> `mp.weixin.qq.com`.
 
 Record here once chosen:
 
@@ -84,11 +131,12 @@ directly; no code change is needed.
 ## 5. Wire Trends research ingest (same file, same entries)
 
 Trends reads the **same** `rss.feeds` list via
-`apps/worker/research_ingest.py:load_rss_feeds()`, and the running job is
+`apps/worker/research_ingest.py:load_rss_feeds()`, which also merges any enabled
+feeds from `config/research-mp-connectors.yaml` (§1a). The running job is
 gated by `RESEARCH_INGEST_ENABLED=1` (`add_research_ingest_job`,
-`apps/worker/scheduler.py:239`). So step 4 is the whole wiring — restart the
+`apps/worker/scheduler.py:239`). So steps 4 + 1a are the whole wiring — restart the
 worker (or let the next scheduled run fire) and the new feeds flow into
-`news_items` as `rss:werss-*`.
+`news_items` as `rss:werss-*` / `rss:<connector-id>`.
 
 Trigger a run on demand:
 

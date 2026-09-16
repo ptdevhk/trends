@@ -120,6 +120,26 @@ def test_parse_rss_xml_werss_platform_derivation():
     assert items[0].platform.startswith("rss:")
 
 
+def test_parse_rss_xml_mp_connector_ids_stay_on_rss_lane():
+    """Every mp-connector feed id derives `rss:<id>` — never a bare hotlist platform.
+
+    Guards the connector-catalog ids (werss-*, wechat2rss-*, mp2rss-*) against the
+    `rss:` prefix lock: a bare `mp2rss-cnc-diecast` platform would be classified as
+    a NewsNow hotlist platform by the backend and leak into the titled 综合热榜.
+    """
+    xml = (
+        '<?xml version="1.0"?><rss version="2.0"><channel>'
+        "<item><title>压铸新闻</title><link>http://x/1</link><guid>g1</guid></item>"
+        "</channel></rss>"
+    )
+    for feed_id in ("werss-cnc-diecast", "wechat2rss-cnc-diecast", "mp2rss-cnc-diecast"):
+        items = parse_rss_xml(feed_id, xml, captured_at=1)
+        assert len(items) == 1, feed_id
+        assert items[0].platform == f"rss:{feed_id}"
+        assert items[0].source_id == feed_id
+        assert items[0].platform.startswith("rss:")
+
+
 def test_parse_newsnow_accepts_cache_status():
     items = parse_newsnow_payload(
         "baidu",
