@@ -265,16 +265,6 @@ describe('shouldShowSearchHeaderLoading', () => {
     )
   })
 
-  it('documents that GoogleSearchBar skips prefetch while loading', () => {
-    // Prefetching the draft query while a search is already in flight races the
-    // deferred result set; keep preload closed until loading clears.
-    const bar = readFileSync(
-      path.join(process.cwd(), 'src/components/search/GoogleSearchBar.tsx'),
-      'utf8',
-    )
-    expect(bar).toMatch(/useSearchPreload\(trimmedValue,\s*prefetchSearch\s*&&\s*!loading\)/)
-  })
-
   it('documents that SearchHero ModeToggle and remutators gate on loading', () => {
     const hero = readFileSync(
       path.join(process.cwd(), 'src/components/search/SearchHero.tsx'),

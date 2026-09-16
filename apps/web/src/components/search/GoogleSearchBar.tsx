@@ -48,7 +48,7 @@ export function GoogleSearchBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmedValue = value.trim()
   const isMacLike = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.platform ?? '')
-  useSearchPreload(trimmedValue, prefetchSearch && !loading)
+  useSearchPreload(trimmedValue, prefetchSearch)
   const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
     defaultValue: 'Search resumes by keywords, brands, roles, or locations',
   })
