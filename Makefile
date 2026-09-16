@@ -1500,7 +1500,7 @@ check-build: check
 # leaked into api tests on pvelxc (2026-09-06); unset them so runner shells
 # stay deterministic. Keep in sync with scripts/lib/ci-local-env.ts.
 ci-local:
-	@env -u CONVEX_DEPLOYMENT -u AI_FALLBACK_MODEL -u AUTH_HR_DEMO_TOKEN $(MAKE) ci-local-gates
+	@env -u CONVEX_DEPLOYMENT -u AI_FALLBACK_MODEL -u AI_MODEL -u AUTH_HR_DEMO_TOKEN $(MAKE) ci-local-gates
 
 ci-local-gates:
 	@bash scripts/check-node-version.sh

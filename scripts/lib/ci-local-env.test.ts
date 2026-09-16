@@ -22,6 +22,7 @@ describe("scrubCiLocalEnv", () => {
       scrubCiLocalEnv({
         CONVEX_DEPLOYMENT: "anonymous",
         AI_FALLBACK_MODEL: "openai/leaky-profile-model",
+        AI_MODEL: "openai/leaky-profile-model",
         AUTH_HR_DEMO_TOKEN: "desk-token",
         PATH: "/usr/bin",
         CI: "true",
@@ -36,6 +37,7 @@ describe("scrubCiLocalEnv", () => {
     expect([...CI_LOCAL_SCRUB_KEYS]).toEqual([
       "CONVEX_DEPLOYMENT",
       "AI_FALLBACK_MODEL",
+      "AI_MODEL",
       "AUTH_HR_DEMO_TOKEN",
     ]);
   });
