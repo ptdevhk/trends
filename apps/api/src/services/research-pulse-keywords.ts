@@ -21,6 +21,10 @@ export type PulseKeywordHit = {
   keyword: string;
   hitCount: number;
   sampleTitles: string[];
+  /** Keyword hits on NewsNow / non-`rss:*` platforms (honest 热榜 count). */
+  hotlistHitCount?: number;
+  /** Keyword hits on `rss:*` brand/subscription feeds (honest 订阅 count). */
+  rssHitCount?: number;
 };
 
 export function emptyPulseKeywordsWorkspace(): PulseKeywordsWorkspaceValue {

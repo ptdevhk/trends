@@ -9,7 +9,18 @@ const getMock = vi.fn()
 const postMock = vi.fn()
 const putMock = vi.fn()
 
-const mockT = (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key;
+// Emulate i18next interpolation so `{{key}}` placeholders resolve from options.
+const mockT = (_key: string, options?: { defaultValue?: string } & Record<string, unknown>) => {
+  let text = options?.defaultValue ?? _key
+  if (options) {
+    for (const [k, v] of Object.entries(options)) {
+      if (k === 'defaultValue') continue
+      // `replace` with a global regex (es2021 `replaceAll` is not in the web tsconfig lib).
+      text = text.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), String(v))
+    }
+  }
+  return text
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -117,11 +128,23 @@ const defaultKeywords = [
   '宝力机械',
 ]
 
-function buildKeywordHits(overrides: Record<string, { hitCount: number; sampleTitles?: string[] }> = {}) {
+function buildKeywordHits(
+  overrides: Record<
+    string,
+    {
+      hitCount: number
+      sampleTitles?: string[]
+      hotlistHitCount?: number
+      rssHitCount?: number
+    }
+  > = {},
+) {
   return defaultKeywords.map((keyword) => ({
     keyword,
     hitCount: overrides[keyword]?.hitCount ?? 0,
     sampleTitles: overrides[keyword]?.sampleTitles ?? [],
+    hotlistHitCount: overrides[keyword]?.hotlistHitCount ?? overrides[keyword]?.hitCount ?? 0,
+    rssHitCount: overrides[keyword]?.rssHitCount ?? 0,
   }))
 }
 
@@ -189,6 +212,8 @@ const pulseWithItems = {
     effectiveKeywords: defaultKeywords,
     rawCount: 40,
     matchedCount: 2,
+    hotlistMatchedCount: 2,
+    rssMatchedCount: 0,
     keywordHits: buildKeywordHits({
       加工中心: { hitCount: 1, sampleTitles: ['发那科加工中心扩产'] },
       机床: { hitCount: 1, sampleTitles: ['牧野机床订单'] },
@@ -211,7 +236,61 @@ const pulseSoftEmpty = {
     effectiveKeywords: defaultKeywords,
     rawCount: 40,
     matchedCount: 0,
+    hotlistMatchedCount: 0,
+    rssMatchedCount: 0,
     keywordHits: buildKeywordHits(),
+  },
+}
+
+const pulseSoftEmptyWithRssMeta = {
+  success: true,
+  items: [] as Array<{
+    title: string
+    platform: string
+    capturedAt: number
+    matchedKeywords: string[]
+  }>,
+  meta: {
+    filtered: true,
+    effectiveKeywords: defaultKeywords,
+    rawCount: 40,
+    matchedCount: 0,
+    hotlistMatchedCount: 0,
+    rssMatchedCount: 2,
+    keywordHits: buildKeywordHits({
+      发那科: { hitCount: 0, sampleTitles: [], hotlistHitCount: 0, rssHitCount: 1 },
+      数控: { hitCount: 0, sampleTitles: [], hotlistHitCount: 0, rssHitCount: 1 },
+    }),
+  },
+}
+
+const pulseRssFallbackItems = {
+  success: true,
+  items: [
+    {
+      title: '发那科推出新一代数控系统',
+      platform: 'rss:gnews-fanuc-cn',
+      capturedAt: Date.now() - 60_000,
+      matchedKeywords: ['发那科', '数控'],
+    },
+    {
+      title: '东风科技一体化压铸',
+      platform: 'rss:gnews-cnc-machine',
+      capturedAt: Date.now() - 120_000,
+      matchedKeywords: ['数控'],
+    },
+  ],
+  meta: {
+    filtered: true,
+    effectiveKeywords: defaultKeywords,
+    rawCount: 50,
+    matchedCount: 2,
+    hotlistMatchedCount: 0,
+    rssMatchedCount: 2,
+    keywordHits: buildKeywordHits({
+      发那科: { hitCount: 1, sampleTitles: ['发那科推出新一代数控系统'], hotlistHitCount: 0, rssHitCount: 1 },
+      数控: { hitCount: 2, sampleTitles: ['发那科推出新一代数控系统'], hotlistHitCount: 0, rssHitCount: 2 },
+    }),
   },
 }
 
@@ -236,11 +315,18 @@ const pulseAllItems = {
     effectiveKeywords: defaultKeywords,
     rawCount: 40,
     matchedCount: 0,
+    hotlistMatchedCount: 0,
+    rssMatchedCount: 0,
     keywordHits: buildKeywordHits(),
   },
 }
 
-function mockGetDefault(pulsePayload: typeof pulseWithItems | typeof pulseSoftEmpty = pulseWithItems) {
+function mockGetDefault(
+  pulsePayload:
+    | typeof pulseWithItems
+    | typeof pulseSoftEmpty
+    | typeof pulseSoftEmptyWithRssMeta = pulseWithItems,
+) {
   getMock.mockImplementation(async (path: string, options?: { params?: { query?: Record<string, unknown> } }) => {
     if (path === '/api/research/showcase') {
       return { data: showcasePayload }
@@ -256,8 +342,12 @@ function mockGetDefault(pulsePayload: typeof pulseWithItems | typeof pulseSoftEm
     }
     if (path === '/api/research/pulse') {
       const all = options?.params?.query?.all
+      const hotlistOnly = options?.params?.query?.hotlistOnly
       if (all === 1 || all === '1' || all === true) {
         return { data: pulseAllItems }
+      }
+      if (hotlistOnly === 0 || hotlistOnly === '0' || hotlistOnly === false) {
+        return { data: pulseRssFallbackItems }
       }
       return { data: pulsePayload }
     }
@@ -538,6 +628,91 @@ describe('ResearchIndexPage hub', () => {
       '当前显示未过滤热榜 2/40 条 · 当前关键词命中 0 条',
     )
     expect(screen.queryByTestId('research-pulse-soft-empty')).not.toBeInTheDocument()
+  })
+
+  it('soft-empty with rssMatchedCount loads RSS fallback list and honest dual chip counts', async () => {
+    mockGetDefault(pulseSoftEmptyWithRssMeta)
+
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-pulse-soft-empty')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('research-pulse-soft-empty')).toHaveTextContent(
+      '热榜关键词未命中。已显示行业订阅',
+    )
+
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        '/api/research/pulse',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            query: expect.objectContaining({ hotlistOnly: 0 }),
+          }),
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('发那科推出新一代数控系统')).toBeInTheDocument()
+    })
+    const rssItems = screen.getAllByTestId('research-pulse-item')
+    expect(rssItems.length).toBeGreaterThanOrEqual(1)
+    expect(rssItems[0]).toHaveAttribute('data-source', 'rss')
+    expect(within(rssItems[0]!).getByTestId('research-pulse-platform')).toHaveTextContent('RSS')
+
+    const fanucChip = screen
+      .getAllByTestId('research-pulse-chip')
+      .find((el) => el.getAttribute('data-keyword') === '发那科')
+    expect(fanucChip).toBeTruthy()
+    expect(fanucChip).toHaveTextContent('热榜 0 · 订阅 1')
+  })
+
+  it('soft-empty: clicking an RSS-hit chip refetches the fallback scoped to that keyword (A2b chip/list consistency)', async () => {
+    mockGetDefault(pulseSoftEmptyWithRssMeta)
+
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    // RSS fallback list renders.
+    await waitFor(() => {
+      expect(screen.getByText('发那科推出新一代数控系统')).toBeInTheDocument()
+    })
+
+    const fanucChip = screen
+      .getAllByTestId('research-pulse-chip')
+      .find((el) => el.getAttribute('data-keyword') === '发那科')
+    expect(fanucChip).toBeTruthy()
+
+    // Click the 发那科 chip (hotlistHitCount=0, rssHitCount=1) → refetch scoped to it.
+    fireEvent.click(fanucChip!)
+
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        '/api/research/pulse',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            query: expect.objectContaining({ hotlistOnly: 0, keyword: '发那科' }),
+          }),
+        }),
+      )
+    })
+
+    // Focused list shows only rows matching 发那科 (发那科推出新一代数控系统), not the
+    // non-FANUC 东风科技 row — chip 订阅 count (1) matches the rendered rows.
+    await waitFor(() => {
+      expect(screen.getByText('发那科推出新一代数控系统')).toBeInTheDocument()
+    })
+    const focusedItems = screen.getAllByTestId('research-pulse-item')
+    expect(focusedItems).toHaveLength(1)
+    expect(focusedItems[0]).toHaveTextContent('发那科推出新一代数控系统')
   })
 
   it('hides empty showcase and catalog sections when no data is available', async () => {
