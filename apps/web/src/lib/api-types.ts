@@ -13172,10 +13172,14 @@ export interface paths {
                                 effectiveKeywords: string[];
                                 rawCount: number;
                                 matchedCount: number;
+                                hotlistMatchedCount: number;
+                                rssMatchedCount: number;
                                 keywordHits: {
                                     keyword: string;
                                     hitCount: number;
                                     sampleTitles: string[];
+                                    hotlistHitCount?: number;
+                                    rssHitCount?: number;
                                 }[];
                             };
                         };

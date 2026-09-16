@@ -3085,7 +3085,10 @@
       "save": "保存",
       "saving": "保存中…",
       "showAll": "查看未过滤热榜",
-      "softEmpty": "当前关键词未命中近期资讯，可显示全部或调整关键词。"
+      "softEmpty": "当前关键词未命中近期资讯，可显示全部或调整关键词。",
+      "softEmptyRss": "No hotlist keyword hits. Showing industry subscriptions (Google News / WeChat RSS).",
+      "chipDualCount": "hotlist {{hotlist}} · feed {{rss}}",
+      "sourceRss": "RSS"
     },
     "pulseLoadError": "Failed to load hotlist",
     "pulseResolvedCompany": "企业研究 · {{companyName}}",

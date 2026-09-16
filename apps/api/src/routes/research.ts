@@ -641,11 +641,15 @@ const getPulseRoute = createRoute({
               effectiveKeywords: z.array(z.string()),
               rawCount: z.number(),
               matchedCount: z.number(),
+              hotlistMatchedCount: z.number(),
+              rssMatchedCount: z.number(),
               keywordHits: z.array(
                 z.object({
                   keyword: z.string(),
                   hitCount: z.number(),
                   sampleTitles: z.array(z.string()),
+                  hotlistHitCount: z.number().optional(),
+                  rssHitCount: z.number().optional(),
                 }),
               ),
             }),

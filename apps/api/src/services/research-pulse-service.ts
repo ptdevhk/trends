@@ -52,6 +52,10 @@ export type ResearchPulseResult = {
     effectiveKeywords: string[];
     rawCount: number;
     matchedCount: number;
+    /** Keyword-matched items on NewsNow / non-`rss:*` platforms. */
+    hotlistMatchedCount: number;
+    /** Keyword-matched items on `rss:*` feeds. */
+    rssMatchedCount: number;
     keywordHits: PulseKeywordHit[];
   };
 };
@@ -181,7 +185,18 @@ function resolvePulseMatchedCompanies(
   return resolved;
 }
 
-/** NewsNow hotlist platforms only — exclude RSS brand feeds (`rss:*`). */
+/**
+ * NewsNow hotlist platforms only — exclude RSS brand feeds (`rss:*`).
+ *
+ * NOTE: this is a *negative* test — anything that does NOT start with `rss:` is
+ * treated as a NewsNow hotlist platform. That means any non-`rss:` subscription
+ * prefix (e.g. `werss:` / `wechat:` / `mp:` or a bare account name) would be
+ * misclassified as hotlist and leak into the titled 综合热榜 + hotlist counts.
+ * WeRSS feeds MUST be pinned to the `rss:` lane (recommended `rss:werss-*`) before
+ * wiring; if a non-`rss:` subscription prefix ever becomes necessary, invert this
+ * to an explicit hotlist-platform allowlist so unknown prefixes fail safe. See
+ * research-pulse-service.test.ts `isHotlistPlatform:` regression.
+ */
 export function isHotlistPlatform(platform: string): boolean {
   const p = platform.trim().toLowerCase();
   if (!p) return false;
@@ -243,6 +258,91 @@ function matchesFocusKeyword(
   return haystack.includes(focus);
 }
 
+type AnnotatedNews = ResearchNewsItem & { matchedKeywords: string[] };
+
+function partitionMatchedByPlatform(annotated: AnnotatedNews[]): {
+  hotlistMatched: AnnotatedNews[];
+  rssMatched: AnnotatedNews[];
+} {
+  const hotlistMatched: AnnotatedNews[] = [];
+  const rssMatched: AnnotatedNews[] = [];
+  for (const item of annotated) {
+    if (item.matchedKeywords.length === 0) continue;
+    if (isHotlistPlatform(item.platform)) {
+      hotlistMatched.push(item);
+    } else {
+      rssMatched.push(item);
+    }
+  }
+  return { hotlistMatched, rssMatched };
+}
+
+function mergeKeywordHitSplits(
+  primaryHits: PulseKeywordHit[],
+  hotlistHits: PulseKeywordHit[],
+  rssHits: PulseKeywordHit[],
+): PulseKeywordHit[] {
+  const hotlistByKw = new Map(hotlistHits.map((h) => [h.keyword, h]));
+  const rssByKw = new Map(rssHits.map((h) => [h.keyword, h]));
+  return primaryHits.map((entry) => {
+    const hotlistHitCount = hotlistByKw.get(entry.keyword)?.hitCount ?? 0;
+    const rssHitCount = rssByKw.get(entry.keyword)?.hitCount ?? 0;
+    return {
+      ...entry,
+      hotlistHitCount,
+      rssHitCount,
+    };
+  });
+}
+
+/**
+ * Load a mixed (hotlist + `rss:*`) window partitioned by `isHotlistPlatform` to
+ * compute `meta.hotlistMatchedCount` / `meta.rssMatchedCount` and the per-keyword
+ * `hotlistHitCount` / `rssHitCount` splits.
+ *
+ * CAVEAT: this is a capped `limit:100` window — an APPROXIMATION, not an exact
+ * corpus total. `meta.matchedCount` comes from per-platform slices, so the two
+ * can diverge (e.g. high-volume RSS crowding the 100-row window under-reports
+ * hotlist). Acceptable for the soft-empty trigger (gated on `rawCount>0`), but
+ * operators should not treat these counts as exact totals.
+ */
+async function loadMixedAnnotatedForMeta(
+  effective: string[],
+): Promise<AnnotatedNews[]> {
+  const mixedRaw = await listResearchNews({ limit: 100 });
+  const sorted = [...mixedRaw].sort((a, b) => b.capturedAt - a.capturedAt);
+  return annotateNewsByKeywords(sorted, effective);
+}
+
+function buildPulseMeta(args: {
+  filtered: boolean;
+  effective: string[];
+  rawCount: number;
+  matchedCount: number;
+  annotatedForHits: AnnotatedNews[];
+  mixedAnnotated: AnnotatedNews[];
+}): ResearchPulseResult["meta"] {
+  const { hotlistMatched, rssMatched } = partitionMatchedByPlatform(args.mixedAnnotated);
+  const hotlistHits = analyzeKeywordHits(
+    args.mixedAnnotated.filter((item) => isHotlistPlatform(item.platform)),
+    args.effective,
+  );
+  const rssHits = analyzeKeywordHits(
+    args.mixedAnnotated.filter((item) => !isHotlistPlatform(item.platform)),
+    args.effective,
+  );
+  const primaryHits = analyzeKeywordHits(args.annotatedForHits, args.effective);
+  return {
+    filtered: args.filtered,
+    effectiveKeywords: args.effective,
+    rawCount: args.rawCount,
+    matchedCount: args.matchedCount,
+    hotlistMatchedCount: hotlistMatched.length,
+    rssMatchedCount: rssMatched.length,
+    keywordHits: mergeKeywordHitSplits(primaryHits, hotlistHits, rssHits),
+  };
+}
+
 export async function getResearchPulse(
   workspaceSlug: string,
   opts: { limit?: number; all?: boolean; hotlistOnly?: boolean; keyword?: string } = {},
@@ -260,10 +360,14 @@ export async function getResearchPulse(
   const rawCount = sorted.length;
   const annotated = annotateNewsByKeywords(sorted, effective);
   const hits = annotated.filter((item) => item.matchedKeywords.length > 0);
-  const keywordHits = analyzeKeywordHits(annotated, effective);
   const focused = opts.keyword
     ? annotated.filter((item) => matchesFocusKeyword(item, opts.keyword!))
     : null;
+
+  // Dual counts need a mixed corpus. When already on hotlistOnly=0 (or all),
+  // reuse annotated; when hotlistOnly=1, fetch mixed once for meta only.
+  const mixedAnnotated =
+    opts.hotlistOnly === true ? await loadMixedAnnotatedForMeta(effective) : annotated;
 
   if (opts.all) {
     const items = (focused ?? annotated).slice(0, limit);
@@ -278,13 +382,14 @@ export async function getResearchPulse(
           resolvedCompanies: resolvePulseMatchedCompanies(n.matchedKeywords),
         }),
       ),
-      meta: {
+      meta: buildPulseMeta({
         filtered: false,
-        effectiveKeywords: effective,
+        effective,
         rawCount,
         matchedCount: hits.length,
-        keywordHits,
-      },
+        annotatedForHits: annotated,
+        mixedAnnotated,
+      }),
     };
   }
 
@@ -300,12 +405,13 @@ export async function getResearchPulse(
         resolvedCompanies: resolvePulseMatchedCompanies(n.matchedKeywords),
       }),
     ),
-    meta: {
+    meta: buildPulseMeta({
       filtered: true,
-      effectiveKeywords: effective,
+      effective,
       rawCount,
       matchedCount: hits.length,
-      keywordHits,
-    },
+      annotatedForHits: annotated,
+      mixedAnnotated,
+    }),
   };
 }

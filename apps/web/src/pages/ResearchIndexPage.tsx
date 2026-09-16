@@ -97,6 +97,8 @@ type PulseKeywordHit = {
   keyword: string
   hitCount: number
   sampleTitles: string[]
+  hotlistHitCount?: number
+  rssHitCount?: number
 }
 
 const EMPTY_PULSE_KEYWORD_HITS: PulseKeywordHit[] = []
@@ -109,6 +111,8 @@ type PulseResponse = {
     effectiveKeywords: string[]
     rawCount: number
     matchedCount: number
+    hotlistMatchedCount?: number
+    rssMatchedCount?: number
     keywordHits: PulseKeywordHit[]
   }
 }
@@ -227,6 +231,7 @@ export function ResearchIndexPage() {
   const [pulseLoading, setPulseLoading] = useState(true)
   const [pulseError, setPulseError] = useState<string | null>(null)
   const [pulseShowAll, setPulseShowAll] = useState(false)
+  const [pulseRssFallbackItems, setPulseRssFallbackItems] = useState<PulseNewsItem[]>([])
   const [pulseFocusKeyword, setPulseFocusKeyword] = useState<string | null>(pulseParam)
   const [pulseChipsExpanded, setPulseChipsExpanded] = useState(false)
   const [pulseHelperExpanded, setPulseHelperExpanded] = useState(false)
@@ -281,6 +286,7 @@ export function ResearchIndexPage() {
     const keyword = opts?.keyword !== undefined ? opts.keyword : pulseParam
     setPulseLoading(true)
     setPulseError(null)
+    setPulseRssFallbackItems([])
     const { data, error: apiError } = await rawApiClient.GET<PulseResponse>(
       '/api/research/pulse',
       {
@@ -295,17 +301,64 @@ export function ResearchIndexPage() {
         },
       },
     )
-    setPulseLoading(false)
     if (apiError || !data?.success) {
+      setPulseLoading(false)
       setPulseError(t('research.pulseLoadError', { defaultValue: '综合热榜加载失败' }))
       setPulseItems([])
       setPulseMeta(null)
       return
     }
+    const meta = data.meta ?? null
     setPulseItems(Array.isArray(data.items) ? data.items : [])
-    setPulseMeta(data.meta ?? null)
+    setPulseMeta(meta)
+
+    // Soft-empty: hotlist keyword miss but RSS corpus has hits → fill unified list.
+    const rssMatched = meta?.rssMatchedCount ?? 0
+    if (!all && meta && meta.matchedCount === 0 && meta.rawCount > 0 && rssMatched > 0) {
+      const rssRes = await rawApiClient.GET<PulseResponse>('/api/research/pulse', {
+        params: {
+          query: {
+            limit: 12,
+            hotlistOnly: 0,
+            ...(keyword ? { keyword } : {}),
+          },
+        },
+      })
+      if (rssRes.data?.success && Array.isArray(rssRes.data.items)) {
+        setPulseRssFallbackItems(
+          rssRes.data.items.filter((item) => String(item.platform ?? '').startsWith('rss:')),
+        )
+      }
+    }
+
+    setPulseLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pulseParam])
+
+  // Refetch the RSS fallback list, optionally scoped to a keyword. Scoping keeps a
+  // clicked chip's focused list consistent with its 订阅 count: without the
+  // server-side keyword, the limit-12 fallback fetch could omit that chip's rows
+  // entirely (A2b chip/list consistency). A null kw fetches the general fallback.
+  const refetchRssFallback = useCallback(
+    async (kw: string | null) => {
+      setPulseRssFallbackItems([])
+      const { data } = await rawApiClient.GET<PulseResponse>('/api/research/pulse', {
+        params: {
+          query: {
+            limit: 12,
+            hotlistOnly: 0,
+            ...(kw ? { keyword: kw } : {}),
+          },
+        },
+      })
+      if (data?.success && Array.isArray(data.items)) {
+        setPulseRssFallbackItems(
+          data.items.filter((item) => String(item.platform ?? '').startsWith('rss:')),
+        )
+      }
+    },
+    [],
+  )
 
   const loadKeywords = useCallback(async () => {
     const { data, error: apiError } = await rawApiClient.GET<PulseKeywordsResponse>(
@@ -374,6 +427,7 @@ export function ResearchIndexPage() {
   const handleShowAllPulse = useCallback(() => {
     setPulseShowAll(true)
     setPulseFocusKeyword(null)
+    setPulseRssFallbackItems([])
     void loadPulse({ all: true })
   }, [loadPulse])
 
@@ -398,6 +452,7 @@ export function ResearchIndexPage() {
         setPulseFocusKeyword(null)
         setPulseChipsExpanded(false)
         setPulseHelperExpanded(false)
+        setPulseRssFallbackItems([])
         await loadPulse({ all: false })
       } finally {
         setKeywordsSaving(false)
@@ -477,20 +532,41 @@ export function ResearchIndexPage() {
     [keywordHits],
   )
 
+  const softEmpty =
+    !pulseLoading &&
+    !pulseShowAll &&
+    pulseMeta != null &&
+    pulseMeta.matchedCount === 0 &&
+    pulseMeta.rawCount > 0
+
+  const showingRssFallback = softEmpty && pulseRssFallbackItems.length > 0
+
   const handlePulseChipClick = useCallback(
     (kw: string) => {
-      setPulseFocusKeyword((prev) => (prev === kw ? null : kw))
-      if ((keywordHitMap.get(kw)?.hitCount ?? 0) === 0) {
-        setPulseHelperExpanded(true)
+      const next = pulseFocusKeyword === kw ? null : kw
+      setPulseFocusKeyword(next)
+      const entry = keywordHitMap.get(kw)
+      const hotlistHits = entry?.hotlistHitCount ?? entry?.hitCount ?? 0
+      if (hotlistHits === 0) {
+        // In the soft-empty (RSS-fallback) state, refetch the fallback scoped to the
+        // newly focused chip (server-side keyword) so its focused list matches the
+        // 订阅 count — or fetch the general fallback when unfocusing (A2b chip/list
+        // consistency).
+        if (showingRssFallback) {
+          void refetchRssFallback(next)
+        } else {
+          setPulseHelperExpanded(true)
+        }
       }
     },
-    [keywordHitMap],
+    [keywordHitMap, showingRssFallback, refetchRssFallback, pulseFocusKeyword],
   )
 
   const displayPulseItems = useMemo(() => {
-    if (!pulseFocusKeyword) return pulseItems
+    const source = showingRssFallback ? pulseRssFallbackItems : pulseItems
+    if (!pulseFocusKeyword) return source
     const focus = pulseFocusKeyword
-    return pulseItems.filter((item) => {
+    return source.filter((item) => {
       const matched = item.matchedKeywords ?? []
       if (matched.some((m) => m === focus)) return true
       // Fallback: substring match on title when matchedKeywords empty (e.g. all=1)
@@ -498,14 +574,7 @@ export function ResearchIndexPage() {
       const needle = focus.normalize('NFKC')
       return hay.includes(needle)
     })
-  }, [pulseItems, pulseFocusKeyword])
-
-  const softEmpty =
-    !pulseLoading &&
-    !pulseShowAll &&
-    pulseMeta != null &&
-    pulseMeta.matchedCount === 0 &&
-    pulseMeta.rawCount > 0
+  }, [pulseItems, pulseRssFallbackItems, pulseFocusKeyword, showingRssFallback])
 
   const pulseHelperSummary = pulseMeta
     ? pulseMeta.filtered
@@ -708,7 +777,20 @@ export function ResearchIndexPage() {
           >
             {visibleChips.map((kw) => {
               const active = pulseFocusKeyword === kw
-              const hitCount = keywordHitMap.get(kw)?.hitCount ?? 0
+              const entry = keywordHitMap.get(kw)
+              const hotlistHits = entry?.hotlistHitCount ?? entry?.hitCount ?? 0
+              const rssHits = entry?.rssHitCount ?? 0
+              const showDual =
+                entry?.hotlistHitCount != null &&
+                entry?.rssHitCount != null &&
+                ((pulseMeta?.rssMatchedCount ?? 0) > 0 || rssHits > 0)
+              const chipCountLabel = showDual
+                ? t('research.pulseKeywords.chipDualCount', {
+                    defaultValue: `热榜 {{hotlist}} · 订阅 {{rss}}`,
+                    hotlist: hotlistHits,
+                    rss: rssHits,
+                  })
+                : String(hotlistHits)
               return (
                 <button
                   key={kw}
@@ -716,7 +798,7 @@ export function ResearchIndexPage() {
                   data-testid="research-pulse-chip"
                   data-keyword={kw}
                   data-active={active ? 'true' : 'false'}
-                  aria-label={`${kw} (${hitCount})`}
+                  aria-label={`${kw} (${chipCountLabel})`}
                   onClick={() => handlePulseChipClick(kw)}
                   className={
                     active
@@ -734,7 +816,7 @@ export function ResearchIndexPage() {
                     data-testid={`research-pulse-chip-count-${kw === '发那科' ? 'fanuc' : kw}`}
                     aria-hidden="true"
                   >
-                    ({hitCount})
+                    ({chipCountLabel})
                   </span>
                 </button>
               )
@@ -841,9 +923,14 @@ export function ResearchIndexPage() {
             data-testid="research-pulse-soft-empty"
           >
             <p className="text-amber-900">
-              {t('research.pulseKeywords.softEmpty', {
-                defaultValue: '当前关键词未命中近期资讯，可显示全部或调整关键词。',
-              })}
+              {showingRssFallback
+                ? t('research.pulseKeywords.softEmptyRss', {
+                    defaultValue:
+                      '热榜关键词未命中。已显示行业订阅（Google News / 公众号 RSS）。',
+                  })
+                : t('research.pulseKeywords.softEmpty', {
+                    defaultValue: '当前关键词未命中近期资讯，可显示全部或调整关键词。',
+                  })}
             </p>
             <Button
               type="button"
@@ -873,10 +960,15 @@ export function ResearchIndexPage() {
               const researchHref = primaryCompany
                 ? `/${teamSlug}/research/${encodeURIComponent(primaryCompany.companyKey)}?persona=hr`
                 : null
+              const isRss = String(item.platform ?? '').startsWith('rss:')
+              const platformLabel = isRss
+                ? t('research.pulseKeywords.sourceRss', { defaultValue: 'RSS' })
+                : item.platform
               return (
                 <li
                   key={`${item.title}-${index}`}
                   data-testid="research-pulse-item"
+                  data-source={isRss ? 'rss' : 'hotlist'}
                   className="flex flex-wrap items-baseline gap-x-2 gap-y-1"
                 >
                   <Badge
@@ -884,7 +976,7 @@ export function ResearchIndexPage() {
                     className="text-[10px] font-normal"
                     data-testid="research-pulse-platform"
                   >
-                    {item.platform}
+                    {platformLabel}
                   </Badge>
                   {relative ? (
                     <span
