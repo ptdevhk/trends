@@ -343,10 +343,23 @@ function mockGetDefault(
     if (path === '/api/research/pulse') {
       const all = options?.params?.query?.all
       const hotlistOnly = options?.params?.query?.hotlistOnly
+      const keyword = options?.params?.query?.keyword
       if (all === 1 || all === '1' || all === true) {
         return { data: pulseAllItems }
       }
       if (hotlistOnly === 0 || hotlistOnly === '0' || hotlistOnly === false) {
+        // Honor the server-side keyword like the real BFF so a scoped fetch really
+        // returns only that chip's rows (makes the A2b clear-focus test discriminating).
+        if (typeof keyword === 'string' && keyword) {
+          return {
+            data: {
+              ...pulseRssFallbackItems,
+              items: pulseRssFallbackItems.items.filter((item) =>
+                (item.matchedKeywords ?? []).includes(keyword),
+              ),
+            },
+          }
+        }
         return { data: pulseRssFallbackItems }
       }
       return { data: pulsePayload }
@@ -713,6 +726,60 @@ describe('ResearchIndexPage hub', () => {
     const focusedItems = screen.getAllByTestId('research-pulse-item')
     expect(focusedItems).toHaveLength(1)
     expect(focusedItems[0]).toHaveTextContent('发那科推出新一代数控系统')
+  })
+
+  it('soft-empty: clear-focus refetches the UNSCOPED RSS fallback (A2b leftover)', async () => {
+    mockGetDefault(pulseSoftEmptyWithRssMeta)
+
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    // RSS fallback list renders.
+    await waitFor(() => {
+      expect(screen.getByText('发那科推出新一代数控系统')).toBeInTheDocument()
+    })
+
+    const fanucChip = screen
+      .getAllByTestId('research-pulse-chip')
+      .find((el) => el.getAttribute('data-keyword') === '发那科')
+    expect(fanucChip).toBeTruthy()
+
+    // Chip click scopes the fallback to 发那科.
+    fireEvent.click(fanucChip!)
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        '/api/research/pulse',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            query: expect.objectContaining({ hotlistOnly: 0, keyword: '发那科' }),
+          }),
+        }),
+      )
+    })
+    expect(screen.getByTestId('research-pulse-clear-focus')).toBeInTheDocument()
+
+    // Clear focus → refetch the fallback again WITHOUT the keyword, and the
+    // unscoped RSS rows (both rows) return, not the scoped single FANUC row.
+    fireEvent.click(screen.getByTestId('research-pulse-clear-focus'))
+    await waitFor(() => {
+      const unscopedFallbackCall = getMock.mock.calls.find((call) => {
+        if (call[0] !== '/api/research/pulse') return false
+        const query = (call[1] as { params?: { query?: Record<string, unknown> } })?.params?.query
+        return query?.hotlistOnly === 0 && query?.keyword === undefined
+      })
+      expect(unscopedFallbackCall).toBeTruthy()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('东风科技一体化压铸')).toBeInTheDocument()
+    })
+    const unscopedItems = screen.getAllByTestId('research-pulse-item')
+    expect(unscopedItems).toHaveLength(2)
+    expect(unscopedItems[0]).toHaveTextContent('发那科推出新一代数控系统')
+    expect(unscopedItems[1]).toHaveTextContent('东风科技一体化压铸')
   })
 
   it('hides empty showcase and catalog sections when no data is available', async () => {

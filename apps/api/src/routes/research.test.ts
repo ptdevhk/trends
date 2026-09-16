@@ -812,6 +812,7 @@ describe("research routes", () => {
       limit: 12,
       all: false,
       hotlistOnly: false,
+      hotlistDualCounts: true,
     });
 
     const all = await app.request("/api/research/pulse?all=1", {
@@ -826,7 +827,47 @@ describe("research routes", () => {
       limit: undefined,
       all: true,
       hotlistOnly: false,
+      hotlistDualCounts: true,
     });
+  });
+
+  it("GET /api/research/pulse?hotlistOnly=1&hotlistDualCounts=0 forwards the A1b opt-out", async () => {
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    pulseMocks.getResearchPulse.mockResolvedValue({
+      items: [],
+      meta: {
+        filtered: true,
+        effectiveKeywords: [],
+        rawCount: 0,
+        matchedCount: 0,
+        hotlistMatchedCount: 0,
+        rssMatchedCount: 0,
+        keywordHits: [],
+      },
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/research/pulse?hotlistOnly=1&hotlistDualCounts=0", {
+      headers: auth.headers,
+    });
+    expect(response.status).toBe(200);
+    expect(pulseMocks.getResearchPulse).toHaveBeenCalledWith("hr", {
+      limit: undefined,
+      all: false,
+      hotlistOnly: true,
+      hotlistDualCounts: false,
+      keyword: undefined,
+    });
+
+    // Unknown / absent values keep the on-by-default dual counts.
+    pulseMocks.getResearchPulse.mockClear();
+    await app.request("/api/research/pulse?hotlistOnly=1&hotlistDualCounts=banana", {
+      headers: auth.headers,
+    });
+    expect(pulseMocks.getResearchPulse).toHaveBeenCalledWith(
+      "hr",
+      expect.objectContaining({ hotlistOnly: true, hotlistDualCounts: true }),
+    );
   });
 
   it("rejects pulse keywords without session", async () => {

@@ -308,6 +308,9 @@ export function ResearchCompanyPage() {
             limit: 20,
             all: 1,
             hotlistOnly: 1,
+            // A1b: this tab renders the hotlist feed only — no dual 热榜/订阅 counts —
+            // so skip the extra mixed meta read on the BFF.
+            hotlistDualCounts: 0,
           },
         },
       },

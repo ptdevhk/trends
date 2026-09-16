@@ -114,6 +114,8 @@ type PulseResponse = {
     matchedCount: number
     hotlistMatchedCount?: number
     rssMatchedCount?: number
+    /** A1b: false when the request opted out of the extra dual-count meta read. */
+    hotlistDualCounts?: boolean
     keywordHits: PulseKeywordHit[]
   }
 }
@@ -542,6 +544,16 @@ export function ResearchIndexPage() {
 
   const showingRssFallback = softEmpty && pulseRssFallbackItems.length > 0
 
+  const handleClearPulseFocus = useCallback(() => {
+    setPulseFocusKeyword(null)
+    // A2b: a chip click scoped the fallback fetch to a keyword; clearing the focus
+    // must also restore the UNSCOPED fallback list, otherwise displayPulseItems
+    // keeps rendering the scoped rows even though the focus chip is gone.
+    if (showingRssFallback) {
+      void refetchRssFallback(null)
+    }
+  }, [showingRssFallback, refetchRssFallback])
+
   const handlePulseChipClick = useCallback(
     (kw: string) => {
       const next = pulseFocusKeyword === kw ? null : kw
@@ -842,7 +854,7 @@ export function ResearchIndexPage() {
                 type="button"
                 className="text-xs text-blue-600 hover:underline"
                 data-testid="research-pulse-clear-focus"
-                onClick={() => setPulseFocusKeyword(null)}
+                onClick={handleClearPulseFocus}
               >
                 {t('research.pulseKeywords.clearFocus', { defaultValue: '清除筛选' })}
               </button>

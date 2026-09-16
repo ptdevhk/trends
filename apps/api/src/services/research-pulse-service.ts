@@ -56,6 +56,8 @@ export type ResearchPulseResult = {
     hotlistMatchedCount: number;
     /** Keyword-matched items on `rss:*` feeds. */
     rssMatchedCount: number;
+    /** A1b: true unless the caller opted out via hotlistDualCounts=0. */
+    hotlistDualCounts: boolean;
     keywordHits: PulseKeywordHit[];
   };
 };
@@ -304,7 +306,8 @@ function mergeKeywordHitSplits(
  * corpus total. `meta.matchedCount` comes from per-platform slices, so the two
  * can diverge (e.g. high-volume RSS crowding the 100-row window under-reports
  * hotlist). Acceptable for the soft-empty trigger (gated on `rawCount>0`), but
- * operators should not treat these counts as exact totals.
+ * operators should not treat these counts as exact totals. These hotlist/rss
+ * meta counts are therefore a best-effort approximation, NOT exact corpus totals.
  */
 async function loadMixedAnnotatedForMeta(
   effective: string[],
@@ -321,6 +324,8 @@ function buildPulseMeta(args: {
   matchedCount: number;
   annotatedForHits: AnnotatedNews[];
   mixedAnnotated: AnnotatedNews[];
+  /** A1b: false when the caller opted out of the extra mixed meta read. */
+  hotlistDualCounts: boolean;
 }): ResearchPulseResult["meta"] {
   const { hotlistMatched, rssMatched } = partitionMatchedByPlatform(args.mixedAnnotated);
   const hotlistHits = analyzeKeywordHits(
@@ -339,13 +344,28 @@ function buildPulseMeta(args: {
     matchedCount: args.matchedCount,
     hotlistMatchedCount: hotlistMatched.length,
     rssMatchedCount: rssMatched.length,
+    hotlistDualCounts: args.hotlistDualCounts,
     keywordHits: mergeKeywordHitSplits(primaryHits, hotlistHits, rssHits),
   };
 }
 
 export async function getResearchPulse(
   workspaceSlug: string,
-  opts: { limit?: number; all?: boolean; hotlistOnly?: boolean; keyword?: string } = {},
+  opts: {
+    limit?: number;
+    all?: boolean;
+    hotlistOnly?: boolean;
+    keyword?: string;
+    /**
+     * A1b opt-out for the extra dual-count meta read. When `hotlistOnly=1` AND
+     * `hotlistDualCounts=false`, the mixed `limit:100` RSS window is NOT fetched —
+     * the caller only needs the hotlist feed and doesn't render 热榜/订阅 dual
+     * counts, so `meta.hotlistMatchedCount`/`rssMatchedCount` are computed from
+     * the hotlist-only read (rssMatchedCount becomes 0 by construction). Default
+     * `true` keeps current behavior (dual counts still populate) for the hub.
+     */
+    hotlistDualCounts?: boolean;
+  } = {},
 ): Promise<ResearchPulseResult> {
   const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
   const { effective } = await getPulseKeywordsState(workspaceSlug);
@@ -365,9 +385,14 @@ export async function getResearchPulse(
     : null;
 
   // Dual counts need a mixed corpus. When already on hotlistOnly=0 (or all),
-  // reuse annotated; when hotlistOnly=1, fetch mixed once for meta only.
+  // reuse annotated; when hotlistOnly=1, fetch mixed once for meta only — unless
+  // the caller opts out via hotlistDualCounts=false (A1b), which skips the extra
+  // global read and computes the dual split from the hotlist-only annotated window.
+  const wantDualCounts = opts.hotlistOnly !== true || opts.hotlistDualCounts !== false;
   const mixedAnnotated =
-    opts.hotlistOnly === true ? await loadMixedAnnotatedForMeta(effective) : annotated;
+    opts.hotlistOnly === true && wantDualCounts
+      ? await loadMixedAnnotatedForMeta(effective)
+      : annotated;
 
   if (opts.all) {
     const items = (focused ?? annotated).slice(0, limit);
@@ -389,6 +414,7 @@ export async function getResearchPulse(
         matchedCount: hits.length,
         annotatedForHits: annotated,
         mixedAnnotated,
+        hotlistDualCounts: wantDualCounts,
       }),
     };
   }
@@ -412,6 +438,7 @@ export async function getResearchPulse(
       matchedCount: hits.length,
       annotatedForHits: annotated,
       mixedAnnotated,
+      hotlistDualCounts: wantDualCounts,
     }),
   };
 }
