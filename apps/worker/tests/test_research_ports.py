@@ -99,6 +99,27 @@ def test_parse_rss_xml_caps_items_per_feed():
     assert len(uncapped) == 50
 
 
+def test_parse_rss_xml_werss_platform_derivation():
+    """Phase B WeRSS feed id `werss-<mp_id>` must yield platform `rss:werss-<mp_id>`.
+
+    research_ingest.run() sets enabled = platforms + [f"rss:{feed_id}"], and
+    parse_rss_xml emits platform=f"rss:{feed_id}" with a matching content hash.
+    isHotlistPlatform() (backend) treats any `rss:`-prefixed platform as a
+    subscription (non-hotlist) lane, so a `werss-cnc-diecast` id must stay on the
+    `rss:` lane and never leak into the titled 综合热榜.
+    """
+    xml = (
+        '<?xml version="1.0"?><rss version="2.0"><channel>'
+        "<item><title>压铸新闻</title><link>http://x/1</link><guid>g1</guid></item>"
+        "</channel></rss>"
+    )
+    items = parse_rss_xml("werss-cnc-diecast", xml, captured_at=1)
+    assert len(items) == 1
+    assert items[0].platform == "rss:werss-cnc-diecast"
+    assert items[0].source_id == "werss-cnc-diecast"
+    assert items[0].platform.startswith("rss:")
+
+
 def test_parse_newsnow_accepts_cache_status():
     items = parse_newsnow_payload(
         "baidu",

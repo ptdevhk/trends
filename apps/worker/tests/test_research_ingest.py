@@ -305,3 +305,43 @@ def test_load_rss_feeds_reads_feeds_key():
     ids = {f["id"] for f in feeds}
     assert "gnews-fanuc-cn" in ids
     assert all("url" in f for f in feeds)
+
+
+def test_load_rss_feeds_phase_b_werss_stubs_stay_commented():
+    """Phase B WeRSS stubs in config.yaml must stay commented out until an operator
+    stands up the sidecar. If they were live, ingest would dial 127.0.0.1 every
+    cycle and soft-fail per feed; if they were live under a bare `werss-*` id they
+    would also leak into the titled 综合热榜 (platform would not be `rss:`-prefixed).
+    """
+    from apps.worker.research_ingest import ResearchIngestJob, load_rss_feeds
+
+    feeds = load_rss_feeds()
+    ids = {f["id"] for f in feeds}
+    assert "werss-cnc-diecast" not in ids
+    assert "werss-machine-tool" not in ids
+    assert not any(fid.startswith("werss-") for fid in ids)
+
+    # When an operator uncomments them, the configured id must be `werss-<mp_id>`
+    # so the derived platform is `rss:werss-<mp_id>` (see test_parse_rss_xml_
+    # werss_platform_derivation and isHotlistPlatform).
+    rec = RecordingConvex()
+    client = ResearchConvexClient(
+        convex_url="https://example.convex.cloud",
+        write_secret="secret",
+        mutator=rec.mutator,
+        querier=rec.querier,
+    )
+    job = ResearchIngestJob(
+        client=client,
+        hotlist_port=StaticHotlistPort(items_by_platform={}),
+        rss_port=StaticRssPort(),
+        platforms=[],
+        rss_feeds=[
+            {"id": "werss-cnc-diecast", "url": "http://127.0.0.1:8000/feeds/mp1.xml"},
+        ],
+        now_ms=lambda: 1,
+    )
+    assert job.run() is True
+    start = [a for p, a in rec.mutations if p == "research_ops:startIngestRun"][0]
+    assert "rss:werss-cnc-diecast" in start["enabledPlatforms"]
+    assert "werss-cnc-diecast" not in start["enabledPlatforms"]

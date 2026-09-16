@@ -139,6 +139,26 @@ rss:
       url: "https://news.google.com/rss/search?q=%E5%B7%A5%E4%B8%9A%E6%9C%BA%E5%99%A8%E4%BA%BA+%E6%9C%BA%E5%BA%8A&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
       max_age_days: 7
 
+    # WeRSS (公众号 → RSS) — Phase B stub, INTENTIONALLY COMMENTED OUT.
+    # Uncomment only after an operator has stood up WeRSS on this host and the
+    # documented 公众号 list is subscribed (docs/runbooks/we-rss-mp-intake.md).
+    # id MUST be werss-<mp_id>: apps/worker/research_ports.py derives the platform
+    # as f"rss:{feed_id}", and isHotlistPlatform() treats anything not prefixed
+    # "rss:" as a NewsNow hotlist platform — a bare werss-* id would leak into
+    # the titled 综合热榜 and corrupt the honest 热榜/订阅 chip split.
+    # Leaving these commented keeps ingest from dialing a 127.0.0.1 sidecar that
+    # is not running (which would log per-feed soft failures every cycle).
+    #
+    # - id: "werss-cnc-diecast"
+    #   name: "公众号 · 压铸前沿"          # operator-visible label
+    #   url: "http://127.0.0.1:<port>/feeds/<mp_id>.xml"
+    #   max_age_days: 7                    # match the gnews-* feeds
+    #
+    # - id: "werss-machine-tool"
+    #   name: "公众号 · 机床观察"
+    #   url: "http://127.0.0.1:<port>/feeds/<mp_id>.xml"
+    #   max_age_days: 7
+
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"

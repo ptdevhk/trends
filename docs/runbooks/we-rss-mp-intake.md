@@ -110,6 +110,21 @@ curl -s -X POST http://localhost:8000/worker/research/ingest \
 No UI redesign is required — Phase A's soft-empty path already reads any
 `rss:*` platform.
 
+### Dual-count meta is an approximation, not a corpus total (A1c)
+
+`GET /api/research/pulse` reports `meta.hotlistMatchedCount` / `meta.rssMatchedCount`
+and the per-keyword `hotlistHitCount` / `rssHitCount` splits from a **single mixed
+`limit:100` window** (`loadMixedAnnotatedForMeta`), partitioned by `isHotlistPlatform`.
+Those figures are a capped-window approximation, **not exact corpus totals** — dense
+RSS volume can crowd the 100-row window and under-report hotlist. `meta.matchedCount`
+comes from the per-platform slices instead, so the two can diverge. This is acceptable
+for the soft-empty trigger (which is gated on `rawCount > 0`), but do **not** use these
+numbers as authoritative counts in dashboards or exports.
+
+Callers that only need the hotlist feed and do not render the 热榜/订阅 dual counts can
+skip the extra mixed read with `hotlistOnly=1&hotlistDualCounts=0`; `meta.hotlistDualCounts`
+then reports `false` and `rssMatchedCount` is `0` by construction.
+
 ## 7. Runbook: feed-id rotation (important)
 
 WeRSS feed URLs are keyed by `<mp_id>`. If the WeChat/WeRead login rotates or an
