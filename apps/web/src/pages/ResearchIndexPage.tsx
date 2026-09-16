@@ -13,6 +13,7 @@ import {
   type HotlistPlatformsDialogState,
 } from '@/components/research/HotlistPlatformsDialog'
 import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
+import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
 import { researchSignalKindLabel } from '@/components/research/research-signal-kind-label'
 import { Badge } from '@/components/ui/badge'
@@ -618,6 +619,8 @@ export function ResearchIndexPage() {
       />
 
       <ChannelsBriefingPanel />
+
+      <MpBriefingPanel />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

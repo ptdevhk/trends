@@ -34,6 +34,10 @@ import {
   ChannelsBriefingValidationError,
   ChannelsPreviewUpstreamError,
 } from "../services/channels-briefing-service.js";
+import {
+  buildMpBriefing,
+  MpBriefingValidationError,
+} from "../services/mp-briefing-service.js";
 
 const app = new OpenAPIHono();
 
@@ -880,6 +884,73 @@ app.openapi(channelsBriefingRoute, async (c) => {
     }
     if (error instanceof ChannelsPreviewUpstreamError) {
       return c.json({ success: false as const, error: error.message }, error.status);
+    }
+    throw error;
+  }
+});
+
+// ── Phase C: boss paste mp (公众号) briefing — separate from Channels ──────────
+const MpBriefingCardSchema = z.object({
+  url: z.string(),
+  articleId: z.string().optional(),
+  kind: z.literal("mp"),
+});
+
+const MpBriefingSchema = z.object({
+  generatedAt: z.string(),
+  cards: z.array(MpBriefingCardSchema),
+});
+
+const mpBriefingRoute = createRoute({
+  method: "post",
+  path: "/api/research/mp-briefing",
+  tags: ["research"],
+  summary: "Build a briefing card list from pasted public WeChat official-account (mp) article URLs",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            urls: z.array(z.string()).openapi({
+              description:
+                "Public WeChat official-account article URLs (1–8). Accepted: mp.weixin.qq.com/s/<id> or legacy mp.weixin.qq.com/s?__biz=... . Channels sph is a separate lane.",
+              example: [
+                "https://mp.weixin.qq.com/s/AbC123xyz_89",
+                "https://mp.weixin.qq.com/s?__biz=MzA3NDk&mid=2247&idx=1&sn=a1b2c3",
+              ],
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            briefing: MpBriefingSchema,
+          }),
+        },
+      },
+      description: "Briefing cards for the pasted mp articles (metadata-free; no WeChat scrape)",
+    },
+    400: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "Invalid body or a URL not on the mp.weixin.qq.com allowlist",
+    },
+  },
+});
+
+app.openapi(mpBriefingRoute, async (c) => {
+  const body = c.req.valid("json");
+  try {
+    const briefing = await buildMpBriefing(body.urls);
+    return c.json({ success: true as const, briefing }, 200);
+  } catch (error) {
+    if (error instanceof MpBriefingValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
     }
     throw error;
   }

@@ -1074,4 +1074,95 @@ describe("research routes", () => {
       assertNoPlayableMediaLeak(JSON.stringify(body));
     });
   });
+
+  describe("POST /api/research/mp-briefing", () => {
+    const MP_URLS = [
+      "https://mp.weixin.qq.com/s/AbC123xyz_89",
+      "https://mp.weixin.qq.com/s?__biz=MzA3NDk&mid=2247&idx=1&sn=a1b2c3",
+    ];
+
+    type MpBriefingResponse = {
+      success: boolean;
+      error?: string;
+      briefing?: {
+        generatedAt: string;
+        cards: Array<{
+          url: string;
+          articleId?: string;
+          kind: string;
+        }>;
+      };
+    };
+
+    async function postMpBriefing(urls: unknown) {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const app = createApp();
+      return app.request("/api/research/mp-briefing", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+    }
+
+    it("accepts mp + sph mix does NOT reach Channels (mp cards returned, sph rejected)", async () => {
+      // A paste mixing mp and sph is routed by the UI; the mp lane itself must
+      // reject sph (Channels is a separate briefing path) — not silently probe it.
+      const response = await postMpBriefing([
+        ...MP_URLS,
+        "https://weixin.qq.com/sph/ALr3ch0zp9",
+      ]);
+      expect(response.status).toBe(400);
+      const body = await parseJsonBody<MpBriefingResponse>(response);
+      expect(body.success).toBe(false);
+      expect(String(body.error)).toMatch(/allowlisted|official-account/i);
+    });
+
+    it("returns mp briefing cards for valid public mp article URLs", async () => {
+      const response = await postMpBriefing(MP_URLS);
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<MpBriefingResponse>(response);
+      expect(body.success).toBe(true);
+      expect(body.briefing?.cards).toHaveLength(2);
+      expect(body.briefing?.cards[0]?.url).toBe(
+        "https://mp.weixin.qq.com/s/AbC123xyz_89",
+      );
+      expect(body.briefing?.cards[0]?.articleId).toBe("AbC123xyz_89");
+      expect(body.briefing?.cards[0]?.kind).toBe("mp");
+      expect(body.briefing?.cards[1]?.articleId).toBeUndefined();
+    });
+
+    it("rejects a non-mp URL with 400 and an envelope", async () => {
+      const response = await postMpBriefing(["https://example.com/article/1"]);
+      expect(response.status).toBe(400);
+      const body = await parseJsonBody<MpBriefingResponse>(response);
+      expect(body.success).toBe(false);
+      expect(typeof body.error).toBe("string");
+    });
+
+    it("rejects 9 urls with 400 (1–8 bound)", async () => {
+      const nine = Array.from(
+        { length: 9 },
+        (_, i) => `https://mp.weixin.qq.com/s/id${i}`,
+      );
+      const response = await postMpBriefing(nine);
+      expect(response.status).toBe(400);
+      const body = await parseJsonBody<MpBriefingResponse>(response);
+      expect(body.success).toBe(false);
+    });
+
+    it("regression: channels-briefing still rejects mp (strict sph-only)", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const app = createApp();
+      const response = await app.request("/api/research/channels-briefing", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          urls: ["https://mp.weixin.qq.com/s/notAChannelsShare"],
+        }),
+      });
+      expect(response.status).toBe(400);
+      const body = await parseJsonBody<{ success: boolean }>(response);
+      expect(body.success).toBe(false);
+    });
+  });
 });

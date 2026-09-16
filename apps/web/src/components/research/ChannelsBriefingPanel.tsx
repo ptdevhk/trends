@@ -51,6 +51,22 @@ export type ChannelsBriefingResponse = {
   briefing?: ChannelsBriefing
 }
 
+export type MpBriefingCard = {
+  url: string
+  articleId?: string
+  kind: 'mp'
+}
+
+export type MpBriefing = {
+  generatedAt?: string
+  cards: MpBriefingCard[]
+}
+
+export type MpBriefingResponse = {
+  success: boolean
+  briefing?: MpBriefing
+}
+
 const SAMPLE_CARDS = [
   {
     id: 'primary' as const,
