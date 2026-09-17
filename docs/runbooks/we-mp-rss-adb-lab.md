@@ -72,8 +72,56 @@ was not runnable because no device was present; no serial was fabricated.
 - `curl http://127.0.0.1:8001/` → **200**, `text/html; charset=utf-8`, 1202 bytes
   (we-mp-rss v1.5.3, `API_BASE /api/v1/wx`).
 - `curl http://127.0.0.1:8001/feeds` → **200**.
-- Container **left running** on `127.0.0.1:8001` (intentional). No QR login
-  performed. Stop later with `docker rm -f we-mp-rss-lab`.
+- Container **left running** on `127.0.0.1:8001` (intentional); restart policy
+  set to **`unless-stopped`** (Wave 7). No QR login performed. Stop later with
+  `docker rm -f we-mp-rss-lab`.
+
+## Wave 7 — coordinator macos-dev facts + sidecar continuation
+
+> **Coordinator macos-dev facts** (do NOT re-probe USB on pvelxc — pvelxc has no
+> Motorola). These are operator-attested, not re-measured here.
+
+| Check | Result |
+|-------|--------|
+| USB host | **macos-dev** (not pvelxc) |
+| adb device | `ZY22C77QXX` **authorized** |
+| Model | `XT2125-4` (code `nio_retcn`) |
+| WeChat pkg | `com.tencent.mm` **installed** |
+| WeCom pkg | `com.tencent.wework` **installed** |
+| Tunnel to sidecar | `ssh -N -L 18001:127.0.0.1:8001 pvelxc-3adc3628` |
+| `GET http://127.0.0.1:18001/` | **200** — SPA title `WeRss微信公众号订阅助手` |
+| `GET /api/docs` | **200** |
+
+- **Operator scans the QR with WeChat (`com.tencent.mm`), NOT WeCom.**
+  WeCom (`com.tencent.wework`) is only the expiry-notify webhook
+  (`WECHAT_WEBHOOK` + `SEND_CODE`) and cannot subscribe 压铸/机床 公众号.
+- **One phone cannot unattended-ADB-scan**: scanning the WeChat QR is an attended
+  action on the operator's phone; ADB is used to hold the session, not to scan.
+- Sidecar continuation (Wave 7, pvelxc): container `we-mp-rss-lab` still **Up** on
+  `127.0.0.1:8001`, restart policy now **`unless-stopped`** (loopback bind only —
+  verified `127.0.0.1:8001->8001`, never `0.0.0.0`). `GET /` → 200 (1202 bytes),
+  `GET /feeds` → 200.
+
+### Wave 7 — anonymous-visible RSS/feed URL pattern (from `GET /api/docs` → `/api/openapi.json`)
+
+`/api/openapi.json` (WeRSS API, 141 paths) exposes these anonymous RSS/feed GET
+routes (security: none — all read-only, no auth headers required):
+
+| Route | Summary | Notes |
+|-------|---------|-------|
+| `/feed/{feed_id}.{ext}` | 获取公众号文章源 | `{ext}` = rss/atom/json; params `limit`/`offset`/`kw` |
+| `/feed/search/{kw}/{feed_id}.{ext}` | search a feed | `kw` free-form |
+| `/feed/tag/{tag_id}.{ext}` | tag feed | |
+| `/rss/{feed_id}` | 获取公众号文章 | `{ext}` param, limit/offset |
+| `/rss/{feed_id}/fresh` | 更新并获取公众号文章RSS | triggers a fetch then returns items |
+| `/rss/{feed_id}/api` | 获取特定RSS源详情 | |
+| `/rss`, `/rss/fresh`, `/rss/content/{content_id}` | aggregate + content | |
+
+So once an operator subscribes a 公众号 via WeChat QR, the anonymous feed URL is
+`http://127.0.0.1:8001/feed/<feed_id>.rss` (or `/rss/<feed_id>`), which becomes the
+real `url:` for a `rss:werss-<mp_id>` Trends connector feed. No authenticated write
+APIs were called; no secrets printed (auth/QR paths exist — `/api/v1/wx/auth/qr/code`
+etc. — but were **not** invoked).
 
 ## Secrets
 
