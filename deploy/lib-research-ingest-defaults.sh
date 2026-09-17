@@ -68,6 +68,13 @@ _research_worker_default_url() {
 # WORKER_URL (leaves non-loopback URLs alone); only appends the NewsNow URL
 # when RESEARCH_HOTLIST_API_URL is absent.
 # Return codes (for operator logging): 0=unchanged, 1=changed, 2=missing file.
+#
+# CALLER CONTRACT: capture rc with `|| rc=$?` (or `if ! helper; then`), never
+# with a `set +e` … `set -e` sandwich. A sandwich does NOT suppress an ERR trap:
+# bash fires the ERR trap for a function's own non-zero `return` even under
+# `set +e`, so a `set -E` caller (preview-upgrade.sh) would abort on the rc=1
+# "changed" return immediately after the keys were written. `cmd || rc=$?`
+# marks the command as tested and does suppress the trap.
 ensure_research_ingest_env_lines() {
   local env_file="$1"
   local role="${2:-production}"
