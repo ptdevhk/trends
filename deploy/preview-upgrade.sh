@@ -33,6 +33,13 @@ if [[ -z "${PREVIEW_DIR:-}" ]]; then
 fi
 # shellcheck source=lib-preview-common.sh
 source "$SCRIPT_DIR/lib-preview-common.sh"
+# shellcheck source=lib-research-ingest-defaults.sh
+if [[ -f "$SCRIPT_DIR/lib-research-ingest-defaults.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/lib-research-ingest-defaults.sh"
+else
+    RESEARCH_INGEST_HELPER_MISSING=1
+fi
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_DIR="${LOG_DIR:-/var/log/trends}"
@@ -247,13 +254,47 @@ fi
 systemctl restart "$PREVIEW_API_SERVICE"
 wait_for_http "$PREVIEW_API_URL/health" 120
 
-log_step "Restart preview worker API"
-# The worker FastAPI service (uvicorn :8003) executes industry evidence
-# research + maintenance runs. Install the repo unit when missing so the host
-# tracks the tree, then restart so the upgraded code is live.
+log_step "Research-ingest env defaults (before worker start)"
+# Backfill RESEARCH_INGEST_ENABLED / WORKER_URL / RESEARCH_HOTLIST_API_URL on the
+# live .env.preview so the preview scheduler registers research_ingest. Missing
+# helper on an old tree → warn, never abort.
+if [[ -f "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh"
+fi
+if type ensure_research_ingest_env_lines >/dev/null 2>&1; then
+    set +e
+    ensure_research_ingest_env_lines "$PREVIEW_ENV_FILE" preview
+    RESEARCH_ENSURE_RC=$?
+    set -e
+    case "$RESEARCH_ENSURE_RC" in
+      0) log_info "research-ingest env defaults already present in $PREVIEW_ENV_FILE" ;;
+      1) log_info "Added research-ingest defaults (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL) to $PREVIEW_ENV_FILE" ;;
+      *) log_warn "research-ingest env ensure skipped ($PREVIEW_ENV_FILE rc=$RESEARCH_ENSURE_RC)" ;;
+    esac
+    chmod 600 "$PREVIEW_ENV_FILE" 2>/dev/null || true
+    chown "$PREVIEW_SERVICE_USER:$PREVIEW_SERVICE_USER" "$PREVIEW_ENV_FILE" || true
+else
+    log_warn "lib-research-ingest-defaults.sh missing — skipping research-ingest env defaults"
+fi
+
+log_step "Restart preview worker API + scheduler"
+# The worker FastAPI service (uvicorn :8003) executes industry evidence research
+# + maintenance runs. The scheduler (python -m apps.worker) registers the
+# research_ingest interval job. Install both repo units when missing so the host
+# tracks the tree, then restart so the upgraded code + env are live.
+if [[ -f "$PREVIEW_DIR/deploy/systemd/trends-preview-worker.service" ]]; then
+    cp "$PREVIEW_DIR/deploy/systemd/trends-preview-worker.service" /etc/systemd/system/trends-preview-worker.service
+fi
 if [[ -f "$PREVIEW_DIR/deploy/systemd/trends-preview-worker-api.service" ]]; then
     cp "$PREVIEW_DIR/deploy/systemd/trends-preview-worker-api.service" /etc/systemd/system/trends-preview-worker-api.service
-    systemctl daemon-reload
+fi
+systemctl daemon-reload || true
+systemctl enable trends-preview-worker 2>/dev/null || true
+if systemctl is-active --quiet trends-preview-worker 2>/dev/null; then
+    systemctl restart trends-preview-worker
+else
+    systemctl start trends-preview-worker || log_warn "trends-preview-worker start failed (inspect with preview-doctor.sh)"
 fi
 if systemctl is-active --quiet trends-preview-worker-api 2>/dev/null; then
     systemctl restart trends-preview-worker-api
@@ -261,6 +302,34 @@ else
     systemctl start trends-preview-worker-api || log_warn "trends-preview-worker-api start failed (inspect with preview-doctor.sh)"
 fi
 wait_for_http "http://127.0.0.1:8003/health" 60 || log_warn "preview worker /health did not respond"
+
+log_step "Research ingest one-shot (best-effort, kill-switch aware)"
+# Only when RESEARCH_INGEST_ENABLED is not 0: POST the worker to fetch so the
+# desk has 订阅 rows on first login instead of waiting for the interval. Non-200
+# / timeout / unreachable → WARN only; upgrade still succeeds.
+RESEARCH_INGEST_FLAG="$(grep -E '^RESEARCH_INGEST_ENABLED=' "$PREVIEW_ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d ' ' || true)"
+case "$RESEARCH_INGEST_FLAG" in
+  1|true|yes|on)
+    RESEARCH_WORKER_HEALTH="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8003/health" || echo 000)"
+    if [[ "$RESEARCH_WORKER_HEALTH" == "200" ]]; then
+        set +e
+        RESEARCH_INGEST_CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 300 -X POST "http://127.0.0.1:8003/worker/research/ingest" \
+            -H 'Content-Type: application/json' -d '{}' || echo 000)"
+        RESEARCH_CURL_RC=$?
+        set -e
+        case "$RESEARCH_INGEST_CODE" in
+          200) log_info "Research ingest one-shot OK (200)" ;;
+          000) log_warn "Research ingest one-shot unreachable/timeout (worker may still be running). Inspect: journalctl -u trends-preview-worker-api -n 50 --no-pager" ;;
+          *)   log_warn "Research ingest one-shot returned $RESEARCH_INGEST_CODE (curl rc=$RESEARCH_CURL_RC) — best-effort; scheduler interval still applies" ;;
+        esac
+    else
+        log_warn "preview worker /health not ready (code=$RESEARCH_WORKER_HEALTH) — skipping research ingest one-shot"
+    fi
+    ;;
+  *)
+    log_info "Research ingest one-shot skipped (RESEARCH_INGEST_ENABLED=${RESEARCH_INGEST_FLAG:-unset}) — kill-switch"
+    ;;
+esac
 
 log_step "Seed canonical preview auth (admin@dev + hr-demo@hr)"
 if [[ -x "$SCRIPT_DIR/preview-seed-auth.sh" ]]; then
