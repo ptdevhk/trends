@@ -20,6 +20,7 @@ import {
   replayCandidateState,
   restoreCandidateStateFromBackup,
   submitResumeImport,
+  RESUME_IMPORT_CONVEX_BATCH_SIZE,
 } from "../resume-import-service.js";
 import { config } from "../config.js";
 
@@ -546,26 +547,32 @@ describe("resume-import-service", () => {
       );
     });
 
-    it("splits into multiple batches when resumes exceed 200", async () => {
-      // Create 201 resumes to trigger 2 batches (200 + 1)
-      const resumes = Array.from({ length: 201 }, (_, i) => makeResume({ name: `Candidate ${i}` }));
+    it("splits into multiple batches when resumes exceed the Convex batch size", async () => {
+      const resumes = Array.from(
+        { length: RESUME_IMPORT_CONVEX_BATCH_SIZE + 1 },
+        (_, i) => makeResume({ name: `Candidate ${i}` }),
+      );
       const payload = normalizeResumeImportPayload({
         metadata: makeMetadata(),
         resumes,
       });
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          value: { submitted: 100, deduped: 0, inserted: 100, updated: 0, unchanged: 0 },
-        }),
+      mockFetch.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        const batchSize = Array.isArray(body.args?.resumes) ? body.args.resumes.length : 0;
+        return {
+          ok: true,
+          json: async () => ({
+            status: "success",
+            value: { submitted: batchSize, deduped: 0, inserted: batchSize, updated: 0, unchanged: 0 },
+          }),
+        };
       });
 
       const result = await submitNormalizedResumeImport(payload);
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(result.submitted).toBe(200); // 100 per batch
+      expect(result.submitted).toBe(RESUME_IMPORT_CONVEX_BATCH_SIZE + 1);
     });
   });
 

@@ -783,7 +783,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {
@@ -840,7 +840,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {
@@ -896,7 +896,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {
@@ -952,7 +952,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {
@@ -1008,7 +1008,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {
@@ -1064,7 +1064,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "China"
         ],
         "salaryRange": {
-          "max": 35000
+          "max": 25000
         }
       },
       "schedule": {

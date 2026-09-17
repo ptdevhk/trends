@@ -28,7 +28,9 @@ import { recordSearchProfileSubmitRunStatus } from "./search-profile-run-status.
 
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
-const RESUME_IMPORT_CONVEX_BATCH_SIZE = 200;
+// Local/preview Convex mutations hard-cap at 1s; a 50-resume 51job page-1
+// detail submit timed out as a single 200-item-capable batch.
+export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 10;
 const CANDIDATE_STATUS_RESTORE_BATCH_SIZE = 100;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
@@ -322,36 +324,80 @@ function buildNormalizedResumeContent(
   };
 }
 
-async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }): Promise<{
+type ResumeSubmitTotals = {
   submitted: number;
   deduped: number;
   inserted: number;
   updated: number;
   unchanged: number;
-}> {
-  const totals = {
+};
+
+function emptyResumeSubmitTotals(): ResumeSubmitTotals {
+  return {
     submitted: 0,
     deduped: 0,
     inserted: 0,
     updated: 0,
     unchanged: 0,
   };
+}
 
-  for (let index = 0; index < args.resumes.length; index += RESUME_IMPORT_CONVEX_BATCH_SIZE) {
-    const batch = args.resumes.slice(index, index + RESUME_IMPORT_CONVEX_BATCH_SIZE);
-    // Keep each Convex mutation comfortably below the per-execution read limit.
+function addResumeSubmitTotals(target: ResumeSubmitTotals, increment: ResumeSubmitTotals): void {
+  target.submitted += increment.submitted;
+  target.deduped += increment.deduped;
+  target.inserted += increment.inserted;
+  target.updated += increment.updated;
+  target.unchanged += increment.unchanged;
+}
+
+function isConvexExecutionTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /function execution timed out|maximum duration:\s*1s/i.test(error.message);
+}
+
+function parseSubmitResumesTotals(value: unknown): ResumeSubmitTotals {
+  if (!isRecord(value)) {
+    throw new Error("Invalid submitResumes response from Convex");
+  }
+  return {
+    submitted: typeof value.submitted === "number" ? value.submitted : 0,
+    deduped: typeof value.deduped === "number" ? value.deduped : 0,
+    inserted: typeof value.inserted === "number" ? value.inserted : 0,
+    updated: typeof value.updated === "number" ? value.updated : 0,
+    unchanged: typeof value.unchanged === "number" ? value.unchanged : 0,
+  };
+}
+
+async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promise<ResumeSubmitTotals> {
+  try {
     const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
       resumes: batch,
     });
-    if (!isRecord(value)) {
-      throw new Error("Invalid submitResumes response from Convex");
+    return parseSubmitResumesTotals(value);
+  } catch (error) {
+    if (!isConvexExecutionTimeout(error) || batch.length <= 1) {
+      throw error;
     }
+    logger.warn("Convex submitResumes timed out; splitting batch", {
+      route: "resume_submit",
+      batchSize: batch.length,
+    });
+    const mid = Math.ceil(batch.length / 2);
+    const totals = emptyResumeSubmitTotals();
+    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(0, mid)));
+    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
+    return totals;
+  }
+}
 
-    totals.submitted += typeof value.submitted === "number" ? value.submitted : 0;
-    totals.deduped += typeof value.deduped === "number" ? value.deduped : 0;
-    totals.inserted += typeof value.inserted === "number" ? value.inserted : 0;
-    totals.updated += typeof value.updated === "number" ? value.updated : 0;
-    totals.unchanged += typeof value.unchanged === "number" ? value.unchanged : 0;
+async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }): Promise<ResumeSubmitTotals> {
+  const totals = emptyResumeSubmitTotals();
+
+  for (let index = 0; index < args.resumes.length; index += RESUME_IMPORT_CONVEX_BATCH_SIZE) {
+    const batch = args.resumes.slice(index, index + RESUME_IMPORT_CONVEX_BATCH_SIZE);
+    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch));
   }
 
   return totals;

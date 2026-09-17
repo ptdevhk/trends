@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { normalizeResumeImportPayload, submitResumeImport } from "./resume-import-service";
+import {
+  normalizeResumeImportPayload,
+  RESUME_IMPORT_CONVEX_BATCH_SIZE,
+  submitResumeImport,
+} from "./resume-import-service";
 
 type ConvexCall = {
   pathName: string;
@@ -41,6 +45,21 @@ function convexSuccess(value: unknown): Response {
     JSON.stringify({
       status: "success",
       value,
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  );
+}
+
+function convexExecutionTimeout(): Response {
+  return new Response(
+    JSON.stringify({
+      status: "error",
+      errorMessage: "Function execution timed out (maximum duration: 1s)",
     }),
     {
       status: 200,
@@ -567,7 +586,7 @@ describe("resume-import-service", () => {
         sourceUrl: "https://backup.example.com/api/resumes/backup",
         generatedBy: "trends-api backup",
       },
-      resumes: Array.from({ length: 201 }, (_, index) => ({
+      resumes: Array.from({ length: RESUME_IMPORT_CONVEX_BATCH_SIZE + 1 }, (_, index) => ({
         name: `Resume ${index + 1}`,
         profileUrl: `https://example.com/resumes/${index + 1}`,
         activityStatus: "Active",
@@ -575,11 +594,11 @@ describe("resume-import-service", () => {
       })),
     });
 
-    expect(batchLengths).toEqual([200, 1]);
+    expect(batchLengths).toEqual([RESUME_IMPORT_CONVEX_BATCH_SIZE, 1]);
     expect(result).toEqual({
       success: true,
-      submitted: 201,
-      inserted: 201,
+      submitted: RESUME_IMPORT_CONVEX_BATCH_SIZE + 1,
+      inserted: RESUME_IMPORT_CONVEX_BATCH_SIZE + 1,
       updated: 0,
       unchanged: 0,
       deduped: 0,
@@ -587,5 +606,48 @@ describe("resume-import-service", () => {
       actionsReplayed: 0,
       actionsDeduped: 0,
     });
+  });
+
+  it("splits a timed-out Convex batch and retries the halves", async () => {
+    const batchLengths: number[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName !== "resume_tasks:submitResumes") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
+      batchLengths.push(resumes.length);
+      if (resumes.length > 1) {
+        return convexExecutionTimeout();
+      }
+
+      return convexSuccess({
+        submitted: resumes.length,
+        deduped: 0,
+        inserted: resumes.length,
+        updated: 0,
+        unchanged: 0,
+      });
+    });
+
+    const result = await submitResumeImport({
+      metadata: {
+        sourceUrl: "https://ehire.51job.com/Candidate/SearchResumeNew.aspx",
+        generatedBy: "browser-extension@1.3.7",
+      },
+      resumes: Array.from({ length: 2 }, (_, index) => ({
+        name: `Timeout Resume ${index + 1}`,
+        profileUrl: `https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=${index + 1}`,
+        activityStatus: "Active",
+        extractedAt: "2026-09-17T07:17:01.000Z",
+      })),
+    });
+
+    expect(batchLengths).toEqual([2, 1, 1]);
+    expect(result.success).toBe(true);
+    expect(result.submitted).toBe(2);
+    expect(result.inserted).toBe(2);
   });
 });

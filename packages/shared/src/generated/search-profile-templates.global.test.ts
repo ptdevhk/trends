@@ -151,6 +151,9 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
 
     expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描', '销售'])
     expect(combined?.profile.jobDescription).toBe('cmm-3d-scanning-sales')
+    expect(combined?.profile.filters?.salaryRange?.max).toBe(25000)
+    expect(cmm?.profile.filters?.salaryRange?.max).toBe(25000)
+    expect(scanning?.profile.filters?.salaryRange?.max).toBe(25000)
     expect(combined?.profile.quickStart?.enabled).toBe(true)
     expect(combined?.profile.quickStart?.rank).toBe(7)
     expect(combined?.profile.quickStart?.label).toBe('China · 51job · 三坐标 3D扫描 销售')
