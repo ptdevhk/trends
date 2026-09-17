@@ -311,21 +311,22 @@ def test_load_rss_feeds_reads_feeds_key():
     assert all("url" in f for f in feeds)
 
 
-def test_load_rss_feeds_excludes_disabled_gnews_lab_stubs():
-    """gnews hit-rate lab stubs (docs/runbooks/research-gnews-hitrate-lab.md) are
-    enabled: false, so load_rss_feeds() must not return them — gnews-fanuc-cn
-    still loads, and the candidate brand ids are absent from the default set.
+def test_load_rss_feeds_gnews_lab_stubs_enablement():
+    """gnews hit-rate lab stubs (docs/runbooks/research-gnews-hitrate-lab.md):
+    the three on-topic candidates (创世纪机床/乔锋机床/压铸) are enabled so 订阅
+    can lift without WeChat, so load_rss_feeds() MUST return them. The homonym/
+    noise stubs (gnews-baoli, gnews-polywell) stay disabled and MUST stay absent.
     """
     ids = {f["id"] for f in load_rss_feeds()}
     assert "gnews-fanuc-cn" in ids
-    for lab_id in (
-        "gnews-baoli",
-        "gnews-polywell",
-        "gnews-genesis",
-        "gnews-qiaofeng",
-        "gnews-diecast",
-    ):
+    # on-topic trio enabled -> present
+    for lab_id in ("gnews-genesis", "gnews-qiaofeng", "gnews-diecast"):
+        assert lab_id in ids, lab_id
+    # homonym/noise stubs stay disabled -> absent
+    for lab_id in ("gnews-baoli", "gnews-polywell"):
         assert lab_id not in ids, lab_id
+    # no werss-* ids leak through
+    assert not any(fid.startswith("werss-") for fid in ids)
 
 
 def test_load_rss_feeds_phase_b_werss_stubs_stay_commented():
