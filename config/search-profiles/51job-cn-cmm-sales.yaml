@@ -2,7 +2,7 @@ id: 51job-cn-cmm-sales
 name: China 51job CMM & Metrology Sales
 description: China 51job coordinate measuring machine (CMM) and metrology sales search profile
 createdAt: "2026-09-10"
-updatedAt: "2026-09-15"
+updatedAt: "2026-09-17"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 900000
@@ -40,7 +40,7 @@ sources:
     priority: 2
 
 quickStart:
-  enabled: true
+  enabled: false
   rank: 7
   label: China · 51job · CMM 销售
   description: 三坐标测量机, 销售 · China

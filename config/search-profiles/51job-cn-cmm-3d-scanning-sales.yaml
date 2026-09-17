@@ -1,16 +1,17 @@
-id: 51job-cn-3d-scanning-sales
-name: China 51job 3D Scanning Sales
-description: China 51job 3D scanner and optical inspection equipment sales search profile
-createdAt: "2026-09-10"
+id: 51job-cn-cmm-3d-scanning-sales
+name: China 51job CMM & 3D Scanning Sales
+description: China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile
+createdAt: "2026-09-17"
 updatedAt: "2026-09-17"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 900000
-jobDescription: 3d-scanner-sales
+jobDescription: cmm-3d-scanning-sales
 
 location: China
 keywords:
-  - 3D扫描仪
+  - 三坐标
+  - 3D扫描
   - 销售
 
 filters:
@@ -40,7 +41,7 @@ sources:
     priority: 2
 
 quickStart:
-  enabled: false
-  rank: 8
-  label: China · 51job · 3D扫描销售
-  description: 3D扫描仪, 销售 · China
+  enabled: true
+  rank: 7
+  label: China · 51job · 三坐标 3D扫描 销售
+  description: 三坐标, 3D扫描, 销售 · China

@@ -114,22 +114,23 @@ describe('MY/TH CNC Service Engineer talent-search profiles', () => {
 })
 
 describe('51job CN CMM and 3D scanning sales profiles', () => {
-  const IDS = ['51job-cn-cmm-sales', '51job-cn-3d-scanning-sales'] as const
+  const COMBINED_ID = '51job-cn-cmm-3d-scanning-sales'
+  const SPLIT_IDS = ['51job-cn-cmm-sales', '51job-cn-3d-scanning-sales'] as const
 
-  it('seeds both 51job sales profiles for hr and dev without Seek URLs or CNC copy', () => {
+  it('seeds the HR-selected combined Option 1 profile and keeps split lanes off quick-start', () => {
     const hr = getWorkspaceSearchProfileTemplates('hr')
     const dev = getWorkspaceSearchProfileTemplates('dev')
+    const combined = hr.find((t) => t.profile.id === COMBINED_ID)
     const cmm = hr.find((t) => t.profile.id === '51job-cn-cmm-sales')
     const scanning = hr.find((t) => t.profile.id === '51job-cn-3d-scanning-sales')
 
+    expect(combined).toBeDefined()
     expect(cmm).toBeDefined()
     expect(scanning).toBeDefined()
-    expect(dev.some((t) => t.profile.id === '51job-cn-cmm-sales')).toBe(true)
-    expect(dev.some((t) => t.profile.id === '51job-cn-3d-scanning-sales')).toBe(true)
-    expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.profile.id === '51job-cn-cmm-sales')).toBe(true)
-    expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.profile.id === '51job-cn-3d-scanning-sales')).toBe(true)
+    expect(dev.some((t) => t.profile.id === COMBINED_ID)).toBe(true)
+    expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.profile.id === COMBINED_ID)).toBe(true)
 
-    for (const template of [cmm, scanning]) {
+    for (const template of [combined, cmm, scanning]) {
       expect(template?.profile.location).toBe('China')
       expect(template?.profile.filters?.roleFilterType).toBe('sales')
       expect(template?.profile.keywords).toContain('销售')
@@ -148,21 +149,23 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
       expect(jobUrls).not.toContain('seek.com')
     }
 
-    // Review closeout: precision CMM query + JD wiring (no live 51job re-benchmark).
+    expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描', '销售'])
+    expect(combined?.profile.jobDescription).toBe('cmm-3d-scanning-sales')
+    expect(combined?.profile.quickStart?.enabled).toBe(true)
+    expect(combined?.profile.quickStart?.rank).toBe(7)
+    expect(combined?.profile.quickStart?.label).toBe('China · 51job · 三坐标 3D扫描 销售')
+    expect(combined?.profile.quickStart?.description).toBe('三坐标, 3D扫描, 销售 · China')
+
     expect(cmm?.profile.keywords).toEqual(['三坐标测量机', '销售'])
     expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])
     expect(cmm?.profile.jobDescription).toBe('cmm-sales')
     expect(scanning?.profile.jobDescription).toBe('3d-scanner-sales')
-    expect(cmm?.profile.quickStart?.rank).toBe(7)
-    expect(scanning?.profile.quickStart?.rank).toBe(8)
-    expect(cmm?.profile.quickStart?.label).toBe('China · 51job · CMM 销售')
-    expect(scanning?.profile.quickStart?.label).toBe('China · 51job · 3D扫描销售')
-    expect(cmm?.profile.quickStart?.description).toBe('三坐标测量机, 销售 · China')
-    expect(scanning?.profile.quickStart?.description).toBe('3D扫描仪, 销售 · China')
+    expect(cmm?.profile.quickStart?.enabled).toBe(false)
+    expect(scanning?.profile.quickStart?.enabled).toBe(false)
 
+    expect(hr.filter((t) => SPLIT_IDS.includes(t.profile.id as (typeof SPLIT_IDS)[number]) && t.profile.quickStart?.enabled)).toEqual([])
     expect(hr.some((t) => t.profile.id === '51job-cn-cnc-sales')).toBe(true)
-    expect(cmm?.profile.id).not.toBe('51job-cn-cnc-sales')
-    expect(scanning?.profile.id).not.toBe('51job-cn-cnc-sales')
+    expect(combined?.profile.id).not.toBe('51job-cn-cnc-sales')
   })
 })
 
