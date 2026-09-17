@@ -263,10 +263,11 @@ if [[ -f "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh" ]]; then
     source "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh"
 fi
 if type ensure_research_ingest_env_lines >/dev/null 2>&1; then
-    set +e
-    ensure_research_ingest_env_lines "$PREVIEW_ENV_FILE" preview
-    RESEARCH_ENSURE_RC=$?
-    set -e
+    # Capture the helper's rc with `|| rc=$?` — NOT a `set +e` sandwich. Under
+    # `set -E` a bare sandwich still fires the ERR trap on the helper's rc=1
+    # (changed) return, aborting the upgrade right after it wrote the keys.
+    RESEARCH_ENSURE_RC=0
+    ensure_research_ingest_env_lines "$PREVIEW_ENV_FILE" preview || RESEARCH_ENSURE_RC=$?
     case "$RESEARCH_ENSURE_RC" in
       0) log_info "research-ingest env defaults already present in $PREVIEW_ENV_FILE" ;;
       1) log_info "Added research-ingest defaults (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL) to $PREVIEW_ENV_FILE" ;;
@@ -312,11 +313,13 @@ case "$RESEARCH_INGEST_FLAG" in
   1|true|yes|on)
     RESEARCH_WORKER_HEALTH="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8003/health" || echo 000)"
     if [[ "$RESEARCH_WORKER_HEALTH" == "200" ]]; then
-        set +e
+        # `|| rc=$?` capture for consistency, not a `set +e` sandwich. Here the
+        # inner `|| echo 000` already zeroes the substitution's rc, so no trap
+        # fires today — but keep the file free of the sandwich so a future edit
+        # that drops the inner guard cannot silently re-arm the landmine.
+        RESEARCH_CURL_RC=0
         RESEARCH_INGEST_CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 300 -X POST "http://127.0.0.1:8003/worker/research/ingest" \
-            -H 'Content-Type: application/json' -d '{}' || echo 000)"
-        RESEARCH_CURL_RC=$?
-        set -e
+            -H 'Content-Type: application/json' -d '{}' || echo 000)" || RESEARCH_CURL_RC=$?
         case "$RESEARCH_INGEST_CODE" in
           200) log_info "Research ingest one-shot OK (200)" ;;
           000) log_warn "Research ingest one-shot unreachable/timeout (worker may still be running). Inspect: journalctl -u trends-preview-worker-api -n 50 --no-pager" ;;
@@ -374,10 +377,10 @@ fi
 
 # Always ensure + repair BFF_API_URL on live .env.preview (missing OR container-local wrong).
 PREVIEW_BFF_DEFAULT="$(default_bff_api_url_for_role preview)"
-set +e
-ensure_bff_env_lines "$PREVIEW_ENV_FILE" preview "$PREVIEW_BFF_DEFAULT"
-ensure_rc=$?
-set -e
+# `|| rc=$?` capture — helper returns 1 (added) / 2 (repaired), and a `set +e`
+# sandwich still ERR-traps on those in this `set -E` script.
+ensure_rc=0
+ensure_bff_env_lines "$PREVIEW_ENV_FILE" preview "$PREVIEW_BFF_DEFAULT" || ensure_rc=$?
 case "$ensure_rc" in
   1) log_info "Added BFF_API_URL=${PREVIEW_BFF_DEFAULT} to $PREVIEW_ENV_FILE" ;;
   2) log_info "Repaired BFF_API_URL → ${PREVIEW_BFF_DEFAULT} in $PREVIEW_ENV_FILE" ;;
@@ -489,13 +492,15 @@ log_step "Search-data freshness gate (code deploy ≠ computed role years)"
 FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"
 [[ -x "$FRESHNESS_SCRIPT" ]] || FRESHNESS_SCRIPT="$SCRIPT_DIR/search-freshness-gate.sh"
 if [[ -x "$FRESHNESS_SCRIPT" ]]; then
-    set +e
+    # `|| rc=$?` capture — the gate exits 2/3/4 by design (all handled below);
+    # a `set +e` sandwich would ERR-trap on the first non-zero exit in this
+    # `set -E` script instead of reaching the case ladder.
+    FRESH_RC=0
     PREVIEW_DIR="$PREVIEW_DIR" PREVIEW_ENV_FILE="$PREVIEW_ENV_FILE" \
       PREVIEW_API_URL="$PREVIEW_API_URL" PREVIEW_PUBLIC_HOST="$PREVIEW_PUBLIC_HOST" \
       GATE_STRICT="${PREVIEW_FRESHNESS_STRICT:-1}" SCHEDULE_REINGEST="${PREVIEW_SCHEDULE_REINGEST:-1}" \
-      bash "$FRESHNESS_SCRIPT" --role preview --api-url "$PREVIEW_API_URL" --workspace dev
-    FRESH_RC=$?
-    set -e
+      bash "$FRESHNESS_SCRIPT" --role preview --api-url "$PREVIEW_API_URL" --workspace dev \
+      || FRESH_RC=$?
     if [[ "$FRESH_RC" -eq 0 ]]; then
         log_info "Search freshness gate OK"
     elif [[ "$FRESH_RC" -eq 3 ]]; then
