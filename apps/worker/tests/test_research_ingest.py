@@ -311,6 +311,23 @@ def test_load_rss_feeds_reads_feeds_key():
     assert all("url" in f for f in feeds)
 
 
+def test_load_rss_feeds_excludes_disabled_gnews_lab_stubs():
+    """gnews hit-rate lab stubs (docs/runbooks/research-gnews-hitrate-lab.md) are
+    enabled: false, so load_rss_feeds() must not return them — gnews-fanuc-cn
+    still loads, and the candidate brand ids are absent from the default set.
+    """
+    ids = {f["id"] for f in load_rss_feeds()}
+    assert "gnews-fanuc-cn" in ids
+    for lab_id in (
+        "gnews-baoli",
+        "gnews-polywell",
+        "gnews-genesis",
+        "gnews-qiaofeng",
+        "gnews-diecast",
+    ):
+        assert lab_id not in ids, lab_id
+
+
 def test_load_rss_feeds_phase_b_werss_stubs_stay_commented():
     """Phase B WeRSS stubs in config.yaml must stay commented out until an operator
     stands up the sidecar. If they were live, ingest would dial 127.0.0.1 every
