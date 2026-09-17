@@ -1,0 +1,74 @@
+# Research mp (公众号 → RSS) connector catalog — OPT-IN, not a plugin runtime.
+#
+# This is a static catalog that documents the known WeRSS-family connectors and
+# lets an operator ENABLE one by setting `enabled: true` and pasting a REAL feed
+# URL (`url:`). We do NOT install / run / authenticate anything here: no WeChat
+# or WeRead login, no Docker/sidecar install, no Mp2RSS signup, no scraping of
+# mp.weixin.qq.com. See docs/runbooks/we-rss-mp-intake.md for the operator steps.
+#
+# Every connector's feed id MUST be `werss-<mp_id>`-style (a bare `werss-*` /
+# `wechat2rss-*` / `mp2rss-*` id is fine — `apps/worker/research_ports.py`
+# derives the platform as `f"rss:{feed_id}"`, and isHotlistPlatform() treats
+# anything NOT prefixed `rss:` as a NewsNow hotlist platform). So a `mp2rss-*`
+# id becomes `rss:mp2rss-*` and is safely a subscription lane, never hotlist.
+#
+# All plugins default `enabled: false`. When `enabled: true` AND `url:` is a
+# non-empty http(s) URL, load_rss_feeds() merges that feed after
+# `config.yaml rss.feeds`; when `enabled: true` but `url` is empty/missing, the
+# feed is HARD-SKIPPED with an error log and is never handed to HttpRssPort.
+version: v1
+
+plugins:
+  - id: we-mp-rss
+    name: "we-mp-rss (self-host)"
+    kind: self-host
+    recommendation: recommended
+    notes: "Self-hosted WeChat 公众号 → RSS. Requires a host-side install + WeChat login by the operator (Phase B runbook)."
+    enabled: false
+    feeds:
+      - id: werss-cnc-diecast
+        name: "公众号 · 压铸前沿"
+        url: ""                                   # operator pastes a real feed URL to enable
+        max_age_days: 7
+
+  - id: wechat2rss
+    name: "wechat2rss"
+    kind: hosted-mirror
+    recommendation: not-recommended
+    notes: "Hosted mirror service; no local install. Availability/ToS vary; treat URLs as externally owned mirrors."
+    enabled: false
+    feeds:
+      - id: wechat2rss-cnc-diecast
+        name: "公众号 · 压铸前沿 (wechat2rss)"
+        url: ""
+        max_age_days: 7
+
+  - id: mp2rss
+    name: "Mp2RSS"
+    kind: saas
+    recommendation: not-recommended
+    notes: "SaaS, no WeChat QR flow in this codebase. Requires Mp2RSS signup by the operator; do NOT instruct signup here."
+    enabled: false
+    feeds:
+      - id: mp2rss-cnc-diecast
+        name: "公众号 · 压铸前沿 (Mp2RSS)"
+        url: ""
+        max_age_days: 7
+
+  - id: wewe-rss
+    name: "wewe-rss"
+    kind: self-host
+    status: archived
+    recommendation: do-not-recommend
+    notes: "ARCHIVED upstream. Preserved in the catalog for awareness only — must never be enabled/ingested."
+    enabled: false
+    feeds:
+      - id: wewe-rss-cnc-diecast
+        name: "公众号 · 压铸前沿 (wewe-rss, archived)"
+        url: ""
+        max_age_days: 7
+
+# Examples of a feed once enabled (operator pastes a real URL). The platform
+# emitted on ingest is always `rss:{id}`; these three ids are the canonical
+# example set referenced by the runbook:
+#   rss:werss-cnc-diecast / rss:wechat2rss-cnc-diecast / rss:mp2rss-cnc-diecast

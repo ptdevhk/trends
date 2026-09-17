@@ -612,6 +612,12 @@ const getPulseRoute = createRoute({
       all: z.string().optional(),
       /** When true/1, exclude rss:* brand feeds so the feed is NewsNow hotlist only. */
       hotlistOnly: z.string().optional(),
+      /**
+       * A1b: when hotlistOnly=1, set 0 to skip the extra mixed read that powers the
+       * dual 热榜/订阅 counts (meta.rssMatchedCount becomes 0 by construction).
+       * Defaults to on (1) so the hub's honest chips keep working.
+       */
+      hotlistDualCounts: z.string().optional(),
       /** Optional free-form keyword to focus the feed (e.g. a ?pulse= handoff value). */
       keyword: z.string().optional(),
     }),
@@ -647,6 +653,8 @@ const getPulseRoute = createRoute({
               matchedCount: z.number(),
               hotlistMatchedCount: z.number(),
               rssMatchedCount: z.number(),
+              /** A1b: true unless the caller opted out via hotlistDualCounts=0. */
+              hotlistDualCounts: z.boolean(),
               keywordHits: z.array(
                 z.object({
                   keyword: z.string(),
@@ -673,10 +681,16 @@ app.openapi(getPulseRoute, async (c) => {
   const hotlistRaw = (query.hotlistOnly ?? "").toLowerCase();
   const hotlistOnly =
     hotlistRaw === "1" || hotlistRaw === "true" || hotlistRaw === "yes" || hotlistRaw === "on";
+  // A1b opt-out: only an explicit falsy form disables dual counts; absent/unknown
+  // keeps the current on-by-default behavior.
+  const dualRaw = (query.hotlistDualCounts ?? "").toLowerCase();
+  const hotlistDualCounts =
+    dualRaw === "0" || dualRaw === "false" || dualRaw === "no" || dualRaw === "off" ? false : true;
   const result = await getResearchPulse(workspaceSlug, {
     limit: query.limit,
     all,
     hotlistOnly,
+    hotlistDualCounts,
     keyword: query.keyword,
   });
   return c.json({ success: true as const, ...result }, 200);

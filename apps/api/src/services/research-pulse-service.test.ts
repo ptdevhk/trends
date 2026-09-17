@@ -343,6 +343,122 @@ describe("research-pulse-service", () => {
     expect(shukong?.rssHitCount).toBeGreaterThanOrEqual(1);
   });
 
+  it("getResearchPulse: hotlistOnly + hotlistDualCounts=false skips the mixed meta read (A1b opt-out)", async () => {
+    getWorkspaceConfigValueMock.mockResolvedValue({
+      version: 1,
+      enabled: [],
+      excluded: [],
+      custom: ["发那科", "数控"],
+    });
+    resolveResearchCompanySurfaceMock.mockReturnValue(null);
+    getHotlistPlatformsStateMock.mockResolvedValue({
+      seed: { version: "v1", groups: [], defaults: ["weibo"], catalogIds: ["weibo"] },
+      workspace: { version: 1, enabled: [], excluded: [] },
+      effective: ["weibo"],
+    });
+    // Global (platform-less) read returns a dense RSS window — the A1b opt-out must
+    // never take it, so the meta split cannot see these rows.
+    listResearchNewsMock.mockImplementation(async (params: { platform?: string; limit?: number }) => {
+      if (params.platform === "weibo") {
+        return [
+          {
+            _id: "1",
+            sourceId: "s",
+            platform: "weibo",
+            title: "发那科登热榜",
+            contentHash: "h1",
+            capturedAt: 300,
+          },
+        ];
+      }
+      return [
+        {
+          _id: "2",
+          sourceId: "s",
+          platform: "rss:gnews-fanuc-cn",
+          title: "发那科推出新一代数控系统",
+          contentHash: "h2",
+          capturedAt: 200,
+        },
+      ];
+    });
+
+    const result = await getResearchPulse("hr", {
+      limit: 12,
+      hotlistOnly: true,
+      hotlistDualCounts: false,
+    });
+
+    // No platform-less global read: every call is a per-platform slice.
+    const globalCalls = listResearchNewsMock.mock.calls.filter(
+      (call) => call[0] == null || call[0].platform == null,
+    );
+    expect(globalCalls).toHaveLength(0);
+    expect(listResearchNewsMock).not.toHaveBeenCalledWith({ limit: 100 });
+
+    // Dual split falls back to the hotlist-only window: no RSS by construction.
+    expect(result.meta.rssMatchedCount).toBe(0);
+    expect(result.meta.hotlistMatchedCount).toBe(1);
+    expect(result.meta.matchedCount).toBe(1);
+    const fanuc = result.meta.keywordHits.find((h) => h.keyword === "发那科");
+    expect(fanuc).toMatchObject({ hitCount: 1, hotlistHitCount: 1, rssHitCount: 0 });
+    const shukong = result.meta.keywordHits.find((h) => h.keyword === "数控");
+    expect(shukong).toMatchObject({ hitCount: 0, hotlistHitCount: 0, rssHitCount: 0 });
+  });
+
+  it("getResearchPulse: hotlistOnly defaults to dual counts (opt-out absent keeps current behavior)", async () => {
+    getWorkspaceConfigValueMock.mockResolvedValue({
+      version: 1,
+      enabled: [],
+      excluded: [],
+      custom: ["发那科"],
+    });
+    resolveResearchCompanySurfaceMock.mockReturnValue(null);
+    getHotlistPlatformsStateMock.mockResolvedValue({
+      seed: { version: "v1", groups: [], defaults: ["weibo"], catalogIds: ["weibo"] },
+      workspace: { version: 1, enabled: [], excluded: [] },
+      effective: ["weibo"],
+    });
+    listResearchNewsMock.mockImplementation(async (params: { platform?: string; limit?: number }) => {
+      if (params.platform === "weibo") {
+        return [
+          {
+            _id: "1",
+            sourceId: "s",
+            platform: "weibo",
+            title: "娱乐热搜无关",
+            contentHash: "h1",
+            capturedAt: 300,
+          },
+        ];
+      }
+      return [
+        {
+          _id: "1",
+          sourceId: "s",
+          platform: "weibo",
+          title: "娱乐热搜无关",
+          contentHash: "h1",
+          capturedAt: 300,
+        },
+        {
+          _id: "2",
+          sourceId: "s",
+          platform: "rss:gnews-fanuc-cn",
+          title: "发那科推出新一代数控系统",
+          contentHash: "h2",
+          capturedAt: 200,
+        },
+      ];
+    });
+
+    const result = await getResearchPulse("hr", { limit: 12, hotlistOnly: true });
+    expect(listResearchNewsMock).toHaveBeenCalledWith({ limit: 100 });
+    expect(result.meta.rssMatchedCount).toBe(1);
+    const fanuc = result.meta.keywordHits.find((h) => h.keyword === "发那科");
+    expect(fanuc).toMatchObject({ hitCount: 0, hotlistHitCount: 0, rssHitCount: 1 });
+  });
+
   it("getResearchPulse: hotlistOnly=0 includes RSS in matchedCount and dual chip counts", async () => {
     getWorkspaceConfigValueMock.mockResolvedValue({
       version: 1,

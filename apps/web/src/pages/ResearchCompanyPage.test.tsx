@@ -145,10 +145,13 @@ describe('ResearchCompanyPage route mount', () => {
     )
     expect(pulseCalls.length).toBeGreaterThanOrEqual(1)
     const pulseOpts = pulseCalls[0]![1] as {
-      params?: { query?: { hotlistOnly?: number; all?: number } }
+      params?: { query?: { hotlistOnly?: number; all?: number; hotlistDualCounts?: number } }
     }
     expect(pulseOpts?.params?.query?.hotlistOnly).toBe(1)
     expect(pulseOpts?.params?.query?.all).toBe(1)
+    // A1b: the company hotlist tab renders no dual 热榜/订阅 counts, so it opts out
+    // of the extra mixed meta read.
+    expect(pulseOpts?.params?.query?.hotlistDualCounts).toBe(0)
 
     // Alias highlight is visual only
     const highlighted = screen

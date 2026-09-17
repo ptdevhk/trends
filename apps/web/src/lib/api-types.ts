@@ -13138,6 +13138,7 @@ export interface paths {
                     limit?: number | null;
                     all?: string;
                     hotlistOnly?: string;
+                    hotlistDualCounts?: string;
                     keyword?: string;
                 };
                 header?: never;
@@ -13174,6 +13175,7 @@ export interface paths {
                                 matchedCount: number;
                                 hotlistMatchedCount: number;
                                 rssMatchedCount: number;
+                                hotlistDualCounts: boolean;
                                 keywordHits: {
                                     keyword: string;
                                     hitCount: number;
