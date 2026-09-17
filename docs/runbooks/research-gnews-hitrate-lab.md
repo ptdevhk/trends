@@ -56,14 +56,27 @@ Add `enabled: false` stubs for every candidate with `items > 0`:
 Bare `创世纪` / `乔锋` (100-item) variants are **not** stubbed to avoid financing
 news noise; `创世纪机床` / `乔锋机床` are the on-topic picks.
 
-All stubs are `enabled: false` and must stay that way in committed config.
+## Enablement (2026-09-17)
+
+The three on-topic stubs are now **enabled** in committed config so 订阅 can
+lift without WeChat (`rss:gnews-*` ride the existing Google News RSS lane):
+
+- `gnews-genesis` (创世纪机床, 17) — `enabled: true` (on-topic).
+- `gnews-qiaofeng` (乔锋机床, 12) — `enabled: true` (on-topic).
+- `gnews-diecast` (压铸, 100) — `enabled: true` (on-topic die-cast industry).
+
+`gnews-baoli` (宝力机械, 1) and `gnews-polywell` (宝惠, 63) **stay**
+`enabled: false` — single irrelevant hit / homonym noise, not the CNC brands.
+The WeRSS (`werss-*`) Phase B stubs stay commented out; no `werss-*` feed ids
+are enabled.
 
 ## Result
 
 - Baseline gnews set: all 8 feeds healthy (200, 11–100 items).
 - Of the candidate brand queries, only `创世纪机床` / `乔锋机床` / `压铸` would
-  cleanly lift 订阅 for the missing brands. `宝力机械` and `宝惠` are effectively
-  **dead queries** (1 irrelevant hit / homonym noise) — Google News does not index
-  those brand names usefully, so no single query fix will help them.
-- This is a measurement, not a Phase B claim: these would still ride the same
-  existing gnews RSS lane (`rss:gnews-*`) and need operator enablement.
+  cleanly lift 订阅 for the missing brands — these three are now **enabled**.
+  `宝力机械` and `宝惠` are effectively **dead queries** (1 irrelevant hit /
+  homonym noise) — Google News does not index those brand names usefully, so no
+  single query fix will help them and they remain disabled.
+- This is a measurement, not a Phase B claim: these ride the same existing gnews
+  RSS lane (`rss:gnews-*`), now with the on-topic trio enabled.
