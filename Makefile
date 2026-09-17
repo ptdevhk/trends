@@ -21,7 +21,7 @@
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills \
-		check-route-auth check-mutation-entry-points check-local-convex-write-secret auth-workspace-smoke auth-provider-membership \
+		check-route-auth check-mutation-entry-points check-research-ingest-defaults check-local-convex-write-secret auth-workspace-smoke auth-provider-membership \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -1366,7 +1366,7 @@ fresh-env: clean clean-db
 	@echo "Fresh environment ready."
 
 # Run all validation checks (Python + Node.js + project skill sync + canonical policy validation)
-check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret check-keyword-tags
+check: check-python check-node check-project-skills check-agent-policy check-concept-drift check-route-auth check-mutation-entry-points check-convex-function-paths check-seed-bootstrap-admins check-local-convex-write-secret check-research-ingest-defaults check-keyword-tags
 	@echo "All checks passed"
 
 # Auth gating lint — verify API route files have auth middleware
@@ -1388,6 +1388,11 @@ check-convex-function-paths:
 # in scripts/install.sh (deploy-time admin seeding for the auth refactor).
 check-seed-bootstrap-admins:
 	@bash scripts/seed-bootstrap-admins.test.sh
+
+# Research-ingest defaults — verify the env helper + install/preview call sites
+# (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL + preview worker).
+check-research-ingest-defaults:
+	@bash deploy/research-ingest-defaults.test.sh
 
 # Local Convex write secret - verify local-only detection, stable persistence,
 # mode protection, and cloud no-op behavior.

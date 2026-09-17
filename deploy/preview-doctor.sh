@@ -177,7 +177,7 @@ else
 fi
 
 echo
-echo "[5/8] Preview worker API"
+echo "[5/8] Preview worker API + research ingest"
 if systemctl is-active --quiet trends-preview-worker-api 2>/dev/null; then
     ok "trends-preview-worker-api is active"
 else
@@ -185,6 +185,38 @@ else
 fi
 WZ=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$WORKER_PORT/health" || echo 000)
 [ "$WZ" = "200" ] && ok "worker /health → $WZ" || fail "worker /health → $WZ"
+
+# Research-ingest scheduler + env status (report-only, not upgrade-fatal)
+PREVIEW_WORKER_SVC="trends-preview-worker"
+if systemctl is-active --quiet "$PREVIEW_WORKER_SVC" 2>/dev/null; then
+    ok "$PREVIEW_WORKER_SVC scheduler unit is active"
+else
+    warn "$PREVIEW_WORKER_SVC scheduler unit is NOT active (research_ingest interval job may be unregistered)"
+fi
+RESEARCH_FLAG="$(grep -E '^RESEARCH_INGEST_ENABLED=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)"
+if [ -z "$RESEARCH_FLAG" ]; then
+    warn "RESEARCH_INGEST_ENABLED missing in $ENV_FILE — research_ingest job not scheduled"
+elif [ "$RESEARCH_FLAG" = "0" ]; then
+    warn "RESEARCH_INGEST_ENABLED=0 (kill-switch) — research_ingest one-shot/job disabled"
+else
+    ok "RESEARCH_INGEST_ENABLED=${RESEARCH_FLAG}"
+fi
+RESEARCH_WORKER_URL="$(grep -E '^WORKER_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)"
+if [ -z "$RESEARCH_WORKER_URL" ]; then
+    warn "WORKER_URL missing in $ENV_FILE — BFF research service may target default :8000"
+elif [ "$RESEARCH_WORKER_URL" = "http://127.0.0.1:$WORKER_PORT" ]; then
+    ok "WORKER_URL=$RESEARCH_WORKER_URL matches preview :$WORKER_PORT"
+else
+    warn "WORKER_URL=$RESEARCH_WORKER_URL (expected http://127.0.0.1:$WORKER_PORT for preview)"
+fi
+if [ "$WZ" = "200" ] && [ -n "$RESEARCH_FLAG" ] && [ "$RESEARCH_FLAG" != "0" ]; then
+    WSTATUS="$(curl -sS --max-time 5 "http://127.0.0.1:$WORKER_PORT/worker/status" 2>/dev/null | tr -d ' ' || true)"
+    if echo "$WSTATUS" | grep -q 'research_ingest'; then
+        ok "GET /worker/status lists research_ingest job"
+    else
+        warn "GET /worker/status does not list research_ingest (scheduler may not have registered it yet)"
+    fi
+fi
 
 echo
 echo "[6/8] MCP container"

@@ -790,6 +790,7 @@ env_only_upgrade_steps() {
     sync_service_user_gh_credentials
     validate_auth_env
     deploy_env_file
+    ensure_research_ingest_env_production
     setup_convex
     restart_units
     wait_for_api_health
@@ -1874,6 +1875,7 @@ install_flow() {
     validate_auth_env
     deploy_env_file
     sync_web_build_env
+    ensure_research_ingest_env_production
     build_shared_artifact
     setup_convex
     build_artifacts
@@ -1898,6 +1900,76 @@ install_flow() {
     echo "  sudo nano /etc/caddy/Caddyfile"
     echo "  sudo systemctl reload caddy"
     print_caddy_block
+}
+
+ensure_research_ingest_env_production() {
+    # Backfill research-ingest defaults (RESEARCH_INGEST_ENABLED / WORKER_URL /
+    # RESEARCH_HOTLIST_API_URL) in the live env BEFORE worker units restart, so
+    # the scheduler registers the research_ingest job on install/upgrade without
+    # a desk click. Missing helper on an old tree → warn, never abort.
+    local helper="$INSTALL_DIR/deploy/lib-research-ingest-defaults.sh"
+    if [[ ! -f "$helper" ]]; then
+        log_warn "lib-research-ingest-defaults.sh missing at $helper — skip research-ingest env defaults"
+        return 0
+    fi
+    # shellcheck disable=SC1090,SC1091
+    source "$helper"
+    [[ -f "$CONFIG_DIR/env" ]] || return 0
+    local ensure_rc=0
+    set +e
+    ensure_research_ingest_env_lines "$CONFIG_DIR/env" production
+    ensure_rc=$?
+    set -e
+    case "$ensure_rc" in
+      0) log_info "research-ingest env defaults already present in $CONFIG_DIR/env" ;;
+      1) log_info "Added research-ingest defaults (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL) to $CONFIG_DIR/env" ;;
+      *) log_warn "research-ingest env ensure skipped ($CONFIG_DIR/env rc=$ensure_rc)" ;;
+    esac
+    chmod 600 "$CONFIG_DIR/env" 2>/dev/null || true
+}
+
+run_research_ingest_one_shot_production() {
+    # After the worker-api is up and only if RESEARCH_INGEST_ENABLED is not 0,
+    # trigger one research ingest so the desk is not empty until the 6h interval.
+    # Best-effort WARN only: 000 / 5xx / timeout never fail the install/upgrade.
+    local helper="$INSTALL_DIR/deploy/lib-research-ingest-defaults.sh"
+    if [[ -f "$helper" ]]; then
+        # shellcheck disable=SC1090,SC1091
+        source "$helper"
+    fi
+    [[ -f "$CONFIG_DIR/env" ]] || return 0
+    local ingest_flag="$(read_env_var_from_file "$CONFIG_DIR/env" "RESEARCH_INGEST_ENABLED" 2>/dev/null || true)"
+    ingest_flag="$(printf '%s' "$ingest_flag" | tr -d '"' | tr -d ' ')"
+    if [[ "$ingest_flag" != "1" && "$ingest_flag" != "true" && "$ingest_flag" != "yes" && "$ingest_flag" != "on" ]]; then
+        log_info "Research ingest one-shot skipped (RESEARCH_INGEST_ENABLED=${ingest_flag:-unset}) — kill-switch"
+        return 0
+    fi
+    local worker_port="${RESEARCH_WORKER_PORT_PRODUCTION:-8000}"
+    local health_url="http://127.0.0.1:${worker_port}/health"
+    local ingest_url="http://127.0.0.1:${worker_port}/worker/research/ingest"
+    local i code=000
+    for i in $(seq 1 24); do
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$health_url" || echo 000)"
+        [[ "$code" == "200" ]] && break
+        sleep 5
+    done
+    if [[ "$code" != "200" ]]; then
+        log_warn "worker-api /health not ready (code=$code) — skipping research ingest one-shot"
+        return 0
+    fi
+    set +e
+    local http_code
+    http_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 300 -X POST "$ingest_url" \
+        -H 'Content-Type: application/json' -d '{}' || echo 000)"
+    local rc=$?
+    set -e
+    if [[ "$http_code" == "200" ]]; then
+        log_info "Research ingest one-shot OK ($http_code)"
+    elif [[ "$http_code" == "000" ]]; then
+        log_warn "Research ingest one-shot timeout/unreachable (worker may still be running). Inspect: journalctl -u trends-worker-api -n 50 --no-pager"
+    else
+        log_warn "Research ingest one-shot returned $http_code (curl rc=$rc) — best-effort; scheduler interval still applies"
+    fi
 }
 
 run_search_freshness_gate_production() {
@@ -1985,6 +2057,7 @@ full_upgrade_steps() {
         log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
     fi
     build_shared_artifact
+    ensure_research_ingest_env_production
     setup_convex
     build_artifacts
     seed_and_migrate_convex
@@ -1994,6 +2067,7 @@ full_upgrade_steps() {
     restart_units
     wait_for_api_health
     seed_bootstrap_admins
+    run_research_ingest_one_shot_production
     run_search_freshness_gate_production
 }
 
