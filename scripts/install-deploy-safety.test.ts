@@ -68,6 +68,16 @@ function expectBefore(source: string, first: string, second: string): void {
   expect(source.indexOf(first)).toBeLessThan(source.indexOf(second));
 }
 
+/** Parse `${NAME:-N}` defaults so capacity bounds stay true when the number changes. */
+function bashDefaultNumber(source: string, varName: string): number {
+  const pattern = new RegExp(`^${varName}="\\$\\{${varName}:-(\\d+)\\}"`, "m");
+  const match = source.match(pattern);
+  if (!match) {
+    throw new Error(`Missing ${varName}=\${${varName}:-N} default`);
+  }
+  return Number(match[1]);
+}
+
 describe("install/deploy demo resume safety", () => {
   it("uses prod wrappers that never pass the removed resume-seed env var", () => {
     expect(getTargetRecipe("on-prod-install")).toContain("./scripts/install.sh install");
@@ -624,9 +634,11 @@ describe("preview release helpers", () => {
     const gateScript = readFileSync(new URL("../deploy/search-freshness-gate.sh", import.meta.url), "utf8");
     expect(gateScript).toContain("REINGEST_BATCH");
     expect(gateScript).toContain("REINGEST_SLEEP_SECS");
-    // Capacity-safe defaults: batch ≤25, sleep ≥8
-    expect(gateScript).toMatch(/REINGEST_BATCH.*\b25\b/);
-    expect(gateScript).toMatch(/REINGEST_SLEEP_SECS.*\b8\b/);
+    // Capacity-safe defaults: batch ≤25, sleep ≥8 (live values are 10 / 15)
+    const reingestBatch = bashDefaultNumber(gateScript, "REINGEST_BATCH");
+    const reingestSleepSecs = bashDefaultNumber(gateScript, "REINGEST_SLEEP_SECS");
+    expect(reingestBatch).toBeLessThanOrEqual(25);
+    expect(reingestSleepSecs).toBeGreaterThanOrEqual(8);
     // CLI flags for overrides
     expect(gateScript).toContain("--reingest-batch");
     expect(gateScript).toContain("--reingest-sleep");
