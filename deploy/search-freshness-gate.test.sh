@@ -39,6 +39,13 @@ grep -q '^TRENDS_DEPLOYMENT_ROLE=production' "$ROOT/deploy/env.production" && pa
 # Upgrade hooks
 grep -q 'search-freshness-gate' "$ROOT/deploy/preview-upgrade.sh" && pass "preview-upgrade invokes freshness gate" || fail "preview-upgrade missing gate"
 grep -q 'FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"' "$ROOT/deploy/preview-upgrade.sh" && pass "preview-upgrade prefers PREVIEW_DIR gate" || fail "upgrade still prefers SCRIPT_DIR gate"
+# Doctor rc=1 (unverifiable / CN JSON timeout) must not ERR-abort preview-upgrade
+# after the code is already live. `set +e` sandwich is banned; require if-test.
+if grep -A25 'Search-data freshness gate' "$ROOT/deploy/preview-upgrade.sh" | grep -qE '^[[:space:]]*if PREVIEW_DIR='; then
+  pass "preview-upgrade runs freshness gate as an if-test (ERR-safe for doctor rc=1)"
+else
+  fail "preview-upgrade freshness gate is not an if-test (doctor rc=1 will ERR-abort after deploy)"
+fi
 grep -q 'REPO_ROOT="$PREVIEW_DIR"' "$ROOT/deploy/search-freshness-gate.sh" && pass "gate pins REPO_ROOT to PREVIEW_DIR" || fail "gate missing PREVIEW_DIR pin"
 grep -q 'cd "$REPO_ROOT"' "$ROOT/deploy/search-freshness-gate.sh" && pass "doctor cds to REPO_ROOT" || fail "doctor still cds to dirname DOCTOR"
 grep -q 'run_search_freshness_gate_production' "$ROOT/scripts/install.sh" && pass "install.sh prod freshness gate" || fail "install.sh missing gate"

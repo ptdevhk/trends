@@ -113,9 +113,18 @@ fi
 grep -q 'ensure_bff_env_lines "\$PREVIEW_ENV_FILE" preview "\$PREVIEW_BFF_DEFAULT" || ensure_rc=\$?' "$UPGRADE_SCRIPT" \
   && pass "preview-upgrade captures ensure_bff_env_lines via '|| ensure_rc=\$?'" \
   || fail "preview-upgrade missing '|| ensure_rc=\$?' BFF capture"
-grep -q '|| FRESH_RC=\$?' "$UPGRADE_SCRIPT" \
-  && pass "preview-upgrade captures freshness gate via '|| FRESH_RC=\$?'" \
-  || fail "preview-upgrade missing '|| FRESH_RC=\$?' freshness capture"
+# Gate subprocess exits 1 on unverifiable doctor (auth/JSON/timeout). That must
+# be the test of an `if` so trap ERR cannot abort after the code is already live.
+if grep -A25 'Search-data freshness gate' "$UPGRADE_SCRIPT" | grep -qE '^[[:space:]]*if PREVIEW_DIR='; then
+  pass "preview-upgrade runs freshness gate as an if-test (ERR-safe)"
+else
+  fail "preview-upgrade freshness gate is not an if-test (doctor rc=1 will ERR-abort after deploy)"
+fi
+if grep -A30 'Search-data freshness gate' "$UPGRADE_SCRIPT" | grep -q 'FRESH_RC=\$?'; then
+  pass "preview-upgrade records FRESH_RC=\$? in the gate if-else"
+else
+  fail "preview-upgrade missing FRESH_RC=\$? capture for the freshness gate"
+fi
 grep -q '|| RESEARCH_CURL_RC=\$?' "$UPGRADE_SCRIPT" \
   && pass "preview-upgrade captures ingest curl via '|| RESEARCH_CURL_RC=\$?'" \
   || fail "preview-upgrade missing '|| RESEARCH_CURL_RC=\$?' curl capture"
@@ -199,6 +208,63 @@ ORRC_OUT3="$(run_err_harness orrc)"
 [[ "$ORRC_OUT3" == *"SURVIVED rc=2"* ]] \
   && pass "'|| rc=\$?' survives missing-file rc=2" \
   || fail "missing-file rc wrong: $ORRC_OUT3"
+
+echo "=== freshness-gate ERR-trap: external bash exit 1 (doctor rc=1) ==="
+# preview-upgrade invokes `bash "$FRESHNESS_SCRIPT"`, not a function. The
+# 2026-09-17 leftover was that `set +e` sandwich still ERR-traps on that
+# subprocess exit 1, aborting after the code was already live. Prove sandwich
+# still fires and the if-test capture survives.
+GATE_FAKE="$(mktemp "${TMPDIR:-/tmp}/freshness-gate-fake-XXXXXX")"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$GATE_FAKE"
+chmod +x "$GATE_FAKE"
+trap 'rm -f "$TMP_ENV" "$HARNESS_ENV" "$GATE_FAKE"' EXIT
+
+run_gate_err_harness() {
+  HARNESS_STYLE="$1" GATE_FAKE="$GATE_FAKE" \
+    bash -c '
+      set -Eeuo pipefail
+      on_err() { echo "TRAP_FIRED line=$1"; exit 99; }
+      trap "on_err $LINENO" ERR
+      FRESHNESS_SCRIPT="$GATE_FAKE"
+      FRESH_RC=0
+      if [[ "$HARNESS_STYLE" == "sandwich" ]]; then
+        set +e
+        PREVIEW_DIR=x PREVIEW_ENV_FILE=y \
+          PREVIEW_API_URL=z PREVIEW_PUBLIC_HOST=h \
+          GATE_STRICT=1 SCHEDULE_REINGEST=1 \
+          bash "$FRESHNESS_SCRIPT" --role preview --api-url http://x --workspace dev
+        FRESH_RC=$?
+        set -e
+      else
+        if PREVIEW_DIR=x PREVIEW_ENV_FILE=y \
+          PREVIEW_API_URL=z PREVIEW_PUBLIC_HOST=h \
+          GATE_STRICT=1 SCHEDULE_REINGEST=1 \
+          bash "$FRESHNESS_SCRIPT" --role preview --api-url http://x --workspace dev
+        then
+          FRESH_RC=0
+        else
+          FRESH_RC=$?
+        fi
+      fi
+      echo "SURVIVED rc=$FRESH_RC"
+    ' 2>&1 || true
+}
+
+GATE_SANDWICH_OUT="$(run_gate_err_harness sandwich)"
+[[ "$GATE_SANDWICH_OUT" == *TRAP_FIRED* ]] \
+  && pass "set +e sandwich DOES fire ERR trap on external bash exit 1" \
+  || fail "expected sandwich to fire ERR on gate exit 1, got: $GATE_SANDWICH_OUT"
+[[ "$GATE_SANDWICH_OUT" != *SURVIVED* ]] \
+  && pass "set +e sandwich never reaches FRESH_RC capture for gate exit 1" \
+  || fail "sandwich survived gate exit 1 — leftover not reproduced: $GATE_SANDWICH_OUT"
+
+GATE_IF_OUT="$(run_gate_err_harness ifelse)"
+[[ "$GATE_IF_OUT" != *TRAP_FIRED* ]] \
+  && pass "if-test capture does NOT fire ERR trap on gate exit 1" \
+  || fail "if-test still fired ERR trap: $GATE_IF_OUT"
+[[ "$GATE_IF_OUT" == *"SURVIVED rc=1"* ]] \
+  && pass "if-test capture survives and reports FRESH_RC=1" \
+  || fail "if-test rc wrong: $GATE_IF_OUT"
 
 echo "Summary: $FAIL failure(s)"
 [[ "$FAIL" -eq 0 ]]

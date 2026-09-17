@@ -492,15 +492,22 @@ log_step "Search-data freshness gate (code deploy ≠ computed role years)"
 FRESHNESS_SCRIPT="$PREVIEW_DIR/deploy/search-freshness-gate.sh"
 [[ -x "$FRESHNESS_SCRIPT" ]] || FRESHNESS_SCRIPT="$SCRIPT_DIR/search-freshness-gate.sh"
 if [[ -x "$FRESHNESS_SCRIPT" ]]; then
-    # `|| rc=$?` capture — the gate exits 2/3/4 by design (all handled below);
-    # a `set +e` sandwich would ERR-trap on the first non-zero exit in this
-    # `set -E` script instead of reaching the case ladder.
+    # Capture gate rc with `if bash gate; then; else FRESH_RC=$?; fi`.
+    # `set +e` + `FRESH_RC=$?` still fires trap ERR under `set -E` when the
+    # subprocess exits 1 (unverifiable doctor / CN search timeout) — that is
+    # the 2026-09-17 leftover: code was already live, then the upgrade aborted
+    # before the warn ladder. `|| FRESH_RC=$?` also survives; the if-test is
+    # the explicit form so a later edit cannot "simplify" it back to a sandwich.
     FRESH_RC=0
-    PREVIEW_DIR="$PREVIEW_DIR" PREVIEW_ENV_FILE="$PREVIEW_ENV_FILE" \
+    if PREVIEW_DIR="$PREVIEW_DIR" PREVIEW_ENV_FILE="$PREVIEW_ENV_FILE" \
       PREVIEW_API_URL="$PREVIEW_API_URL" PREVIEW_PUBLIC_HOST="$PREVIEW_PUBLIC_HOST" \
       GATE_STRICT="${PREVIEW_FRESHNESS_STRICT:-1}" SCHEDULE_REINGEST="${PREVIEW_SCHEDULE_REINGEST:-1}" \
-      bash "$FRESHNESS_SCRIPT" --role preview --api-url "$PREVIEW_API_URL" --workspace dev \
-      || FRESH_RC=$?
+      bash "$FRESHNESS_SCRIPT" --role preview --api-url "$PREVIEW_API_URL" --workspace dev
+    then
+        FRESH_RC=0
+    else
+        FRESH_RC=$?
+    fi
     if [[ "$FRESH_RC" -eq 0 ]]; then
         log_info "Search freshness gate OK"
     elif [[ "$FRESH_RC" -eq 3 ]]; then
