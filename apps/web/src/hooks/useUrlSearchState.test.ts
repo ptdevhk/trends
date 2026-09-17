@@ -1,7 +1,12 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseUrlSearchState, useUrlSearchState, type UrlSearchState } from './useUrlSearchState'
+import {
+  parseUrlSearchState,
+  shouldReplaceUrlSearchParams,
+  useUrlSearchState,
+  type UrlSearchState,
+} from './useUrlSearchState'
 
 const { useSearchParamsMock, setSearchParamsMock } = vi.hoisted(() => ({
   useSearchParamsMock: vi.fn(),
@@ -181,7 +186,7 @@ describe('useUrlSearchState location parsing', () => {
 
     expect(setSearchParamsMock).toHaveBeenCalledTimes(1)
     const [updater, options] = setSearchParamsMock.mock.calls[0] ?? []
-    expect(options).toEqual({ replace: true })
+    expect(options).toEqual({ replace: false })
     expect(typeof updater).toBe('function')
 
     const updatedParams = updater(new URLSearchParams()) as URLSearchParams
@@ -391,6 +396,94 @@ it('clears explicit sort params when syncing back to default relevance ordering'
   })
 })
 
+
+describe('shouldReplaceUrlSearchParams', () => {
+  it('pushes when leaving the empty landing URL for a search profile', () => {
+    expect(
+      shouldReplaceUrlSearchParams(
+        new URLSearchParams(),
+        new URLSearchParams('location=China&q=三坐标+3D扫描+销售&minRoleYears=1&roleType=sales&minAge=25&maxAge=40'),
+      ),
+    ).toBe(false)
+  })
+
+  it('replaces when updating filters on an existing search URL', () => {
+    expect(
+      shouldReplaceUrlSearchParams(
+        new URLSearchParams('location=China&q=CNC&minRoleYears=1&roleType=sales'),
+        new URLSearchParams('location=China&q=CNC&minRoleYears=3&roleType=sales'),
+      ),
+    ).toBe(true)
+  })
+
+  it('replaces when clearing a search back to the landing URL', () => {
+    expect(
+      shouldReplaceUrlSearchParams(
+        new URLSearchParams('location=China&q=CNC'),
+        new URLSearchParams(),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('landing search history', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('pushes the first search URL from an empty landing page', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: '三坐标 3D扫描 销售',
+      location: 'China',
+      keywords: ['三坐标', '3D扫描', '销售'],
+      requiredKeywords: [],
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      filters: {
+        locations: ['China'],
+        minRoleYears: 1,
+        roleFilterType: 'sales',
+        minAge: 25,
+        maxAge: 40,
+      },
+    })
+
+    const [, options] = setSearchParamsMock.mock.calls[0] ?? []
+    expect(options).toEqual({ replace: false })
+  })
+
+  it('keeps replace when the current URL is already a search', () => {
+    const currentParams = new URLSearchParams('location=China&q=CNC')
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: 'China',
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedSources: [],
+      selectedBrands: [],
+      filters: {
+        locations: ['China'],
+        minRoleYears: 3,
+      },
+    })
+
+    const [, options] = setSearchParamsMock.mock.calls[0] ?? []
+    expect(options).toEqual({ replace: true })
+  })
+})
 
 describe('idOrNameSearch (idn) URL param', () => {
   it('parses idn param into filters.idOrNameSearch', () => {
