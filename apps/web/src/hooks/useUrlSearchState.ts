@@ -1,5 +1,5 @@
 import { formatKeywordQuery, normalizeSearchRoleFilterType, parseKeywordQuery } from '@trends/shared'
-import { useCallback, useMemo, useTransition } from 'react'
+import { useCallback, useMemo, useRef, useTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 import { isMachineOriginValue } from './resume-filter-helpers'
@@ -186,6 +186,115 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
   return KNOWN_PARAM_KEYS.some((key) => searchParams.has(key))
 }
 
+/** Push when leaving the empty landing URL so browser Back can restore `/:slug/resumes`. */
+export function shouldReplaceUrlSearchParams(
+  prevParams: URLSearchParams,
+  nextParams: URLSearchParams,
+): boolean {
+  return hasKnownUrlSearchParams(prevParams) || !hasKnownUrlSearchParams(nextParams)
+}
+
+function buildNextSearchParams(prevParams: URLSearchParams, state: UrlSearchState): URLSearchParams {
+  const nextParams = new URLSearchParams(prevParams)
+
+  KNOWN_PARAM_KEYS.forEach((key) => {
+    nextParams.delete(key)
+  })
+  nextParams.delete('sid')
+
+  const normalizedKeywords = normalizeUniqueValues(state.keywords)
+  const normalizedTags = normalizeUniqueValues(state.selectedTags)
+  const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
+  const normalizedSources = normalizeUniqueValues(state.selectedSources)
+  const normalizedQuery = state.query?.trim()
+  const hasKeywords = normalizedKeywords.length > 0
+
+  const normalizedLocation = state.location?.trim()
+  const normalizedLocations = Array.isArray(state.filters.locations)
+    ? normalizeUniqueValues(state.filters.locations)
+    : []
+  const locationFromField = normalizeUniqueValues(parseLocationParam(normalizedLocation))
+  const locationForUrlParts = locationFromField.length > 0
+    ? locationFromField
+    : normalizedLocations
+  const locationForUrl = locationForUrlParts.length > 0
+    ? locationForUrlParts.join(',')
+    : normalizedLocation
+  setParam(nextParams, 'location', locationForUrl)
+  setParam(nextParams, 'q', normalizedQuery || (hasKeywords ? formatKeywordQuery(normalizedKeywords) : undefined))
+  const normalizedRequiredKeywords = normalizeUniqueValues(state.requiredKeywords)
+  setParam(nextParams, 'rkw', normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords.join(',') : undefined)
+  setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
+  setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
+  setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
+  setParam(nextParams, 'src', normalizedSources.length > 0 ? normalizedSources.join(',') : undefined)
+  const normalizedBrands = normalizeUniqueValues(state.selectedBrands)
+  setParam(nextParams, 'brands', normalizedBrands.length > 0 ? normalizedBrands.join(',') : undefined)
+  setParam(nextParams, 'exp', state.selectedExperienceLevel)
+
+  if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
+    setParam(nextParams, 'maxRoleYears', String(state.filters.maxExperience))
+  }
+
+  if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
+    setParam(nextParams, 'minRoleYears', String(state.filters.minRoleYears))
+  }
+
+  if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {
+    setParam(nextParams, 'roleType', normalizeSearchRoleFilterType(state.filters.roleFilterType.trim()))
+  }
+
+  if (typeof state.filters.minAge === 'number' && Number.isFinite(state.filters.minAge)) {
+    setParam(nextParams, 'minAge', String(state.filters.minAge))
+  }
+
+  if (typeof state.filters.maxAge === 'number' && Number.isFinite(state.filters.maxAge)) {
+    setParam(nextParams, 'maxAge', String(state.filters.maxAge))
+  }
+
+  if (Array.isArray(state.filters.education) && state.filters.education.length > 0) {
+    setParam(nextParams, 'edu', normalizeUniqueValues(state.filters.education).join(','))
+  }
+
+  if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
+    setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
+  }
+
+  if (typeof state.filters.minSalary === 'number' && Number.isFinite(state.filters.minSalary)) {
+    setParam(nextParams, 'minSalary', String(state.filters.minSalary))
+  }
+
+  if (typeof state.filters.maxSalary === 'number' && Number.isFinite(state.filters.maxSalary)) {
+    setParam(nextParams, 'maxSalary', String(state.filters.maxSalary))
+  }
+
+  if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {
+    setParam(nextParams, 'status', normalizeUniqueValues(state.filters.status).join(','))
+  }
+
+  if (state.filters.sortBy) {
+    setParam(nextParams, 'sort', state.filters.sortBy)
+  }
+
+  if (state.filters.sortOrder) {
+    setParam(nextParams, 'order', state.filters.sortOrder)
+  }
+
+  if (isMachineOriginValue(state.filters.machineOrigin)) setParam(nextParams, 'machineOrigin', state.filters.machineOrigin)
+
+  if (state.filters.idOrNameSearch && state.filters.idOrNameSearch.trim().length > 0) {
+    setParam(nextParams, 'idn', state.filters.idOrNameSearch.trim())
+  } else {
+    nextParams.delete('idn')
+  }
+
+  if (Array.isArray(state.filters.skills) && state.filters.skills.length > 0) {
+    setParam(nextParams, 'skills', normalizeUniqueValues(state.filters.skills).join(','))
+  }
+
+  return nextParams
+}
+
 /** Canonicalize a `roleType` URL value (technical→engineer) so the URL round-trips to a stable key. */
 export function normalizeRoleTypeParam(value: string | undefined): string | undefined {
   const normalized = normalizeSearchRoleFilterType(value)
@@ -312,6 +421,8 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [, startTransition] = useTransition()
+  const searchParamsRef = useRef(searchParams)
+  searchParamsRef.current = searchParams
   const hasKeywordParam = searchParams.has('q')
   const hasJobDescriptionParam = searchParams.has('jd')
 
@@ -327,110 +438,19 @@ export function useUrlSearchState() {
   const syncToUrl = useCallback(
     (state: UrlSearchState) => {
       startTransition(() => {
-        setSearchParams((prevParams) => {
-        const nextParams = new URLSearchParams(prevParams)
-
-        KNOWN_PARAM_KEYS.forEach((key) => {
-          nextParams.delete(key)
-        })
-        nextParams.delete('sid')
-
-        const normalizedKeywords = normalizeUniqueValues(state.keywords)
-        const normalizedTags = normalizeUniqueValues(state.selectedTags)
-        const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
-        const normalizedSources = normalizeUniqueValues(state.selectedSources)
-        const normalizedQuery = state.query?.trim()
-        const hasKeywords = normalizedKeywords.length > 0
-
-        const normalizedLocation = state.location?.trim()
-        const normalizedLocations = Array.isArray(state.filters.locations)
-          ? normalizeUniqueValues(state.filters.locations)
-          : []
-        const locationFromField = normalizeUniqueValues(parseLocationParam(normalizedLocation))
-        const locationForUrlParts = locationFromField.length > 0
-          ? locationFromField
-          : normalizedLocations
-        const locationForUrl = locationForUrlParts.length > 0
-          ? locationForUrlParts.join(',')
-          : normalizedLocation
-        setParam(nextParams, 'location', locationForUrl)
-        setParam(nextParams, 'q', normalizedQuery || (hasKeywords ? formatKeywordQuery(normalizedKeywords) : undefined))
-        const normalizedRequiredKeywords = normalizeUniqueValues(state.requiredKeywords)
-        setParam(nextParams, 'rkw', normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords.join(',') : undefined)
-        setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
-        setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
-        setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
-        setParam(nextParams, 'src', normalizedSources.length > 0 ? normalizedSources.join(',') : undefined)
-        const normalizedBrands = normalizeUniqueValues(state.selectedBrands)
-        setParam(nextParams, 'brands', normalizedBrands.length > 0 ? normalizedBrands.join(',') : undefined)
-        setParam(nextParams, 'exp', state.selectedExperienceLevel)
-
-        if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
-          setParam(nextParams, 'maxRoleYears', String(state.filters.maxExperience))
+        const prevParams = searchParamsRef.current
+        const previewNext = buildNextSearchParams(prevParams, state)
+        if (previewNext.toString() === prevParams.toString()) {
+          return
         }
 
-        if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
-          setParam(nextParams, 'minRoleYears', String(state.filters.minRoleYears))
-        }
-
-        if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {
-          setParam(nextParams, 'roleType', normalizeSearchRoleFilterType(state.filters.roleFilterType.trim()))
-        }
-
-        if (typeof state.filters.minAge === 'number' && Number.isFinite(state.filters.minAge)) {
-          setParam(nextParams, 'minAge', String(state.filters.minAge))
-        }
-
-        if (typeof state.filters.maxAge === 'number' && Number.isFinite(state.filters.maxAge)) {
-          setParam(nextParams, 'maxAge', String(state.filters.maxAge))
-        }
-
-        if (Array.isArray(state.filters.education) && state.filters.education.length > 0) {
-          setParam(nextParams, 'edu', normalizeUniqueValues(state.filters.education).join(','))
-        }
-
-        if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
-          setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
-        }
-
-        if (typeof state.filters.minSalary === 'number' && Number.isFinite(state.filters.minSalary)) {
-          setParam(nextParams, 'minSalary', String(state.filters.minSalary))
-        }
-
-        if (typeof state.filters.maxSalary === 'number' && Number.isFinite(state.filters.maxSalary)) {
-          setParam(nextParams, 'maxSalary', String(state.filters.maxSalary))
-        }
-
-        if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {
-          setParam(nextParams, 'status', normalizeUniqueValues(state.filters.status).join(','))
-        }
-
-        if (state.filters.sortBy) {
-          setParam(nextParams, 'sort', state.filters.sortBy)
-        }
-
-        if (state.filters.sortOrder) {
-          setParam(nextParams, 'order', state.filters.sortOrder)
-        }
-
-        if (isMachineOriginValue(state.filters.machineOrigin)) setParam(nextParams, 'machineOrigin', state.filters.machineOrigin)
-
-        if (state.filters.idOrNameSearch && state.filters.idOrNameSearch.trim().length > 0) {
-          setParam(nextParams, 'idn', state.filters.idOrNameSearch.trim())
-        } else {
-          nextParams.delete('idn')
-        }
-
-        if (Array.isArray(state.filters.skills) && state.filters.skills.length > 0) {
-          setParam(nextParams, 'skills', normalizeUniqueValues(state.filters.skills).join(','))
-        }
-
-        if (nextParams.toString() === prevParams.toString()) {
-          return prevParams
-        }
-
-        return nextParams
-      }, { replace: true })
+        setSearchParams((latestPrev) => {
+          const nextParams = buildNextSearchParams(latestPrev, state)
+          if (nextParams.toString() === latestPrev.toString()) {
+            return latestPrev
+          }
+          return nextParams
+        }, { replace: shouldReplaceUrlSearchParams(prevParams, previewNext) })
       })
     },
     [setSearchParams, startTransition]
