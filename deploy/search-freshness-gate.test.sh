@@ -333,6 +333,13 @@ if grep -q 'resolveSearchFreshnessPreferredExit' "$ROOT/scripts/search-data-fres
 else
   fail "doctor preferred path still treats missing exitCodeHint as 0"
 fi
+if grep -q 'fetchWithSearchFreshnessDoctorTimeout' "$ROOT/scripts/search-data-freshness-doctor.ts" \
+  && grep -q 'headersTimeout' "$ROOT/scripts/lib/search-freshness-doctor-fetch.ts" \
+  && grep -q 'bodyTimeout' "$ROOT/scripts/lib/search-freshness-doctor-fetch.ts"; then
+  pass "doctor preferred path raises undici headersTimeout/bodyTimeout, not AbortSignal alone"
+else
+  fail "doctor preferred path still relies on AbortSignal.timeout without undici headers/body timeouts"
+fi
 if grep -q -- '--mode any' "$ROOT/docs/preview-upgrade-runbook.md"; then
   fail "preview-upgrade-runbook still recommends --mode any"
 else
