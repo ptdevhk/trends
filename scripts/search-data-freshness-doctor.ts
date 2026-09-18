@@ -24,6 +24,11 @@ import {
   resolveSearchFreshnessDoctorFallbackExit,
   resolveSearchFreshnessPreferredExit,
 } from "./lib/search-freshness-doctor-exit.ts";
+import {
+  SEARCH_FRESHNESS_DOCTOR_FALLBACK_FETCH_TIMEOUT_MS,
+  SEARCH_FRESHNESS_DOCTOR_FETCH_TIMEOUT_MS,
+  fetchWithSearchFreshnessDoctorTimeout,
+} from "./lib/search-freshness-doctor-fetch.ts";
 
 type Args = {
   apiUrl: string;
@@ -164,13 +169,13 @@ async function main(): Promise<number> {
       ...(args.skipGolden ? { skipGolden: "true" } : {}),
     });
     // The lag scan can take 300–400 s on a prod-restored Convex SQLite.
-    // Without an explicit client timeout Node's ~300 s stack ceiling kills
-    // the fetch mid-scan ("fetch failed"). Wait up to 600 s so the preferred
-    // path completes instead of falling back to the slower dry-run path.
-    const res = await fetch(`${base}/api/resumes/search-freshness?${qs}`, {
-      headers,
-      signal: AbortSignal.timeout(600_000),
-    });
+    // AbortSignal.timeout(600_000) is not enough: undici still kills the
+    // request at headersTimeout/bodyTimeout 300 s with TypeError "fetch
+    // failed". Raise those undici timeouts to the same 600 s ceiling.
+    const res = await fetchWithSearchFreshnessDoctorTimeout(
+      `${base}/api/resumes/search-freshness?${qs}`,
+      { headers, timeoutMs: SEARCH_FRESHNESS_DOCTOR_FETCH_TIMEOUT_MS },
+    );
     if (res.ok) {
       const body = await res.json() as {
         success?: boolean;
@@ -204,12 +209,15 @@ async function main(): Promise<number> {
   }
 
   try {
-    const reRes = await fetch(`${base}/api/resumes/trigger-reingest`, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true, adaptive: true, maxScanPages: 3 }),
-      signal: AbortSignal.timeout(420_000),
-    });
+    const reRes = await fetchWithSearchFreshnessDoctorTimeout(
+      `${base}/api/resumes/trigger-reingest`,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: args.scanLimit, mode: "compute", dryRun: true, adaptive: true, maxScanPages: 3 }),
+        timeoutMs: SEARCH_FRESHNESS_DOCTOR_FALLBACK_FETCH_TIMEOUT_MS,
+      },
+    );
     if (reRes.ok) {
       report.dryRunReingest = await reRes.json();
     } else {
