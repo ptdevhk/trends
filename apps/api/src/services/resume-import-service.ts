@@ -376,9 +376,11 @@ function parseSubmitResumesTotals(value: unknown): ResumeSubmitTotals {
 async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promise<ResumeSubmitTotals> {
   // A 51job detail resume is fat enough that even a single-row mutation can
   // occasionally exceed the 1s isolate when the scheduler/ingest pipeline is
-  // concurrently active. Retry a lone resume a bounded number of times so a
-  // transient 1s blowup does not fail the entire page batch.
-  const SINGLE_ROW_MAX_RETRIES = 3;
+  // concurrently active. Retry a lone resume a bounded number of times — with a
+  // short backoff so the isolate + scheduler clear — so a transient 1s blowup
+  // does not fail the entire page batch.
+  const SINGLE_ROW_MAX_ATTEMPTS = 5;
+  const SINGLE_ROW_RETRY_DELAY_MS = 250;
   try {
     const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
       resumes: batch,
@@ -399,8 +401,9 @@ async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promi
       addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
       return totals;
     }
-    for (let attempt = 1; attempt < SINGLE_ROW_MAX_RETRIES; attempt += 1) {
-      logger.warn(`Convex submitResumes 1-row timed out; retry ${attempt}/${SINGLE_ROW_MAX_RETRIES}`, {
+    for (let attempt = 2; attempt <= SINGLE_ROW_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, SINGLE_ROW_RETRY_DELAY_MS * (attempt - 1)));
+      logger.warn(`Convex submitResumes 1-row timed out; retry ${attempt}/${SINGLE_ROW_MAX_ATTEMPTS}`, {
         route: "resume_submit",
       });
       try {

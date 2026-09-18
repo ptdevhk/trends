@@ -647,4 +647,50 @@ describe("resume-import-service", () => {
     expect(result.submitted).toBe(2);
     expect(result.inserted).toBe(2);
   });
+
+  it("retries a lone timed-out 1-row Convex submit a bounded number of times before failing", async () => {
+    const batchLengths: number[] = [];
+    let timeouts = 0;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName !== "resume_tasks:submitResumes") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
+      batchLengths.push(resumes.length);
+      // First 1-row call times out, then the retry succeeds — a transient 1s
+      // isolate blowup on a fat resume should not fail the whole batch.
+      if (timeouts === 0) {
+        timeouts += 1;
+        return convexExecutionTimeout();
+      }
+      return convexSuccess({
+        submitted: resumes.length,
+        deduped: 0,
+        inserted: resumes.length,
+        updated: 0,
+        unchanged: 0,
+      });
+    });
+
+    const result = await submitResumeImport({
+      metadata: {
+        sourceUrl: "https://ehire.51job.com/Candidate/SearchResumeNew.aspx",
+        generatedBy: "browser-extension@1.3.7",
+      },
+      resumes: Array.from({ length: 1 }, () => ({
+        name: "Lone Timeout Resume",
+        profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=1",
+        activityStatus: "Active",
+        extractedAt: "2026-09-17T07:17:01.000Z",
+      })),
+    });
+
+    expect(batchLengths).toEqual([1, 1]); // first times out, retry succeeds
+    expect(timeouts).toBe(1);
+    expect(result.success).toBe(true);
+    expect(result.inserted).toBe(1);
+  });
 });
