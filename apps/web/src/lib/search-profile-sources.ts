@@ -63,6 +63,7 @@ export type CollectionSource = {
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
+  job51Keyword?: string
   collectLimit?: number
   maxPages?: number
 }
@@ -86,6 +87,7 @@ export type SearchProfileSource = {
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
+  job51Keyword?: string
   collectLimit?: number
   maxPages?: number
 }
@@ -180,6 +182,9 @@ export function normalizeCollectionSource(
         ...(typeof value.job51MaxPages === 'number' && value.job51MaxPages > 0
           ? { job51MaxPages: value.job51MaxPages }
           : {}),
+        ...(typeof value.job51Keyword === 'string' && value.job51Keyword.trim().length > 0
+          ? { job51Keyword: value.job51Keyword.trim() }
+          : {}),
       }
     : {}
 
@@ -219,6 +224,7 @@ export function stripCollectionSourceExactUrl(
       ...(normalized.unsafeLimits === true ? { unsafeLimits: true } : {}),
       ...(typeof normalized.job51CollectLimit === 'number' ? { job51CollectLimit: normalized.job51CollectLimit } : {}),
       ...(typeof normalized.job51MaxPages === 'number' ? { job51MaxPages: normalized.job51MaxPages } : {}),
+      ...(typeof normalized.job51Keyword === 'string' ? { job51Keyword: normalized.job51Keyword } : {}),
     }
   }
 
@@ -471,8 +477,9 @@ export function getSearchProfileCollectionSource(
     return normalizeCollectionSource({
       type: SEARCH_PROFILE_SOURCE_TYPES.job51,
       unsafeLimits: source.unsafeLimits,
-      job51CollectLimit: source.job51CollectLimit,
-      job51MaxPages: source.job51MaxPages,
+      job51CollectLimit: source.job51CollectLimit ?? source.collectLimit,
+      job51MaxPages: source.job51MaxPages ?? source.maxPages,
+      job51Keyword: source.job51Keyword,
     })
   }
 
@@ -628,6 +635,7 @@ type BuildJob51CollectUrlInput = BuildJob5156CollectUrlInput & {
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
+  job51Keyword?: string
 }
 
 export function buildJob51CollectUrl({
@@ -640,16 +648,22 @@ export function buildJob51CollectUrl({
   unsafeLimits,
   job51CollectLimit: sourceLevelLimit,
   job51MaxPages: sourceLevelMaxPages,
+  job51Keyword,
 }: BuildJob51CollectUrlInput): string | null {
-  const normalizedKeywords = normalizeKeywords(keywords)
+  const overrideKeyword = typeof job51Keyword === 'string' ? job51Keyword.trim() : ''
+  const normalizedKeywords = overrideKeyword ? [overrideKeyword] : normalizeKeywords(keywords)
   if (normalizedKeywords.length === 0) {
     return null
   }
 
   const url = new URL(EHIRE_51JOB_SEARCH_URL)
   const normalizedLocation = location.trim()
+  const keywordQuery = overrideKeyword || formatKeywordQuery(normalizedKeywords)
 
-  url.searchParams.set('keyword', formatKeywordQuery(normalizedKeywords))
+  url.searchParams.set('keyword', keywordQuery)
+  if (/\s+or\s+/i.test(keywordQuery)) {
+    url.searchParams.set('tr_kw_mode', 'spaced')
+  }
   if (normalizedLocation.length > 0 && !isChinaRootLocationLabel(normalizedLocation)) {
     url.searchParams.set('location', normalizedLocation)
   }
@@ -730,6 +744,7 @@ export function buildCollectionLaunchUrl({
       unsafeLimits: source.unsafeLimits,
       job51CollectLimit: source.job51CollectLimit,
       job51MaxPages: source.job51MaxPages,
+      job51Keyword: source.job51Keyword,
     })
   }
 

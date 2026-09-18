@@ -310,6 +310,25 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
   })
 
+  it('uses job51Keyword with spaced mode so official or is not concatenated', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: 'China',
+      keywords: ['三坐标', '3D扫描', '销售'],
+      job51Keyword: '三坐标 or 3D扫描',
+      job51CollectLimit: 2000,
+      job51MaxPages: 20,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('keyword')).toBe('三坐标 or 3D扫描')
+    expect(url.searchParams.get('tr_kw_mode')).toBe('spaced')
+    expect(url.searchParams.get('tr_limit')).toBe('2000')
+    expect(url.searchParams.get('tr_max_pages')).toBe('20')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+    expect(url.searchParams.get('location')).toBeNull()
+  })
+
   it('auto-derives unsafeLimits when source-level maxPages exceeds safe threshold', () => {
     const collectUrl = buildJob51CollectUrl({
       location: '东莞',
