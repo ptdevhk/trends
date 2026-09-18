@@ -608,7 +608,7 @@ describe("resume-import-service", () => {
     });
   });
 
-  it("splits a timed-out Convex batch and retries the halves", async () => {
+  it("sends 51job resumes as serial one-row Convex batches (no 1s split needed)", async () => {
     const batchLengths: number[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -619,10 +619,7 @@ describe("resume-import-service", () => {
 
       const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
       batchLengths.push(resumes.length);
-      if (resumes.length > 1) {
-        return convexExecutionTimeout();
-      }
-
+      // A fat single resume still fits its own 1s isolate (no timeout).
       return convexSuccess({
         submitted: resumes.length,
         deduped: 0,
@@ -638,14 +635,14 @@ describe("resume-import-service", () => {
         generatedBy: "browser-extension@1.3.7",
       },
       resumes: Array.from({ length: 2 }, (_, index) => ({
-        name: `Timeout Resume ${index + 1}`,
+        name: `51job Resume ${index + 1}`,
         profileUrl: `https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=${index + 1}`,
         activityStatus: "Active",
         extractedAt: "2026-09-17T07:17:01.000Z",
       })),
     });
 
-    expect(batchLengths).toEqual([2, 1, 1]);
+    expect(batchLengths).toEqual([1, 1]);
     expect(result.success).toBe(true);
     expect(result.submitted).toBe(2);
     expect(result.inserted).toBe(2);

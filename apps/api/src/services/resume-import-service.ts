@@ -28,9 +28,12 @@ import { recordSearchProfileSubmitRunStatus } from "./search-profile-run-status.
 
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
-// Local/preview Convex mutations hard-cap at 1s; a 50-resume 51job page-1
-// detail submit timed out as a single 200-item-capable batch.
-export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 10;
+// Local/preview Convex mutations hard-cap at 1s (~1s isolate budget). A 51job
+// detail resume is a fat payload: per-row identity/hash/searchText/digest writes
+// can each take hundreds of ms, so even a serial 10-row mutation blows the 1s
+// budget and the whole page batch 500s. Sending exactly one resume per Convex
+// mutation gives each fat 51job resume its own 1s isolate.
+export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 1;
 const CANDIDATE_STATUS_RESTORE_BATCH_SIZE = 100;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
