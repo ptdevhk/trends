@@ -374,24 +374,47 @@ function parseSubmitResumesTotals(value: unknown): ResumeSubmitTotals {
 }
 
 async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promise<ResumeSubmitTotals> {
+  // A 51job detail resume is fat enough that even a single-row mutation can
+  // occasionally exceed the 1s isolate when the scheduler/ingest pipeline is
+  // concurrently active. Retry a lone resume a bounded number of times so a
+  // transient 1s blowup does not fail the entire page batch.
+  const SINGLE_ROW_MAX_RETRIES = 3;
   try {
     const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
       resumes: batch,
     });
     return parseSubmitResumesTotals(value);
   } catch (error) {
-    if (!isConvexExecutionTimeout(error) || batch.length <= 1) {
+    if (!isConvexExecutionTimeout(error)) {
       throw error;
     }
-    logger.warn("Convex submitResumes timed out; splitting batch", {
-      route: "resume_submit",
-      batchSize: batch.length,
-    });
-    const mid = Math.ceil(batch.length / 2);
-    const totals = emptyResumeSubmitTotals();
-    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(0, mid)));
-    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
-    return totals;
+    if (batch.length > 1) {
+      logger.warn("Convex submitResumes timed out; splitting batch", {
+        route: "resume_submit",
+        batchSize: batch.length,
+      });
+      const mid = Math.ceil(batch.length / 2);
+      const totals = emptyResumeSubmitTotals();
+      addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(0, mid)));
+      addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
+      return totals;
+    }
+    for (let attempt = 1; attempt < SINGLE_ROW_MAX_RETRIES; attempt += 1) {
+      logger.warn(`Convex submitResumes 1-row timed out; retry ${attempt}/${SINGLE_ROW_MAX_RETRIES}`, {
+        route: "resume_submit",
+      });
+      try {
+        const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
+          resumes: batch,
+        });
+        return parseSubmitResumesTotals(value);
+      } catch (retryError) {
+        if (!isConvexExecutionTimeout(retryError)) {
+          throw retryError;
+        }
+      }
+    }
+    throw error;
   }
 }
 
