@@ -35,6 +35,12 @@ const EHIRE_51JOB_HOST = "ehire.51job.com";
 // mutation gives each fat 51job resume its own 1s isolate.
 export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 1;
 const CANDIDATE_STATUS_RESTORE_BATCH_SIZE = 100;
+/** Keep a lone 51job detail row inside the 1s Convex isolate. */
+export const JOB51_SUBMIT_MAX_TEXT_CHARS = 4000;
+export const JOB51_SUBMIT_MAX_LIST_ENTRIES = 12;
+const JOB51_SUBMIT_DROP_KEYS = ["html", "rawHtml", "resumeHtml", "detailHtml"] as const;
+const JOB51_SUBMIT_TEXT_FIELDS = ["description", "duty", "responsibilities", "content", "summary", "raw"] as const;
+const JOB51_SUBMIT_LIST_FIELDS = ["workHistory", "projectExperience", "profileEducation"] as const;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
 export type ResumeImportItem = z.infer<typeof ResumeImportItemSchema>;
@@ -457,6 +463,37 @@ function applyImportCollectionGuards(
   return applyCollectionGuards(content, guardFields);
 }
 
+function capSubmitText(value: unknown): unknown {
+  if (typeof value !== "string" || value.length <= JOB51_SUBMIT_MAX_TEXT_CHARS) {
+    return value;
+  }
+  return value.slice(0, JOB51_SUBMIT_MAX_TEXT_CHARS);
+}
+
+export function slim51JobSubmitContent(
+  content: Record<string, unknown>,
+): Record<string, unknown> {
+  const slimmed: Record<string, unknown> = { ...content };
+  for (const key of JOB51_SUBMIT_DROP_KEYS) {
+    delete slimmed[key];
+  }
+  for (const listKey of JOB51_SUBMIT_LIST_FIELDS) {
+    const list = slimmed[listKey];
+    if (!Array.isArray(list)) continue;
+    slimmed[listKey] = list.slice(0, JOB51_SUBMIT_MAX_LIST_ENTRIES).map((entry) => {
+      if (!isRecord(entry)) return entry;
+      const next = { ...entry };
+      for (const field of JOB51_SUBMIT_TEXT_FIELDS) {
+        if (field in next) {
+          next[field] = capSubmitText(next[field]);
+        }
+      }
+      return next;
+    });
+  }
+  return slimmed;
+}
+
 export function normalizeResumeImportPayload(input: ResumeImportRequest): NormalizedResumeImportPayload {
   const parsedInput = ResumeImportRequestSchema.parse(input);
   const metadata = normalizeImportMetadata(parsedInput.metadata);
@@ -478,9 +515,13 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
       resume,
       isSeekSource ? { sourceHost: itemSource, jobId: seekJobId } : undefined,
     );
-    const content = isRecord(normalizedContent)
+    const guarded = isRecord(normalizedContent)
       ? applyImportCollectionGuards(normalizedContent, metadata, itemSource)
       : normalizedContent;
+    const content =
+      isRecord(guarded) && resolveCollectionGuardSourceKey(itemSource) === "51job"
+        ? slim51JobSubmitContent(guarded)
+        : guarded;
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
     const externalId = buildResumeExternalId(resume, itemSource, hash);
 

@@ -662,11 +662,14 @@ export const submitResumes = mutation({
             timestamp: now,
         });
 
+        // Drain at most one stale event here. A fat 51job row already spends
+        // most of the 1s isolate on identity/searchText/content writes;
+        // deleting 20 extra rows in the same mutation is what still 500s.
         const cutoff = now - 3_600_000;
         const staleEvents = await ctx.db
             .query("sync_events")
             .withIndex("by_timestamp", (q) => q.lt("timestamp", cutoff))
-            .take(20);
+            .take(1);
         for (const event of staleEvents) {
             await ctx.db.delete(event._id);
         }

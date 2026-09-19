@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  JOB51_SUBMIT_MAX_LIST_ENTRIES,
+  JOB51_SUBMIT_MAX_TEXT_CHARS,
   normalizeResumeImportPayload,
   RESUME_IMPORT_CONVEX_BATCH_SIZE,
+  slim51JobSubmitContent,
   submitResumeImport,
 } from "./resume-import-service";
 
@@ -692,5 +695,42 @@ describe("resume-import-service", () => {
     expect(timeouts).toBe(1);
     expect(result.success).toBe(true);
     expect(result.inserted).toBe(1);
+  });
+
+  it("caps a fat 51job detail row before the 1s Convex submit", () => {
+    const huge = "销售经历".repeat(5000);
+    const payload = normalizeResumeImportPayload({
+      metadata: {
+        sourceUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
+        generatedBy: "browser-extension@1.3.7",
+      },
+      resumes: [
+        {
+          name: "Fat 51job Row",
+          profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
+          html: "<html>drop me</html>",
+          workHistory: Array.from({ length: JOB51_SUBMIT_MAX_LIST_ENTRIES + 4 }, (_, index) => ({
+            companyName: `Co ${index + 1}`,
+            jobTitle: "销售工程师",
+            description: huge,
+          })),
+          extractedAt: "2026-09-19T01:00:00.000Z",
+        },
+      ],
+    });
+
+    const content = payload.convexResumes[0]?.content as Record<string, unknown>;
+    const history = content.workHistory as Array<Record<string, unknown>>;
+    expect(content.html).toBeUndefined();
+    expect(history).toHaveLength(JOB51_SUBMIT_MAX_LIST_ENTRIES);
+    expect(String(history[0]?.description)).toHaveLength(JOB51_SUBMIT_MAX_TEXT_CHARS);
+  });
+
+  it("slim51JobSubmitContent is a no-op for already-small list cards", () => {
+    const slimmed = slim51JobSubmitContent({
+      name: "List card",
+      workHistory: [{ jobTitle: "销售工程师", description: "CMM" }],
+    });
+    expect(slimmed.workHistory).toEqual([{ jobTitle: "销售工程师", description: "CMM" }]);
   });
 });
