@@ -3077,6 +3077,9 @@
     "pulseEmpty": "暫無近期資訊。",
     "pulseKeywords": {
       "addCustom": "添加",
+      "catalogHint": "來自行業數據庫目錄；勾選後加入本工作區關鍵詞，不影響排除清單。",
+      "catalogSection": "可選關鍵詞（預設已排除 / {{count}}）",
+      "chipDualCount": "熱榜 {{hotlist}} · 訂閱 {{rss}}",
       "clearFocus": "清除篩選",
       "collapseChips": "收起",
       "customDuplicate": "該詞已在自定義列表中",
@@ -3100,7 +3103,6 @@
       "showAll": "查看未過濾熱榜",
       "softEmpty": "當前關鍵詞未命中近期資訊，可顯示全部或調整關鍵詞。",
       "softEmptyRss": "熱榜關鍵詞未命中。已顯示行業訂閱（Google News / 公衆號 RSS）。",
-      "chipDualCount": "熱榜 {{hotlist}} · 訂閱 {{rss}}",
       "sourceRss": "RSS"
     },
     "pulseLoadError": "綜合熱榜載入失敗",

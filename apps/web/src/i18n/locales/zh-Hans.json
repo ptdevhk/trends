@@ -3104,6 +3104,9 @@
     "pulseEmpty": "暂无近期资讯。",
     "pulseKeywords": {
       "addCustom": "添加",
+      "catalogHint": "来自行业数据库目录；勾选后加入本工作区关键词，不影响排除清单。",
+      "catalogSection": "可选关键词（默认已排除 / {{count}}）",
+      "chipDualCount": "热榜 {{hotlist}} · 订阅 {{rss}}",
       "clearFocus": "清除筛选",
       "collapseChips": "收起",
       "customDuplicate": "该词已在自定义列表中",
@@ -3127,7 +3130,6 @@
       "showAll": "查看未过滤热榜",
       "softEmpty": "当前关键词未命中近期资讯，可显示全部或调整关键词。",
       "softEmptyRss": "热榜关键词未命中。已显示行业订阅（Google News / 公众号 RSS）。",
-      "chipDualCount": "热榜 {{hotlist}} · 订阅 {{rss}}",
       "sourceRss": "RSS"
     },
     "pulseLoadError": "综合热榜加载失败",

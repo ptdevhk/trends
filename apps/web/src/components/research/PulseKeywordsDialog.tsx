@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,6 +18,8 @@ export type PulseKeywordsDialogSeed = {
   version: string
   groups: Array<{ id: string; label: string; keywords: string[] }>
   defaultKeywords: string[]
+  /** defaults.excludedKeywords — dropped from defaults only; still re-enableable. */
+  excludedKeywords?: string[]
 }
 
 export type PulseKeywordsDialogWorkspace = {
@@ -64,6 +66,7 @@ export function PulseKeywordsDialog({
 }: PulseKeywordsDialogProps) {
   const { t } = useTranslation()
   const [checkedDefaults, setCheckedDefaults] = useState<Set<string>>(new Set())
+  const [checkedCatalog, setCheckedCatalog] = useState<Set<string>>(new Set())
   const [custom, setCustom] = useState<string[]>([])
   const [enabled, setEnabled] = useState<string[]>([])
   const [draft, setDraft] = useState('')
@@ -80,6 +83,7 @@ export function PulseKeywordsDialog({
       }
     }
     setCheckedDefaults(nextChecked)
+    setCheckedCatalog(new Set())
     setCustom([...initial.workspace.custom])
     setEnabled([...initial.workspace.enabled])
     setDraft('')
@@ -90,8 +94,39 @@ export function PulseKeywordsDialog({
 
   const defaultKeywords = initial?.seed.defaultKeywords ?? []
 
+  // Full industry catalog surfaces minus everything the defaults already cover.
+  // This is the re-enable source for default-disabled terms (三菱, 松下, …) as well
+  // as every company/brand surface the catalog carries. Strictly additive — only
+  // keywords NOT already in defaultKeywords are offered, so Save is a no-op when
+  // the operator ticks nothing.
+  const catalogKeywords = useMemo(() => {
+    const seed = initial?.seed
+    if (!seed) return []
+    const inDefaults = new Set(seed.defaultKeywords.map(normalizeKey))
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const group of seed.groups) {
+      for (const kw of group.keywords) {
+        const norm = normalizeKey(kw)
+        if (!norm || inDefaults.has(norm) || seen.has(norm)) continue
+        seen.add(norm)
+        out.push(kw)
+      }
+    }
+    return out
+  }, [initial])
+
   const toggleDefault = (kw: string, next: boolean) => {
     setCheckedDefaults((prev) => {
+      const copy = new Set(prev)
+      if (next) copy.add(kw)
+      else copy.delete(kw)
+      return copy
+    })
+  }
+
+  const toggleCatalog = (kw: string, next: boolean) => {
+    setCheckedCatalog((prev) => {
       const copy = new Set(prev)
       if (next) copy.add(kw)
       else copy.delete(kw)
@@ -138,7 +173,12 @@ export function PulseKeywordsDialog({
 
   const handleSave = () => {
     const excluded = defaultKeywords.filter((kw) => !checkedDefaults.has(kw))
-    void onSave({ enabled, excluded, custom })
+    // Checked catalog surfaces were already re-enabled in a previous save, so any
+    // still-checked one that is missing from `enabled` is a new addition. Unchecked
+    // ones stay untouched — this panel never removes.
+    const existing = new Set(enabled.map(normalizeKey))
+    const added = catalogKeywords.filter((kw) => checkedCatalog.has(kw) && !existing.has(normalizeKey(kw)))
+    void onSave({ enabled: [...enabled, ...added], excluded, custom })
   }
 
   const handleCancel = () => {
@@ -190,6 +230,46 @@ export function PulseKeywordsDialog({
               })}
             </ul>
           </div>
+
+          {catalogKeywords.length > 0 ? (
+            <div>
+              <h3 className="mb-2 text-sm font-medium">
+                {t('research.pulseKeywords.catalogSection', {
+                  defaultValue: '可选关键词（默认已排除 / {{count}}）',
+                  count: catalogKeywords.length,
+                })}
+              </h3>
+              <p className="mb-2 text-xs text-muted-foreground">
+                {t('research.pulseKeywords.catalogHint', {
+                  defaultValue: '来自行业数据库目录；勾选后加入本工作区关键词，不影响排除清单。',
+                })}
+              </p>
+              <ul className="max-h-48 space-y-2 overflow-y-auto" data-testid="pulse-keywords-catalog">
+                {catalogKeywords.map((kw) => {
+                  const id = `pulse-kw-catalog-${kw}`
+                  return (
+                    <li key={kw} className="flex items-center gap-2">
+                      <label
+                        htmlFor={id}
+                        className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+                      >
+                        <input
+                          id={id}
+                          type="checkbox"
+                          className="h-4 w-4 rounded border border-primary"
+                          checked={checkedCatalog.has(kw)}
+                          onChange={(e) => toggleCatalog(kw, e.target.checked)}
+                          data-testid="pulse-keyword-catalog-toggle"
+                          data-keyword={kw}
+                        />
+                        <span>{kw}</span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           <div>
             <h3 className="mb-2 text-sm font-medium">

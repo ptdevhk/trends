@@ -13041,6 +13041,7 @@ export interface paths {
                                     keywords: string[];
                                 }[];
                                 defaultKeywords: string[];
+                                excludedKeywords: string[];
                             };
                             workspace: {
                                 /** @enum {number} */
@@ -13090,6 +13091,7 @@ export interface paths {
                                     keywords: string[];
                                 }[];
                                 defaultKeywords: string[];
+                                excludedKeywords: string[];
                             };
                             workspace: {
                                 /** @enum {number} */

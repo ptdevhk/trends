@@ -144,6 +144,7 @@ type ResearchPulseKeywordsResponse = {
   seed: {
     groups: Array<Record<string, unknown>>;
     defaultKeywords: string[];
+    excludedKeywords: string[];
   };
   workspace: {
     custom: string[];
@@ -221,6 +222,7 @@ const sampleKeywordsState = {
     version: "v1",
     groups: [{ id: "cnc-core", label: "数控机床", keywords: ["数控", "发那科"] }],
     defaultKeywords: ["数控", "发那科"],
+    excludedKeywords: ["三菱"],
   },
   workspace: { version: 1 as const, enabled: [] as string[], excluded: [] as string[], custom: [] as string[] },
   effective: ["数控", "发那科"],
@@ -708,6 +710,8 @@ describe("research routes", () => {
     expect(body.success).toBe(true);
     expect(body.effective).toEqual(["数控", "发那科"]);
     expect(body.seed.defaultKeywords).toContain("数控");
+    // The drop list ships to the web so 管理关键词 can re-enable (owner decision 2026-09-19).
+    expect(body.seed.excludedKeywords).toEqual(["三菱"]);
     expect(pulseMocks.getPulseKeywordsState).toHaveBeenCalledWith("hr");
   });
 

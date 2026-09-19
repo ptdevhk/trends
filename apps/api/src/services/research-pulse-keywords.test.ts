@@ -82,6 +82,21 @@ describe("research-pulse-keywords", () => {
     });
   });
 
+  it("workspace excluded re-enables a default-dropped token through `enabled`", () => {
+    const seed = loadResearchPulseKeywordsSeed(REPO_ROOT);
+    // Owner decision 2026-09-19: 三菱 is not a default pulse keyword anymore …
+    expect(seed.excludedKeywords).toContain("三菱");
+    expect(seed.defaultKeywords).not.toContain("三菱");
+    // … but it stays re-enableable via the workspace overlay (管理关键词).
+    const reEnabled = mergePulseKeywords(seed, {
+      version: 1,
+      enabled: ["三菱"],
+      excluded: [],
+      custom: [],
+    });
+    expect(reEnabled).toContain("三菱");
+  });
+
   it("filterNewsByKeywords matches 发那科 and attaches matchedKeywords", () => {
     const items = [
       { title: "发那科推进智能制造", platform: "x", capturedAt: 2 },

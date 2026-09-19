@@ -23,6 +23,8 @@ const PULSE_KEYWORDS_PATH = 'research.pulseKeywords'
 
 const PULSE_KEYWORDS_KEYS = [
   'addCustom',
+  'catalogHint',
+  'catalogSection',
   'clearFocus',
   'collapseChips',
   'customDuplicate',
