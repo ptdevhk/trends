@@ -137,7 +137,6 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     for (const template of [combined, cmm, scanning]) {
       expect(template?.profile.location).toBe('China')
       expect(template?.profile.filters?.roleFilterType).toBe('sales')
-      expect(template?.profile.keywords).toContain('销售')
       expect(template?.profile.keywords).not.toContain('CNC')
       expect(template?.profile.quickStart?.label).not.toContain('CNC')
       expect(template?.profile.quickStart?.description).not.toContain('CNC')
@@ -157,7 +156,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
       expect(enabled51job?.collectLimit).toBe(50)
     }
 
-    expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描', '销售'])
+    expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描'])
     expect(combined?.profile.jobDescription).toBe('cmm-3d-scanning-sales')
     expect(combined?.profile.filters?.salaryRange?.max).toBe(25000)
     expect(cmm?.profile.filters?.salaryRange?.max).toBe(25000)
@@ -165,7 +164,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     expect(combined?.profile.quickStart?.enabled).toBe(true)
     expect(combined?.profile.quickStart?.rank).toBe(7)
     expect(combined?.profile.quickStart?.label).toBe('China · 51job · 三坐标 3D扫描 销售')
-    expect(combined?.profile.quickStart?.description).toBe('三坐标, 3D扫描, 销售 · China')
+    expect(combined?.profile.quickStart?.description).toBe('三坐标 or 3D扫描 · 销售职责 · China')
 
     const combined51job = combined?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
     expect(combined51job?.collectLimit).toBe(2000)

@@ -6,6 +6,7 @@ import {
   parseKeywordQuery,
   formatKeywordQuery,
   formatKeywordInput,
+  formatQuickStartSearchQuery,
   type KeywordQueryMode,
 } from "../keyword-query.js";
 
@@ -98,6 +99,14 @@ describe("parseKeywordQuery", () => {
     const result = parseKeywordQuery("AI or Python");
     expect(result.keywords).toEqual(["AI", "Python"]);
     expect(result.mode).toBe("OR");
+  });
+
+  it("treats trailing 销售 after an OR pair as sales duty", () => {
+    expect(parseKeywordQuery("三坐标 or 3D扫描 销售")).toEqual({
+      keywords: ["三坐标", "3D扫描"],
+      mode: "OR",
+      salesDuty: true,
+    });
   });
 
   it("parses quoted phrase as single keyword", () => {
@@ -198,5 +207,18 @@ describe("formatKeywordInput", () => {
 
   it("formats single keyword without quotes", () => {
     expect(formatKeywordInput(["AI"])).toBe("AI");
+  });
+});
+
+describe("formatQuickStartSearchQuery", () => {
+  it("keeps CNC 销售 as AND and turns CMM pair plus sales into or-plus-duty", () => {
+    expect(formatQuickStartSearchQuery({
+      keywords: ["CNC", "销售"],
+      roleFilterType: "sales",
+    })).toBe("CNC 销售");
+    expect(formatQuickStartSearchQuery({
+      keywords: ["三坐标", "3D扫描", "销售"],
+      roleFilterType: "sales",
+    })).toBe("三坐标 or 3D扫描 销售");
   });
 });

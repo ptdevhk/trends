@@ -13,6 +13,7 @@ import { useStablePaginatedQuery } from '@/hooks/useStablePaginatedQuery'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { useAnalysisTasks } from '@/contexts/AnalysisTasksContext'
+import { reportConvexConnectionEvent } from '@/lib/client-diagnostics'
 import { withRetry } from '@/lib/retry'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateStatus, ResumeMachineOrigin } from '@/types/resume'
@@ -22,6 +23,9 @@ import type { VerifiedIndustryEvidenceSummary } from '@trends/shared'
 
 export const DEFAULT_CONVEX_RESUME_LIMIT = 200
 export const CONVEX_RESUME_PAGE_SIZE = 200
+/** Websocket `listWithIngestDataPaginated` loads full resume docs. Keep in
+ *  lockstep with Convex `MAX_SAFE_LIST_WITH_INGEST_DOCS_PER_QUERY`. */
+export const CONVEX_LIST_DOCS_PAGE_SIZE = 16
 export const MAX_CONVEX_RESUME_LIMIT = 2000
 // Expanded unverified-lane rows fetch a dedicated depth, sized above the
 // measured MY preset corpus (448 rows, 2026-09-02 parity report) so the
@@ -957,10 +961,12 @@ function useBffAndModeSearch(
   // Track how many pages have been fetched (state-based to satisfy linter)
   const [fetchedPageCount, setFetchedPageCount] = useState(0)
   const prevBffActive = useRef(false)
+  const resumesRef = useRef<ConvexResumeItem[]>([])
   const bffNowActive = enabled && (forceMachineOrigin || (!!normalizedQuery && !!keywordExpansion && !expansionLoading && (keywordExpansion.mode === 'AND' || (keywordExpansion.mode === 'OR' && hasActiveResumeFilters(filters)))))
 
   useEffect(() => {
     if (bffNowActive && !prevBffActive.current) {
+      resumesRef.current = []
       setAccumulatedResumes([])
       setTotal(0)
       setFetchedPageCount(0)
@@ -976,10 +982,13 @@ function useBffAndModeSearch(
     [filters],
   )
 
-  // Reset page to 0 when query or filters change
+  // Reset page to 0 when query or filters change. Do NOT include
+  // refetchTrigger: analysis-task completion must refresh in place. Wiping
+  // first is what turns a mid-flight drop into a fake "0 results / 搜索失败"
+  // panel after the counts already loaded.
   const pageResetKey = useMemo(
-    () => `${normalizedQuery ?? ''}|${filtersKey}|${showBlocked === true}|${refetchTrigger ?? 0}`,
-    [filtersKey, normalizedQuery, refetchTrigger, showBlocked],
+    () => `${normalizedQuery ?? ''}|${filtersKey}|${showBlocked === true}`,
+    [filtersKey, normalizedQuery, showBlocked],
   )
 
   // Compute the target page from limit
@@ -988,11 +997,16 @@ function useBffAndModeSearch(
     : 0
 
   useEffect(() => {
+    resumesRef.current = []
     setAccumulatedResumes([])
     setTotal(0)
     setFetchedPageCount(0)
     setSearchFailed(false)
   }, [pageResetKey])
+
+  useEffect(() => {
+    setFetchedPageCount(0)
+  }, [refetchTrigger, retryNonce])
 
   useEffect(() => {
     let active = true
@@ -1046,43 +1060,45 @@ function useBffAndModeSearch(
     }
 
     if (pageIndex === 0) {
-      setLoadingFirstPage(true)
+      if (resumesRef.current.length === 0) {
+        setLoadingFirstPage(true)
+      }
       setSearchFailed(false)
     } else {
       setLoadingMore(true)
     }
 
     void withRetry(
-      () => rawApiClient
-        .GET<{
-          success: boolean
-          summary?: {
-            total?: number
-            mode?: string
-            keywordGroups?: Array<{ original: string; variants: string[] }>
-            expandedTo?: string[]
-            sourceMapping?: Record<string, string>
-            statusCounts?: Partial<Record<CandidateStatus, number>>
-          }
-          data?: Array<Record<string, unknown>>
-        }>('/api/resumes', {
-          params: { query: queryParams },
-        }),
+      async () => {
+        const result = await rawApiClient
+          .GET<{
+            success: boolean
+            summary?: {
+              total?: number
+              mode?: string
+              keywordGroups?: Array<{ original: string; variants: string[] }>
+              expandedTo?: string[]
+              sourceMapping?: Record<string, string>
+              statusCounts?: Partial<Record<CandidateStatus, number>>
+            }
+            data?: Array<Record<string, unknown>>
+          }>('/api/resumes', {
+            params: { query: queryParams },
+          })
+        const payload = result.data
+        const rows = payload?.data
+        if (result.error || !payload?.success || !Array.isArray(rows)) {
+          throw result.error ?? new Error('BFF search unsuccessful')
+        }
+        return {
+          ...payload,
+          data: rows,
+        }
+      },
       { maxRetries: 2, baseDelayMs: 800 },
     )
-      .then(({ data, error }) => {
+      .then((data) => {
         if (!active) return
-        if (error || !data?.success || !Array.isArray(data.data)) {
-          if (pageIndex === 0) {
-            setSearchFailed(true)
-          }
-          setAccumulatedResumes([])
-          setTotal(0)
-          setFetchedPageCount(0)
-          setLoadingFirstPage(false)
-          setLoadingMore(false)
-          return
-        }
 
         const pageResumes: ConvexResumeItem[] = data.data.map((item) => {
           const record = item as Record<string, unknown>
@@ -1109,10 +1125,9 @@ function useBffAndModeSearch(
         })
 
         const newTotal = data.summary?.total ?? pageResumes.length
-
-        setAccumulatedResumes((prev) =>
-          pageIndex === 0 ? pageResumes : [...prev, ...pageResumes],
-        )
+        const nextResumes = pageIndex === 0 ? pageResumes : [...resumesRef.current, ...pageResumes]
+        resumesRef.current = nextResumes
+        setAccumulatedResumes(nextResumes)
         setTotal(newTotal)
         setFetchedPageCount(pageIndex + 1)
         setStatusCounts(data.summary?.statusCounts)
@@ -1121,16 +1136,17 @@ function useBffAndModeSearch(
       })
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
-        if (active) {
-          if (pageIndex === 0) {
-            setSearchFailed(true)
-          }
+        if (!active) return
+        const keepResults = resumesRef.current.length > 0
+        reportConvexConnectionEvent({ kind: 'bff_search_failed' })
+        if (pageIndex === 0 && !keepResults) {
+          setSearchFailed(true)
           setAccumulatedResumes([])
           setTotal(0)
           setFetchedPageCount(0)
-          setLoadingFirstPage(false)
-          setLoadingMore(false)
         }
+        setLoadingFirstPage(false)
+        setLoadingMore(false)
       })
 
     return () => { active = false }
@@ -1488,7 +1504,7 @@ export function useConvexResumes(
             } : {}),
           },
     {
-      initialNumItems,
+      initialNumItems: Math.min(initialNumItems, CONVEX_LIST_DOCS_PAGE_SIZE),
     }
   )
 

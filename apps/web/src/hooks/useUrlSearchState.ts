@@ -1,4 +1,4 @@
-import { formatKeywordQuery, normalizeSearchRoleFilterType, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, normalizeSearchRoleFilterType, parseKeywordQuery, resolveSalesDutyFilters } from '@trends/shared'
 import { useCallback, useMemo, useRef, useTransition } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
@@ -395,6 +395,18 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const idOrNameSearch = idOrNameSearchRaw?.trim() || undefined
   if (idOrNameSearch) {
     filters.idOrNameSearch = idOrNameSearch
+  }
+
+  const parsedQuery = parseKeywordQuery(query ?? '')
+  const salesDutyFilters = resolveSalesDutyFilters(parsedQuery, {
+    roleFilterType: filters.roleFilterType,
+    minRoleYears: filters.minRoleYears,
+  })
+  if (salesDutyFilters.roleFilterType) {
+    filters.roleFilterType = salesDutyFilters.roleFilterType
+  }
+  if (typeof salesDutyFilters.minRoleYears === 'number') {
+    filters.minRoleYears = salesDutyFilters.minRoleYears
   }
 
   const skills = normalizeUniqueValues(parseCsvParam(searchParams.get('skills')))

@@ -87,6 +87,24 @@ describe("resumes: listWithIngestDataPaginated", () => {
     expect(names).not.toContain("Archived");
   });
 
+  it("caps a 200-item client page so fat resume docs stay under the 1s isolate", async () => {
+    const t = createTest();
+
+    for (let i = 0; i < 20; i += 1) {
+      await insertResume(t, {
+        content: { name: `Bulk ${i}` },
+        primaryRuleScore: 100 - i,
+      });
+    }
+
+    const result = await t.query(api.resumes.listWithIngestDataPaginated, {
+      paginationOpts: { cursor: null, numItems: 200 },
+    });
+
+    expect(result.page.length).toBeLessThanOrEqual(16);
+    expect(result.isDone).toBe(false);
+  });
+
   it("sorts by JD-specific rule score when jobDescriptionId is provided", async () => {
     const t = createTest();
 

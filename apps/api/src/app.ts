@@ -37,6 +37,7 @@ import {
   workerRoutes,
   summariesRoutes,
   webVitalsRoutes,
+  clientDiagnosticsRoutes,
   searchAlertsRoutes,
   resumesDiagnosticsRoutes,
   resumesImportRoutes,
@@ -72,6 +73,7 @@ const LOCAL_DEV_ORIGINS = new Set([
 
 const CSRF_EXEMPT_API_PATHS = new Set([
   "/api/web-vitals/report",
+  "/api/client-diagnostics/report",
   "/api/resumes/verify-token",
   "/api/resumes/submit",
 ]);
@@ -122,6 +124,7 @@ export const openApiConfig = {
     { name: "Filter Presets", description: "Filter preset management" },
     { name: "Config", description: "Runtime configuration management" },
     { name: "Summaries", description: "Workspace summary previews and delivery" },
+    { name: "Client Diagnostics", description: "Browser-side connection breadcrumbs for later debug" },
   ],
 };
 
@@ -277,6 +280,7 @@ export function createApp(options: CreateAppOptions = {}) {
   app.route("/api/notifications", notificationRoutes);
   app.route("/api/summaries", summariesRoutes);
   app.route("/api/web-vitals", webVitalsRoutes);
+  app.route("/api/client-diagnostics", clientDiagnosticsRoutes);
   app.route("/api/search-alerts", searchAlertsRoutes);
   app.route("/", systemRoutes);
 

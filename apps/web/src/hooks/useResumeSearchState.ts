@@ -1,4 +1,4 @@
-import { compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy } from '@trends/shared'
+import { compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -272,7 +272,9 @@ function resolveSearchAnalysis(
   location: string | undefined,
   currentPromptVersion: number,
 ): ConvexResumeItem['analysis'] {
-  const matchedAnalysis = getAnalysisForJob(
+  // keyed lookup only — resume.analysis is last-write and belongs to another
+  // search, never reuse it for this search (empty_search = hide_other).
+  return getAnalysisForJob(
     resume,
     jobDescriptionId,
     keywords,
@@ -284,30 +286,6 @@ function resolveSearchAnalysis(
       }),
     },
   )
-
-  if (matchedAnalysis) {
-    return matchedAnalysis
-  }
-
-  const fallbackAnalysis = resume.analysis
-  if (!fallbackAnalysis) {
-    return undefined
-  }
-
-  if (fallbackAnalysis.promptVersion !== currentPromptVersion) {
-    return undefined
-  }
-
-  const ingestComputedAt = resume.ingestData?.computedAt
-  if (
-    typeof ingestComputedAt === 'number' &&
-    typeof fallbackAnalysis.analyzedAt === 'number' &&
-    ingestComputedAt > fallbackAnalysis.analyzedAt
-  ) {
-    return undefined
-  }
-
-  return fallbackAnalysis
 }
 
 function hasExplicitSearchContext(state: UrlSearchState): boolean {
@@ -750,7 +728,7 @@ function ensureStoredSessionKey(storageKey: string): string {
 }
 
 export function useResumeSearchState() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { isAuthenticated } = useAuth()
   const { slug, isPublicSurface } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
@@ -870,6 +848,34 @@ export function useResumeSearchState() {
       ]),
     [activeQuery, parsedState.keywords],
   )
+  // Always-on AI card target label (card_label = always_label). Computed once
+  // per search so every expanded card tells HR which search it was analyzed
+  // for. analysisKeywords is already peeled (销售 split off as a sales duty).
+  const analysisCardLabel = useMemo(() => {
+    const locale = i18n.resolvedLanguage ?? 'zh-Hans'
+    const separator = locale.startsWith('zh') ? '、' : ', '
+    const keywordText = analysisKeywords.join(separator)
+    const parsedQuery = parseKeywordQuery(activeQuery ?? '')
+    if (parsedState.jobDescriptionId) {
+      return t('resumes.searchPage.card.analysisForJob', {
+        job: parsedState.jobDescriptionId,
+        defaultValue: 'Analyzed for: {{job}}',
+      })
+    }
+    if (analysisKeywords.length === 0) {
+      return undefined
+    }
+    if (parsedQuery.salesDuty) {
+      return t('resumes.searchPage.card.analysisForKeywordsWithDuty', {
+        keywords: keywordText,
+        defaultValue: 'Analyzed for: {{keywords}} · sales duty',
+      })
+    }
+    return t('resumes.searchPage.card.analysisForKeywords', {
+      keywords: keywordText,
+      defaultValue: 'Analyzed for: {{keywords}}',
+    })
+  }, [activeQuery, analysisKeywords, i18n.resolvedLanguage, parsedState.jobDescriptionId, t])
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
       maxExperience: parsedState.filters.maxExperience,
@@ -1344,14 +1350,20 @@ export function useResumeSearchState() {
       },
     ) => {
       const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
-      const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
+      const parsedQuery = parseKeywordQuery(resolvedQuery ?? '')
+      const nextKeywords = parsedQuery.keywords
       const clearedFilters = clearSortFilters(parsedState.filters)
+      const salesDutyFilters = resolveSalesDutyFilters(parsedQuery, {
+        roleFilterType: options?.roleFilterType ?? parsedState.filters.roleFilterType,
+        minRoleYears: options?.minRoleYears ?? parsedState.filters.minRoleYears,
+      })
       const nextState = buildUrlState(parsedState, {
         query: resolvedQuery,
         keywords: nextKeywords,
         location: options?.location ?? parsedState.location,
         filters: {
           ...clearedFilters,
+          ...salesDutyFilters,
           ...(typeof options?.minRoleYears === 'number' && options.minRoleYears > 0 ? { minRoleYears: options.minRoleYears } : {}),
           ...(typeof options?.roleFilterType === 'string' && options.roleFilterType.trim().length > 0
             ? { roleFilterType: options.roleFilterType.trim() }
@@ -2188,6 +2200,7 @@ export function useResumeSearchState() {
     activeQuery,
     activeSort,
     analysisCandidateCount: analysisCandidates.length,
+    analysisCardLabel,
     analysisKeywords,
     analyzeResults,
     aiModeEnabled,

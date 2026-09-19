@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConvexConnectionState } from 'convex/react'
+import { reportConvexConnectionEvent } from '@/lib/client-diagnostics'
 
 /** How long the Convex websocket may stay down before loading UIs degrade. */
 export const CONVEX_CONNECTION_DEGRADED_AFTER_MS = 8_000
@@ -38,9 +39,23 @@ export function useConvexConnectionGuard() {
     }
   }, [isWebSocketConnected])
 
+  useEffect(() => {
+    if (!isDegraded) return
+    reportConvexConnectionEvent({
+      kind: 'convex_ws_degraded',
+      hasEverConnected,
+      connectionRetries,
+    })
+  }, [isDegraded, hasEverConnected, connectionRetries])
+
   const retry = useCallback(() => {
+    reportConvexConnectionEvent({
+      kind: 'convex_ws_retry',
+      hasEverConnected,
+      connectionRetries,
+    })
     window.location.reload()
-  }, [])
+  }, [hasEverConnected, connectionRetries])
 
   return {
     isWebSocketConnected,

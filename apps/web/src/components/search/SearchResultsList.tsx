@@ -82,6 +82,8 @@ type SearchResultsListProps = {
   getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
   /** Raw search query text for highlighting matches in result cards */
   searchQuery?: string
+  /** Always-on AI analysis card target label (computed once per search). */
+  analysisCardLabel?: string
   /** Admin-only exact resume target orchestration for the loaded result page. */
   onQueueIndustryResearch?: (resumeIds: string[]) => Promise<void>
   industryResearchQueueEnabled?: boolean
@@ -164,6 +166,7 @@ export function SearchResultsList({
   onToggleUnverifiedLane,
   onClearQuery,
   onClearFilters,
+  analysisCardLabel,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const { memberships } = useAuth()
@@ -177,7 +180,7 @@ export function SearchResultsList({
   const [highlightedResumeId, setHighlightedResumeId] = useState<string | null>(null)
   const [hashVersion, setHashVersion] = useState(0)
   const handledHashRef = useRef<string | null>(null)
-  const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
+  const hasAiSummaries = items.some((item) => Boolean(item.analysis?.summary))
   const { slug: workspaceSlug } = useWorkspace()
   const isSystemAdmin = hasSystemAdminAccess(memberships)
   const showIndustryEvidenceReviewGuidance = isSystemAdmin || hasWorkspaceIndustryReviewAccess(memberships, workspaceSlug)
@@ -743,6 +746,7 @@ export function SearchResultsList({
                     onToggleExpanded={onToggleExpanded}
                     onViewDetails={handleViewDetails}
                     searchQuery={searchQuery}
+                    analysisCardLabel={analysisCardLabel}
                     {...cardProps(item)}
                   />
                 </ErrorBoundary>
@@ -777,6 +781,7 @@ export function SearchResultsList({
                   onToggleExpanded={onToggleExpanded}
                   onViewDetails={handleViewDetails}
                   searchQuery={searchQuery}
+                  analysisCardLabel={analysisCardLabel}
                   {...cardProps(presentationItem)}
                 />
               </ErrorBoundary>

@@ -776,8 +776,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "location": "China",
       "keywords": [
         "三坐标",
-        "3D扫描",
-        "销售"
+        "3D扫描"
       ],
       "jobDescription": "cmm-3d-scanning-sales",
       "filters": {
@@ -822,7 +821,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · 三坐标 3D扫描 销售",
-        "description": "三坐标, 3D扫描, 销售 · China"
+        "description": "三坐标 or 3D扫描 · 销售职责 · China"
       }
     }
   },
@@ -839,8 +838,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "location": "China",
       "keywords": [
         "三坐标",
-        "3D扫描",
-        "销售"
+        "3D扫描"
       ],
       "jobDescription": "cmm-3d-scanning-sales",
       "filters": {
@@ -885,7 +883,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · 三坐标 3D扫描 销售",
-        "description": "三坐标, 3D扫描, 销售 · China"
+        "description": "三坐标 or 3D扫描 · 销售职责 · China"
       }
     }
   },

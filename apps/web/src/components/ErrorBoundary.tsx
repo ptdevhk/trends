@@ -1,6 +1,8 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { isValidWorkspace } from '@trends/shared'
 import { AlertTriangle } from 'lucide-react'
+import { reportConvexConnectionEvent } from '@/lib/client-diagnostics'
 
 interface Props {
     children: ReactNode
@@ -24,6 +26,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error('ErrorBoundary caught:', error, errorInfo)
+        if (/Function execution timed out|CONVEX Q\(/i.test(error.message)) {
+            reportConvexConnectionEvent({ kind: 'convex_query_timeout' })
+        }
     }
 
     handleReset = () => {
@@ -84,4 +89,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
         return this.props.children
     }
+}
+
+export function RouteErrorBoundary({ children, fallback }: Props) {
+    const location = useLocation()
+    return (
+        <ErrorBoundary key={`${location.pathname}${location.search}`} fallback={fallback}>
+            {children}
+        </ErrorBoundary>
+    )
 }

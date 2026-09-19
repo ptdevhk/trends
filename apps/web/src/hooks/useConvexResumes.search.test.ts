@@ -103,6 +103,10 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
+vi.mock('@/lib/client-diagnostics', () => ({
+  reportConvexConnectionEvent: vi.fn(),
+}))
+
 function buildResumeDoc(
   id: string,
   name: string,
@@ -310,8 +314,9 @@ describe('useConvexResumes AND-mode search', () => {
     // results (never a silent false "0 results" empty state).
     await waitFor(() => {
       expect(result.current.searchFailed).toBe(true)
-    })
+    }, { timeout: 8000 })
     expect(result.current.resumes).toHaveLength(0)
+    expect(rawApiGetMock.mock.calls.filter(([path]) => path === '/api/resumes').length).toBeGreaterThanOrEqual(3)
 
     // A healthy retry recovers the results and clears the flag.
     rawApiGetMock.mockImplementation(async (path?: unknown) => {
@@ -375,7 +380,7 @@ describe('useConvexResumes AND-mode search', () => {
 
     await waitFor(() => {
       expect(result.current.searchFailed).toBe(true)
-    })
+    }, { timeout: 8000 })
 
     rawApiGetMock.mockImplementation(async (path?: unknown) => {
       if (typeof path === 'string' && path === '/api/resumes') {
@@ -421,6 +426,70 @@ describe('useConvexResumes AND-mode search', () => {
     })
     expect(useAnalysisTasksMock).toHaveBeenCalled()
     expect(useQueryMock).not.toHaveBeenCalledWith('analysis_tasks:list', expect.anything())
+  })
+
+  it('keeps the last good BFF results when a later refetch fails', async () => {
+    rawApiGetMock.mockImplementation(async (path?: unknown) => {
+      if (typeof path === 'string' && path === '/api/resumes') {
+        return {
+          data: {
+            success: true,
+            data: [buildResumeDoc('resume-1', 'Alice')],
+            summary: { total: 1, statusCounts: { new: 1 } },
+          },
+        }
+      }
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'AND' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
+
+    const { result, rerender } = renderHook(() => useConvexResumes(200, 'CNC'))
+
+    await waitFor(() => {
+      expect(result.current.resumes).toHaveLength(1)
+    })
+
+    rawApiGetMock.mockImplementation(async (path?: unknown) => {
+      if (typeof path === 'string' && path === '/api/resumes') {
+        return { error: new Error('BFF AND-mode search failed') }
+      }
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'AND' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
+    analysisTasksState.tasks = [{
+      id: 'completed-task',
+      createdAt: 1,
+      status: 'completed',
+      config: {},
+      progress: { current: 1, total: 1, skipped: 0 },
+    }]
+    rerender()
+
+    await waitFor(() => {
+      expect(rawApiGetMock.mock.calls.filter(([path]) => path === '/api/resumes').length).toBeGreaterThan(1)
+    })
+    await waitFor(() => {
+      expect(result.current.resumes).toHaveLength(1)
+      expect(result.current.searchFailed).toBe(false)
+    }, { timeout: 8000 })
   })
 
   it('forwards sort and source filters to the BFF AND-mode search path', async () => {

@@ -69,3 +69,10 @@ only (which does NOT restart a running-but-wedged container).
   BFF fetch-fail 500s stopped. Root cause of the wedge (why `convex dev`
   silently stops launching the binary after a long run) is upstream in the
   Convex CLI; no local code change was made.
+- 2026-09-19: owner screenshot of `/hr/resumes` empty box + 连接中断 banner
+  at 14:22 HKT, immediately after a preview Convex docker restart for the
+  OR-search deploy. HTTP `/convex/version` was 200 again by ~14:23; the tab
+  still showed the 8s websocket-degraded banner until Retry (full reload).
+  Client now POSTs `/api/client-diagnostics/report` (`convex_ws_degraded` /
+  `convex_ws_retry`) to `output/client-diagnostics.jsonl` plus API stderr
+  `client_diagnostic` so the next occurrence has a timestamped trail.

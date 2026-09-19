@@ -3,6 +3,9 @@ import {
   parseKeywordQuery,
   formatKeywordQuery,
   formatKeywordInput,
+  formatQuickStartSearchQuery,
+  formatResumeSearchBoxQuery,
+  resolveSalesDutyFilters,
   normalizeKeywordPhrases,
   inferKeywordQueryMode,
 } from './keyword-query'
@@ -92,6 +95,31 @@ describe('parseKeywordQuery', () => {
     expect(result.mode).toBe('OR')
   })
 
+  it('treats trailing 销售 after an OR pair as sales duty, not a third keyword', () => {
+    const result = parseKeywordQuery('三坐标 or 3D扫描 销售')
+    expect(result).toEqual({
+      keywords: ['三坐标', '3D扫描'],
+      mode: 'OR',
+      salesDuty: true,
+    })
+  })
+
+  it('keeps 销售 as an OR alternative when it follows or', () => {
+    const result = parseKeywordQuery('三坐标 or 销售')
+    expect(result).toEqual({
+      keywords: ['三坐标', '销售'],
+      mode: 'OR',
+    })
+  })
+
+  it('does not peel 销售 from AND queries', () => {
+    const result = parseKeywordQuery('CNC 销售')
+    expect(result).toEqual({
+      keywords: ['CNC', '销售'],
+      mode: 'AND',
+    })
+  })
+
   it('parses newline-delimited keywords', () => {
     const result = parseKeywordQuery('React\nTypeScript')
     expect(result.keywords).toEqual(['React', 'TypeScript'])
@@ -143,6 +171,45 @@ describe('formatKeywordQuery', () => {
 
   it('formats single keyword', () => {
     expect(formatKeywordQuery(['React'])).toBe('React')
+  })
+})
+
+describe('formatResumeSearchBoxQuery', () => {
+  it('formats CJK OR plus sales duty the way users type it', () => {
+    expect(formatResumeSearchBoxQuery({
+      keywords: ['三坐标', '3D扫描'],
+      mode: 'OR',
+      salesDuty: true,
+    })).toBe('三坐标 or 3D扫描 销售')
+  })
+})
+
+describe('formatQuickStartSearchQuery', () => {
+  it('keeps CNC 销售 as AND', () => {
+    expect(formatQuickStartSearchQuery({
+      keywords: ['CNC', '销售'],
+      roleFilterType: 'sales',
+    })).toBe('CNC 销售')
+  })
+
+  it('turns 三坐标+3D扫描 sales profiles into or plus sales duty', () => {
+    expect(formatQuickStartSearchQuery({
+      keywords: ['三坐标', '3D扫描', '销售'],
+      roleFilterType: 'sales',
+    })).toBe('三坐标 or 3D扫描 销售')
+  })
+})
+
+describe('resolveSalesDutyFilters', () => {
+  it('fills sales years when the query implies sales duty', () => {
+    expect(resolveSalesDutyFilters({
+      keywords: ['三坐标', '3D扫描'],
+      mode: 'OR',
+      salesDuty: true,
+    })).toEqual({
+      roleFilterType: 'sales',
+      minRoleYears: 1,
+    })
   })
 })
 

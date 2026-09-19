@@ -296,6 +296,14 @@ describe('useConvexResumes list path', () => {
     })
   })
 
+  it('requests a 16-doc websocket list page so fat resume rows stay under 1s', () => {
+    renderHook(() => useConvexResumes(200))
+
+    const listCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && !('query' in (args as Record<string, unknown>)))
+
+    expect(listCall?.[2]).toEqual({ initialNumItems: 16 })
+  })
+
   it('returns loading=true while the first page is loading', () => {
     usePaginatedQueryMock.mockImplementation((_query, args) => ({
       results: args === 'skip' ? [] : [],

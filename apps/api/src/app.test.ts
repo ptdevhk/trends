@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { createAuthHeaders } from "./routes/test-auth-helpers";
 import { AuthEventStorage } from "./services/auth-event-storage";
+import { ClientDiagnosticsLogger } from "./services/client-diagnostics-logger";
 import { resetResumeScreeningDb } from "./services/database";
 
 // Mock the Convex helper so admin audit GETs resolve without a live backend.
@@ -43,6 +44,35 @@ describe("createApp auth event storage wiring", () => {
     });
 
     expect(response.status).toBe(200);
+  });
+
+  it("accepts client diagnostic breadcrumbs from an authenticated browser without CSRF", async () => {
+    const logSpy = vi
+      .spyOn(ClientDiagnosticsLogger.prototype, "logEvent")
+      .mockImplementation(() => {});
+    const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+    const app = createApp({
+      authStorage: auth.storage,
+      authTtlSeconds: 3600,
+    });
+
+    const response = await app.request("/api/client-diagnostics/report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+        Cookie: auth.headers.Cookie,
+      },
+      body: JSON.stringify({
+        kind: "convex_ws_degraded",
+        pathname: "/hr/resumes",
+        hasEverConnected: true,
+        connectionRetries: 2,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(logSpy).toHaveBeenCalled();
   });
 
   it("uses injected auth event storage for CSRF and workspace denials", async () => {
