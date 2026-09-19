@@ -518,6 +518,13 @@ const PulseKeywordsStateSchema = z.object({
     version: z.string(),
     groups: z.array(PulseKeywordGroupSchema),
     defaultKeywords: z.array(z.string()),
+    /**
+     * defaults.excludedKeywords — exact-token drop list applied to the DEFAULT set only
+     * (owner decision 2026-09-19). Exposed so clients can tell a default-disabled term
+     * apart from a term that was never seeded; the full catalog (with every dropped
+     * surface) stays available in `groups`.
+     */
+    excludedKeywords: z.array(z.string()),
   }),
   workspace: PulseKeywordsWorkspaceSchema,
   effective: z.array(z.string()),

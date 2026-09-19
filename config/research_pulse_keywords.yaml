@@ -27,5 +27,59 @@ groups:
   - id: 3d-printing
     label: 3D打印类
     keywords: [3D打印设备, 增材制造]
+# All six precision-machinery tag categories are enabled by default so the
+# research 市场动态 / NewsNow pulse watches the full industry catalog (machining,
+# lathe, edm, measurement, smt, 3d-printing) plus cnc-core + brands + hiring-sales.
+# Brand surfaces and company names from config/industry-data are appended at load
+# time by research-pulse-keywords-pack (do not hand-copy them here).
+#
+# defaults.excludedKeywords = owner decision 2026-09-19 "exclude_conglomerates_keep_cnc".
+# Pulse matching is substring (OR) on title/snippet, so famous-conglomerate / generic
+# short tokens flood 市场动态 with unrelated business news. These are dropped from the
+# DEFAULT keyword set ONLY — exact-token match, never a substring filter. The surfaces
+# that actually contain a drop token but survive are 山善（深圳）贸易有限公司 and
+# 日东（上海）机械技术中心有限公司 (distinct company records, not the dropped short names).
+# The full catalog is untouched: brands.json / keyword-tags.json keep every entity, and
+# the runtime `industry-catalog` group still exposes each dropped surface.
+# KEEP: all keyword-tags categories, hiring-sales overlay, and the CNC brands already
+# on today's desk (创世纪 台群 思瑞 精雕 台正 汉川 友佳).
+#
+# English/alias forms are listed only where brands.json attaches them to the SAME dropped
+# entity record. 芝浦's alias "Toshiba Machine" is deliberately NOT dropped: it belongs to
+# brand id 82 (芝浦 / SHIBAURA), a machine-tool builder that is not on the drop list — it is
+# the one default surface that still carries an excluded entity's English word.
 defaults:
-  enabledGroupIds: [cnc-core, brands, hiring-sales]
+  enabledGroupIds:
+    - cnc-core
+    - brands
+    - hiring-sales
+    - machining
+    - lathe
+    - edm
+    - measurement
+    - smt
+    - 3d-printing
+  excludedKeywords:
+    - 三菱
+    - MITSUBISHI
+    - 松下
+    - PANASONIC
+    - 西门子
+    - SIEMENS
+    - 东芝
+    - TOSHIBA
+    - 雅马哈
+    - YAMAHA
+    - 富士
+    - FUJI
+    - 西部
+    - SEIBU
+    - 兄弟
+    - BROTHER
+    - Brother Industries
+    - 山善
+    - 海能达
+    - 智赢
+    - 日东
+    - 领方
+    - 丰创

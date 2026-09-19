@@ -3074,6 +3074,9 @@
     "pulseEmpty": "暂无近期资讯。",
     "pulseKeywords": {
       "addCustom": "Add",
+      "catalogHint": "From the industry-data catalog; check to add to this workspace (the exclude list is unchanged).",
+      "catalogSection": "Optional keywords (excluded by default / {{count}})",
+      "chipDualCount": "hotlist {{hotlist}} · subscription {{rss}}",
       "clearFocus": "Clear filter",
       "collapseChips": "Show less",
       "customDuplicate": "This keyword is already in the custom list",
@@ -3097,7 +3100,6 @@
       "showAll": "View unfiltered hotlist",
       "softEmpty": "No recent items matched this keyword. Show all or adjust your keywords.",
       "softEmptyRss": "No hotlist keyword hits. Showing industry subscriptions (Google News / WeChat RSS).",
-      "chipDualCount": "hotlist {{hotlist}} · subscription {{rss}}",
       "sourceRss": "RSS"
     },
     "pulseLoadError": "Failed to load hotlist",
