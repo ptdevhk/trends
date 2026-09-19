@@ -5,6 +5,9 @@ import {
   JOB51_SAFE_MAX_PAGES,
   JOB51_DETAIL_FETCH_DELAY_MS,
   JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS,
+  JOB51_LIST_INGEST_SETTLE_MS,
+  JOB51_LIST_SUBMIT_MAX_ATTEMPTS,
+  JOB51_LIST_SUBMIT_RETRY_DELAY_MS,
   hasJob51UnsafeLimitsOverride,
   resolveJob51CollectionLimits,
   resolveJob51DetailFetchDelayMs,
@@ -27,6 +30,12 @@ describe("job51-collection-config", () => {
 
     it("exports unsafe detail fetch delay as 1000ms", () => {
       expect(JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS).toBe(1000);
+    });
+
+    it("exports list-submit retry and ingest settle delays", () => {
+      expect(JOB51_LIST_SUBMIT_MAX_ATTEMPTS).toBe(3);
+      expect(JOB51_LIST_SUBMIT_RETRY_DELAY_MS).toBe(20000);
+      expect(JOB51_LIST_INGEST_SETTLE_MS).toBe(30000);
     });
   });
 
@@ -103,6 +112,10 @@ describe("job51-collection-config", () => {
 
     it('returns "all" when tr_job51_detail_wait=all', () => {
       expect(resolveJob51AutoSyncDetailWaitMode("tr_job51_detail_wait=all")).toBe("all");
+    });
+
+    it('returns "off" when tr_job51_detail_wait=off', () => {
+      expect(resolveJob51AutoSyncDetailWaitMode("tr_job51_detail_wait=off")).toBe("off");
     });
 
     it('returns "background" for unknown mode', () => {

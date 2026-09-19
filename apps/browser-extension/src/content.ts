@@ -60,6 +60,8 @@ import {
   AUTO_MAX_PAGES_PARAM,
   AUTO_MIN_AGE_PARAM,
   AUTO_MAX_AGE_PARAM,
+  AUTO_WORK_FUNC_PARAM,
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM,
   AUTO_SEARCH_PARAM,
   AUTO_LOCATION_PARAM,
   AUTO_KEYWORD_MODE_PARAM,
@@ -210,6 +212,8 @@ const _uiUtils = createUiUtils({
   AUTO_MAX_PAGES_PARAM,
   AUTO_MIN_AGE_PARAM,
   AUTO_MAX_AGE_PARAM,
+  AUTO_WORK_FUNC_PARAM,
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM,
   AUTO_SEARCH_PARAM,
   AUTO_LOCATION_PARAM,
   SAMPLE_NAME_PARAM,
@@ -540,6 +544,9 @@ const {
   normalizeAgeRequestValue,
   hasMatchingJob51AgeSearchRequest,
   waitForJob51AgeFilterRefresh,
+  applyJob51WorkFuncViaVue,
+  applyJob51WorkFuncViaPageHook,
+  waitForJob51WorkFuncRefresh,
 } = _job51SearchExtractor;
 ({ isJob51DetailPage, isJob51DetailReady } = _job51SearchExtractor);
 
@@ -710,12 +717,17 @@ const _autoActions = createAutoActions({
   ensureJob51AgeCustomRangeInputs: ensureJob51AgeCustomRangeInputs as unknown as (selectBox: unknown, options?: Record<string, unknown>) => Promise<void>,
   applyJob51AgeCustomRangeViaVue,
   waitForJob51AgeFilterRefresh,
+  applyJob51WorkFuncViaVue,
+  applyJob51WorkFuncViaPageHook,
+  waitForJob51WorkFuncRefresh,
   waitForExtractionData,
   asHTMLElement,
   SELECTORS,
   AUTO_LOCATION_PARAM,
   AUTO_SEARCH_PARAM,
   AUTO_KEYWORD_MODE_PARAM,
+  AUTO_WORK_FUNC_PARAM,
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM,
   KEYWORD_MODE_SPACED,
   normalizeKeyword,
   normalizeKeywordMode,
@@ -750,6 +762,7 @@ const {
   waitForAgeFilterDropdown,
   resolveAgeFilterActions,
   autoApplyAgeFilterFromUrl,
+  autoApplyWorkFuncFromUrl,
   autoSelectLocation,
   autoSearchFromUrl,
   normalizeCardText,
@@ -951,6 +964,7 @@ function installContentTestExports() {
     SOURCE_KEYS,
     autoApplyAgeFilterFromUrl,
     setAutoAgeAttributes,
+    autoApplyWorkFuncFromUrl,
     extractResumes,
     extractJob51DetailResume,
     extractJob5156DetailResume,
@@ -1019,6 +1033,8 @@ autoSelectLocation()
   .catch((error) => console.warn("🎯 [Auto Search] Failed:", error))
   .then(() => autoApplyAgeFilterFromUrl())
   .catch((error) => console.warn("🎯 [Auto Age] Failed:", error))
+  .then(() => autoApplyWorkFuncFromUrl())
+  .catch((error) => console.warn("🎯 [Auto WorkFunc] Failed:", error))
   .finally(() => {
     void (async () => {
       await runAutoExportIfEnabled();

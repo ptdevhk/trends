@@ -138,3 +138,66 @@ describe("SEEK talent search request filtering", () => {
     window.removeEventListener("message", onMessage);
   });
 });
+
+describe("51job 从事职能 MAIN-world apply", () => {
+  it("writes EhJobCodeFilter formData and clicks search", async () => {
+    const searchButtonClick = vi.fn();
+    const formData: Record<string, unknown> = {};
+    const button = document.createElement("button");
+    button.className = "search_button";
+    (button as unknown as { __vue__: Record<string, unknown> }).__vue__ = {
+      $options: { name: "ElButton" },
+      $parent: {
+        $options: { name: "EhJobCodeFilter" },
+        formData,
+        $set: (obj: Record<string, unknown>, key: string, value: unknown) => {
+          obj[key] = value;
+        },
+        searchButtonClick,
+      },
+    };
+    document.body.appendChild(button);
+
+    const hookWindow = window as typeof window & {
+      __trResumeHookInstalled?: boolean;
+    };
+    hookWindow.__trResumeHookInstalled = false;
+    const results: Array<Record<string, unknown>> = [];
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.action === "trJob51ApplyWorkFuncResult") {
+        results.push(event.data);
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    const hookPath = resolve(process.cwd(), "apps/browser-extension/page-hook.js");
+    window.eval(readFileSync(hookPath, "utf8"));
+
+    window.postMessage(
+      {
+        source: "tr-resume-content-script",
+        action: "trJob51ApplyWorkFunc",
+        requestId: "tr-work-func-test",
+        workFunc: "3000",
+        onlyCurWorkFunc: true,
+      },
+      "*",
+    );
+
+    await vi.waitFor(() => {
+      expect(results.some((data) => data.requestId === "tr-work-func-test")).toBe(true);
+    });
+    expect(formData.workFunc).toEqual([{ id: "3000" }]);
+    expect(formData.onlyCurWorkFunc).toBe(true);
+    expect(searchButtonClick).toHaveBeenCalled();
+    expect(results.at(-1)).toMatchObject({
+      source: "tr-page-hook",
+      action: "trJob51ApplyWorkFuncResult",
+      requestId: "tr-work-func-test",
+      ok: true,
+    });
+
+    window.removeEventListener("message", onMessage);
+    button.remove();
+  });
+});

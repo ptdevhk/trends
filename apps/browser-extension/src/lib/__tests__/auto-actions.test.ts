@@ -20,12 +20,17 @@ function createMockDeps(overrides: Record<string, unknown> = {}): AutoActionsDep
     ensureJob51AgeCustomRangeInputs: vi.fn(),
     applyJob51AgeCustomRangeViaVue: vi.fn(),
     waitForJob51AgeFilterRefresh: vi.fn(),
+    applyJob51WorkFuncViaVue: vi.fn(),
+    applyJob51WorkFuncViaPageHook: vi.fn(async () => false),
+    waitForJob51WorkFuncRefresh: vi.fn(),
     waitForExtractionData: vi.fn(),
     asHTMLElement: vi.fn((el: unknown) => el as HTMLElement | null),
     SELECTORS: {},
     AUTO_LOCATION_PARAM: "location",
     AUTO_SEARCH_PARAM: "keyword",
     AUTO_KEYWORD_MODE_PARAM: "tr_kw_mode",
+    AUTO_WORK_FUNC_PARAM: "tr_work_func",
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM: "tr_only_cur_work_func",
     KEYWORD_MODE_SPACED: "spaced",
     normalizeKeyword: vi.fn((k: string) => k.trim()),
     normalizeKeywordMode: vi.fn(() => "concat"),
@@ -306,6 +311,104 @@ describe("auto-actions", () => {
         ],
       }));
       vi.unstubAllGlobals();
+    });
+  });
+
+  describe("autoApplyWorkFuncFromUrl", () => {
+    it("skips when the source is not 51job", async () => {
+      const actions = createAutoActions(createMockDeps());
+      await actions.autoApplyWorkFuncFromUrl();
+      expect(document.documentElement.getAttribute("data-tr-auto-work-func")).toBe("skipped");
+    });
+
+    it("skips when tr_work_func is absent", async () => {
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB51),
+      }));
+      await actions.autoApplyWorkFuncFromUrl();
+      expect(document.documentElement.getAttribute("data-tr-auto-work-func")).toBe("skipped");
+    });
+
+    it("fails closed when Vue formData apply returns false", async () => {
+      window.history.replaceState({}, "", "?tr_work_func=3000&tr_only_cur_work_func=1");
+      document.body.innerHTML = '<button class="search_button">搜索</button>';
+      const applyJob51WorkFuncViaVue = vi.fn(() => false);
+      const applyJob51WorkFuncViaPageHook = vi.fn(async () => false);
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB51),
+        applyJob51WorkFuncViaVue,
+        applyJob51WorkFuncViaPageHook,
+        SELECTORS: { job51SearchButton: "button.search_button" },
+      }));
+
+      await actions.autoApplyWorkFuncFromUrl();
+
+      expect(applyJob51WorkFuncViaPageHook).toHaveBeenCalled();
+      expect(applyJob51WorkFuncViaVue).toHaveBeenCalled();
+      expect(document.documentElement.getAttribute("data-tr-auto-work-func")).toBe("failed");
+      window.history.replaceState({}, "", "/");
+      document.body.innerHTML = "";
+    });
+
+    it("marks done after page-hook apply and a matching signed search", async () => {
+      window.history.replaceState({}, "", "?tr_work_func=3000&tr_only_cur_work_func=1");
+      document.body.innerHTML = '<button class="search_button">搜索</button>';
+      const applyJob51WorkFuncViaPageHook = vi.fn(async () => true);
+      const applyJob51WorkFuncViaVue = vi.fn(() => false);
+      const waitForJob51WorkFuncRefresh = vi.fn(async () => true);
+      const activateElement = vi.fn();
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB51),
+        applyJob51WorkFuncViaPageHook,
+        applyJob51WorkFuncViaVue,
+        waitForJob51WorkFuncRefresh,
+        activateElement,
+        SELECTORS: { job51SearchButton: "button.search_button" },
+      }));
+
+      await actions.autoApplyWorkFuncFromUrl();
+
+      expect(applyJob51WorkFuncViaPageHook).toHaveBeenCalledWith({
+        workFunc: "3000",
+        onlyCurWorkFunc: true,
+      });
+      expect(applyJob51WorkFuncViaVue).not.toHaveBeenCalled();
+      expect(activateElement).not.toHaveBeenCalled();
+      expect(waitForJob51WorkFuncRefresh).toHaveBeenCalled();
+      expect(document.documentElement.getAttribute("data-tr-auto-work-func")).toBe("done");
+      expect(document.documentElement.getAttribute("data-tr-work-func")).toBe("3000");
+      expect(document.documentElement.getAttribute("data-tr-only-cur-work-func")).toBe("1");
+      window.history.replaceState({}, "", "/");
+      document.body.innerHTML = "";
+    });
+
+    it("falls back to Vue apply and click when page-hook returns false", async () => {
+      window.history.replaceState({}, "", "?tr_work_func=3000&tr_only_cur_work_func=1");
+      document.body.innerHTML = '<button class="search_button">搜索</button>';
+      const applyJob51WorkFuncViaPageHook = vi.fn(async () => false);
+      const applyJob51WorkFuncViaVue = vi.fn(() => true);
+      const waitForJob51WorkFuncRefresh = vi.fn(async () => true);
+      const activateElement = vi.fn();
+      const actions = createAutoActions(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => SOURCE_KEYS.JOB51),
+        applyJob51WorkFuncViaPageHook,
+        applyJob51WorkFuncViaVue,
+        waitForJob51WorkFuncRefresh,
+        activateElement,
+        SELECTORS: { job51SearchButton: "button.search_button" },
+      }));
+
+      await actions.autoApplyWorkFuncFromUrl();
+
+      expect(applyJob51WorkFuncViaPageHook).toHaveBeenCalled();
+      expect(applyJob51WorkFuncViaVue).toHaveBeenCalledWith(
+        expect.any(HTMLButtonElement),
+        { workFunc: "3000", onlyCurWorkFunc: true },
+      );
+      expect(activateElement).toHaveBeenCalled();
+      expect(document.documentElement.getAttribute("data-tr-auto-work-func")).toBe("done");
+      window.history.replaceState({}, "", "/");
+      document.body.innerHTML = "";
     });
   });
 });

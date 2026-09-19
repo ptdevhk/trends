@@ -776,6 +776,35 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     expect(screen.getByLabelText('Seek')).toBeChecked()
   })
 
+  it('round-trips 51job 从事职能 extras through editor save', () => {
+    const form = toSourcesFormState([
+      {
+        type: '51job',
+        enabled: true,
+        priority: 1,
+        collectLimit: 2000,
+        maxPages: 20,
+        unsafeLimits: true,
+        job51CollectLimit: 2000,
+        job51MaxPages: 20,
+        job51Keyword: '三坐标 or 3D扫描',
+        job51WorkFunc: '3000',
+        job51OnlyCurWorkFunc: true,
+      },
+    ])
+    const payload = buildSourcesPayload(form, [])
+    const job51 = payload.find((source) => source.type === '51job')
+
+    expect(job51).toMatchObject({
+      enabled: true,
+      collectLimit: 2000,
+      maxPages: 20,
+      job51Keyword: '三坐标 or 3D扫描',
+      job51WorkFunc: '3000',
+      job51OnlyCurWorkFunc: true,
+    })
+  })
+
   it('save payload for seek-only profile does not enable Job5156 or 51job', async () => {
     const user = userEvent.setup()
     const talentOnlySources = [

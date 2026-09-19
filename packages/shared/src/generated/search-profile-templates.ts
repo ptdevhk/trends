@@ -53,6 +53,8 @@ export type SharedSearchProfileTemplate = {
       job51CollectLimit?: number;
       job51MaxPages?: number;
       job51Keyword?: string;
+      job51WorkFunc?: string;
+      job51OnlyCurWorkFunc?: boolean;
     }>;
     quickStart?: {
       enabled: boolean;
@@ -769,7 +771,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & 3D Scanning Sales",
       "description": "China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile",
       "createdAt": "2026-09-17",
-      "updatedAt": "2026-09-18",
+      "updatedAt": "2026-09-19",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -806,7 +808,9 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "unsafeLimits": true,
           "job51CollectLimit": 2000,
           "job51MaxPages": 20,
-          "job51Keyword": "三坐标 or 3D扫描"
+          "job51Keyword": "三坐标 or 3D扫描",
+          "job51WorkFunc": "3000",
+          "job51OnlyCurWorkFunc": true
         },
         {
           "type": "job5156",
@@ -830,7 +834,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & 3D Scanning Sales",
       "description": "China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile",
       "createdAt": "2026-09-17",
-      "updatedAt": "2026-09-18",
+      "updatedAt": "2026-09-19",
       "status": "active",
       "location": "China",
       "keywords": [
@@ -867,7 +871,9 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "unsafeLimits": true,
           "job51CollectLimit": 2000,
           "job51MaxPages": 20,
-          "job51Keyword": "三坐标 or 3D扫描"
+          "job51Keyword": "三坐标 or 3D扫描",
+          "job51WorkFunc": "3000",
+          "job51OnlyCurWorkFunc": true
         },
         {
           "type": "job5156",

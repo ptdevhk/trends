@@ -209,6 +209,28 @@ describe('SearchProfileService normalizeProfileInput — sources', () => {
     expect(result.sources![0]!.jobUrl).toBe('https://hk.employer.seek.com/candidates/recommended')
   })
 
+  it('keeps 51job 从事职能 extras on the source', () => {
+    const result = svc.normalizeProfileInput({
+      id: 'test',
+      name: 'Test',
+      keywords: ['test'],
+      sources: [{
+        type: '51job',
+        enabled: true,
+        job51Keyword: '三坐标 or 3D扫描',
+        job51WorkFunc: '3000',
+        job51OnlyCurWorkFunc: true,
+      }],
+    })
+    expect(result.sources![0]).toMatchObject({
+      type: '51job',
+      enabled: true,
+      job51Keyword: '三坐标 or 3D扫描',
+      job51WorkFunc: '3000',
+      job51OnlyCurWorkFunc: true,
+    })
+  })
+
   it('returns undefined for empty sources array', () => {
     const result = svc.normalizeProfileInput({
       id: 'test',

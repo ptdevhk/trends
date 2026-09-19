@@ -21,6 +21,8 @@ type ProfileSource = {
   job51CollectLimit?: number;
   job51MaxPages?: number;
   job51Keyword?: string;
+  job51WorkFunc?: string;
+  job51OnlyCurWorkFunc?: boolean;
 };
 
 type ProfileFilters = {
@@ -139,6 +141,8 @@ function parseSource(raw: unknown): ProfileSource | null {
     job51CollectLimit: readNumber(raw.job51CollectLimit),
     job51MaxPages: readNumber(raw.job51MaxPages),
     job51Keyword: readString(raw.job51Keyword),
+    job51WorkFunc: readString(raw.job51WorkFunc),
+    job51OnlyCurWorkFunc: raw.job51OnlyCurWorkFunc === true ? true : undefined,
   };
 }
 
@@ -335,6 +339,8 @@ export type SharedSearchProfileTemplate = {
       job51CollectLimit?: number;
       job51MaxPages?: number;
       job51Keyword?: string;
+      job51WorkFunc?: string;
+      job51OnlyCurWorkFunc?: boolean;
     }>;
     quickStart?: {
       enabled: boolean;

@@ -763,6 +763,7 @@
       autoSearch: readAttr("data-tr-auto-search"),
       autoLocation: readAttr("data-tr-auto-location"),
       autoAge: readAttr("data-tr-auto-age"),
+      autoWorkFunc: readAttr("data-tr-auto-work-func"),
       autoExport: readAttr("data-tr-auto-export"),
       pagination: getPaginationInfo(),
       timestamp: new Date().toISOString(),
@@ -921,18 +922,62 @@
     if (event.source !== null && event.source !== window) return;
     const data = event.data;
     if (!data || data.source !== 'tr-resume-content-script') return;
-    if (data.action !== 'trJob51NextPageRequest') return;
-    try {
-      const container = /** @type {HTMLElement & {__vue__?: {listToBottom: Function}} } */ (
-        document.querySelector('.talent-search-container')
-      );
-      if (!container) return;
-      const vm = container.__vue__;
-      if (vm && typeof vm.listToBottom === 'function') {
-        vm.listToBottom();
+    if (data.action === 'trJob51NextPageRequest') {
+      try {
+        const container = /** @type {HTMLElement & {__vue__?: {listToBottom: Function}} } */ (
+          document.querySelector('.talent-search-container')
+        );
+        if (!container) return;
+        const vm = container.__vue__;
+        if (vm && typeof vm.listToBottom === 'function') {
+          vm.listToBottom();
+        }
+      } catch (e) {
+        console.warn('[tr] 51job next-page trigger failed', e);
       }
-    } catch (e) {
-      console.warn('[tr] 51job next-page trigger failed', e);
+      return;
+    }
+    if (data.action === 'trJob51ApplyWorkFunc') {
+      const requestId = data.requestId;
+      const workFunc = typeof data.workFunc === 'string' ? data.workFunc.trim() : '';
+      const onlyCur = data.onlyCurWorkFunc === true;
+      let ok = false;
+      try {
+        const button = document.querySelector('button.search_button');
+        let vm = button && /** @type {{__vue__?: { $options?: { name?: string }, $parent?: unknown, $set?: Function, formData?: Record<string, unknown>, searchButtonClick?: Function }}} */ (button).__vue__;
+        while (vm && vm.$options && vm.$options.name !== 'EhJobCodeFilter') {
+          vm = /** @type {typeof vm} */ (vm.$parent);
+        }
+        if (vm && workFunc) {
+          if (!vm.formData || typeof vm.formData !== 'object') {
+            vm.formData = {};
+          }
+          const nextWorkFunc = [{ id: workFunc }];
+          if (typeof vm.$set === 'function') {
+            vm.$set(vm.formData, 'workFunc', nextWorkFunc);
+            vm.$set(vm.formData, 'onlyCurWorkFunc', onlyCur);
+          } else {
+            vm.formData.workFunc = nextWorkFunc;
+            vm.formData.onlyCurWorkFunc = onlyCur;
+          }
+          if (typeof vm.searchButtonClick === 'function') {
+            vm.searchButtonClick();
+            ok = true;
+          }
+        }
+      } catch (e) {
+        console.warn('[tr] 51job work-func apply failed', e);
+        ok = false;
+      }
+      window.postMessage(
+        {
+          source: 'tr-page-hook',
+          action: 'trJob51ApplyWorkFuncResult',
+          requestId,
+          ok,
+        },
+        '*',
+      );
     }
   });
 

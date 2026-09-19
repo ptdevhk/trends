@@ -28,6 +28,9 @@ type SearchHeroQuickStart = {
     jobUrl?: string
     job51CollectLimit?: number
     job51MaxPages?: number
+    job51Keyword?: string
+    job51WorkFunc?: string
+    job51OnlyCurWorkFunc?: boolean
     collectLimit?: number
     maxPages?: number
   }
@@ -167,6 +170,13 @@ export function SearchHero({
                               ...(typeof seed.source.job51MaxPages === 'number'
                                 ? { job51MaxPages: seed.source.job51MaxPages }
                                 : {}),
+                              ...(typeof seed.source.job51Keyword === 'string' && seed.source.job51Keyword.trim().length > 0
+                                ? { job51Keyword: seed.source.job51Keyword.trim() }
+                                : {}),
+                              ...(typeof seed.source.job51WorkFunc === 'string' && seed.source.job51WorkFunc.trim().length > 0
+                                ? { job51WorkFunc: seed.source.job51WorkFunc.trim() }
+                                : {}),
+                              ...(seed.source.job51OnlyCurWorkFunc === true ? { job51OnlyCurWorkFunc: true } : {}),
                             }
                           : {}),
                         ...(typeof seed.source.collectLimit === 'number'

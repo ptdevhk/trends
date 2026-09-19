@@ -379,8 +379,8 @@ async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promi
   // concurrently active. Retry a lone resume a bounded number of times — with a
   // short backoff so the isolate + scheduler clear — so a transient 1s blowup
   // does not fail the entire page batch.
-  const SINGLE_ROW_MAX_ATTEMPTS = 5;
-  const SINGLE_ROW_RETRY_DELAY_MS = 250;
+  const SINGLE_ROW_MAX_ATTEMPTS = 8;
+  const SINGLE_ROW_RETRY_DELAY_MS = 2500;
   try {
     const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
       resumes: batch,

@@ -64,6 +64,8 @@ export type CollectionSource = {
   job51CollectLimit?: number
   job51MaxPages?: number
   job51Keyword?: string
+  job51WorkFunc?: string
+  job51OnlyCurWorkFunc?: boolean
   collectLimit?: number
   maxPages?: number
 }
@@ -88,6 +90,8 @@ export type SearchProfileSource = {
   job51CollectLimit?: number
   job51MaxPages?: number
   job51Keyword?: string
+  job51WorkFunc?: string
+  job51OnlyCurWorkFunc?: boolean
   collectLimit?: number
   maxPages?: number
 }
@@ -153,6 +157,47 @@ function isChinaRootLocationLabel(value: string): boolean {
   return CHINA_ROOT_LOCATION_LABELS.has(value.trim())
 }
 
+function normalizeJob51WorkFunc(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const normalized = value.trim()
+  return /^\d+$/.test(normalized) ? normalized : undefined
+}
+
+function pickJob51SourceExtras(value: {
+  unsafeLimits?: boolean
+  job51CollectLimit?: number
+  job51MaxPages?: number
+  job51Keyword?: string
+  job51WorkFunc?: string
+  job51OnlyCurWorkFunc?: boolean
+}): Pick<
+  CollectionSource,
+  | 'unsafeLimits'
+  | 'job51CollectLimit'
+  | 'job51MaxPages'
+  | 'job51Keyword'
+  | 'job51WorkFunc'
+  | 'job51OnlyCurWorkFunc'
+> {
+  const workFunc = normalizeJob51WorkFunc(value.job51WorkFunc)
+  return {
+    ...(value.unsafeLimits === true ? { unsafeLimits: true } : {}),
+    ...(typeof value.job51CollectLimit === 'number' && value.job51CollectLimit > 0
+      ? { job51CollectLimit: value.job51CollectLimit }
+      : {}),
+    ...(typeof value.job51MaxPages === 'number' && value.job51MaxPages > 0
+      ? { job51MaxPages: value.job51MaxPages }
+      : {}),
+    ...(typeof value.job51Keyword === 'string' && value.job51Keyword.trim().length > 0
+      ? { job51Keyword: value.job51Keyword.trim() }
+      : {}),
+    ...(typeof workFunc === 'string' ? { job51WorkFunc: workFunc } : {}),
+    ...(value.job51OnlyCurWorkFunc === true ? { job51OnlyCurWorkFunc: true } : {}),
+  }
+}
+
 function removeTrendsParams(url: URL): void {
   const keys = Array.from(url.searchParams.keys())
   keys.forEach((key) => {
@@ -174,18 +219,7 @@ export function normalizeCollectionSource(
     : undefined
 
   const job51Extras = value.type === SEARCH_PROFILE_SOURCE_TYPES.job51
-    ? {
-        ...(value.unsafeLimits === true ? { unsafeLimits: true } : {}),
-        ...(typeof value.job51CollectLimit === 'number' && value.job51CollectLimit > 0
-          ? { job51CollectLimit: value.job51CollectLimit }
-          : {}),
-        ...(typeof value.job51MaxPages === 'number' && value.job51MaxPages > 0
-          ? { job51MaxPages: value.job51MaxPages }
-          : {}),
-        ...(typeof value.job51Keyword === 'string' && value.job51Keyword.trim().length > 0
-          ? { job51Keyword: value.job51Keyword.trim() }
-          : {}),
-      }
+    ? pickJob51SourceExtras(value)
     : {}
 
   const sourceLevelLimits = (value.type === SEARCH_PROFILE_SOURCE_TYPES.job5156 || value.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
@@ -221,10 +255,7 @@ export function stripCollectionSourceExactUrl(
   if (normalized.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
     return {
       type: normalized.type,
-      ...(normalized.unsafeLimits === true ? { unsafeLimits: true } : {}),
-      ...(typeof normalized.job51CollectLimit === 'number' ? { job51CollectLimit: normalized.job51CollectLimit } : {}),
-      ...(typeof normalized.job51MaxPages === 'number' ? { job51MaxPages: normalized.job51MaxPages } : {}),
-      ...(typeof normalized.job51Keyword === 'string' ? { job51Keyword: normalized.job51Keyword } : {}),
+      ...pickJob51SourceExtras(normalized),
     }
   }
 
@@ -480,6 +511,8 @@ export function getSearchProfileCollectionSource(
       job51CollectLimit: source.job51CollectLimit ?? source.collectLimit,
       job51MaxPages: source.job51MaxPages ?? source.maxPages,
       job51Keyword: source.job51Keyword,
+      job51WorkFunc: source.job51WorkFunc,
+      job51OnlyCurWorkFunc: source.job51OnlyCurWorkFunc,
     })
   }
 
@@ -636,6 +669,8 @@ type BuildJob51CollectUrlInput = BuildJob5156CollectUrlInput & {
   job51CollectLimit?: number
   job51MaxPages?: number
   job51Keyword?: string
+  job51WorkFunc?: string
+  job51OnlyCurWorkFunc?: boolean
 }
 
 export function buildJob51CollectUrl({
@@ -649,6 +684,8 @@ export function buildJob51CollectUrl({
   job51CollectLimit: sourceLevelLimit,
   job51MaxPages: sourceLevelMaxPages,
   job51Keyword,
+  job51WorkFunc,
+  job51OnlyCurWorkFunc,
 }: BuildJob51CollectUrlInput): string | null {
   const overrideKeyword = typeof job51Keyword === 'string' ? job51Keyword.trim() : ''
   const normalizedKeywords = overrideKeyword ? [overrideKeyword] : normalizeKeywords(keywords)
@@ -707,6 +744,14 @@ export function buildJob51CollectUrl({
     url.searchParams.set('tr_max_age', String(normalizedMaxAge))
   }
 
+  const normalizedWorkFunc = normalizeJob51WorkFunc(job51WorkFunc)
+  if (typeof normalizedWorkFunc === 'string') {
+    url.searchParams.set('tr_work_func', normalizedWorkFunc)
+  }
+  if (job51OnlyCurWorkFunc === true) {
+    url.searchParams.set('tr_only_cur_work_func', '1')
+  }
+
   return url.toString()
 }
 
@@ -745,6 +790,8 @@ export function buildCollectionLaunchUrl({
       job51CollectLimit: source.job51CollectLimit,
       job51MaxPages: source.job51MaxPages,
       job51Keyword: source.job51Keyword,
+      job51WorkFunc: source.job51WorkFunc,
+      job51OnlyCurWorkFunc: source.job51OnlyCurWorkFunc,
     })
   }
 

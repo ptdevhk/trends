@@ -174,6 +174,8 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     expect(combined51job?.job51CollectLimit).toBe(2000)
     expect(combined51job?.job51MaxPages).toBe(20)
     expect(combined51job?.job51Keyword).toBe('三坐标 or 3D扫描')
+    expect(combined51job?.job51WorkFunc).toBe('3000')
+    expect(combined51job?.job51OnlyCurWorkFunc).toBe(true)
 
     expect(cmm?.profile.keywords).toEqual(['三坐标测量机', '销售'])
     expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])

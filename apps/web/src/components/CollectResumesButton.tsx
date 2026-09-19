@@ -154,6 +154,10 @@ export function CollectResumesButton({
               ...(typeof collectionSource?.job51Keyword === 'string' && collectionSource.job51Keyword.trim().length > 0
                 ? { job51Keyword: collectionSource.job51Keyword.trim() }
                 : {}),
+              ...(typeof collectionSource?.job51WorkFunc === 'string' && collectionSource.job51WorkFunc.trim().length > 0
+                ? { job51WorkFunc: collectionSource.job51WorkFunc.trim() }
+                : {}),
+              ...(collectionSource?.job51OnlyCurWorkFunc === true ? { job51OnlyCurWorkFunc: true } : {}),
             } : {}),
             ...(selectedSourceType === SEARCH_PROFILE_SOURCE_TYPES.job5156 && collectionSource?.type === 'job5156'
               ? {
@@ -176,6 +180,8 @@ export function CollectResumesButton({
     collectionSource?.job51CollectLimit,
     collectionSource?.job51MaxPages,
     collectionSource?.job51Keyword,
+    collectionSource?.job51WorkFunc,
+    collectionSource?.job51OnlyCurWorkFunc,
     collectionSource?.unsafeLimits,
     disabled,
     isJob51Selected,

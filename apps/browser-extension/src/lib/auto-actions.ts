@@ -18,12 +18,17 @@ export interface AutoActionsDeps extends Record<string, unknown> {
   ensureJob51AgeCustomRangeInputs: (selectBox: unknown, options?: Record<string, unknown>) => Promise<void>;
   applyJob51AgeCustomRangeViaVue: (confirmButton: unknown, options: Record<string, unknown>) => Promise<boolean>;
   waitForJob51AgeFilterRefresh: (previousLastSearchAt: unknown, options: Record<string, unknown>) => Promise<boolean>;
+  applyJob51WorkFuncViaVue: (startNode: unknown, options: Record<string, unknown>) => boolean;
+  applyJob51WorkFuncViaPageHook: (options: Record<string, unknown>) => Promise<boolean>;
+  waitForJob51WorkFuncRefresh: (previousLastSearchAt: unknown, options: Record<string, unknown>) => Promise<boolean>;
   waitForExtractionData: (options?: Record<string, unknown>) => Promise<unknown>;
   asHTMLElement: (el: unknown) => HTMLElement | null;
   SELECTORS: Record<string, string>;
   AUTO_LOCATION_PARAM: string;
   AUTO_SEARCH_PARAM: string;
   AUTO_KEYWORD_MODE_PARAM: string;
+  AUTO_WORK_FUNC_PARAM: string;
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM: string;
   KEYWORD_MODE_SPACED: string;
   normalizeKeyword: (value: string) => string;
   normalizeKeywordMode: (mode: string) => string;
@@ -66,12 +71,17 @@ export function createAutoActions(deps: AutoActionsDeps) {
     ensureJob51AgeCustomRangeInputs,
     applyJob51AgeCustomRangeViaVue,
     waitForJob51AgeFilterRefresh,
+    applyJob51WorkFuncViaVue,
+    applyJob51WorkFuncViaPageHook,
+    waitForJob51WorkFuncRefresh,
     waitForExtractionData,
     asHTMLElement,
     SELECTORS,
     AUTO_LOCATION_PARAM,
     AUTO_SEARCH_PARAM,
     AUTO_KEYWORD_MODE_PARAM,
+    AUTO_WORK_FUNC_PARAM,
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM,
     KEYWORD_MODE_SPACED,
     normalizeKeyword,
     normalizeKeywordMode,
@@ -350,6 +360,110 @@ export function createAutoActions(deps: AutoActionsDeps) {
     }
 
     setAutoAgeAttributes("done", minAge, maxAge);
+  }
+
+  // ── setAutoWorkFuncAttributes ──
+
+  function setAutoWorkFuncAttributes(
+    status: string,
+    workFunc?: string | null,
+    onlyCurWorkFunc?: boolean,
+  ) {
+    try {
+      doc.documentElement.setAttribute("data-tr-auto-work-func", status);
+      if (typeof workFunc === "string" && workFunc.length > 0) {
+        doc.documentElement.setAttribute("data-tr-work-func", workFunc);
+      } else {
+        doc.documentElement.removeAttribute("data-tr-work-func");
+      }
+      if (onlyCurWorkFunc === true) {
+        doc.documentElement.setAttribute("data-tr-only-cur-work-func", "1");
+      } else {
+        doc.documentElement.removeAttribute("data-tr-only-cur-work-func");
+      }
+    } catch (e) {
+      console.warn(
+        "[tr-auto-actions]",
+        "setAutoWorkFuncAttributes: DOM attribute set failed",
+        e?.message || e,
+      );
+    }
+  }
+
+  function parseRequestedJob51WorkFunc() {
+    const params = new URLSearchParams(win.location.search || "");
+    const raw = (params.get(AUTO_WORK_FUNC_PARAM) || "").trim();
+    const workFunc = /^\d+$/.test(raw) ? raw : "";
+    const onlyCurRaw = (params.get(AUTO_ONLY_CUR_WORK_FUNC_PARAM) || "").trim();
+    const onlyCurWorkFunc = onlyCurRaw === "1" || onlyCurRaw === "true";
+    return { workFunc, onlyCurWorkFunc };
+  }
+
+  // ── autoApplyWorkFuncFromUrl ──
+
+  async function autoApplyWorkFuncFromUrl() {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) {
+      setAutoWorkFuncAttributes("skipped");
+      return;
+    }
+
+    const { workFunc, onlyCurWorkFunc } = parseRequestedJob51WorkFunc();
+    if (!workFunc) {
+      setAutoWorkFuncAttributes("skipped");
+      return;
+    }
+
+    const searchButton =
+      doc.querySelector(SELECTORS.job51SearchButton) ||
+      doc.querySelector("button.search_button");
+    if (!searchButton) {
+      setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+      console.warn("🎯 [Auto WorkFunc] 51job search button not found.");
+      return;
+    }
+
+    const previousLastSearchAt = apiSnapshot.lastSearchAt;
+    const appliedViaPageHook = await applyJob51WorkFuncViaPageHook({
+      workFunc,
+      onlyCurWorkFunc,
+    });
+    const appliedViaVue = appliedViaPageHook
+      ? false
+      : applyJob51WorkFuncViaVue(searchButton, {
+          workFunc,
+          onlyCurWorkFunc,
+        });
+    if (!appliedViaPageHook && !appliedViaVue) {
+      setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+      console.warn(
+        "🎯 [Auto WorkFunc] Failed to write 51job formData.workFunc.",
+        { workFunc, onlyCurWorkFunc },
+      );
+      return;
+    }
+
+    if (!appliedViaPageHook) {
+      activateElement(searchButton);
+    }
+
+    const ageRange = getCurrentAgeRange();
+    const refreshed = await waitForJob51WorkFuncRefresh(previousLastSearchAt, {
+      workFunc,
+      onlyCurWorkFunc,
+      minAge: ageRange.minAge,
+      maxAge: ageRange.maxAge,
+      timeoutMs: 5000,
+    });
+    if (!refreshed) {
+      setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+      console.warn(
+        "🎯 [Auto WorkFunc] Applied 51job 从事职能, but no matching signed search was observed.",
+        { workFunc, onlyCurWorkFunc },
+      );
+      return;
+    }
+
+    setAutoWorkFuncAttributes("done", workFunc, onlyCurWorkFunc);
   }
 
   // ── Province token helpers ──
@@ -1447,6 +1561,8 @@ export function createAutoActions(deps: AutoActionsDeps) {
     resolveAgeFilterActions,
     autoApplyAgeFilterFromUrl,
     setAutoAgeAttributes,
+    autoApplyWorkFuncFromUrl,
+    setAutoWorkFuncAttributes,
     autoSelectLocation,
     autoSearchFromUrl,
     normalizeCardText,
