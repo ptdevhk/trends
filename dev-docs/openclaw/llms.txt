@@ -1,50 +1,112 @@
-### Run interactive web search setup
+### Launch guided interactive setup for a specific channel
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/moonshot.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/channels.md
 
-Starts the interactive setup CLI to configure Kimi web search under the web section.
+Opens the guided setup wizard directly for the specified channel without first presenting the full channel picker. Passing no credential flags triggers interactive prompts.
 
 ```bash
-openclaw configure --section web
+openclaw channels add telegram
+openclaw channels add --channel telegram
 ```
 
 --------------------------------
 
-### Install Docker and Docker Compose
+### Run channels add guided setup
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/hetzner.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/signal.md
 
-Installs prerequisites and Docker engine using the official setup script, then prints installed versions.
+Launches the interactive setup wizard to detect or install signal-cli and configure the bot phone number and daemon endpoint.
 
 ```bash
-apt-get update
-apt-get install -y git curl ca-certificates
-curl -fsSL https://get.docker.com | sh
-docker --version
-docker compose version
+openclaw channels add
 ```
 
 --------------------------------
 
-### Run OpenClaw setup assistant with openclaw setup
+### Run OpenClaw installer with onboarding
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/web/tui.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/installer.md
 
-Start the setup and repair assistant interactively or execute one-off requests using -m. Pass --yes to apply persistent configuration writes without interactive approval prompts.
+Installs OpenClaw and immediately launches the onboarding setup flow upon completion.
 
 ```bash
-openclaw setup                       # start interactively
-openclaw setup -m "status"           # run one request and exit
-openclaw setup -m "set default model openai/gpt-5.2" --yes   # apply a config write
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash -s -- --onboard
 ```
 
 --------------------------------
 
-### Define Thread Start Params
+### Install and set up the Honcho plugin
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/concepts/memory-honcho.md
+
+Installs the Honcho plugin, runs interactive setup to configure credentials or migrate memory files, and restarts the gateway.
+
+```bash
+openclaw plugins install @honcho-ai/openclaw-honcho
+openclaw honcho setup
+openclaw gateway --force
+```
+
+--------------------------------
+
+### Configure turn start parameters
 
 Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
 
-Specifies initialization parameters including model, feature flags, dynamic tools, workspace cwd, and approval policies when starting a thread.
+Specifies execution parameters for starting a turn, including sender details, source delivery policies, and temporal context.
+
+```json
+{
+  "additionalContext": {
+    "openclaw_current_sender": {
+      "kind": "untrusted",
+      "value": "{\"sender\":{\"id\":\"1000001\",\"name\":\"Pash\",\"username\":\"pash\"}}"
+    },
+    "openclaw_source_delivery": {
+      "kind": "application",
+      "value": "Current source-delivery policy for this turn (replaces earlier source-delivery guidance):\nVisible source replies are not automatically delivered for this run. Use `message(action=send)` for user-visible source-channel output. For progress, set `final=false`. Set `final=true`, or omit it, for the completed reply to the current source conversation; OpenClaw stops after confirming delivery. Do not repeat visible message content in your final answer.\n\n`send`: `message`; current source is default target. Set `target` only elsewhere."
+    },
+    "openclaw_temporal_context": {
+      "kind": "application",
+      "value": "## Temporal Context\nCurrent date: 2026-01-01\nTime zone: UTC\nFor the exact current time, use `session_status`."
+    }
+  },
+  "approvalPolicy": "never",
+  "approvalsReviewer": "user",
+  "collaborationMode": {
+    "mode": "default",
+    "settings": {
+      "developer_instructions": null,
+      "model": "gpt-5.5",
+      "reasoning_effort": "medium"
+    }
+  },
+  "cwd": "/tmp/openclaw-happy-path/workspace",
+  "effort": "medium",
+  "input": [
+    {
+      "text": "<see Reconstructed Model-Bound Prompt Layers>",
+      "text_elements": [],
+      "type": "text"
+    }
+  ],
+  "model": "gpt-5.5",
+  "personality": "none",
+  "sandboxPolicy": {
+    "type": "dangerFullAccess"
+  },
+  "threadId": "thread-telegram-direct-codex-message-tool",
+  "turnTrigger": "user"
+}
+```
+
+--------------------------------
+
+### Set OpenClaw Thread Start Parameters
+
+Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
+
+Configures thread execution settings such as approval policies, feature flags, dynamic tool registrations, workspace directory, model selection, and sandbox security level.
 
 ```json
 {
@@ -89,85 +151,9 @@ Specifies initialization parameters including model, feature flags, dynamic tool
   "model": "gpt-5.5",
   "personality": "none",
   "sandbox": "danger-full-access",
-  "serviceName": "OpenClaw"
+  "serviceName": "OpenClaw",
+  "threadSource": "openclaw"
 }
-```
-
---------------------------------
-
-### Turn start parameter configuration for Telegram direct message tool
-
-Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
-
-Defines runtime parameters including untrusted sender data, delivery policies, model settings, and sandbox access for the turn execution.
-
-```json
-{
-  "additionalContext": {
-    "openclaw_current_sender": {
-      "kind": "untrusted",
-      "value": "{\"sender\":{\"id\":\"1000001\",\"name\":\"Pash\",\"username\":\"pash\"}}"
-    },
-    "openclaw_source_delivery": {
-      "kind": "application",
-      "value": "Current source-delivery policy for this turn (replaces earlier source-delivery guidance):\nVisible source replies are not automatically delivered for this run. Use `message(action=send)` for user-visible source-channel output. For progress, set `final=false`. Set `final=true`, or omit it, for the completed reply to the current source conversation; OpenClaw stops after confirming delivery. Do not repeat visible message content in your final answer.\n\n`send`: `message`; current source is default target. Set `target` only elsewhere."
-    },
-    "openclaw_temporal_context": {
-      "kind": "application",
-      "value": "## Temporal Context\nCurrent date: 2026-01-01\nTime zone: UTC\nFor the exact current time, use `session_status`."
-    }
-  },
-  "approvalPolicy": "never",
-  "approvalsReviewer": "user",
-  "collaborationMode": {
-    "mode": "default",
-    "settings": {
-      "developer_instructions": null,
-      "model": "gpt-5.5",
-      "reasoning_effort": "medium"
-    }
-  },
-  "cwd": "/tmp/openclaw-happy-path/workspace",
-  "effort": "medium",
-  "input": [
-    {
-      "text": "<see Reconstructed Model-Bound Prompt Layers>",
-      "text_elements": [],
-      "type": "text"
-    }
-  ],
-  "model": "gpt-5.5",
-  "personality": "none",
-  "sandboxPolicy": {
-    "type": "dangerFullAccess"
-  },
-  "threadId": "thread-telegram-direct-codex-message-tool"
-}
-```
-
---------------------------------
-
-### Run Feishu channel setup wizard
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/feishu.md
-
-Installs the @openclaw/feishu plugin if missing and guides through manual or QR code setup for Feishu or Lark.
-
-```bash
-openclaw channels login --channel feishu
-```
-
---------------------------------
-
-### Run interactive configuration wizards
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration.md
-
-Start the full onboarding flow or run the guided configuration wizard from the command line.
-
-```bash
-openclaw onboard       # full onboarding flow
-openclaw configure     # config wizard
 ```
 
 --------------------------------
@@ -176,7 +162,7 @@ openclaw configure     # config wizard
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
 
-Launches the interactive onboarding flow to configure server URL, bot token, and workspace settings. A failed post-save verification check does not discard saved configuration.
+Launches the interactive onboarding wizard to configure the ClickClack server URL, bot token, and workspace. Failed validation checks do not discard saved configuration.
 
 ```bash
 openclaw onboard
@@ -184,23 +170,23 @@ openclaw onboard
 
 --------------------------------
 
-### Start Buzz channel guided setup
+### Install OpenClaw using the official install script
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/buzz.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run/quick-start.md
 
-Launches the interactive setup wizard to configure a Buzz relay, account, and bot identity. Setup validates room access and persists configuration for Gateway operation.
+Downloads and runs the OpenClaw installer script. The installer automatically starts guided onboarding.
 
 ```bash
-openclaw channels add --channel buzz
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
 ```
 
 --------------------------------
 
-### Start development Gateway in watch mode
+### Start development Gateway with hot reload
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/start/setup.md
 
-Installs dependencies, performs initial setup, and launches the Gateway watch process in a managed tmux session with hot reloading.
+Installs dependencies, performs initial setup if needed, and starts the Gateway in a tmux watch session with hot reload.
 
 ```bash
 pnpm install
@@ -211,38 +197,52 @@ pnpm gateway:watch
 
 --------------------------------
 
-### Run one-time or rotation signing setup
+### Quick start build and run commands
 
-Source: https://github.com/openclaw/openclaw/blob/main/apps/ios/fastlane/SETUP.md
+Source: https://github.com/openclaw/openclaw/blob/main/apps/swabble/README.md
 
-Plans, checks, and creates Developer Portal bundle IDs and required services before running match.
+Installs Swift tools, builds the project, creates default configuration, runs the daemon, tests hooks, and performs audio transcription.
 
 ```bash
-pnpm ios:release:signing:plan
-pnpm ios:release:signing:check
-pnpm ios:release:signing:setup
+# Install the repository-pinned Swift tools
+../../scripts/install-swift-tools.sh .build/swift-tools
+export PATH="$PWD/.build/swift-tools:$PATH"
+
+# Build
+swift build
+
+# Write default config (~/.config/swabble/config.json)
+swift run swabble setup
+
+# Run foreground daemon
+swift run swabble serve
+
+# Test your hook
+swift run swabble test-hook "hello world"
+
+# Transcribe a file to SRT
+swift run swabble transcribe /path/to/audio.m4a --format srt --output out.srt
 ```
 
 --------------------------------
 
-### Launch guided interactive setup for a specific channel
+### Install Fastlane via Homebrew
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/channels.md
+Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
 
-Starts interactive channel configuration for Telegram using either positional channel selection or the `--channel` flag.
+Installs Fastlane for standard local setups.
 
 ```bash
-openclaw channels add telegram
-openclaw channels add --channel telegram
+brew install fastlane
 ```
 
 --------------------------------
 
-### Run onboarding setup in the container
+### Launch onboarding setup in Podman container
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/install/podman.md
 
-Launches the container in setup mode for initial onboarding. Access the UI at http://127.0.0.1:18789/ with the token generated in ~/.openclaw/.env.
+Starts the onboarding setup process inside the container. Complete authentication at http://127.0.0.1:18789/ using the gateway token stored in ~/.openclaw/.env.
 
 ```bash
 ./scripts/run-openclaw-podman.sh launch setup
@@ -250,35 +250,11 @@ Launches the container in setup mode for initial onboarding. Access the UI at ht
 
 --------------------------------
 
-### Get Teams app install link with teams app get
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/msteams.md
-
-Retrieves the direct install link for your registered Teams app using its Teams App ID.
-
-```bash
-teams app get <teamsAppId> --install-link
-```
-
---------------------------------
-
-### Install OpenClaw with automated install script
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
-
-Runs the automated installation script and immediately launches the guided onboarding flow.
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
-```
-
---------------------------------
-
-### Install and start OpenClaw Gateway via quick path
+### Install and start OpenClaw Gateway on ChromeOS
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/platforms/chromeos.md
 
-Installs a supported Node runtime and OpenClaw, sets up the daemon service, and verifies Gateway status inside the Crostini Terminal.
+Quick installation path to run the installer script, onboard and install the systemd daemon, and verify Gateway service status.
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash
@@ -294,167 +270,104 @@ openclaw gateway status
 
 --------------------------------
 
-### Run Docker setup script
+### Run interactive Matrix channel setup
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/docker-vm-runtime.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/matrix/setup.md
 
-Initializes host directories, builds the local image, runs onboarding, generates a Gateway token, synchronizes configuration, and starts the container via Docker Compose.
+Starts the interactive setup wizard to configure the homeserver URL, authentication, optional device name, E2EE, and room access.
 
 ```bash
-./scripts/docker/setup.sh
+openclaw channels add
+openclaw configure --section channels
 ```
 
 --------------------------------
 
-### Quick Start Commands for sag
+### Install Google Meet plugin and run node host
 
-Source: https://github.com/openclaw/openclaw/blob/main/skills/sag/SKILL.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/transports.md
 
-Basic commands to get started with `sag` for text-to-speech, including simple synthesis, specifying a voice, listing available voices, and getting model-specific tips.
-
-```bash
-sag "Hello there"
-```
+Install the Google Meet plugin in the VM and start the node host pointing to the Gateway host.
 
 ```bash
-sag speak -v "Roger" "Hello"
-```
-
-```bash
-sag voices
-```
-
-```bash
-sag prompting
+openclaw plugins install @openclaw/google-meet
+openclaw node run --host <gateway-host> --port 18789 --display-name parallels-macos
 ```
 
 --------------------------------
 
-### Run onboarding wizard with daemon installation
+### Recover broken npm installation using the installer
 
-Source: https://github.com/openclaw/openclaw/blob/main/README.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/updating/update-methods.md
 
-Start onboarding manually if the package was installed directly via npm, pnpm, or Bun. Verifies model access, sets up the workspace, and configures the Gateway.
+Re-runs the installer targeting the npm install method to recover a partially updated npm package when triage cannot start.
 
 ```bash
-openclaw onboard --install-daemon
+curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method npm
 ```
 
 --------------------------------
 
-### Verify Lume Installation
+### Run interactive onboarding
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/macos-vm.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/apple-fm.md
 
-Prints the installed version of Lume to confirm successful setup.
-
-```bash
-lume --version
-```
-
---------------------------------
-
-### Install OpenClaw skipping onboarding
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/installer.md
-
-Executes the installer with the `--no-onboard` flag to bypass the onboarding setup.
+Starts the interactive setup process and initiates local background discovery for eligible Apple Foundation Models. The option is presented once probe checks confirm availability and at least 8,192 context tokens.
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --no-onboard
-```
-
---------------------------------
-
-### Build and onboard OpenClaw from source
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run.md
-
-Clones the repository, installs dependencies with pnpm, builds core and UI packages, and launches the onboarding wizard.
-
-```bash
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
-pnpm install
-pnpm build
-pnpm ui:build
 openclaw onboard
 ```
 
 --------------------------------
 
-### Install Bundler dependencies for reproducible setup
+### Install OpenClaw without onboarding on Windows PowerShell
 
-Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/install/index.md
 
-Installs Bundler 2.6.9 and locked dependencies from apps/android/Gemfile.lock for a checksum-locked environment.
+Executes the PowerShell installation script with the `-NoOnboard` flag to install OpenClaw without starting onboarding.
 
-```bash
-cd apps/android
-gem install bundler -v 2.6.9
-bundle _2.6.9_ install
+```powershell
+& ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
 ```
 
 --------------------------------
 
-### Onboard Alibaba Model Studio via interactive CLI
+### Install OpenClaw on macOS, Linux, or WSL2
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/alibaba.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/index.md
 
-Starts the onboarding flow to configure the API key for the Alibaba provider interactively.
+Runs the OpenClaw automated installation script in bash. The script detects the operating system, installs Node if needed, installs OpenClaw, and starts onboarding.
 
 ```bash
-openclaw onboard --auth-choice alibaba-model-studio-api-key
+curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
 --------------------------------
 
-### Install Gateway with a custom wrapper script
+### Start QA Lab with fast UI iteration
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/gateway.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/concepts/qa-e2e-automation/operator-flow.md
 
-Creates an executable wrapper script and installs the Gateway service using the `--wrapper` option before restarting the service.
+Builds the Docker image and QA Lab web bundle, runs the prebuilt image with `extensions/qa-lab/web/dist` bind-mounted into the container, and watches for changes.
 
 ```bash
-cat > ~/.local/bin/openclaw-doppler <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-exec doppler run --project my-project --config production -- openclaw "$@"
-EOF
-chmod +x ~/.local/bin/openclaw-doppler
-
-openclaw gateway install --wrapper ~/.local/bin/openclaw-doppler --force
-openclaw gateway restart
+pnpm openclaw qa docker-build-image
+pnpm qa:lab:build
+pnpm qa:lab:up:fast
+pnpm qa:lab:watch
 ```
 
 --------------------------------
 
-### Example configuration for installed marketplace plugin
+### Install and start node on node host
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/codex-native-plugins.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/troubleshooting.md
 
-Demonstrates the codexPlugins configuration entry generated upon installing a marketplace-qualified plugin.
+Installs the Google Meet plugin, enables browser support, and runs the node host pointing to the Gateway.
 
-```json5
-{
-  plugins: {
-    entries: {
-      codex: {
-        enabled: true,
-        config: {
-          codexPlugins: {
-            enabled: true,
-            plugins: {
-              "security-review@company-tools": {
-                enabled: true,
-                marketplaceName: "company-tools",
-                pluginName: "security-review",
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-}
+```bash
+openclaw plugins install @openclaw/google-meet
+openclaw plugins enable browser
+OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1 \
+  openclaw node run --host <gateway-lan-ip> --port 18789 --display-name parallels-macos
 ```
