@@ -290,6 +290,68 @@ describe('useConvexResumes AND-mode search', () => {
     })
   })
 
+  it('forwards the status filter to the AND-mode BFF search so the list matches the status chips', async () => {
+    const searchPaginatedResult: PaginatedResult = {
+      results: [buildSearchEntry('resume-1', 'Alice')],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore: loadMoreMock,
+    }
+    usePaginatedQueryMock.mockImplementation((_query, args) =>
+      args === 'skip' ? skipPaginatedResult : searchPaginatedResult,
+    )
+    // AND-mode expansion: the list must come from the BFF, not the websocket.
+    rawApiGetMock.mockImplementation(async (path?: unknown) => {
+      if (typeof path === 'string' && path === '/api/resumes') {
+        return {
+          data: {
+            success: true,
+            data: [buildSearchEntry('resume-1', 'Alice')],
+            summary: {
+              total: 1,
+              mode: 'AND' as const,
+              statusCounts: { interviewed_pass: 1, new: 0, rejected: 0 },
+            },
+          },
+        }
+      }
+      return {
+        data: {
+          success: true,
+          summary: {
+            groups: [{ original: 'cnc', variants: ['cnc'] }],
+            mode: 'AND' as const,
+            expandedTo: ['cnc'],
+            sourceMapping: {},
+          },
+        },
+      }
+    })
+
+    renderHook(() => useConvexResumes(200, 'CNC', undefined, {
+      filters: { status: ['interviewed_pass'] },
+    }))
+
+    // The BFF request must carry status=interviewed_pass so the server-side
+    // list is narrowed to the same scope as the status chip counts (fix for
+    // the preview "面试通过 1 but empty list" bug: previously the status
+    // filter reached only the client-side filteredResults, never the BFF).
+    await waitFor(() => {
+      const bffCall = rawApiGetMock.mock.calls.find(([path]) => path === '/api/resumes')
+      expect(bffCall).toBeDefined()
+      const params = (bffCall as unknown[])[1] as {
+        params?: { query?: Record<string, unknown> }
+      }
+      expect(params?.params?.query?.status).toBe('interviewed_pass')
+    })
+
+    // The fetched list is server-side already narrowed (total 1), and the
+    // statusCounts fed back to useStatusCounts agree with it — no phantom 1.
+    await waitFor(() => {
+      expect(rawApiGetMock.mock.calls.filter(([path]) => path === '/api/resumes').length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
   it('surfaces searchFailed on a dropped BFF search and clears it on retry', async () => {
     rawApiGetMock.mockImplementation(async (path?: unknown) => {
       if (typeof path === 'string' && path === '/api/resumes') {

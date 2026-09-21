@@ -41,6 +41,7 @@ export type ConvexResumeFilters = {
   roleFilterType?: string
   minAge?: number
   maxAge?: number
+  status?: CandidateStatus[]
   education?: string[]
   skills?: string[]
   requiredKeywords?: string[]
@@ -1051,6 +1052,7 @@ function useBffAndModeSearch(
       ...(filters?.maxSalary != null ? { maxSalary: filters.maxSalary } : {}),
       ...(filters?.sources?.length ? { sources: filters.sources.join(',') } : {}),
       ...(filters?.machineOrigin ? { machineOrigin: filters.machineOrigin } : {}),
+      ...(filters?.status?.length ? { status: filters.status.join(',') } : {}),
       ...(sortBy ? { sortBy } : {}),
       ...(sortBy === 'experience' ? { experienceSortNoPrePaginate: 'true' } : {}),
       ...(sortBy && sortOrder ? { sortOrder } : {}),
@@ -1177,6 +1179,10 @@ export function stripKeywordsFromConvexFilters(filters: ConvexResumeFilters | un
   const rest = { ...filters }
   delete rest.keywords
   delete rest.roleYearsGate
+  // Status is a client/BFF-side HR overlay filter; the Convex websocket
+  // search/list lanes have no such arg and would reject the unknown key. It
+  // is applied server-side only on the AND-mode BFF path (useBffAndModeSearch).
+  delete rest.status
   return rest
 }
 

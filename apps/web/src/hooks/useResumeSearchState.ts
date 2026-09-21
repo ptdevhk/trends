@@ -906,6 +906,7 @@ export function useResumeSearchState() {
       locations: parsedState.filters.locations,
       sources: parsedState.selectedSources.length > 0 ? parsedState.selectedSources : undefined,
       machineOrigin: parsedState.filters.machineOrigin,
+      status: parsedState.filters.status,
     }),
     [
       effectiveRoleFilterType,
@@ -920,6 +921,7 @@ export function useResumeSearchState() {
       parsedState.keywords,
       parsedState.requiredKeywords,
       parsedState.selectedSources,
+      parsedState.filters.status,
     ],
   )
   const activeSort = resolveSortValue(parsedState.filters)
