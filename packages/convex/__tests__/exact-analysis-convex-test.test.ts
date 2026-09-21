@@ -153,6 +153,8 @@ describe("analysis_tasks:dispatchExact", () => {
     });
 
     const task = await t.query(internal.analysis_tasks.getTask, { taskId: result.taskId });
+    // Dispatch stores the keyword-id-normalized location, so 'Dongguan',
+    // 'DONG GUAN ', and 'dongguan' all fold into the same task/id/location.
     const expectedAnalysisId = buildKeywordAnalysisId(["cnc", "sales"], {
       location: "Dongguan",
       promptVersion: PROMPT_VERSION,
@@ -165,7 +167,7 @@ describe("analysis_tasks:dispatchExact", () => {
       config: {
         jobDescriptionId: expectedAnalysisId,
         keywords: ["cnc", "sales"],
-        location: "Dongguan",
+        location: "dongguan",
         promptVersion: PROMPT_VERSION,
         resumeCount: 2,
       },
@@ -369,6 +371,36 @@ describe("analysis_tasks:dispatchExact", () => {
     expect(resolveTimestamp?.(1_000, 1_000)).toBe(1_001);
     expect(resolveTimestamp?.(1_000, 1_001)).toBe(1_001);
     expect(resolveTimestamp?.(undefined, 999)).toBe(999);
+  });
+
+  it("folds location variants into the same keyword-search id and stored location", async () => {
+    const keywords = ["三坐标", "3D扫描"];
+
+    // Matches the accepted preview contract: keywords [三坐标, 3D扫描] +
+    // location china + prompt 14 → keyword-search:2:4dc6f7f9.
+    const expectedId = buildKeywordAnalysisId(keywords, {
+      location: "china",
+      promptVersion: 14,
+    });
+    expect(expectedId).toBe("keyword-search:2:4dc6f7f9");
+
+    // Dispatch normalizes the location before deriving the id or storing it,
+    // so 'China', 'CHINA', and 'China ' cannot diverge from 'china'.
+    for (const location of ["China", "CHINA", "China "]) {
+      const t = createTest();
+      const resumeId = await seedResume(t, {
+        externalId: `location-folding-${location.trim()}`,
+        workspaceSlug: "dev",
+      });
+      const dispatch = queuedResult(await dispatchExact(t, [resumeId], {
+        keywords,
+        location,
+        promptVersion: 14,
+      }));
+      const task = await t.query(internal.analysis_tasks.getTask, { taskId: dispatch.taskId });
+      expect(task?.config.jobDescriptionId).toBe(expectedId);
+      expect(task?.config.location).toBe("china");
+    }
   });
 });
 

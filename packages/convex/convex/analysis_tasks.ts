@@ -128,6 +128,21 @@ function scopeAnalysisTaskKey(workspaceSlug: string, key: string): string {
     return `workspace:${workspaceSlug}:${key}`;
 }
 
+/**
+ * Fold a location the same way buildKeywordAnalysisId folds it into the
+ * keyword-search hash (trim, collapse internal whitespace, lowercase). Storing
+ * this exact string in task.config.location means dispatch, the derived
+ * keyword-search id, and processAnalysisTask's re-derivation all agree — so
+ * 'China', 'CHINA', and 'China ' can never diverge from 'china'.
+ */
+function normalizeLocationForKeywordId(location: string | undefined): string | undefined {
+    const trimmed = location?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    return trimmed.replace(/\s+/g, " ").toLowerCase();
+}
+
 function projectAnalysisTaskForList(task: Doc<"analysis_tasks">) {
     const projected = { ...task };
     delete projected.targetResumeIds;
@@ -578,7 +593,7 @@ export const dispatch = mutation({
         }
 
         const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
-        const normalizedLocation = args.location?.trim() || undefined;
+        const normalizedLocation = normalizeLocationForKeywordId(args.location);
         const promptVersion = args.promptVersion ?? getCurrentResumeAiPromptVersion();
         if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
             throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
@@ -776,7 +791,7 @@ export const dispatchExact = mutation({
         }
 
         const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
-        const normalizedLocation = args.location?.trim() || undefined;
+        const normalizedLocation = normalizeLocationForKeywordId(args.location);
         const promptVersion = args.promptVersion ?? getCurrentResumeAiPromptVersion();
         if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
             throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
@@ -1309,7 +1324,7 @@ export const processAnalysisTask = internalAction({
             const keywords = task.config.keywords && task.config.keywords.length > 0
                 ? normalizeKeywords(task.config.keywords)
                 : extractKeywords(keywordSource);
-            const normalizedLocation = task.config.location?.trim() || undefined;
+            const normalizedLocation = normalizeLocationForKeywordId(task.config.location);
             const promptVersion = exactTaskMetadata?.expectedPromptVersion
                 ?? task.config.promptVersion
                 ?? getCurrentResumeAiPromptVersion();

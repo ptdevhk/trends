@@ -1,4 +1,4 @@
-import { compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
+import { DEFAULT_RESUME_AI_PROMPT_LOCALE, compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -265,6 +265,20 @@ function resolveScore(
   return undefined
 }
 
+/**
+ * Storage-key locale segment for the analysis lookup, mirroring the write path
+ * (`resolveAIOutputLocale` in the convex analysis config): seek rows are
+ * analyzed in English, every other source uses the default resume AI prompt
+ * locale. The write path resolves its default from `AI_OUTPUT_LOCALE` on the
+ * Convex side; the browser must not read `process.env`, so it uses the shared
+ * default constant instead. Without this segment the saved blob
+ * (`source:51job|locale:zh-hans|analysis:…`) never matches the bare
+ * `source:51job|analysis:…` lookup key and the card stays "AI 待处理".
+ */
+function resolveSearchAnalysisLocale(sourceKey: string | undefined): string {
+  return sourceKey === 'seek' ? 'en' : DEFAULT_RESUME_AI_PROMPT_LOCALE
+}
+
 function resolveSearchAnalysis(
   resume: ConvexResumeItem,
   jobDescriptionId: string | undefined,
@@ -274,6 +288,9 @@ function resolveSearchAnalysis(
 ): ConvexResumeItem['analysis'] {
   // keyed lookup only — resume.analysis is last-write and belongs to another
   // search, never reuse it for this search (empty_search = hide_other).
+  const analysisSourceKey = resolveResumeAnalysisSourceKey({
+    source: resume.source,
+  })
   return getAnalysisForJob(
     resume,
     jobDescriptionId,
@@ -281,9 +298,8 @@ function resolveSearchAnalysis(
     {
       location,
       promptVersion: currentPromptVersion,
-      sourceKey: resolveResumeAnalysisSourceKey({
-        source: resume.source,
-      }),
+      sourceKey: analysisSourceKey,
+      locale: resolveSearchAnalysisLocale(analysisSourceKey),
     },
   )
 }

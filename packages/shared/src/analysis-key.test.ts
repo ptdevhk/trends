@@ -123,3 +123,45 @@ describe('buildResumeAnalysisStorageKey', () => {
   })
 })
 
+describe('preview CMM v14 keyword analysis storage contract', () => {
+  const KEYWORDS = ['三坐标', '3D扫描']
+  const KEYWORD_ID = 'keyword-search:2:4dc6f7f9'
+  const STORAGE_KEY = 'source:51job|locale:zh-hans|analysis:keyword-search:2:4dc6f7f9'
+
+  it('locks the keyword-search id for the CMM v14 prompt with location China', () => {
+    expect(buildKeywordAnalysisId(KEYWORDS, { location: 'China', promptVersion: 14 })).toBe(KEYWORD_ID)
+  })
+
+  it('produces the same id for trimmed/case-folded location variants', () => {
+    expect(buildKeywordAnalysisId(KEYWORDS, { location: 'china', promptVersion: 14 })).toBe(KEYWORD_ID)
+    expect(buildKeywordAnalysisId(KEYWORDS, { location: 'China ', promptVersion: 14 })).toBe(KEYWORD_ID)
+  })
+
+  it('produces a different id when location is omitted', () => {
+    expect(buildKeywordAnalysisId(KEYWORDS, { promptVersion: 14 })).not.toBe(KEYWORD_ID)
+  })
+
+  it('produces a different id for the zh location 中国', () => {
+    expect(buildKeywordAnalysisId(KEYWORDS, { location: '中国', promptVersion: 14 })).not.toBe(KEYWORD_ID)
+  })
+
+  it('produces a different id when keywords include 销售', () => {
+    expect(buildKeywordAnalysisId([...KEYWORDS, '销售'], { location: 'China', promptVersion: 14 })).not.toBe(KEYWORD_ID)
+  })
+
+  it('builds the source+locale storage key for a 51job zh-Hans row', () => {
+    expect(buildResumeAnalysisStorageKey(KEYWORD_ID, { sourceKey: '51job', locale: 'zh-Hans' })).toBe(STORAGE_KEY)
+  })
+
+  it('does not emit the storage key in lookup keys when locale is omitted', () => {
+    const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job' })
+    expect(keys).not.toContain(STORAGE_KEY)
+  })
+
+  it('emits the storage key in lookup keys when locale zh-Hans is supplied', () => {
+    const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job', locale: 'zh-Hans' })
+    expect(keys).toContain(STORAGE_KEY)
+    expect(keys[0]).toBe(STORAGE_KEY)
+  })
+})
+

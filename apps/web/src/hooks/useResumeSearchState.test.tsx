@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { DEFAULT_RESUME_AI_PROMPT_LOCALE, formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildKeywordAnalysisId, buildResumeAnalysisLookupKeys, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
@@ -303,26 +303,31 @@ function createResume(index: number, overrides: Partial<ConvexResumeItem> = {}):
 // Build an analyses map keyed by the canonical storage key for the keyword
 // context, so fixtures mirror real storage (buildKeywordAnalysisId +
 // buildResumeAnalysisLookupKeys). Mirrors the hook's resolveSearchAnalysis
-// context: location, current prompt version, and the resume's source key.
+// context: location, current prompt version, the resume's source key, and the
+// storage-key locale segment (seek → en; otherwise the default resume AI
+// prompt locale).
 // `keywords` must be the same list the hook computes as analysisKeywords
 // (normalizeStringList of parsedState.keywords + parseKeywordQuery(query).keywords).
 function analysesMapFor(
   keywords: string[],
   analysis: ConvexResumeItem['analysis'],
-  opts: { source?: string; location?: string } = {},
+  opts: { source?: string; location?: string; locale?: string } = {},
 ): NonNullable<ConvexResumeItem['analyses']> {
   const source = opts.source ?? 'seek'
   const location = opts.location // undefined is a valid analysis context
   const sourceKey = resolveResumeAnalysisSourceKey({ source })
+  const locale = opts.locale ?? (sourceKey === 'seek' ? 'en' : DEFAULT_RESUME_AI_PROMPT_LOCALE)
   // Mirror the hook's resolveStoredResumeAnalysis exactly: no explicit
   // promptVersion (both sides fall back to the in-process default).
   const lookupKeys = buildResumeAnalysisLookupKeys(undefined, keywords, {
     location,
     sourceKey,
+    locale,
   })
   const canonicalKey = buildKeywordAnalysisId(keywords, {
     location,
     sourceKey,
+    locale,
   })
   const map: NonNullable<ConvexResumeItem['analyses']> = {}
   const storageKey = lookupKeys[0] ?? canonicalKey
@@ -617,6 +622,76 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults[1]?.analysis).toBeUndefined()
     expect(result.current.filteredResults[1]?.scoreSource).toBe('rule')
     expect(result.current.filteredResults[1]?.analysis?.summary).toBeUndefined()
+  })
+
+  it('finds a saved 51job CMM analysis stored under the locale-segmented key', () => {
+    // Real prod key: buildKeywordAnalysisId(['三坐标','3D扫描'], { location: 'China', promptVersion: 14 })
+    // → keyword-search:2:4dc6f7f9, stored by the write path as
+    // source:51job|locale:zh-hans|analysis:keyword-search:2:4dc6f7f9.
+    // The lookup must carry the same locale segment (seek → en, otherwise the
+    // default resume AI prompt locale) or the card stays "AI 待处理".
+    const savedKey = 'source:51job|locale:zh-hans|analysis:keyword-search:2:4dc6f7f9'
+    expect(buildResumeAnalysisLookupKeys(undefined, analysisKeywordsFor('三坐标 or 3D扫描 销售', ['三坐标', '3D扫描']), {
+      location: 'China',
+      sourceKey: '51job',
+      locale: 'zh-hans',
+    })).toContain(savedKey)
+
+    Object.assign(parsedStateMock, createParsedState({
+      query: '三坐标 or 3D扫描 销售',
+      keywords: ['三坐标', '3D扫描'],
+      location: 'China',
+    }))
+
+    // Full key only — the saved blob must be reachable through the locale
+    // segment, not through a bare source:51job|analysis:… fallback.
+    const savedAnalysis = {
+      score: 84,
+      summary: 'CMM 三坐标/3D扫描 sales fit',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: { related_exp: 68, industry_db: 16 },
+      promptVersion: 14,
+    }
+
+    resumesMock.push(
+      // Expected: 51job lane + locale:zh-hans + location China → shows.
+      createResume(1, {
+        primaryRuleScore: 60,
+        source: 'ehire.51job.com',
+        analyses: { [savedKey]: savedAnalysis },
+      }),
+      // Negative: same hash but no locale segment (the pre-fix lookup) → hidden.
+      createResume(2, {
+        primaryRuleScore: 65,
+        source: 'ehire.51job.com',
+        analyses: { 'source:51job|analysis:keyword-search:2:4dc6f7f9': savedAnalysis },
+      }),
+      // Negative: locale segment present but the location was omitted, so the
+      // saved hash belongs to a different search context → hidden.
+      createResume(3, {
+        primaryRuleScore: 70,
+        source: 'ehire.51job.com',
+        analyses: { 'source:51job|locale:zh-hans|analysis:keyword-search:2:6756d113': savedAnalysis },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults[0]?.analysis?.summary).toBe('CMM 三坐标/3D扫描 sales fit')
+    expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
+    expect(result.current.filteredResults[1]?.analysis).toBeUndefined()
+    expect(result.current.filteredResults[1]?.scoreSource).toBe('rule')
+    expect(result.current.filteredResults[2]?.analysis).toBeUndefined()
+    expect(result.current.filteredResults[2]?.scoreSource).toBe('rule')
+
+    // Guard: dropping the locale from resolveSearchAnalysis (the pre-fix
+    // lookup) hides the saved blob even though sourceKey + location + hash
+    // all match.
+    expect(buildResumeAnalysisLookupKeys(undefined, ['三坐标', '3D扫描'], {
+      location: 'China',
+      sourceKey: '51job',
+    })).not.toContain(savedKey)
   })
 
   it('stratifies score sort by company ranking effect tier without mutating scores', () => {
