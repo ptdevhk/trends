@@ -173,7 +173,8 @@ describe('ResumeDetail work history', () => {
     expect(screen.getByText('Middle Role')).toBeInTheDocument()
     expect(screen.queryByText('Oldest Co')).not.toBeInTheDocument()
     expect(screen.queryByText('Old Role')).not.toBeInTheDocument()
-    expect(screen.getByText('Needs refresh')).toBeInTheDocument()
+    // both_stale → analysisStale, so the generic badge reads as an outdated score.
+    expect(screen.getByText('Outdated AI score')).toBeInTheDocument()
   })
 
   it('renders the configured number of latest work-history entries', () => {

@@ -228,6 +228,12 @@ function dedupeKeys(keys: string[]): string[] {
  *
  * When no source/locale is present all three collapse to the bare key, keeping
  * legacy (pre-source-key) storage reachable.
+ *
+ * For keyword lookups (no `jobDescriptionId`), the id hash embeds the prompt
+ * version, so the three shapes above are probed once per prompt version from
+ * current down to 1 — current version's keys first, so a newer blob wins over
+ * an older sibling after a prompt bump. This is lookup-only; the write hash
+ * stays current-prompt and `deriveAnalysisLookupKey` keeps returning keys[0].
  */
 export function buildResumeAnalysisLookupKeys(
   jobDescriptionId: string | undefined,
@@ -242,10 +248,24 @@ export function buildResumeAnalysisLookupKeys(
   }
 
   if (keywords.length > 0) {
-    const legacyKey = buildKeywordAnalysisId(keywords, options);
-    const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey, locale: options?.locale });
-    const prodEraKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey });
-    return dedupeKeys([sourceAwareKey, prodEraKey, legacyKey]);
+    // Keyword analyses embed the prompt version in the id hash, so a prompt
+    // bump renames every stored key. To keep older blobs reachable we probe
+    // prompt versions from current down to 1. This is a LOOKUP-ONLY behavior:
+    // the write hash stays current-prompt (see buildKeywordAnalysisId), so the
+    // newest analysis is always found first and a v14 blob wins over a v13 one.
+    const currentVersion = options?.promptVersion ?? getPromptVersionFallback();
+    const keys: string[] = [];
+    for (let version = currentVersion; version >= 1; version--) {
+      const id = buildKeywordAnalysisId(keywords, { ...options, promptVersion: version });
+      // Keep the per-id ordering used before version probing: locale-first
+      // storage key, prod-era source-only key, then the bare keyword id.
+      keys.push(
+        buildResumeAnalysisStorageKey(id, { sourceKey: options?.sourceKey, locale: options?.locale }),
+        buildResumeAnalysisStorageKey(id, { sourceKey: options?.sourceKey }),
+        id,
+      );
+    }
+    return dedupeKeys(keys);
   }
 
   return [];

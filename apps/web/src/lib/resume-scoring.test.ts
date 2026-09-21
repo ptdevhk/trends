@@ -408,7 +408,11 @@ describe('resume-scoring', () => {
     })
   })
 
-  it('ignores stale analyses with mismatched prompt versions', () => {
+  it('returns blobs written under an older prompt version instead of hiding them', () => {
+    // Old-prompt scores still display (marked stale/outdated by
+    // resolveResumeRefreshState and ranked as unscored by the search hook), so
+    // getAnalysisForJob must no longer swallow a prompt-version mismatch. Only
+    // ingest-freshness still invalidates a blob here.
     expect(getAnalysisForJob({
       analysis: {
         score: 60,
@@ -416,6 +420,28 @@ describe('resume-scoring', () => {
         highlights: [],
         recommendation: 'match',
         promptVersion: 1,
+        jobDescriptionId: 'jd-sales',
+      },
+    }, 'jd-sales', ['销售'], {
+      location: '广东',
+      promptVersion: 2,
+    })).toEqual(expect.objectContaining({
+      score: 60,
+      summary: 'stale',
+      promptVersion: 1,
+    }))
+  })
+
+  it('still hides a blob that is older than the row ingest', () => {
+    expect(getAnalysisForJob({
+      ingestData: { computedAt: 2_000 },
+      analysis: {
+        score: 60,
+        summary: 'pre-ingest',
+        highlights: [],
+        recommendation: 'match',
+        promptVersion: 2,
+        analyzedAt: 1_000,
         jobDescriptionId: 'jd-sales',
       },
     }, 'jd-sales', ['销售'], {

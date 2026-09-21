@@ -25,9 +25,14 @@ export function ResumeRefreshBadge({
   }
 
   if (mode === 'generic') {
+    // An old-prompt blob is displayed with its stored number, so the generic
+    // badge must say the AI SCORE is outdated (not merely that a refresh is
+    // available) — otherwise HR reads a stale 88 as current evidence.
     return (
       <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-[10px]">
-        {t('resumes.refresh.needsRefresh', { defaultValue: 'Needs refresh' })}
+        {refreshState.analysisStale
+          ? t('resumes.refresh.outdatedScore', { defaultValue: 'Outdated AI score' })
+          : t('resumes.refresh.needsRefresh', { defaultValue: 'Needs refresh' })}
       </Badge>
     )
   }

@@ -274,6 +274,7 @@
     "tableTitle": "候選人列表",
     "refresh": {
       "needsRefresh": "需要刷新",
+      "outdatedScore": "舊評分無效",
       "reingest": "重新匯入",
       "rerunAnalysis": "重新執行分析"
     },

@@ -1088,14 +1088,23 @@ export function useResumeListState(loadSearchHistory = false) {
 
     setAnalyzing(true)
     try {
+      // A cached blob from an older prompt version still DISPLAYS (see
+      // getAnalysisForJob) but is not current evidence, so 分析已加载的 must
+      // re-analyze it rather than skip it — otherwise outdated numbers would
+      // never refresh to the current prompt.
       const candidatesToAnalyze = filteredConvexResumes
-        .filter((resume: ConvexResumeItem) =>
-          !getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
+        .filter((resume: ConvexResumeItem) => {
+          const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
             location: sessionLocation,
             promptVersion: currentPromptVersion,
             sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
           })
-        )
+          if (!analysis) {
+            return true
+          }
+          return typeof analysis.promptVersion !== 'number'
+            || analysis.promptVersion !== currentPromptVersion
+        })
 
       if (candidatesToAnalyze.length === 0) {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))

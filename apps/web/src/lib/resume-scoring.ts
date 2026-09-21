@@ -6,7 +6,6 @@ import {
   buildLatestWorkHistoryEvidence,
   computeFinalAiScore,
   computeRelatedExpContribution,
-  getCurrentResumeAiPromptVersion,
   INDUSTRY_DB_DISPLAY_CAP,
   isRecord,
   normalizeOptionalString,
@@ -226,6 +225,7 @@ export function getAnalysisForJob(
   keywords: string[],
   options?: {
     location?: string
+    /** Accepted for call-site clarity; no longer gates the lookup — see below. */
     promptVersion?: number
     sourceKey?: string
     locale?: string
@@ -246,11 +246,14 @@ export function getAnalysisForJob(
     return undefined
   }
 
-  const currentPromptVersion = options?.promptVersion ?? getCurrentResumeAiPromptVersion()
-  if (analysis.promptVersion !== currentPromptVersion) {
-    return undefined
-  }
-
+  // Prompt-version mismatch NO LONGER hides the blob: an analysis written under
+  // an older prompt still displays (its number stays on the card) but is flagged
+  // stale by resolveResumeRefreshState, ranked as unscored, and refreshable via
+  // 分析已加载. The probe for older prompt-version keys lives in
+  // buildResumeAnalysisLookupKeys (current→1), so `options.promptVersion` no
+  // longer gates the lookup — it stays in the signature for call-site clarity.
+  // Input-freshness still gates: a blob older than the last ingest is genuinely
+  // superseded data, not merely an old prompt.
   const ingestTime = resume.ingestData?.computedAt
   const analysisTime = analysis.analyzedAt
   if (analysis && ingestTime && analysisTime && ingestTime > analysisTime) {

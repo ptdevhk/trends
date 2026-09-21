@@ -274,6 +274,7 @@
     "tableTitle": "Candidate List",
     "refresh": {
       "needsRefresh": "Needs refresh",
+      "outdatedScore": "Outdated AI score",
       "reingest": "Re-ingest",
       "rerunAnalysis": "Re-run analysis"
     },

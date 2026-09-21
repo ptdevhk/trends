@@ -170,7 +170,10 @@ describe('preview CMM v14 keyword analysis storage contract', () => {
     // in the lookup list, after the locale-first key.
     const prodEraKey = 'source:51job|analysis:keyword-search:2:4dc6f7f9'
     const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job', locale: 'zh-Hans' })
-    expect(keys).toEqual([
+    // Keyword lookups probe prompt versions current→1, so the list is longer
+    // than three keys; the v14 contract keys must be the FIRST three, in the
+    // established order (locale-first, prod-era source-only, bare).
+    expect(keys.slice(0, 3)).toEqual([
       STORAGE_KEY,
       prodEraKey,
       'keyword-search:2:4dc6f7f9',
@@ -180,12 +183,55 @@ describe('preview CMM v14 keyword analysis storage contract', () => {
 
   it('dedupes the source-only and locale-first keys when locale is omitted', () => {
     // Without a locale, source+locale and source-only collapse to the same key;
-    // it must appear exactly once, ahead of the bare keyword key.
+    // it must appear exactly once, ahead of the bare keyword key — per prompt
+    // version. The v14 pair is the first two entries of the probed list.
     const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job' })
-    expect(keys).toEqual([
+    expect(keys.slice(0, 2)).toEqual([
       'source:51job|analysis:keyword-search:2:4dc6f7f9',
       'keyword-search:2:4dc6f7f9',
     ])
+  })
+
+  it('probes older prompt-version keyword ids so cloned blobs from prior prompt eras stay reachable', () => {
+    // A prompt bump renames the keyword-search id hash. A clone of a deployment
+    // written under an older prompt must still display after upgrade: the
+    // lookup now probes current→1 and concatenates each version's keys with the
+    // current version first, so a v14 blob wins over a v13 sibling.
+    const keywords = ['CNC', '销售']
+    const options = { location: 'China', promptVersion: 14, sourceKey: '51job', locale: 'zh-Hans' }
+    const keys = buildResumeAnalysisLookupKeys(undefined, keywords, options)
+
+    // v14 (current) keys lead the list, in the established per-id order.
+    expect(keys.slice(0, 3)).toEqual([
+      'source:51job|locale:zh-hans|analysis:keyword-search:2:ad34baf8',
+      'source:51job|analysis:keyword-search:2:ad34baf8',
+      'keyword-search:2:ad34baf8',
+    ])
+
+    // Older prompt eras remain reachable: v13, v11, v10 ids each appear in
+    // locale + source-only (+ bare) form, in descending-version order.
+    expect(keys).toEqual(expect.arrayContaining([
+      'source:51job|locale:zh-hans|analysis:keyword-search:2:b434c5fd',
+      'source:51job|analysis:keyword-search:2:b434c5fd',
+      'keyword-search:2:b434c5fd',
+      'source:51job|locale:zh-hans|analysis:keyword-search:2:b234c2d7',
+      'source:51job|analysis:keyword-search:2:b234c2d7',
+      'keyword-search:2:b234c2d7',
+      'source:51job|locale:zh-hans|analysis:keyword-search:2:b134c144',
+      'source:51job|analysis:keyword-search:2:b134c144',
+      'keyword-search:2:b134c144',
+    ]))
+
+    // Descending version order: every v14 key precedes every v13 key, and the
+    // v13 keys precede v11/v10 — a current blob always wins the first-match probe.
+    const v14Keys = keys.slice(0, 3)
+    const v13Index = keys.indexOf('keyword-search:2:b434c5fd')
+    const v11Index = keys.indexOf('keyword-search:2:b234c2d7')
+    const v10Index = keys.indexOf('keyword-search:2:b134c144')
+    expect(v13Index).toBeGreaterThan(2)
+    expect(v11Index).toBeGreaterThan(v13Index)
+    expect(v10Index).toBeGreaterThan(v11Index)
+    expect(v14Keys.every((key) => keys.indexOf(key) < v13Index)).toBe(true)
   })
 })
 

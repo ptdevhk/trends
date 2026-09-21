@@ -274,6 +274,7 @@
     "tableTitle": "候选人列表",
     "refresh": {
       "needsRefresh": "需要刷新",
+      "outdatedScore": "旧评分无效",
       "reingest": "重新导入",
       "rerunAnalysis": "重新执行分析"
     },

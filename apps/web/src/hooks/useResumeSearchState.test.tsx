@@ -654,11 +654,13 @@ describe('useResumeSearchState', () => {
 
     // The lookup now includes BOTH the locale-first key AND the prod-era
     // source-only key (no locale), so old prod blobs survive a clone+upgrade.
+    // Keyword lookups also probe prompt versions current→1, so the v14 contract
+    // keys lead the list but are no longer the whole list.
     expect(buildResumeAnalysisLookupKeys(undefined, analysisKeywordsFor('三坐标 or 3D扫描 销售', ['三坐标', '3D扫描']), {
       location: 'China',
       sourceKey: '51job',
       locale: 'zh-hans',
-    })).toEqual([
+    }).slice(0, 3)).toEqual([
       'source:51job|locale:zh-hans|analysis:keyword-search:2:4dc6f7f9',
       'source:51job|analysis:keyword-search:2:4dc6f7f9',
       'keyword-search:2:4dc6f7f9',
@@ -704,6 +706,94 @@ describe('useResumeSearchState', () => {
     expect(buildResumeAnalysisLookupKeys(undefined, ['三坐标', '3D扫描'], {
       location: 'China',
     })).not.toContain(savedKey)
+  })
+
+  it('shows an older-prompt 51job score as outdated instead of ranking it as current', () => {
+    // Prompt-version probe contract for CNC 销售 + China:
+    //   v14 (current) → keyword-search:2:ad34baf8
+    //   v13           → keyword-search:2:b434c5fd
+    // The v13 blob was written under the previous prompt, so it must still
+    // display (with its stored 88) but rank as unscored behind the v14 40 and
+    // be offered for re-analysis.
+    const v13Key = 'source:51job|locale:zh-hans|analysis:keyword-search:2:b434c5fd'
+    const v14Key = 'source:51job|locale:zh-hans|analysis:keyword-search:2:ad34baf8'
+    const lookupKeys = buildResumeAnalysisLookupKeys(
+      undefined,
+      analysisKeywordsFor('CNC 销售', ['CNC', '销售']),
+      { location: 'China', sourceKey: '51job', locale: 'zh-hans' },
+    )
+    expect(lookupKeys.slice(0, 2)).toEqual([v14Key, 'source:51job|analysis:keyword-search:2:ad34baf8'])
+    expect(lookupKeys).toContain(v13Key)
+
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      location: 'China',
+      // Both rows are `new` by default, so no status filter is needed to keep
+      // them visible; an explicit status list matches the other tests here.
+      filters: { status: ['new'] },
+    }))
+
+    resumesMock.push(
+      // Old prompt (v13): displays 88, flagged stale, not ranked as current.
+      // breakdown is the production audit pair — the displayed score is
+      // recomputed as round(96*0.5) + 40 (FANUC company hit) = 88.
+      createResume(1, {
+        primaryRuleScore: 60,
+        source: 'ehire.51job.com',
+        analyses: {
+          [v13Key]: {
+            score: 88,
+            summary: 'v13 CNC 销售 fit',
+            highlights: [],
+            recommendation: 'strong_match',
+            promptVersion: 13,
+            breakdown: { related_exp: 96, industry_db: 40 },
+          },
+        },
+      }),
+      // Current prompt (v14): the 40 must sort ABOVE the stale 88.
+      createResume(2, {
+        primaryRuleScore: 65,
+        source: 'ehire.51job.com',
+        analyses: {
+          [v14Key]: {
+            score: 40,
+            summary: 'v14 CNC 销售 fit',
+            highlights: [],
+            recommendation: 'potential',
+            promptVersion: CURRENT_PROMPT_VERSION,
+            breakdown: { related_exp: 0, industry_db: 40 },
+          },
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('score')
+    const byKey = new Map(result.current.filteredResults.map((item) => [item.key, item]))
+
+    // Stale row: number still displayed, analysis still surfaced for the chip.
+    const stale = byKey.get('resume-1')
+    expect(stale?.analysis?.score).toBe(88)
+    expect(stale?.scoreSource).toBe('ai')
+    expect(stale?.refreshState?.analysisStale).toBe(true)
+
+    // Current row is not stale.
+    const fresh = byKey.get('resume-2')
+    expect(fresh?.analysis?.score).toBe(40)
+    expect(fresh?.refreshState?.analysisStale).toBe(false)
+
+    // Score sort: the current 40 outranks the stale 88, which sorts as unscored.
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-2',
+      'resume-1',
+    ])
+
+    // 分析已加载的 must offer the stale row for refresh.
+    expect(result.current.analysisCandidateCount).toBeGreaterThanOrEqual(1)
+    expect(result.current.analysisCandidateCount).toBe(1)
   })
 
   it('stratifies score sort by company ranking effect tier without mutating scores', () => {

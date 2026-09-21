@@ -325,7 +325,9 @@ describe('SnippetCard', () => {
     )
 
     expect(screen.getByText('已屏蔽')).toBeInTheDocument()
-    expect(screen.getByText('Needs refresh')).toBeInTheDocument()
+    // analysisStale → the displayed score is not current evidence, so the
+    // generic badge names the score as outdated rather than a vague refresh hint.
+    expect(screen.getByText('Outdated AI score')).toBeInTheDocument()
   })
 
   it('shows activity status badge when present', () => {

@@ -407,13 +407,38 @@ function buildSearchContextSignature(state: UrlSearchState): string {
   })
 }
 
+/**
+ * Ranking discipline for out-of-date AI scores.
+ *
+ * A blob flagged `analysisStale` keeps DISPLAYING on the card (its number is
+ * never rewritten), but it is not current evidence: it must not out-rank a
+ * fresh score, must not pass the AI-score floor, and must not count toward the
+ * high-score cohort. Ranking paths read through {@link currentRankingScore},
+ * which reports such a row as unscored (-1).
+ *
+ * The `item.analysis` guard is load-bearing: a row whose blob was NOT
+ * retrievable for this search falls back to a plain RULE score, and its
+ * `analysisStale` flag then describes a blob that is not on screen at all —
+ * that rule score must keep ranking and filtering exactly as before.
+ */
+function isCurrentRankingScore(item: ResumeSearchResultItem): boolean {
+  return !(item.analysis && item.refreshState?.analysisStale === true)
+}
+
+function currentRankingScore(item: ResumeSearchResultItem, whenMissing = -1): number {
+  if (!isCurrentRankingScore(item)) {
+    return -1
+  }
+  return typeof item.score === 'number' ? item.score : whenMissing
+}
+
 function sortResults(
   results: ResumeSearchResultItem[],
   sortValue: SearchSortValue,
 ): ResumeSearchResultItem[] {
   const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
     if (sortValue === 'score') {
-      return (right.score ?? -1) - (left.score ?? -1)
+      return currentRankingScore(right) - currentRankingScore(left)
     }
     if (sortValue === 'newest') {
       const rightTimestamp = right.resume.extractedAt
@@ -665,7 +690,10 @@ function matchesLocalFilters(
     return false
   }
 
-  if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
+  // Old-prompt scores are display-only: they cannot satisfy an AI-score floor.
+  // `whenMissing` 0 preserves the historical `(item.score ?? 0)` semantics for
+  // rows with no score at all.
+  if (typeof minScore === 'number' && currentRankingScore(item, 0) < minScore) {
     return false
   }
 
@@ -1009,6 +1037,9 @@ export function useResumeSearchState() {
         parsedState.location,
         currentPromptVersion,
       )
+      // The locale segment must match the lookup key (seek → en, otherwise the
+      // default resume AI prompt locale) or analysisStale cannot see
+      // locale-segmented blobs and old-prompt scores would rank as current.
       const refreshState = resolveResumeRefreshState({
         resume,
         analysisContext: {
@@ -1016,6 +1047,7 @@ export function useResumeSearchState() {
           keywords: analysisKeywords,
           location: parsedState.location,
           sourceKey: analysisSourceKey,
+          locale: resolveSearchAnalysisLocale(analysisSourceKey),
         },
         currentPromptVersion,
       })
@@ -1192,10 +1224,15 @@ export function useResumeSearchState() {
       })
     }
   }, [activeQuery, filteredResults, loading])
+  // Rows with NO analysis AND rows whose blob came from an older prompt version
+  // are both refresh candidates — otherwise 分析已加载的 would skip the very
+  // rows this change un-hides and their outdated numbers would never refresh.
+  // The dispatch order stays "highest displayed score first" (unchanged): a
+  // stale row's number is what HR sees, so it keeps its priority in the batch.
   const analysisCandidates = useMemo(
     () =>
       filteredResults
-        .filter((item) => !item.analysis)
+        .filter((item) => !item.analysis || item.refreshState?.analysisStale === true)
         .sort((left, right) => (right.score ?? -1) - (left.score ?? -1)),
     [filteredResults],
   )
@@ -1225,8 +1262,11 @@ export function useResumeSearchState() {
   const autoAnalyzeDispatchSignatureRef = useRef('')
   const pendingForceAnalyzeRef = useRef(false)
   const aiModeStats = useMemo(() => {
+    // Old-prompt blobs are excluded from AI coverage stats: they are displayed
+    // but not current evidence, so counting them would overstate processed AI
+    // coverage and import stale numbers into the average.
     const analyzedResults = filteredResults.filter(
-      (item) => typeof item.analysis?.score === 'number',
+      (item) => typeof item.analysis?.score === 'number' && isCurrentRankingScore(item),
     )
 
     if (analyzedResults.length === 0) {
@@ -2011,7 +2051,7 @@ export function useResumeSearchState() {
     setSelectedIds(
       new Set(
         deferredFilteredResults
-          .filter((item) => typeof item.score === 'number' && item.score >= minScore)
+          .filter((item) => typeof item.score === 'number' && currentRankingScore(item) >= minScore)
           .map((item) => item.key),
       ),
     )
@@ -2044,7 +2084,10 @@ export function useResumeSearchState() {
   }, [])
 
   const highScoreCount = useMemo(
-    () => filteredResults.filter((item) => typeof item.score === 'number' && item.score >= 80).length,
+    () =>
+      filteredResults.filter(
+        (item) => typeof item.score === 'number' && currentRankingScore(item) >= 80,
+      ).length,
     [filteredResults],
   )
 
