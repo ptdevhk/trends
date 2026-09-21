@@ -677,6 +677,9 @@
   var JOB51_SAFE_MAX_PAGES = 1;
   var JOB51_DETAIL_FETCH_DELAY_MS = 5e3;
   var JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS = 1e3;
+  var JOB51_LIST_SUBMIT_MAX_ATTEMPTS = 3;
+  var JOB51_LIST_SUBMIT_RETRY_DELAY_MS = 2e4;
+  var JOB51_LIST_INGEST_SETTLE_MS = 3e4;
   function hasJob51UnsafeLimitsOverride(search = "") {
     const params = new URLSearchParams(search || "");
     return params.get("tr_unsafe_limits") === "1";
@@ -702,7 +705,7 @@
   function resolveJob51AutoSyncDetailWaitMode(search = "") {
     const params = new URLSearchParams(search || "");
     const mode = normalizeResumeText(params.get("tr_job51_detail_wait") || "").toLowerCase();
-    if (mode === "page1" || mode === "all") {
+    if (mode === "page1" || mode === "all" || mode === "off") {
       return mode;
     }
     return "background";
@@ -3781,6 +3784,170 @@
       return false;
     }
     __name(waitForJob51AgeFilterRefresh2, "waitForJob51AgeFilterRefresh");
+    function walkVueParentsForFormData(startVm) {
+      let vm = startVm;
+      for (let depth = 0; vm && depth < 16; depth += 1) {
+        const formData = vm.formData;
+        if (formData && typeof formData === "object") {
+          const record = formData;
+          if ("workFunc" in record || "onlyCurWorkFunc" in record || "keyword" in record) {
+            return vm;
+          }
+        }
+        vm = vm.$parent || null;
+      }
+      return null;
+    }
+    __name(walkVueParentsForFormData, "walkVueParentsForFormData");
+    function findJob51FormDataVm(startNode) {
+      let node = startNode;
+      for (let hops = 0; node && hops < 24; hops += 1) {
+        const found = walkVueParentsForFormData(node.__vue__);
+        if (found) {
+          return found;
+        }
+        node = node.parentElement || null;
+      }
+      return null;
+    }
+    __name(findJob51FormDataVm, "findJob51FormDataVm");
+    function normalizeWorkFuncRequestValue(value) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return String(Math.trunc(value));
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return /^\d+$/.test(trimmed) ? trimmed : "";
+      }
+      if (Array.isArray(value) && value.length > 0) {
+        const first = value[0];
+        if (first && typeof first === "object") {
+          return normalizeWorkFuncRequestValue(
+            first.id
+          );
+        }
+        return normalizeWorkFuncRequestValue(first);
+      }
+      return "";
+    }
+    __name(normalizeWorkFuncRequestValue, "normalizeWorkFuncRequestValue");
+    function normalizeOnlyCurWorkFuncRequestValue(value) {
+      if (value === true || value === 1 || value === "1" || value === "true") {
+        return "1";
+      }
+      return "";
+    }
+    __name(normalizeOnlyCurWorkFuncRequestValue, "normalizeOnlyCurWorkFuncRequestValue");
+    function applyJob51WorkFuncViaVue2(startNode, {
+      workFunc,
+      onlyCurWorkFunc
+    } = {}) {
+      if (getCurrentSourceKey2() !== SOURCE_KEYS2.JOB51 || !workFunc) {
+        return false;
+      }
+      const vm = findJob51FormDataVm(startNode);
+      if (!vm) {
+        return false;
+      }
+      try {
+        if (!vm.formData || typeof vm.formData !== "object") {
+          vm.formData = {};
+        }
+        const formData = vm.formData;
+        formData.workFunc = [{ id: String(workFunc) }];
+        formData.onlyCurWorkFunc = onlyCurWorkFunc === true;
+        return true;
+      } catch (error) {
+        console.warn(
+          "\u{1F3AF} [Auto WorkFunc] Failed to apply 51job \u4ECE\u4E8B\u804C\u80FD via Vue formData:",
+          error
+        );
+        return false;
+      }
+    }
+    __name(applyJob51WorkFuncViaVue2, "applyJob51WorkFuncViaVue");
+    function hasMatchingJob51WorkFuncSearchRequest(workFunc, onlyCurWorkFunc) {
+      const request = apiSnapshot2.job51LastSearchRequest;
+      if (!request || typeof request !== "object") {
+        return false;
+      }
+      const expectedWorkFunc = normalizeWorkFuncRequestValue(workFunc);
+      const actualWorkFunc = normalizeWorkFuncRequestValue(request.work_func);
+      if (!expectedWorkFunc || actualWorkFunc !== expectedWorkFunc) {
+        return false;
+      }
+      if (onlyCurWorkFunc === true) {
+        return normalizeOnlyCurWorkFuncRequestValue(request.only_cur_work_func) === "1";
+      }
+      return true;
+    }
+    __name(hasMatchingJob51WorkFuncSearchRequest, "hasMatchingJob51WorkFuncSearchRequest");
+    async function waitForJob51WorkFuncRefresh2(previousLastSearchAt, {
+      workFunc,
+      onlyCurWorkFunc,
+      minAge,
+      maxAge,
+      timeoutMs = 5e3
+    } = {}) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const hasFreshSearch = typeof apiSnapshot2.lastSearchAt === "string" && apiSnapshot2.lastSearchAt.length > 0 && apiSnapshot2.lastSearchAt !== previousLastSearchAt;
+        const workFuncMatched = hasMatchingJob51WorkFuncSearchRequest(
+          workFunc,
+          onlyCurWorkFunc
+        );
+        const ageMatched = typeof minAge !== "number" || typeof maxAge !== "number" || hasMatchingJob51AgeSearchRequest2(minAge, maxAge);
+        if (hasFreshSearch && workFuncMatched && ageMatched) {
+          return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+      return false;
+    }
+    __name(waitForJob51WorkFuncRefresh2, "waitForJob51WorkFuncRefresh");
+    async function applyJob51WorkFuncViaPageHook2({
+      workFunc,
+      onlyCurWorkFunc,
+      timeoutMs = 2e3
+    } = {}) {
+      if (getCurrentSourceKey2() !== SOURCE_KEYS2.JOB51 || !workFunc) {
+        return false;
+      }
+      const requestId = `tr-work-func-${Date.now()}`;
+      return await new Promise((resolve) => {
+        let settled = false;
+        const finish = /* @__PURE__ */ __name((ok) => {
+          if (settled) return;
+          settled = true;
+          win.removeEventListener?.("message", onMessage);
+          resolve(ok);
+        }, "finish");
+        const onMessage = /* @__PURE__ */ __name((event) => {
+          const data = event.data;
+          if (!data || data.source !== "tr-page-hook" || data.action !== "trJob51ApplyWorkFuncResult" || data.requestId !== requestId) {
+            return;
+          }
+          finish(data.ok === true);
+        }, "onMessage");
+        win.addEventListener?.("message", onMessage);
+        if (typeof win.postMessage !== "function") {
+          finish(false);
+          return;
+        }
+        win.postMessage(
+          {
+            source: "tr-resume-content-script",
+            action: "trJob51ApplyWorkFunc",
+            requestId,
+            workFunc,
+            onlyCurWorkFunc: onlyCurWorkFunc === true
+          },
+          "*"
+        );
+        win.setTimeout(() => finish(false), timeoutMs);
+      });
+    }
+    __name(applyJob51WorkFuncViaPageHook2, "applyJob51WorkFuncViaPageHook");
     return {
       isJob51DetailPage: isJob51DetailPage2,
       isJob51DetailReady: isJob51DetailReady2,
@@ -3807,7 +3974,12 @@
       applyJob51AgeCustomRangeViaVue: applyJob51AgeCustomRangeViaVue2,
       normalizeAgeRequestValue: normalizeAgeRequestValue2,
       hasMatchingJob51AgeSearchRequest: hasMatchingJob51AgeSearchRequest2,
-      waitForJob51AgeFilterRefresh: waitForJob51AgeFilterRefresh2
+      waitForJob51AgeFilterRefresh: waitForJob51AgeFilterRefresh2,
+      findJob51FormDataVm,
+      applyJob51WorkFuncViaVue: applyJob51WorkFuncViaVue2,
+      applyJob51WorkFuncViaPageHook: applyJob51WorkFuncViaPageHook2,
+      hasMatchingJob51WorkFuncSearchRequest,
+      waitForJob51WorkFuncRefresh: waitForJob51WorkFuncRefresh2
     };
   }
   __name(createJob51SearchExtractor, "createJob51SearchExtractor");
@@ -4830,12 +5002,17 @@
       ensureJob51AgeCustomRangeInputs: ensureJob51AgeCustomRangeInputs2,
       applyJob51AgeCustomRangeViaVue: applyJob51AgeCustomRangeViaVue2,
       waitForJob51AgeFilterRefresh: waitForJob51AgeFilterRefresh2,
+      applyJob51WorkFuncViaVue: applyJob51WorkFuncViaVue2,
+      applyJob51WorkFuncViaPageHook: applyJob51WorkFuncViaPageHook2,
+      waitForJob51WorkFuncRefresh: waitForJob51WorkFuncRefresh2,
       waitForExtractionData: waitForExtractionData2,
       asHTMLElement: asHTMLElement2,
       SELECTORS: SELECTORS2,
       AUTO_LOCATION_PARAM: AUTO_LOCATION_PARAM2,
       AUTO_SEARCH_PARAM: AUTO_SEARCH_PARAM2,
       AUTO_KEYWORD_MODE_PARAM: AUTO_KEYWORD_MODE_PARAM2,
+      AUTO_WORK_FUNC_PARAM: AUTO_WORK_FUNC_PARAM2,
+      AUTO_ONLY_CUR_WORK_FUNC_PARAM: AUTO_ONLY_CUR_WORK_FUNC_PARAM2,
       KEYWORD_MODE_SPACED: KEYWORD_MODE_SPACED2,
       normalizeKeyword: normalizeKeyword2,
       normalizeKeywordMode: normalizeKeywordMode2,
@@ -5062,6 +5239,92 @@
       setAutoAgeAttributes2("done", minAge, maxAge);
     }
     __name(autoApplyAgeFilterFromUrl2, "autoApplyAgeFilterFromUrl");
+    function setAutoWorkFuncAttributes(status, workFunc, onlyCurWorkFunc) {
+      try {
+        doc.documentElement.setAttribute("data-tr-auto-work-func", status);
+        if (typeof workFunc === "string" && workFunc.length > 0) {
+          doc.documentElement.setAttribute("data-tr-work-func", workFunc);
+        } else {
+          doc.documentElement.removeAttribute("data-tr-work-func");
+        }
+        if (onlyCurWorkFunc === true) {
+          doc.documentElement.setAttribute("data-tr-only-cur-work-func", "1");
+        } else {
+          doc.documentElement.removeAttribute("data-tr-only-cur-work-func");
+        }
+      } catch (e) {
+        console.warn(
+          "[tr-auto-actions]",
+          "setAutoWorkFuncAttributes: DOM attribute set failed",
+          e?.message || e
+        );
+      }
+    }
+    __name(setAutoWorkFuncAttributes, "setAutoWorkFuncAttributes");
+    function parseRequestedJob51WorkFunc() {
+      const params = new URLSearchParams(win.location.search || "");
+      const raw = (params.get(AUTO_WORK_FUNC_PARAM2) || "").trim();
+      const workFunc = /^\d+$/.test(raw) ? raw : "";
+      const onlyCurRaw = (params.get(AUTO_ONLY_CUR_WORK_FUNC_PARAM2) || "").trim();
+      const onlyCurWorkFunc = onlyCurRaw === "1" || onlyCurRaw === "true";
+      return { workFunc, onlyCurWorkFunc };
+    }
+    __name(parseRequestedJob51WorkFunc, "parseRequestedJob51WorkFunc");
+    async function autoApplyWorkFuncFromUrl2() {
+      if (getCurrentSourceKey2() !== SOURCE_KEYS2.JOB51) {
+        setAutoWorkFuncAttributes("skipped");
+        return;
+      }
+      const { workFunc, onlyCurWorkFunc } = parseRequestedJob51WorkFunc();
+      if (!workFunc) {
+        setAutoWorkFuncAttributes("skipped");
+        return;
+      }
+      const searchButton = doc.querySelector(SELECTORS2.job51SearchButton) || doc.querySelector("button.search_button");
+      if (!searchButton) {
+        setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+        console.warn("\u{1F3AF} [Auto WorkFunc] 51job search button not found.");
+        return;
+      }
+      const previousLastSearchAt = apiSnapshot2.lastSearchAt;
+      const appliedViaPageHook = await applyJob51WorkFuncViaPageHook2({
+        workFunc,
+        onlyCurWorkFunc
+      });
+      const appliedViaVue = appliedViaPageHook ? false : applyJob51WorkFuncViaVue2(searchButton, {
+        workFunc,
+        onlyCurWorkFunc
+      });
+      if (!appliedViaPageHook && !appliedViaVue) {
+        setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+        console.warn(
+          "\u{1F3AF} [Auto WorkFunc] Failed to write 51job formData.workFunc.",
+          { workFunc, onlyCurWorkFunc }
+        );
+        return;
+      }
+      if (!appliedViaPageHook) {
+        activateElement2(searchButton);
+      }
+      const ageRange = getCurrentAgeRange2();
+      const refreshed = await waitForJob51WorkFuncRefresh2(previousLastSearchAt, {
+        workFunc,
+        onlyCurWorkFunc,
+        minAge: ageRange.minAge,
+        maxAge: ageRange.maxAge,
+        timeoutMs: 5e3
+      });
+      if (!refreshed) {
+        setAutoWorkFuncAttributes("failed", workFunc, onlyCurWorkFunc);
+        console.warn(
+          "\u{1F3AF} [Auto WorkFunc] Applied 51job \u4ECE\u4E8B\u804C\u80FD, but no matching signed search was observed.",
+          { workFunc, onlyCurWorkFunc }
+        );
+        return;
+      }
+      setAutoWorkFuncAttributes("done", workFunc, onlyCurWorkFunc);
+    }
+    __name(autoApplyWorkFuncFromUrl2, "autoApplyWorkFuncFromUrl");
     const PROVINCE_TOKENS2 = /* @__PURE__ */ new Set([
       "\u5317\u4EAC",
       "\u5929\u6D25",
@@ -5921,6 +6184,8 @@
       resolveAgeFilterActions: resolveAgeFilterActions2,
       autoApplyAgeFilterFromUrl: autoApplyAgeFilterFromUrl2,
       setAutoAgeAttributes: setAutoAgeAttributes2,
+      autoApplyWorkFuncFromUrl: autoApplyWorkFuncFromUrl2,
+      setAutoWorkFuncAttributes,
       autoSelectLocation: autoSelectLocation2,
       autoSearchFromUrl: autoSearchFromUrl2,
       normalizeCardText: normalizeCardText2,
@@ -5955,6 +6220,8 @@
       AUTO_MAX_PAGES_PARAM: AUTO_MAX_PAGES_PARAM2,
       AUTO_MIN_AGE_PARAM: AUTO_MIN_AGE_PARAM2,
       AUTO_MAX_AGE_PARAM: AUTO_MAX_AGE_PARAM2,
+      AUTO_WORK_FUNC_PARAM: AUTO_WORK_FUNC_PARAM2,
+      AUTO_ONLY_CUR_WORK_FUNC_PARAM: AUTO_ONLY_CUR_WORK_FUNC_PARAM2,
       AUTO_SEARCH_PARAM: AUTO_SEARCH_PARAM2,
       AUTO_LOCATION_PARAM: AUTO_LOCATION_PARAM2,
       SAMPLE_NAME_PARAM: SAMPLE_NAME_PARAM2,
@@ -6096,6 +6363,9 @@
       if (getCurrentSourceKey2() === SOURCE_KEYS2.JOB51 && !isJob51DetailPage2() && doc.documentElement.getAttribute("data-tr-auto-age") !== "done") {
         return Array.isArray(resumes) ? resumes : [];
       }
+      if (getCurrentSourceKey2() === SOURCE_KEYS2.JOB51 && !isJob51DetailPage2() && isJob51WorkFuncRequested() && doc.documentElement.getAttribute("data-tr-auto-work-func") !== "done") {
+        return [];
+      }
       return filterResumesByAgeRange2(
         resumes,
         getCurrentLocationSearch2(),
@@ -6104,6 +6374,13 @@
       );
     }
     __name(filterCurrentResumesByAgeRange2, "filterCurrentResumesByAgeRange");
+    function isJob51WorkFuncRequested() {
+      const params = new URLSearchParams(getCurrentLocationSearch2());
+      const raw = (params.get(AUTO_WORK_FUNC_PARAM2) || "").trim();
+      const onlyCur = (params.get(AUTO_ONLY_CUR_WORK_FUNC_PARAM2) || "").trim();
+      return /^\d+$/.test(raw) || onlyCur === "1" || onlyCur === "true";
+    }
+    __name(isJob51WorkFuncRequested, "isJob51WorkFuncRequested");
     function resolveCurrentJob51CollectionLimits2(limit, maxPages) {
       return resolveJob51CollectionLimits2(
         limit,
@@ -6865,6 +7142,8 @@
   var AUTO_MAX_PAGES_PARAM = "tr_max_pages";
   var AUTO_MIN_AGE_PARAM = "tr_min_age";
   var AUTO_MAX_AGE_PARAM = "tr_max_age";
+  var AUTO_WORK_FUNC_PARAM = "tr_work_func";
+  var AUTO_ONLY_CUR_WORK_FUNC_PARAM = "tr_only_cur_work_func";
   var AUTO_SEARCH_PARAM = "keyword";
   var AUTO_LOCATION_PARAM = "location";
   var AUTO_KEYWORD_MODE_PARAM = "tr_kw_mode";
@@ -7362,6 +7641,26 @@
       }
       const { limit, maxPages } = await getCollectionLimits2();
       const isJob51Source = getCurrentSourceKey2() === SOURCE_KEYS2.JOB51;
+      if (isJob51Source) {
+        const workFuncStatus = document2.documentElement.getAttribute("data-tr-auto-work-func") || "";
+        if (workFuncStatus === "failed") {
+          deps.state._autoSyncTriggered = true;
+          setAutoSyncAttributes2("failed");
+          SyncStatusWidget2.show({
+            state: "error",
+            message: "\u4ECE\u4E8B\u804C\u80FD\u672A\u5E94\u7528\u5230 51job \u641C\u7D22\uFF0C\u5DF2\u505C\u6B62\u91C7\u96C6",
+            hint: "reload \u4F1A\u4E22\u6389 work_func\uFF1B\u8BF7\u4ECE Trends \u91C7\u96C6\u5165\u53E3\u91CD\u65B0\u6253\u5F00\u5E26 tr_work_func \u7684\u94FE\u63A5"
+          });
+          try {
+            document2.documentElement.setAttribute(
+              "data-tr-auto-sync-stop-reason",
+              "work-func-not-applied"
+            );
+          } catch {
+          }
+          return;
+        }
+      }
       deps.state._autoSyncTriggered = true;
       deps.state._autoSyncCancelled = false;
       setAutoSyncAttributes2("running", 0, 0);
@@ -7535,9 +7834,33 @@
             message: `\u6B63\u5728\u540C\u6B65\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875 (${resumes.length} \u4EFD)...`,
             hint: progressHint
           });
-          const response = await syncCurrentPageToServer2(resumes);
+          const isJob51ListPage = getCurrentSourceKey2() === SOURCE_KEYS2.JOB51 && !isJob51DetailPage2();
+          const submitAttempts = isJob51ListPage ? JOB51_LIST_SUBMIT_MAX_ATTEMPTS : 1;
+          let response = null;
+          let submitError = null;
+          for (let attempt = 1; attempt <= submitAttempts; attempt += 1) {
+            try {
+              response = await syncCurrentPageToServer2(resumes);
+              if (response?.success) {
+                submitError = null;
+                break;
+              }
+              submitError = response?.error || response || "Auto sync failed";
+            } catch (error) {
+              response = null;
+              submitError = error;
+            }
+            if (attempt < submitAttempts) {
+              SyncStatusWidget2.show({
+                state: "progress",
+                message: `\u7B2C ${currentPage} \u9875\u540C\u6B65\u5931\u8D25\uFF0C${Math.round(JOB51_LIST_SUBMIT_RETRY_DELAY_MS / 1e3)} \u79D2\u540E\u91CD\u8BD5 (${attempt}/${submitAttempts})...`,
+                hint: "\u7B49\u5F85\u9884\u89C8\u5E93\u5199\u5165\u7A7A\u95F2\u540E\u518D\u63D0\u4EA4\u672C\u9875"
+              });
+              await delay2(JOB51_LIST_SUBMIT_RETRY_DELAY_MS);
+            }
+          }
           if (!response?.success) {
-            throw response?.error || response || "Auto sync failed";
+            throw submitError || "Auto sync failed";
           }
           const submitted = typeof response.submitted === "number" ? response.submitted : resumes.length;
           const inserted = typeof response.inserted === "number" ? response.inserted : 0;
@@ -7546,20 +7869,29 @@
           totalInserted += inserted;
           totalUpdated += updated;
           setAutoSyncAttributes2("running", totalSubmitted, pagesVisited);
-          if (getCurrentSourceKey2() === SOURCE_KEYS2.JOB51 && !isJob51DetailPage2() && resumes.length > 0) {
-            const detailBackfillPromise = queueJob51DetailBackfill2(resumes, {
-              currentPage,
-              totalPages: Math.max(totalPages, currentPage)
-            });
+          if (isJob51ListPage && resumes.length > 0) {
             const waitMode = resolveCurrentJob51AutoSyncDetailWaitMode2();
-            const shouldWaitForDetails = waitMode === "all" || waitMode === "page1" && currentPage === 1;
-            if (shouldWaitForDetails) {
+            if (waitMode !== "off") {
+              const detailBackfillPromise = queueJob51DetailBackfill2(resumes, {
+                currentPage,
+                totalPages: Math.max(totalPages, currentPage)
+              });
+              const shouldWaitForDetails = waitMode === "all" || waitMode === "page1" && currentPage === 1;
+              if (shouldWaitForDetails) {
+                SyncStatusWidget2.show({
+                  state: "progress",
+                  message: `\u6B63\u5728\u8865\u5145\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u8BE6\u60C5...`,
+                  hint: "\u7B49\u5F85 51job \u8BE6\u60C5\u8865\u5145\u540E\u518D\u5B8C\u6210\u672C\u9875\u540C\u6B65"
+                });
+                await detailBackfillPromise;
+              }
+            } else {
               SyncStatusWidget2.show({
                 state: "progress",
-                message: `\u6B63\u5728\u8865\u5145\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u8BE6\u60C5...`,
-                hint: "\u7B49\u5F85 51job \u8BE6\u60C5\u8865\u5145\u540E\u518D\u5B8C\u6210\u672C\u9875\u540C\u6B65"
+                message: `\u7B2C ${currentPage} \u9875\u5DF2\u63D0\u4EA4\uFF0C\u7B49\u5F85 ${Math.round(JOB51_LIST_INGEST_SETTLE_MS / 1e3)} \u79D2\u540E\u518D\u7FFB\u9875...`,
+                hint: "\u907F\u5F00\u9884\u89C8\u5E93 ingest \u4E0E\u63D0\u4EA4\u62A2\u5360"
               });
-              await detailBackfillPromise;
+              await delay2(JOB51_LIST_INGEST_SETTLE_MS);
             }
           }
           if (deps.state._autoSyncCancelled) {
@@ -7705,6 +8037,7 @@
     const autoSearch = doc.documentElement.getAttribute("data-tr-auto-search") || "";
     const autoLocation = doc.documentElement.getAttribute("data-tr-auto-location") || "";
     const autoAge = doc.documentElement.getAttribute("data-tr-auto-age") || "";
+    const autoWorkFunc = doc.documentElement.getAttribute("data-tr-auto-work-func") || "";
     const autoExport = doc.documentElement.getAttribute("data-tr-auto-export") || "";
     const autoSync = doc.documentElement.getAttribute("data-tr-auto-sync") || "";
     const autoSyncCountRaw = doc.documentElement.getAttribute("data-tr-auto-sync-count") || "";
@@ -7747,6 +8080,7 @@
       autoSearch,
       autoLocation,
       autoAge,
+      autoWorkFunc,
       autoExport,
       autoSync,
       autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
@@ -7957,6 +8291,8 @@
     AUTO_MAX_PAGES_PARAM,
     AUTO_MIN_AGE_PARAM,
     AUTO_MAX_AGE_PARAM,
+    AUTO_WORK_FUNC_PARAM,
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM,
     AUTO_SEARCH_PARAM,
     AUTO_LOCATION_PARAM,
     SAMPLE_NAME_PARAM,
@@ -8254,7 +8590,10 @@
     applyJob51AgeCustomRangeViaVue,
     normalizeAgeRequestValue,
     hasMatchingJob51AgeSearchRequest,
-    waitForJob51AgeFilterRefresh
+    waitForJob51AgeFilterRefresh,
+    applyJob51WorkFuncViaVue,
+    applyJob51WorkFuncViaPageHook,
+    waitForJob51WorkFuncRefresh
   } = _job51SearchExtractor;
   ({ isJob51DetailPage, isJob51DetailReady } = _job51SearchExtractor);
   var _resumeExtractor = createResumeExtractor({
@@ -8421,12 +8760,17 @@
     ensureJob51AgeCustomRangeInputs,
     applyJob51AgeCustomRangeViaVue,
     waitForJob51AgeFilterRefresh,
+    applyJob51WorkFuncViaVue,
+    applyJob51WorkFuncViaPageHook,
+    waitForJob51WorkFuncRefresh,
     waitForExtractionData,
     asHTMLElement,
     SELECTORS,
     AUTO_LOCATION_PARAM,
     AUTO_SEARCH_PARAM,
     AUTO_KEYWORD_MODE_PARAM,
+    AUTO_WORK_FUNC_PARAM,
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM,
     KEYWORD_MODE_SPACED,
     normalizeKeyword,
     normalizeKeywordMode,
@@ -8461,6 +8805,7 @@
     waitForAgeFilterDropdown,
     resolveAgeFilterActions,
     autoApplyAgeFilterFromUrl,
+    autoApplyWorkFuncFromUrl,
     autoSelectLocation,
     autoSearchFromUrl,
     normalizeCardText,
@@ -8632,6 +8977,7 @@
       SOURCE_KEYS,
       autoApplyAgeFilterFromUrl,
       setAutoAgeAttributes,
+      autoApplyWorkFuncFromUrl,
       extractResumes,
       extractJob51DetailResume,
       extractJob5156DetailResume,
@@ -8691,7 +9037,7 @@
     document: _accessorDoc
   });
   installContentTestExports();
-  autoSelectLocation().catch((error) => console.warn("\u{1F3AF} [Auto Location] Failed:", error)).then(() => autoSearchFromUrl()).catch((error) => console.warn("\u{1F3AF} [Auto Search] Failed:", error)).then(() => autoApplyAgeFilterFromUrl()).catch((error) => console.warn("\u{1F3AF} [Auto Age] Failed:", error)).finally(() => {
+  autoSelectLocation().catch((error) => console.warn("\u{1F3AF} [Auto Location] Failed:", error)).then(() => autoSearchFromUrl()).catch((error) => console.warn("\u{1F3AF} [Auto Search] Failed:", error)).then(() => autoApplyAgeFilterFromUrl()).catch((error) => console.warn("\u{1F3AF} [Auto Age] Failed:", error)).then(() => autoApplyWorkFuncFromUrl()).catch((error) => console.warn("\u{1F3AF} [Auto WorkFunc] Failed:", error)).finally(() => {
     void (async () => {
       await runAutoExportIfEnabled();
       await runAutoSyncIfEnabled();

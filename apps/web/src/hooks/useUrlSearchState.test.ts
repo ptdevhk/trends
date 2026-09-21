@@ -84,6 +84,17 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.keywords).toEqual(['CNC', '销售'])
   })
 
+  it('treats 三坐标 or 3D扫描 销售 as OR keywords plus sales duty', () => {
+    const state = parseUrlSearchState(
+      new URLSearchParams('q=%E4%B8%89%E5%9D%90%E6%A0%87+or+3D%E6%89%AB%E6%8F%8F+%E9%94%80%E5%94%AE&location=China'),
+    )
+
+    expect(state.query).toBe('三坐标 or 3D扫描 销售')
+    expect(state.keywords).toEqual(['三坐标', '3D扫描'])
+    expect(state.filters.roleFilterType).toBe('sales')
+    expect(state.filters.minRoleYears).toBe(1)
+  })
+
   it('parses required keywords from rkw param', () => {
     const state = parseUrlSearchState(
       new URLSearchParams('q=%22Sales+Engineer%22+OR+%22Sales+Manager%22&rkw=CNC%2Cmachine+tools')

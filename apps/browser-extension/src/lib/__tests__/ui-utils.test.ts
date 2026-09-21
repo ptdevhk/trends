@@ -17,6 +17,8 @@ function createMockDeps(overrides: Record<string, any> = {}): UiUtilsDeps {
     AUTO_MAX_PAGES_PARAM: "tr_max_pages",
     AUTO_MIN_AGE_PARAM: "tr_min_age",
     AUTO_MAX_AGE_PARAM: "tr_max_age",
+    AUTO_WORK_FUNC_PARAM: "tr_work_func",
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM: "tr_only_cur_work_func",
     AUTO_SEARCH_PARAM: "keyword",
     AUTO_LOCATION_PARAM: "location",
     SAMPLE_NAME_PARAM: "tr_sample_name",
@@ -192,6 +194,27 @@ describe("ui-utils", () => {
       const utils = createUiUtils(createMockDeps());
       expect(utils.normalizeCollectionLimit(null as any)).toBe(0);
       expect(utils.normalizeCollectionLimit(undefined as any)).toBe(0);
+    });
+  });
+
+  describe("filterCurrentResumesByAgeRange", () => {
+    it("returns no 51job list resumes until 从事职能 apply is done", () => {
+      document.documentElement.setAttribute("data-tr-auto-age", "done");
+      document.documentElement.setAttribute("data-tr-auto-work-func", "failed");
+      const utils = createUiUtils(createMockDeps({
+        win: {
+          location: {
+            hostname: "ehire.51job.com",
+            search: "?tr_work_func=3000",
+          },
+        } as unknown as Window,
+        isJob51DetailPage: vi.fn(() => false),
+      }));
+
+      expect(utils.getCurrentSourceKey()).toBe(SOURCE_KEYS.JOB51);
+      expect(utils.filterCurrentResumesByAgeRange([{ name: "A" }])).toEqual([]);
+      document.documentElement.removeAttribute("data-tr-auto-age");
+      document.documentElement.removeAttribute("data-tr-auto-work-func");
     });
   });
 });

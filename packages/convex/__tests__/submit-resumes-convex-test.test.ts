@@ -11,7 +11,7 @@
  * Uses convex-test with real schema validation — no mocks.
  */
 import { createTest, getResumeAnalysesColdRow } from "./test-helpers.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api.js";
 
 
@@ -335,5 +335,38 @@ describe("resume_tasks: submitResumes — sync events", () => {
     expect(events[0].source).toBe("browser-extension");
     expect(events[0].status).toBe("success");
     expect(events[0].inserted).toBe(1);
+  });
+
+  it("drains at most one stale sync event so a fat 1-row submit stays under 1s", async () => {
+    const t = createTest();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(10_000_000);
+    const staleTs = 10_000_000 - 3_600_000 - 1_000;
+    try {
+      await t.run(async (ctx) => {
+        for (let index = 0; index < 5; index += 1) {
+          await ctx.db.insert("sync_events", {
+            source: "51job",
+            status: "success",
+            submitted: 1,
+            inserted: 0,
+            updated: 0,
+            unchanged: 1,
+            timestamp: staleTs + index,
+          });
+        }
+      });
+
+      await t.mutation(api.resume_tasks.submitResumes, {
+        resumes: [makeResume()],
+      });
+
+      const events = await t.run(async (ctx) => ctx.db.query("sync_events").collect());
+      const staleRemaining = events.filter((event) => event.timestamp < 10_000_000 - 3_600_000);
+      const fresh = events.filter((event) => event.source === "browser-extension");
+      expect(staleRemaining).toHaveLength(4);
+      expect(fresh).toHaveLength(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

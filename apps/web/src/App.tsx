@@ -11,7 +11,7 @@ import {
 import { Toaster } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Header } from '@/components/Header'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ErrorBoundary, RouteErrorBoundary } from '@/components/ErrorBoundary'
 import { LongTaskObserver } from '@/hooks/useLongTaskObserver'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
@@ -176,9 +176,9 @@ function MainShell({ children }: { children?: ReactNode }) {
       <Toaster position="top-center" richColors />
       <Header />
       <main className="container py-6">
-        <ErrorBoundary>
+        <RouteErrorBoundary>
           {children ?? <Outlet />}
-        </ErrorBoundary>
+        </RouteErrorBoundary>
       </main>
       <footer className="border-t py-6 mt-8" />
     </div>

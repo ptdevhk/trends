@@ -137,6 +137,26 @@ describe('search-profile-sources', () => {
     })
   })
 
+  it('passes 从事职能 extras through getSearchProfileCollectionSource', () => {
+    const collectionSource = getSearchProfileCollectionSource([
+      {
+        type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+        enabled: true,
+        priority: 1,
+        job51Keyword: '三坐标 or 3D扫描',
+        job51WorkFunc: '3000',
+        job51OnlyCurWorkFunc: true,
+      },
+    ])
+
+    expect(collectionSource).toEqual({
+      type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+      job51Keyword: '三坐标 or 3D扫描',
+      job51WorkFunc: '3000',
+      job51OnlyCurWorkFunc: true,
+    })
+  })
+
   it('uses enabled priority order when selecting the active source', () => {
     const activeSource = getActiveSearchProfileSource([
       { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 2 },
@@ -308,6 +328,56 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_limit')).toBe('200')
     expect(url.searchParams.get('tr_max_pages')).toBe('1')
     expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+  })
+
+  it('uses job51Keyword with spaced mode so official or is not concatenated', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: 'China',
+      keywords: ['三坐标', '3D扫描', '销售'],
+      job51Keyword: '三坐标 or 3D扫描',
+      job51CollectLimit: 2000,
+      job51MaxPages: 20,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('keyword')).toBe('三坐标 or 3D扫描')
+    expect(url.searchParams.get('tr_kw_mode')).toBe('spaced')
+    expect(url.searchParams.get('tr_limit')).toBe('2000')
+    expect(url.searchParams.get('tr_max_pages')).toBe('20')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+    expect(url.searchParams.get('location')).toBeNull()
+  })
+
+  it('adds 从事职能 + 仅目前职位 params for the CMM sales 搜索器', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: 'China',
+      keywords: ['三坐标', '3D扫描', '销售'],
+      job51Keyword: '三坐标 or 3D扫描',
+      job51WorkFunc: '3000',
+      job51OnlyCurWorkFunc: true,
+      minAge: 25,
+      maxAge: 40,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_work_func')).toBe('3000')
+    expect(url.searchParams.get('tr_only_cur_work_func')).toBe('1')
+    expect(url.searchParams.get('tr_min_age')).toBe('25')
+    expect(url.searchParams.get('tr_max_age')).toBe('40')
+  })
+
+  it('omits work-func params when the source does not set them', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC'],
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_work_func')).toBeNull()
+    expect(url.searchParams.get('tr_only_cur_work_func')).toBeNull()
   })
 
   it('auto-derives unsafeLimits when source-level maxPages exceeds safe threshold', () => {

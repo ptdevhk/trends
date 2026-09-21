@@ -6,9 +6,14 @@ import {
 } from './useConvexConnectionGuard'
 
 const useConvexConnectionStateMock = vi.hoisted(() => vi.fn())
+const reportConvexConnectionEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('convex/react', () => ({
   useConvexConnectionState: () => useConvexConnectionStateMock(),
+}))
+
+vi.mock('@/lib/client-diagnostics', () => ({
+  reportConvexConnectionEvent: reportConvexConnectionEventMock,
 }))
 
 function connectionState(
@@ -36,6 +41,7 @@ describe('useConvexConnectionGuard', () => {
     vi.useFakeTimers()
     useConvexConnectionStateMock.mockReset()
     useConvexConnectionStateMock.mockReturnValue(connectionState())
+    reportConvexConnectionEventMock.mockReset()
   })
 
   afterEach(() => {
@@ -100,6 +106,36 @@ describe('useConvexConnectionGuard', () => {
 
     expect(result.current.isDegraded).toBe(true)
     expect(result.current.hasEverConnected).toBe(false)
+    expect(reportConvexConnectionEventMock).toHaveBeenCalledWith({
+      kind: 'convex_ws_degraded',
+      hasEverConnected: false,
+      connectionRetries: 4,
+    })
+  })
+
+  it('records a retry breadcrumb before reloading', () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    useConvexConnectionStateMock.mockReturnValue(
+      connectionState({
+        isWebSocketConnected: false,
+        hasEverConnected: true,
+        connectionRetries: 2,
+      }),
+    )
+
+    const { result } = renderHook(() => useConvexConnectionGuard())
+    act(() => {
+      result.current.retry()
+    })
+
+    expect(reportConvexConnectionEventMock).toHaveBeenCalledWith({
+      kind: 'convex_ws_retry',
+      hasEverConnected: true,
+      connectionRetries: 2,
+    })
+    expect(reload).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
   })
 
   it('clears the degraded flag when the websocket reconnects', () => {

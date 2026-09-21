@@ -96,6 +96,9 @@ export type SearchProfileQuickStart = {
     jobUrl?: string;
     job51CollectLimit?: number;
     job51MaxPages?: number;
+    job51Keyword?: string;
+    job51WorkFunc?: string;
+    job51OnlyCurWorkFunc?: boolean;
   };
   quickStart: {
     enabled: boolean;
@@ -382,6 +385,15 @@ export function useIndustryKeywords() {
                       : {}),
                     ...(collectionSource.type === '51job' && typeof collectionSource.job51MaxPages === 'number'
                       ? { job51MaxPages: collectionSource.job51MaxPages }
+                      : {}),
+                    ...(collectionSource.type === '51job' && typeof collectionSource.job51Keyword === 'string' && collectionSource.job51Keyword.trim().length > 0
+                      ? { job51Keyword: collectionSource.job51Keyword.trim() }
+                      : {}),
+                    ...(collectionSource.type === '51job' && typeof collectionSource.job51WorkFunc === 'string' && collectionSource.job51WorkFunc.trim().length > 0
+                      ? { job51WorkFunc: collectionSource.job51WorkFunc.trim() }
+                      : {}),
+                    ...(collectionSource.type === '51job' && collectionSource.job51OnlyCurWorkFunc === true
+                      ? { job51OnlyCurWorkFunc: true }
                       : {}),
                   }
                 : undefined,

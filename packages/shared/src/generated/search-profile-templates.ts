@@ -49,6 +49,12 @@ export type SharedSearchProfileTemplate = {
       collectLimit?: number;
       maxPages?: number;
       mode?: string;
+      unsafeLimits?: boolean;
+      job51CollectLimit?: number;
+      job51MaxPages?: number;
+      job51Keyword?: string;
+      job51WorkFunc?: string;
+      job51OnlyCurWorkFunc?: boolean;
     }>;
     quickStart?: {
       enabled: boolean;
@@ -765,13 +771,12 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & 3D Scanning Sales",
       "description": "China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile",
       "createdAt": "2026-09-17",
-      "updatedAt": "2026-09-17",
+      "updatedAt": "2026-09-19",
       "status": "active",
       "location": "China",
       "keywords": [
         "三坐标",
-        "3D扫描",
-        "销售"
+        "3D扫描"
       ],
       "jobDescription": "cmm-3d-scanning-sales",
       "filters": {
@@ -797,8 +802,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
-          "maxPages": 1
+          "collectLimit": 2000,
+          "maxPages": 20,
+          "unsafeLimits": true,
+          "job51CollectLimit": 2000,
+          "job51MaxPages": 20,
+          "job51Keyword": "三坐标 or 3D扫描",
+          "job51WorkFunc": "3000",
+          "job51OnlyCurWorkFunc": true
         },
         {
           "type": "job5156",
@@ -810,7 +821,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · 三坐标 3D扫描 销售",
-        "description": "三坐标, 3D扫描, 销售 · China"
+        "description": "三坐标 or 3D扫描 · 销售职责 · China"
       }
     }
   },
@@ -822,13 +833,12 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "name": "China 51job CMM & 3D Scanning Sales",
       "description": "China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile",
       "createdAt": "2026-09-17",
-      "updatedAt": "2026-09-17",
+      "updatedAt": "2026-09-19",
       "status": "active",
       "location": "China",
       "keywords": [
         "三坐标",
-        "3D扫描",
-        "销售"
+        "3D扫描"
       ],
       "jobDescription": "cmm-3d-scanning-sales",
       "filters": {
@@ -854,8 +864,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
-          "maxPages": 1
+          "collectLimit": 2000,
+          "maxPages": 20,
+          "unsafeLimits": true,
+          "job51CollectLimit": 2000,
+          "job51MaxPages": 20,
+          "job51Keyword": "三坐标 or 3D扫描",
+          "job51WorkFunc": "3000",
+          "job51OnlyCurWorkFunc": true
         },
         {
           "type": "job5156",
@@ -867,7 +883,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": true,
         "rank": 7,
         "label": "China · 51job · 三坐标 3D扫描 销售",
-        "description": "三坐标, 3D扫描, 销售 · China"
+        "description": "三坐标 or 3D扫描 · 销售职责 · China"
       }
     }
   },

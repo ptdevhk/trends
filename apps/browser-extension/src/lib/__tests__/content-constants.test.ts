@@ -7,6 +7,8 @@ import {
   AUTO_MAX_PAGES_PARAM,
   AUTO_MIN_AGE_PARAM,
   AUTO_MAX_AGE_PARAM,
+  AUTO_WORK_FUNC_PARAM,
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM,
   AUTO_SEARCH_PARAM,
   AUTO_LOCATION_PARAM,
   AUTO_KEYWORD_MODE_PARAM,
@@ -84,6 +86,11 @@ describe("content-constants", () => {
 
     it("exports search keyword parameter", () => {
       expect(AUTO_SEARCH_PARAM).toBe("keyword");
+    });
+
+    it("exports 51job work-func parameters", () => {
+      expect(AUTO_WORK_FUNC_PARAM).toBe("tr_work_func");
+      expect(AUTO_ONLY_CUR_WORK_FUNC_PARAM).toBe("tr_only_cur_work_func");
     });
 
     it("exports location parameter", () => {

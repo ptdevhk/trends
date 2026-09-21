@@ -363,4 +363,138 @@ describe("job51-search-extractor", () => {
       expect(extractor.hasJob51SearchSnapshot()).toBe(false);
     });
   });
+
+  describe("applyJob51WorkFuncViaVue", () => {
+    it("writes formData.workFunc and onlyCurWorkFunc", () => {
+      const formData: Record<string, unknown> = { keyword: "三坐标 or 3D扫描" };
+      const button = document.createElement("button");
+      (button as unknown as { __vue__: Record<string, unknown> }).__vue__ = { formData };
+      document.body.appendChild(button);
+
+      const extractor = createJob51SearchExtractor(
+        createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "51job"),
+          SOURCE_KEYS: { JOB51: "51job", JOB5156: "job5156", SEEK: "seek" },
+        }),
+      );
+
+      expect(
+        extractor.applyJob51WorkFuncViaVue(button, {
+          workFunc: "3000",
+          onlyCurWorkFunc: true,
+        }),
+      ).toBe(true);
+      expect(formData.workFunc).toEqual([{ id: "3000" }]);
+      expect(formData.onlyCurWorkFunc).toBe(true);
+      button.remove();
+    });
+
+    it("returns false when no Vue formData parent exists", () => {
+      const extractor = createJob51SearchExtractor(createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "51job"),
+        SOURCE_KEYS: { JOB51: "51job" },
+      }));
+      expect(
+        extractor.applyJob51WorkFuncViaVue(document.createElement("button"), {
+          workFunc: "3000",
+          onlyCurWorkFunc: true,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("hasMatchingJob51WorkFuncSearchRequest", () => {
+    it("requires work_func and only_cur_work_func on the signed POST", () => {
+      const extractor = createJob51SearchExtractor(
+        createMockDeps({
+          apiSnapshot: {
+            job51LastSearchRequest: {
+              work_func: "3000",
+              only_cur_work_func: "1",
+            },
+          },
+        }),
+      );
+      expect(
+        extractor.hasMatchingJob51WorkFuncSearchRequest("3000", true),
+      ).toBe(true);
+      expect(
+        extractor.hasMatchingJob51WorkFuncSearchRequest("3000", true),
+      ).toBe(true);
+    });
+
+    it("rejects a POST that is missing 仅目前职位", () => {
+      const extractor = createJob51SearchExtractor(
+        createMockDeps({
+          apiSnapshot: {
+            job51LastSearchRequest: {
+              work_func: "3000",
+              only_cur_work_func: "",
+            },
+          },
+        }),
+      );
+      expect(
+        extractor.hasMatchingJob51WorkFuncSearchRequest("3000", true),
+      ).toBe(false);
+    });
+  });
+
+  describe("applyJob51WorkFuncViaPageHook", () => {
+    it("resolves true when the MAIN-world hook posts a matching result", async () => {
+      const listeners: Array<(event: MessageEvent) => void> = [];
+      const fakeWindow = {
+        location: { pathname: "/", href: "https://ehire.51job.com/" },
+        setTimeout: (cb: () => void) => {
+          cb();
+          return 0;
+        },
+        clearTimeout: vi.fn(),
+        document,
+        addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => {
+          listeners.push(listener as (event: MessageEvent) => void);
+        },
+        removeEventListener: vi.fn(),
+        postMessage: (message: unknown) => {
+          const request = message as { requestId: string };
+          for (const listener of listeners) {
+            listener({
+              data: {
+                source: "tr-page-hook",
+                action: "trJob51ApplyWorkFuncResult",
+                requestId: request.requestId,
+                ok: true,
+              },
+            } as MessageEvent);
+          }
+        },
+      };
+      const extractor = createJob51SearchExtractor(
+        createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "51job"),
+          SOURCE_KEYS: { JOB51: "51job" },
+          window: fakeWindow,
+        }),
+      );
+
+      await expect(
+        extractor.applyJob51WorkFuncViaPageHook({
+          workFunc: "3000",
+          onlyCurWorkFunc: true,
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("resolves false when postMessage is unavailable", async () => {
+      const extractor = createJob51SearchExtractor(
+        createMockDeps({
+          getCurrentSourceKey: vi.fn(() => "51job"),
+          SOURCE_KEYS: { JOB51: "51job" },
+        }),
+      );
+      await expect(
+        extractor.applyJob51WorkFuncViaPageHook({ workFunc: "3000" }),
+      ).resolves.toBe(false);
+    });
+  });
 });

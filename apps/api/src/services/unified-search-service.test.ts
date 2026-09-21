@@ -235,6 +235,22 @@ describe("UnifiedSearchService", () => {
     }
   });
 
+  it("peels trailing 销售 after an OR pair so expansion is 三坐标 or 3D扫描", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword("三坐标 or 3D扫描 销售");
+
+      expect(expansion.mode).toBe("OR");
+      expect(expansion.groups.map((group) => group.original)).toContain("三坐标");
+      expect(expansion.groups.map((group) => group.original)).not.toContain("销售");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("expands company-pattern aliases to canonical and alternate brand terms", () => {
     const root = createFixtureRoot();
 

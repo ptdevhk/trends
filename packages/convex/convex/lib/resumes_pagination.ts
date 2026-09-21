@@ -24,6 +24,9 @@ export const PAGINATE_MAX_ROWS_READ = 16_000;
 // 16 × 500KB = ~8MB worst case; 128 × 27KB = ~3.5MB filtered avg — both safe.
 export const MAX_SAFE_SEARCH_PAGINATE_SCAN = 128;
 export const MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED = 16;
+// Client `listWithIngestDataPaginated` loads full resume docs. Fat 51job rows
+// blow the 1s isolate if this is the client's 200-item page size.
+export const MAX_SAFE_LIST_WITH_INGEST_DOCS_PER_QUERY = MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED;
 // Convex search index scans up to 1024 results; 1024 × 27KB = 27MB > 16 MiB.
 // Cap .take() path to 400 docs × 30KB = ~12MB, safely under 16 MiB limit.
 export const MAX_SAFE_SEARCH_TAKE_LIMIT = 400;
@@ -106,6 +109,13 @@ export function resolvePaginatedResumePageLimit(numItems: number | undefined): n
     }
 
     return Math.min(Math.max(Math.trunc(numItems), 1), MAX_SAFE_LIST_WITH_INGEST_LIMIT);
+}
+
+export function resolveListWithIngestDocsPerQuery(numItems: number | undefined): number {
+    return Math.min(
+        resolvePaginatedResumePageLimit(numItems),
+        MAX_SAFE_LIST_WITH_INGEST_DOCS_PER_QUERY,
+    );
 }
 
 export function buildPaginatedOffsetResult<T>(page: T[], total: number, offset: number): {

@@ -114,6 +114,11 @@ type SourceFormState = {
     job51UnsafeLimits: boolean
     job51CollectLimit: string
     job51MaxPages: string
+    job51Keyword: string
+    job51WorkFunc: string
+    job51OnlyCurWorkFunc: boolean
+    job51GenericCollectLimit: string
+    job51GenericMaxPages: string
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
@@ -151,6 +156,11 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
     job51UnsafeLimits: false,
     job51CollectLimit: '',
     job51MaxPages: '',
+    job51Keyword: '',
+    job51WorkFunc: '',
+    job51OnlyCurWorkFunc: false,
+    job51GenericCollectLimit: '',
+    job51GenericMaxPages: '',
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
@@ -340,6 +350,11 @@ export function toSourcesFormState(sources: SearchProfileSource[] | undefined): 
         job51UnsafeLimits: job51Source?.unsafeLimits === true,
         job51CollectLimit: typeof job51Source?.job51CollectLimit === 'number' ? String(job51Source.job51CollectLimit) : '',
         job51MaxPages: typeof job51Source?.job51MaxPages === 'number' ? String(job51Source.job51MaxPages) : '',
+        job51Keyword: typeof job51Source?.job51Keyword === 'string' ? job51Source.job51Keyword : '',
+        job51WorkFunc: typeof job51Source?.job51WorkFunc === 'string' ? job51Source.job51WorkFunc : '',
+        job51OnlyCurWorkFunc: job51Source?.job51OnlyCurWorkFunc === true,
+        job51GenericCollectLimit: typeof job51Source?.collectLimit === 'number' ? String(job51Source.collectLimit) : '',
+        job51GenericMaxPages: typeof job51Source?.maxPages === 'number' ? String(job51Source.maxPages) : '',
         seekEnabled: seekSource?.enabled === true,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
@@ -402,9 +417,13 @@ export function buildSourcesPayload(sourceForm: SourceFormState, additionalSourc
 
     const job51CollectLimit = parseOptionalNumber(sourceForm.job51CollectLimit)
     const job51MaxPages = parseOptionalNumber(sourceForm.job51MaxPages)
+    const job51GenericCollectLimit = parseOptionalNumber(sourceForm.job51GenericCollectLimit)
+    const job51GenericMaxPages = parseOptionalNumber(sourceForm.job51GenericMaxPages)
     const derivedUnsafeLimits = sourceForm.job51UnsafeLimits
       || (typeof job51CollectLimit === 'number' && job51CollectLimit > 50)
       || (typeof job51MaxPages === 'number' && job51MaxPages > 1)
+    const job51Keyword = sourceForm.job51Keyword.trim()
+    const job51WorkFunc = sourceForm.job51WorkFunc.trim()
 
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.job51,
@@ -413,6 +432,11 @@ export function buildSourcesPayload(sourceForm: SourceFormState, additionalSourc
         ...(derivedUnsafeLimits ? { unsafeLimits: true } : {}),
         ...(typeof job51CollectLimit === 'number' ? { job51CollectLimit } : {}),
         ...(typeof job51MaxPages === 'number' ? { job51MaxPages } : {}),
+        ...(typeof job51GenericCollectLimit === 'number' ? { collectLimit: job51GenericCollectLimit } : {}),
+        ...(typeof job51GenericMaxPages === 'number' ? { maxPages: job51GenericMaxPages } : {}),
+        ...(job51Keyword ? { job51Keyword } : {}),
+        ...(job51WorkFunc ? { job51WorkFunc } : {}),
+        ...(sourceForm.job51OnlyCurWorkFunc ? { job51OnlyCurWorkFunc: true } : {}),
     })
 
     const seekCollectLimit = parseOptionalNumber(sourceForm.seekCollectLimit)

@@ -48,6 +48,8 @@ const AUTO_LIMIT_PARAM = "tr_limit";
 const AUTO_MAX_PAGES_PARAM = "tr_max_pages";
 const AUTO_MIN_AGE_PARAM = "tr_min_age";
 const AUTO_MAX_AGE_PARAM = "tr_max_age";
+const AUTO_WORK_FUNC_PARAM = "tr_work_func";
+const AUTO_ONLY_CUR_WORK_FUNC_PARAM = "tr_only_cur_work_func";
 const AUTO_SEARCH_PARAM = "keyword";
 const AUTO_LOCATION_PARAM = "location";
 const AUTO_KEYWORD_MODE_PARAM = "tr_kw_mode";
@@ -74,6 +76,8 @@ const PAGE_BRIDGE_RESPONSE_EVENT = "trResumeBridgeResponse";
 const PAGE_BRIDGE_REQUEST_ATTR = "data-tr-resume-bridge-request";
 const PAGE_BRIDGE_RESPONSE_ATTR = "data-tr-resume-bridge-response";
 const JOB51_NEXT_PAGE_EVENT = "trJob51NextPageRequest";
+const JOB51_APPLY_WORK_FUNC_EVENT = "trJob51ApplyWorkFunc";
+const JOB51_APPLY_WORK_FUNC_RESULT_EVENT = "trJob51ApplyWorkFuncResult";
 const CONTENT_SCRIPT_SOURCE = "tr-resume-content-script";
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
@@ -103,6 +107,8 @@ export {
   AUTO_MAX_PAGES_PARAM,
   AUTO_MIN_AGE_PARAM,
   AUTO_MAX_AGE_PARAM,
+  AUTO_WORK_FUNC_PARAM,
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM,
   AUTO_SEARCH_PARAM,
   AUTO_LOCATION_PARAM,
   AUTO_KEYWORD_MODE_PARAM,
@@ -123,6 +129,8 @@ export {
   PAGE_BRIDGE_REQUEST_ATTR,
   PAGE_BRIDGE_RESPONSE_ATTR,
   JOB51_NEXT_PAGE_EVENT,
+  JOB51_APPLY_WORK_FUNC_EVENT,
+  JOB51_APPLY_WORK_FUNC_RESULT_EVENT,
   CONTENT_SCRIPT_SOURCE,
   JOB5156_DETAIL_FETCH_TIMEOUT_MS,
   JOB5156_DETAIL_FETCH_CONCURRENCY,

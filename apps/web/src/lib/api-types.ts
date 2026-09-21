@@ -20346,6 +20346,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-diagnostics/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a browser-side Convex connection diagnostic */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        kind: "convex_ws_degraded" | "convex_ws_retry" | "bff_search_failed";
+                        pathname: string;
+                        hasEverConnected: boolean;
+                        connectionRetries: number;
+                        visibility?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Diagnostic logged */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search-alerts": {
         parameters: {
             query?: never;

@@ -28,10 +28,19 @@ import { recordSearchProfileSubmitRunStatus } from "./search-profile-run-status.
 
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
-// Local/preview Convex mutations hard-cap at 1s; a 50-resume 51job page-1
-// detail submit timed out as a single 200-item-capable batch.
-export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 10;
+// Local/preview Convex mutations hard-cap at 1s (~1s isolate budget). A 51job
+// detail resume is a fat payload: per-row identity/hash/searchText/digest writes
+// can each take hundreds of ms, so even a serial 10-row mutation blows the 1s
+// budget and the whole page batch 500s. Sending exactly one resume per Convex
+// mutation gives each fat 51job resume its own 1s isolate.
+export const RESUME_IMPORT_CONVEX_BATCH_SIZE = 1;
 const CANDIDATE_STATUS_RESTORE_BATCH_SIZE = 100;
+/** Keep a lone 51job detail row inside the 1s Convex isolate. */
+export const JOB51_SUBMIT_MAX_TEXT_CHARS = 4000;
+export const JOB51_SUBMIT_MAX_LIST_ENTRIES = 12;
+const JOB51_SUBMIT_DROP_KEYS = ["html", "rawHtml", "resumeHtml", "detailHtml"] as const;
+const JOB51_SUBMIT_TEXT_FIELDS = ["description", "duty", "responsibilities", "content", "summary", "raw"] as const;
+const JOB51_SUBMIT_LIST_FIELDS = ["workHistory", "projectExperience", "profileEducation"] as const;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
 export type ResumeImportItem = z.infer<typeof ResumeImportItemSchema>;
@@ -371,24 +380,50 @@ function parseSubmitResumesTotals(value: unknown): ResumeSubmitTotals {
 }
 
 async function submitResumeBatchToConvex(batch: ConvexResumeSubmitItem[]): Promise<ResumeSubmitTotals> {
+  // A 51job detail resume is fat enough that even a single-row mutation can
+  // occasionally exceed the 1s isolate when the scheduler/ingest pipeline is
+  // concurrently active. Retry a lone resume a bounded number of times — with a
+  // short backoff so the isolate + scheduler clear — so a transient 1s blowup
+  // does not fail the entire page batch.
+  const SINGLE_ROW_MAX_ATTEMPTS = 8;
+  const SINGLE_ROW_RETRY_DELAY_MS = 2500;
   try {
     const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
       resumes: batch,
     });
     return parseSubmitResumesTotals(value);
   } catch (error) {
-    if (!isConvexExecutionTimeout(error) || batch.length <= 1) {
+    if (!isConvexExecutionTimeout(error)) {
       throw error;
     }
-    logger.warn("Convex submitResumes timed out; splitting batch", {
-      route: "resume_submit",
-      batchSize: batch.length,
-    });
-    const mid = Math.ceil(batch.length / 2);
-    const totals = emptyResumeSubmitTotals();
-    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(0, mid)));
-    addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
-    return totals;
+    if (batch.length > 1) {
+      logger.warn("Convex submitResumes timed out; splitting batch", {
+        route: "resume_submit",
+        batchSize: batch.length,
+      });
+      const mid = Math.ceil(batch.length / 2);
+      const totals = emptyResumeSubmitTotals();
+      addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(0, mid)));
+      addResumeSubmitTotals(totals, await submitResumeBatchToConvex(batch.slice(mid)));
+      return totals;
+    }
+    for (let attempt = 2; attempt <= SINGLE_ROW_MAX_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, SINGLE_ROW_RETRY_DELAY_MS * (attempt - 1)));
+      logger.warn(`Convex submitResumes 1-row timed out; retry ${attempt}/${SINGLE_ROW_MAX_ATTEMPTS}`, {
+        route: "resume_submit",
+      });
+      try {
+        const value = await callConvexFunction("mutation", "resume_tasks:submitResumes", {
+          resumes: batch,
+        });
+        return parseSubmitResumesTotals(value);
+      } catch (retryError) {
+        if (!isConvexExecutionTimeout(retryError)) {
+          throw retryError;
+        }
+      }
+    }
+    throw error;
   }
 }
 
@@ -428,6 +463,37 @@ function applyImportCollectionGuards(
   return applyCollectionGuards(content, guardFields);
 }
 
+function capSubmitText(value: unknown): unknown {
+  if (typeof value !== "string" || value.length <= JOB51_SUBMIT_MAX_TEXT_CHARS) {
+    return value;
+  }
+  return value.slice(0, JOB51_SUBMIT_MAX_TEXT_CHARS);
+}
+
+export function slim51JobSubmitContent(
+  content: Record<string, unknown>,
+): Record<string, unknown> {
+  const slimmed: Record<string, unknown> = { ...content };
+  for (const key of JOB51_SUBMIT_DROP_KEYS) {
+    delete slimmed[key];
+  }
+  for (const listKey of JOB51_SUBMIT_LIST_FIELDS) {
+    const list = slimmed[listKey];
+    if (!Array.isArray(list)) continue;
+    slimmed[listKey] = list.slice(0, JOB51_SUBMIT_MAX_LIST_ENTRIES).map((entry) => {
+      if (!isRecord(entry)) return entry;
+      const next = { ...entry };
+      for (const field of JOB51_SUBMIT_TEXT_FIELDS) {
+        if (field in next) {
+          next[field] = capSubmitText(next[field]);
+        }
+      }
+      return next;
+    });
+  }
+  return slimmed;
+}
+
 export function normalizeResumeImportPayload(input: ResumeImportRequest): NormalizedResumeImportPayload {
   const parsedInput = ResumeImportRequestSchema.parse(input);
   const metadata = normalizeImportMetadata(parsedInput.metadata);
@@ -449,9 +515,13 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
       resume,
       isSeekSource ? { sourceHost: itemSource, jobId: seekJobId } : undefined,
     );
-    const content = isRecord(normalizedContent)
+    const guarded = isRecord(normalizedContent)
       ? applyImportCollectionGuards(normalizedContent, metadata, itemSource)
       : normalizedContent;
+    const content =
+      isRecord(guarded) && resolveCollectionGuardSourceKey(itemSource) === "51job"
+        ? slim51JobSubmitContent(guarded)
+        : guarded;
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
     const externalId = buildResumeExternalId(resume, itemSource, hash);
 

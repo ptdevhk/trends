@@ -2,6 +2,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorBoundary } from './ErrorBoundary'
+import { reportConvexConnectionEvent } from '@/lib/client-diagnostics'
+
+vi.mock('@/lib/client-diagnostics', () => ({
+    reportConvexConnectionEvent: vi.fn(),
+}))
 
 // Component that throws an error conditionally
 const ThrowError = ({ shouldThrow = true, message = 'Test Error' }) => {
@@ -14,6 +19,7 @@ const ThrowError = ({ shouldThrow = true, message = 'Test Error' }) => {
 describe('ErrorBoundary', () => {
     beforeEach(() => {
         window.history.replaceState({}, '', '/')
+        vi.mocked(reportConvexConnectionEvent).mockClear()
     })
 
     it('renders children when no error occurs', () => {
@@ -118,6 +124,19 @@ describe('ErrorBoundary', () => {
         })
         expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
 
+        spy.mockRestore()
+    })
+
+    it('records a Convex query timeout for later debug', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
+
+        render(
+            <ErrorBoundary>
+                <ThrowError message="[CONVEX Q(resumes:listWithIngestDataPaginated)] Server Error Function execution timed out (maximum duration: 1s)" />
+            </ErrorBoundary>
+        )
+
+        expect(reportConvexConnectionEvent).toHaveBeenCalledWith({ kind: 'convex_query_timeout' })
         spy.mockRestore()
     })
 })

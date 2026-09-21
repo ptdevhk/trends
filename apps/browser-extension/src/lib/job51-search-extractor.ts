@@ -20,7 +20,15 @@ export interface Job51SearchExtractorDeps extends Record<string, unknown> {
   buildJob51DetailResumeFromPayload: (payload: unknown, options: Record<string, unknown>) => unknown[];
   filterCurrentResumesByAgeRange: (resumes: unknown) => unknown[];
   chrome: { runtime: { sendMessage: (message: unknown) => Promise<unknown> } };
-  window: { location: { pathname: string; href: string }; setTimeout: (cb: () => void, ms: number) => number; clearTimeout: (id: number) => void; document: Document };
+  window: {
+    location: { pathname: string; href: string };
+    setTimeout: (cb: () => void, ms: number) => number;
+    clearTimeout: (id: number) => void;
+    document: Document;
+    addEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
+    removeEventListener?: (type: string, listener: EventListenerOrEventListenerObject) => void;
+    postMessage?: (message: unknown, targetOrigin: string) => void;
+  };
   fetch: (url: string, init?: RequestInit) => Promise<Response>;
   delay: (ms: number) => Promise<void>;
   isElementVisible: (el: unknown) => boolean;
@@ -946,6 +954,214 @@ export function createJob51SearchExtractor(deps: Job51SearchExtractorDeps) {
     return false;
   }
 
+  function walkVueParentsForFormData(startVm: unknown) {
+    let vm = startVm as Record<string, unknown> | null;
+    for (let depth = 0; vm && depth < 16; depth += 1) {
+      const formData = vm.formData;
+      if (formData && typeof formData === "object") {
+        const record = formData as Record<string, unknown>;
+        if (
+          "workFunc" in record ||
+          "onlyCurWorkFunc" in record ||
+          "keyword" in record
+        ) {
+          return vm;
+        }
+      }
+      vm = (vm.$parent as Record<string, unknown> | null) || null;
+    }
+    return null;
+  }
+
+  function findJob51FormDataVm(startNode: unknown) {
+    let node = startNode as { __vue__?: unknown; parentElement?: unknown } | null;
+    for (let hops = 0; node && hops < 24; hops += 1) {
+      const found = walkVueParentsForFormData(node.__vue__);
+      if (found) {
+        return found;
+      }
+      node = (node.parentElement as typeof node) || null;
+    }
+    return null;
+  }
+
+  function normalizeWorkFuncRequestValue(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(Math.trunc(value));
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return /^\d+$/.test(trimmed) ? trimmed : "";
+    }
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+      if (first && typeof first === "object") {
+        return normalizeWorkFuncRequestValue(
+          (first as Record<string, unknown>).id,
+        );
+      }
+      return normalizeWorkFuncRequestValue(first);
+    }
+    return "";
+  }
+
+  function normalizeOnlyCurWorkFuncRequestValue(value: unknown) {
+    if (value === true || value === 1 || value === "1" || value === "true") {
+      return "1";
+    }
+    return "";
+  }
+
+  function applyJob51WorkFuncViaVue(
+    startNode: unknown,
+    {
+      workFunc,
+      onlyCurWorkFunc,
+    }: { workFunc?: string; onlyCurWorkFunc?: boolean } = {},
+  ) {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51 || !workFunc) {
+      return false;
+    }
+
+    const vm = findJob51FormDataVm(startNode);
+    if (!vm) {
+      return false;
+    }
+
+    try {
+      if (!vm.formData || typeof vm.formData !== "object") {
+        vm.formData = {};
+      }
+      const formData = vm.formData as Record<string, unknown>;
+      formData.workFunc = [{ id: String(workFunc) }];
+      formData.onlyCurWorkFunc = onlyCurWorkFunc === true;
+      return true;
+    } catch (error) {
+      console.warn(
+        "🎯 [Auto WorkFunc] Failed to apply 51job 从事职能 via Vue formData:",
+        error,
+      );
+      return false;
+    }
+  }
+
+  function hasMatchingJob51WorkFuncSearchRequest(
+    workFunc: unknown,
+    onlyCurWorkFunc: unknown,
+  ) {
+    const request = apiSnapshot.job51LastSearchRequest as Record<
+      string,
+      unknown
+    > | null;
+    if (!request || typeof request !== "object") {
+      return false;
+    }
+
+    const expectedWorkFunc = normalizeWorkFuncRequestValue(workFunc);
+    const actualWorkFunc = normalizeWorkFuncRequestValue(request.work_func);
+    if (!expectedWorkFunc || actualWorkFunc !== expectedWorkFunc) {
+      return false;
+    }
+
+    if (onlyCurWorkFunc === true) {
+      return (
+        normalizeOnlyCurWorkFuncRequestValue(request.only_cur_work_func) ===
+        "1"
+      );
+    }
+    return true;
+  }
+
+  async function waitForJob51WorkFuncRefresh(
+    previousLastSearchAt: string | undefined,
+    {
+      workFunc,
+      onlyCurWorkFunc,
+      minAge,
+      maxAge,
+      timeoutMs = 5000,
+    }: {
+      workFunc?: string;
+      onlyCurWorkFunc?: boolean;
+      minAge?: number;
+      maxAge?: number;
+      timeoutMs?: number;
+    } = {},
+  ) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const hasFreshSearch =
+        typeof apiSnapshot.lastSearchAt === "string" &&
+        apiSnapshot.lastSearchAt.length > 0 &&
+        apiSnapshot.lastSearchAt !== previousLastSearchAt;
+      const workFuncMatched = hasMatchingJob51WorkFuncSearchRequest(
+        workFunc,
+        onlyCurWorkFunc,
+      );
+      const ageMatched =
+        typeof minAge !== "number" ||
+        typeof maxAge !== "number" ||
+        hasMatchingJob51AgeSearchRequest(minAge, maxAge);
+      if (hasFreshSearch && workFuncMatched && ageMatched) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+    return false;
+  }
+
+  async function applyJob51WorkFuncViaPageHook({
+    workFunc,
+    onlyCurWorkFunc,
+    timeoutMs = 2000,
+  }: {
+    workFunc?: string;
+    onlyCurWorkFunc?: boolean;
+    timeoutMs?: number;
+  } = {}) {
+    if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51 || !workFunc) {
+      return false;
+    }
+    const requestId = `tr-work-func-${Date.now()}`;
+    return await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        win.removeEventListener?.("message", onMessage as EventListener);
+        resolve(ok);
+      };
+      const onMessage = (event: MessageEvent) => {
+        const data = event.data;
+        if (
+          !data ||
+          data.source !== "tr-page-hook" ||
+          data.action !== "trJob51ApplyWorkFuncResult" ||
+          data.requestId !== requestId
+        ) {
+          return;
+        }
+        finish(data.ok === true);
+      };
+      win.addEventListener?.("message", onMessage as EventListener);
+      if (typeof win.postMessage !== "function") {
+        finish(false);
+        return;
+      }
+      win.postMessage(
+        {
+          source: "tr-resume-content-script",
+          action: "trJob51ApplyWorkFunc",
+          requestId,
+          workFunc,
+          onlyCurWorkFunc: onlyCurWorkFunc === true,
+        },
+        "*",
+      );
+      win.setTimeout(() => finish(false), timeoutMs);
+    });
+  }
+
   return {
     isJob51DetailPage,
     isJob51DetailReady,
@@ -973,5 +1189,10 @@ export function createJob51SearchExtractor(deps: Job51SearchExtractorDeps) {
     normalizeAgeRequestValue,
     hasMatchingJob51AgeSearchRequest,
     waitForJob51AgeFilterRefresh,
+    findJob51FormDataVm,
+    applyJob51WorkFuncViaVue,
+    applyJob51WorkFuncViaPageHook,
+    hasMatchingJob51WorkFuncSearchRequest,
+    waitForJob51WorkFuncRefresh,
   };
 }

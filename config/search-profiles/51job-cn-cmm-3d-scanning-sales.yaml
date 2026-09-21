@@ -2,7 +2,7 @@ id: 51job-cn-cmm-3d-scanning-sales
 name: China 51job CMM & 3D Scanning Sales
 description: China 51job combined CMM (三坐标) and 3D scanning (3D扫描) sales search profile
 createdAt: "2026-09-17"
-updatedAt: "2026-09-17"
+updatedAt: "2026-09-19"
 status: active
 workspaceSlug: [dev, hr]
 seedLastRunOffsetMs: 900000
@@ -12,7 +12,6 @@ location: China
 keywords:
   - 三坐标
   - 3D扫描
-  - 销售
 
 filters:
   minRoleYears: 1
@@ -34,8 +33,16 @@ sources:
   - type: 51job
     enabled: true
     priority: 1
-    collectLimit: 50
-    maxPages: 1
+    # 51job lists ~20×50; 2000 is a Trends ceiling so collect does not stop at 50/1.
+    collectLimit: 2000
+    maxPages: 20
+    unsafeLimits: true
+    job51CollectLimit: 2000
+    job51MaxPages: 20
+    # Official 51job `or` (spaced). Sales is 从事职能 + 仅目前职位, not this keyword.
+    job51Keyword: "三坐标 or 3D扫描"
+    job51WorkFunc: "3000"
+    job51OnlyCurWorkFunc: true
   - type: job5156
     enabled: false
     priority: 2
@@ -44,4 +51,4 @@ quickStart:
   enabled: true
   rank: 7
   label: China · 51job · 三坐标 3D扫描 销售
-  description: 三坐标, 3D扫描, 销售 · China
+  description: 三坐标 or 3D扫描 · 销售职责 · China

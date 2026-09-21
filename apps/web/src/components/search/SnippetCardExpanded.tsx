@@ -29,6 +29,8 @@ type SnippetCardExpandedProps = {
   onNoteTrigger?: () => void
   userRating?: number
   showIndustryEvidence?: boolean
+  /** Always-on AI analysis card target label (computed once per search). */
+  analysisCardLabel?: string
   policyOverrides?: CandidatePolicyOverride[]
   resumeIdentity?: string
 }
@@ -115,6 +117,7 @@ export function SnippetCardExpanded({
   onNoteTrigger,
   userRating,
   showIndustryEvidence = true,
+  analysisCardLabel,
   policyOverrides,
   resumeIdentity,
 }: SnippetCardExpandedProps) {
@@ -145,7 +148,7 @@ export function SnippetCardExpanded({
     }
     toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
   }
-  const analysis = item.analysis ?? item.resume.analysis
+  const analysis = item.analysis
   const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
@@ -341,6 +344,14 @@ export function SnippetCardExpanded({
                 </Badge>
               ) : null}
             </div>
+            {analysisCardLabel ? (
+              <div
+                className="mb-3 text-xs text-muted-foreground"
+                data-testid="analysis-card-label"
+              >
+                {analysisCardLabel}
+              </div>
+            ) : null}
             {hasAiAnalysis && analysis ? (
               <div className="space-y-4 break-words text-sm text-slate-700">
                 <p className="leading-6">{analysis.summary || noSummaryLabel}</p>

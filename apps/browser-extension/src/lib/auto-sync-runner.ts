@@ -4,6 +4,11 @@
  * dependency-injected module so content.ts stays thin.
  */
 
+import {
+  JOB51_LIST_INGEST_SETTLE_MS,
+  JOB51_LIST_SUBMIT_MAX_ATTEMPTS,
+  JOB51_LIST_SUBMIT_RETRY_DELAY_MS,
+} from "./job51-collection-config";
 import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
 
 // SEEK's pager can expose a moving window of numbered links after the useful
@@ -217,6 +222,29 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
 
     const { limit, maxPages } = (await getCollectionLimits()) as { limit: number; maxPages: number };
     const isJob51Source = getCurrentSourceKey() === SOURCE_KEYS.JOB51;
+
+    if (isJob51Source) {
+      const workFuncStatus =
+        document.documentElement.getAttribute("data-tr-auto-work-func") || "";
+      if (workFuncStatus === "failed") {
+        deps.state._autoSyncTriggered = true as boolean;
+        setAutoSyncAttributes("failed");
+        SyncStatusWidget.show({
+          state: "error",
+          message: "从事职能未应用到 51job 搜索，已停止采集",
+          hint: "reload 会丢掉 work_func；请从 Trends 采集入口重新打开带 tr_work_func 的链接",
+        });
+        try {
+          document.documentElement.setAttribute(
+            "data-tr-auto-sync-stop-reason",
+            "work-func-not-applied",
+          );
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    }
 
     deps.state._autoSyncTriggered = true as boolean;
     deps.state._autoSyncCancelled = false as boolean;
@@ -451,9 +479,37 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
           hint: progressHint,
         });
 
-        const response = (await syncCurrentPageToServer(resumes)) as Record<string, unknown> | null;
+        const isJob51ListPage =
+          getCurrentSourceKey() === SOURCE_KEYS.JOB51 && !isJob51DetailPage();
+        const submitAttempts = isJob51ListPage ? JOB51_LIST_SUBMIT_MAX_ATTEMPTS : 1;
+        let response: Record<string, unknown> | null = null;
+        let submitError: unknown = null;
+        for (let attempt = 1; attempt <= submitAttempts; attempt += 1) {
+          try {
+            response = (await syncCurrentPageToServer(resumes)) as Record<
+              string,
+              unknown
+            > | null;
+            if (response?.success) {
+              submitError = null;
+              break;
+            }
+            submitError = response?.error || response || "Auto sync failed";
+          } catch (error) {
+            response = null;
+            submitError = error;
+          }
+          if (attempt < submitAttempts) {
+            SyncStatusWidget.show({
+              state: "progress",
+              message: `第 ${currentPage} 页同步失败，${Math.round(JOB51_LIST_SUBMIT_RETRY_DELAY_MS / 1000)} 秒后重试 (${attempt}/${submitAttempts})...`,
+              hint: "等待预览库写入空闲后再提交本页",
+            });
+            await delay(JOB51_LIST_SUBMIT_RETRY_DELAY_MS);
+          }
+        }
         if (!response?.success) {
-          throw response?.error || response || "Auto sync failed";
+          throw submitError || "Auto sync failed";
         }
 
         const submitted =
@@ -469,25 +525,30 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
         totalUpdated += updated;
         setAutoSyncAttributes("running", totalSubmitted, pagesVisited);
 
-        if (
-          getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-          !isJob51DetailPage() &&
-          resumes.length > 0
-        ) {
-          const detailBackfillPromise = queueJob51DetailBackfill(resumes, {
-            currentPage,
-            totalPages: Math.max(totalPages, currentPage),
-          });
+        if (isJob51ListPage && resumes.length > 0) {
           const waitMode = resolveCurrentJob51AutoSyncDetailWaitMode();
-          const shouldWaitForDetails =
-            waitMode === "all" || (waitMode === "page1" && currentPage === 1);
-          if (shouldWaitForDetails) {
+          if (waitMode !== "off") {
+            const detailBackfillPromise = queueJob51DetailBackfill(resumes, {
+              currentPage,
+              totalPages: Math.max(totalPages, currentPage),
+            });
+            const shouldWaitForDetails =
+              waitMode === "all" || (waitMode === "page1" && currentPage === 1);
+            if (shouldWaitForDetails) {
+              SyncStatusWidget.show({
+                state: "progress",
+                message: `正在补充第 ${currentPage}/${Math.max(totalPages, currentPage)} 页详情...`,
+                hint: "等待 51job 详情补充后再完成本页同步",
+              });
+              await detailBackfillPromise;
+            }
+          } else {
             SyncStatusWidget.show({
               state: "progress",
-              message: `正在补充第 ${currentPage}/${Math.max(totalPages, currentPage)} 页详情...`,
-              hint: "等待 51job 详情补充后再完成本页同步",
+              message: `第 ${currentPage} 页已提交，等待 ${Math.round(JOB51_LIST_INGEST_SETTLE_MS / 1000)} 秒后再翻页...`,
+              hint: "避开预览库 ingest 与提交抢占",
             });
-            await detailBackfillPromise;
+            await delay(JOB51_LIST_INGEST_SETTLE_MS);
           }
         }
 

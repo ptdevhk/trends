@@ -13,6 +13,8 @@ export interface UiUtilsDeps extends Record<string, unknown> {
   AUTO_MAX_PAGES_PARAM: string;
   AUTO_MIN_AGE_PARAM: string;
   AUTO_MAX_AGE_PARAM: string;
+  AUTO_WORK_FUNC_PARAM: string;
+  AUTO_ONLY_CUR_WORK_FUNC_PARAM: string;
   AUTO_SEARCH_PARAM: string;
   AUTO_LOCATION_PARAM: string;
   SAMPLE_NAME_PARAM: string;
@@ -48,6 +50,8 @@ export function createUiUtils(deps: UiUtilsDeps) {
     AUTO_MAX_PAGES_PARAM,
     AUTO_MIN_AGE_PARAM,
     AUTO_MAX_AGE_PARAM,
+    AUTO_WORK_FUNC_PARAM,
+    AUTO_ONLY_CUR_WORK_FUNC_PARAM,
     AUTO_SEARCH_PARAM,
     AUTO_LOCATION_PARAM,
     SAMPLE_NAME_PARAM,
@@ -234,12 +238,27 @@ export function createUiUtils(deps: UiUtilsDeps) {
     ) {
       return Array.isArray(resumes) ? resumes : [];
     }
+    if (
+      getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+      !isJob51DetailPage() &&
+      isJob51WorkFuncRequested() &&
+      doc.documentElement.getAttribute("data-tr-auto-work-func") !== "done"
+    ) {
+      return [];
+    }
     return filterResumesByAgeRange(
       resumes,
       getCurrentLocationSearch(),
       AUTO_MIN_AGE_PARAM,
       AUTO_MAX_AGE_PARAM,
     );
+  }
+
+  function isJob51WorkFuncRequested() {
+    const params = new URLSearchParams(getCurrentLocationSearch());
+    const raw = (params.get(AUTO_WORK_FUNC_PARAM) || "").trim();
+    const onlyCur = (params.get(AUTO_ONLY_CUR_WORK_FUNC_PARAM) || "").trim();
+    return /^\d+$/.test(raw) || onlyCur === "1" || onlyCur === "true";
   }
 
   function resolveCurrentJob51CollectionLimits(limit, maxPages) {

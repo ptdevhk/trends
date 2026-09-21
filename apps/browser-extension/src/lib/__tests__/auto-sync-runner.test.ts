@@ -118,6 +118,64 @@ describe("auto-sync-runner", () => {
       expect(deps.SyncStatusWidget.show).not.toHaveBeenCalled();
     });
 
+    it("skips 51job detail backfill when wait mode is off", async () => {
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "51job"),
+        SOURCE_KEYS: { JOB51: "51job", JOB5156: "job5156", SEEK: "seek" },
+        resolveCurrentJob51AutoSyncDetailWaitMode: vi.fn(() => "off"),
+      });
+      const runner = createAutoSyncRunner(deps);
+      await runner.runAutoSyncIfEnabled();
+      expect(deps.queueJob51DetailBackfill).not.toHaveBeenCalled();
+      expect(deps.syncCurrentPageToServer).toHaveBeenCalled();
+      expect(deps.delay).toHaveBeenCalledWith(30000);
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 5, 1);
+    });
+
+    it("retries a failed 51job page submit before aborting", async () => {
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "51job"),
+        SOURCE_KEYS: { JOB51: "51job", JOB5156: "job5156", SEEK: "seek" },
+        resolveCurrentJob51AutoSyncDetailWaitMode: vi.fn(() => "off"),
+        syncCurrentPageToServer: vi
+          .fn()
+          .mockResolvedValueOnce({ success: false, error: "Failed to submit resumes" })
+          .mockResolvedValueOnce({
+            success: true,
+            submitted: 5,
+            inserted: 5,
+            updated: 0,
+          }),
+      });
+      const runner = createAutoSyncRunner(deps);
+      await runner.runAutoSyncIfEnabled();
+      expect(deps.syncCurrentPageToServer).toHaveBeenCalledTimes(2);
+      expect(deps.delay).toHaveBeenCalledWith(20000);
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 5, 1);
+    });
+
+    it("aborts 51job collect when 从事职能 apply failed", async () => {
+      const deps = createMockDeps({
+        getCurrentSourceKey: vi.fn(() => "51job"),
+        SOURCE_KEYS: { JOB51: "51job", JOB5156: "job5156", SEEK: "seek" },
+        document: {
+          documentElement: {
+            setAttribute: vi.fn(),
+            getAttribute: vi.fn((name: string) =>
+              name === "data-tr-auto-work-func" ? "failed" : "",
+            ),
+          },
+        },
+      });
+      const runner = createAutoSyncRunner(deps);
+      await runner.runAutoSyncIfEnabled();
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("failed");
+      expect(deps.syncCurrentPageToServer).not.toHaveBeenCalled();
+      expect(deps.SyncStatusWidget.show).toHaveBeenCalledWith(
+        expect.objectContaining({ state: "error" }),
+      );
+    });
+
     it("skips when already triggered", async () => {
       const deps = createMockDeps({
         state: { _autoSyncTriggered: true, _autoSyncCancelled: false },

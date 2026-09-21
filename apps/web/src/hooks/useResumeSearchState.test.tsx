@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
-import { formatKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildKeywordAnalysisId, buildResumeAnalysisLookupKeys, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
-import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import type { ApiClientLike } from '@/lib/api-helpers'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
@@ -300,6 +300,64 @@ function createResume(index: number, overrides: Partial<ConvexResumeItem> = {}):
   }
 }
 
+// Build an analyses map keyed by the canonical storage key for the keyword
+// context, so fixtures mirror real storage (buildKeywordAnalysisId +
+// buildResumeAnalysisLookupKeys). Mirrors the hook's resolveSearchAnalysis
+// context: location, current prompt version, and the resume's source key.
+// `keywords` must be the same list the hook computes as analysisKeywords
+// (normalizeStringList of parsedState.keywords + parseKeywordQuery(query).keywords).
+function analysesMapFor(
+  keywords: string[],
+  analysis: ConvexResumeItem['analysis'],
+  opts: { source?: string; location?: string } = {},
+): NonNullable<ConvexResumeItem['analyses']> {
+  const source = opts.source ?? 'seek'
+  const location = opts.location // undefined is a valid analysis context
+  const sourceKey = resolveResumeAnalysisSourceKey({ source })
+  // Mirror the hook's resolveStoredResumeAnalysis exactly: no explicit
+  // promptVersion (both sides fall back to the in-process default).
+  const lookupKeys = buildResumeAnalysisLookupKeys(undefined, keywords, {
+    location,
+    sourceKey,
+  })
+  const canonicalKey = buildKeywordAnalysisId(keywords, {
+    location,
+    sourceKey,
+  })
+  const map: NonNullable<ConvexResumeItem['analyses']> = {}
+  const storageKey = lookupKeys[0] ?? canonicalKey
+  const stored: ConvexResumeItem['analysis'] = analysis
+    ? { ...analysis, promptVersion: CURRENT_PROMPT_VERSION }
+    : {
+        score: 0,
+        summary: '',
+        highlights: [],
+        recommendation: '',
+        promptVersion: CURRENT_PROMPT_VERSION,
+      }
+  map[storageKey] = stored
+  return map
+}
+
+// Mirrors the hook's analysisKeywords: normalizeStringList of
+// [parsedState.keywords, ...parseKeywordQuery(query).keywords].
+function analysisKeywordsFor(
+  query: string | undefined,
+  keywords: string[],
+): string[] {
+  const tokens = [...keywords, ...parseKeywordQuery(query ?? '').keywords]
+  const seen = new Set<string>()
+  const out: string[] = []
+  tokens.forEach((token) => {
+    const trimmed = token.trim()
+    const key = trimmed.toLowerCase()
+    if (!trimmed || seen.has(key)) return
+    seen.add(key)
+    out.push(trimmed)
+  })
+  return out
+}
+
 function lastResumeLimitCall(): number | undefined {
   const lastCall = useConvexResumesMock.mock.calls[useConvexResumesMock.mock.calls.length - 1]
   return lastCall?.[0] as number | undefined
@@ -475,7 +533,7 @@ describe('useResumeSearchState', () => {
           computedAt: Date.now(),
           skillsVersion: 1,
         },
-        analysis: {
+        analyses: analysesMapFor(analysisKeywordsFor('machine tools', ['machine tools']), {
           score: 95,
           summary: 'Best AI match',
           highlights: [],
@@ -485,7 +543,7 @@ describe('useResumeSearchState', () => {
             related_exp: 95,
             industry_db: 10,
           },
-        },
+        }),
       }),
       createResume(2, { primaryRuleScore: 91 }),
       createResume(3, { primaryRuleScore: 84 }),
@@ -501,6 +559,64 @@ describe('useResumeSearchState', () => {
     ])
     expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
     expect(result.current.filteredResults[0]?.analysis?.summary).toBe('Best AI match')
+  })
+
+  it('does not reuse another search analysis write-up (CNC 销售 blob hidden under CMM query)', () => {
+    // 三坐标 or 3D扫描 销售 → OR mode; 销售 is peeled as a sales-duty role filter,
+    // so analysisKeywords = [三坐标, 3D扫描].
+    const cmmKeywords = parseKeywordQuery('三坐标 or 3D扫描 销售').keywords
+    const cncKeywords = parseKeywordQuery('CNC 销售').keywords
+    expect(cmmKeywords).toEqual(['三坐标', '3D扫描'])
+    expect(cncKeywords).toEqual(['CNC', '销售'])
+
+    Object.assign(parsedStateMock, createParsedState({
+      query: '三坐标 or 3D扫描 销售',
+      keywords: ['三坐标', '3D扫描'],
+      location: 'Malaysia',
+    }))
+
+    resumesMock.push(
+      // CMM key present → AI analysis shows.
+      createResume(1, {
+        primaryRuleScore: 60,
+        analyses: analysesMapFor(
+          analysisKeywordsFor('三坐标 or 3D扫描 销售', ['三坐标', '3D扫描']),
+          {
+            score: 88,
+            summary: 'CMM operator fit',
+            highlights: [],
+            recommendation: 'strong_match',
+            breakdown: { related_exp: 70, industry_db: 18 },
+          },
+          { location: 'Malaysia' },
+        ),
+      }),
+      // Only the CNC 销售 blob (another search's write-up) → must NOT surface.
+      createResume(2, {
+        primaryRuleScore: 65,
+        analyses: analysesMapFor(
+          analysisKeywordsFor('CNC 销售', ['CNC', '销售']),
+          {
+            score: 95,
+            summary: 'CNC 销售 write-up for the other search',
+            highlights: [],
+            recommendation: 'strong_match',
+            breakdown: { related_exp: 90, industry_db: 5 },
+          },
+          { location: 'Malaysia' },
+        ),
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    // Resume 1 shows the CMM AI analysis.
+    expect(result.current.filteredResults[0]?.analysis?.summary).toBe('CMM operator fit')
+    expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
+    // Resume 2 has no analysis for THIS search → falls back to rule score only.
+    expect(result.current.filteredResults[1]?.analysis).toBeUndefined()
+    expect(result.current.filteredResults[1]?.scoreSource).toBe('rule')
+    expect(result.current.filteredResults[1]?.analysis?.summary).toBeUndefined()
   })
 
   it('stratifies score sort by company ranking effect tier without mutating scores', () => {
@@ -1745,7 +1861,7 @@ describe('useResumeSearchState', () => {
           computedAt: Date.now(),
           skillsVersion: 1,
         },
-        analysis: {
+        analyses: analysesMapFor(analysisKeywordsFor('machine tools', ['machine tools']), {
           score: 95,
           summary: 'Strong fit',
           highlights: [],
@@ -1755,7 +1871,7 @@ describe('useResumeSearchState', () => {
             related_exp: 90,
             industry_db: 10,
           },
-        },
+        }),
       }),
       createResume(2, {
         primaryRuleScore: 79,
@@ -1987,7 +2103,7 @@ describe('useResumeSearchState', () => {
 
     resumesMock.push(
       createResume(1, {
-        analysis: {
+        analyses: analysesMapFor(analysisKeywordsFor('machine tools', ['machine tools']), {
           score: 92,
           summary: 'Strong fit',
           highlights: [],
@@ -1997,7 +2113,7 @@ describe('useResumeSearchState', () => {
             related_exp: 50,
             industry_db: 42,
           },
-        },
+        }, { location: 'Malaysia' }),
         ingestData: {
           industryTags: ['Machine Tools', 'Automation'],
           synonymHits: [],
@@ -2010,7 +2126,7 @@ describe('useResumeSearchState', () => {
         },
       }),
       createResume(2, {
-        analysis: {
+        analyses: analysesMapFor(analysisKeywordsFor('machine tools', ['machine tools']), {
           score: 78,
           summary: 'Solid fit',
           highlights: [],
@@ -2020,7 +2136,7 @@ describe('useResumeSearchState', () => {
             related_exp: 40,
             industry_db: 38,
           },
-        },
+        }, { location: 'Malaysia' }),
         ingestData: {
           industryTags: ['Machine Tools', 'Automation'],
           synonymHits: [],
@@ -2085,7 +2201,7 @@ describe('useResumeSearchState', () => {
           computedAt: Date.now(),
           skillsVersion: 1,
         },
-        analysis: {
+        analyses: analysesMapFor(analysisKeywordsFor('machine tools', ['machine tools']), {
           score: 15,
           summary: 'legacy backend row',
           highlights: [],
@@ -2095,7 +2211,7 @@ describe('useResumeSearchState', () => {
             related_exp: 30,
             industry_db: 0,
           },
-        },
+        }, { location: 'Malaysia' }),
       }),
     )
 

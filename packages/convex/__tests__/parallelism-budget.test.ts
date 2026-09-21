@@ -121,7 +121,9 @@ describe("resolveAiTaggingParallelism", () => {
 
 describe("resolveSubmitResumeParallelism", () => {
     it("returns default when no env is set", () => {
-        expect(resolveSubmitResumeParallelism(10, {})).toBe(8);
+        // Default is serial (1): a 10-row submit with parallelism 8 blew the
+        // 1s isolate on fat 51job payloads, so we default to one row at a time.
+        expect(resolveSubmitResumeParallelism(10, {})).toBe(1);
     });
 
     it("caps at MAX_SUBMIT_RESUME_PARALLELISM (24)", () => {
@@ -132,7 +134,11 @@ describe("resolveSubmitResumeParallelism", () => {
         expect(resolveSubmitResumeParallelism(0, {})).toBe(1);
     });
 
+    it("respects an explicit env override to parallelize", () => {
+        expect(resolveSubmitResumeParallelism(10, { SUBMIT_RESUME_PARALLELISM: "4" })).toBe(4);
+    });
+
     it("ignores invalid env values and falls back to default", () => {
-        expect(resolveSubmitResumeParallelism(10, { SUBMIT_RESUME_PARALLELISM: "-5" })).toBe(8);
+        expect(resolveSubmitResumeParallelism(10, { SUBMIT_RESUME_PARALLELISM: "-5" })).toBe(1);
     });
 });

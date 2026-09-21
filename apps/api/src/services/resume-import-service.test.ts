@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  JOB51_SUBMIT_MAX_LIST_ENTRIES,
+  JOB51_SUBMIT_MAX_TEXT_CHARS,
   normalizeResumeImportPayload,
   RESUME_IMPORT_CONVEX_BATCH_SIZE,
+  slim51JobSubmitContent,
   submitResumeImport,
 } from "./resume-import-service";
 
@@ -608,7 +611,7 @@ describe("resume-import-service", () => {
     });
   });
 
-  it("splits a timed-out Convex batch and retries the halves", async () => {
+  it("sends 51job resumes as serial one-row Convex batches (no 1s split needed)", async () => {
     const batchLengths: number[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -619,10 +622,7 @@ describe("resume-import-service", () => {
 
       const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
       batchLengths.push(resumes.length);
-      if (resumes.length > 1) {
-        return convexExecutionTimeout();
-      }
-
+      // A fat single resume still fits its own 1s isolate (no timeout).
       return convexSuccess({
         submitted: resumes.length,
         deduped: 0,
@@ -638,16 +638,99 @@ describe("resume-import-service", () => {
         generatedBy: "browser-extension@1.3.7",
       },
       resumes: Array.from({ length: 2 }, (_, index) => ({
-        name: `Timeout Resume ${index + 1}`,
+        name: `51job Resume ${index + 1}`,
         profileUrl: `https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=${index + 1}`,
         activityStatus: "Active",
         extractedAt: "2026-09-17T07:17:01.000Z",
       })),
     });
 
-    expect(batchLengths).toEqual([2, 1, 1]);
+    expect(batchLengths).toEqual([1, 1]);
     expect(result.success).toBe(true);
     expect(result.submitted).toBe(2);
     expect(result.inserted).toBe(2);
+  });
+
+  it("retries a lone timed-out 1-row Convex submit a bounded number of times before failing", async () => {
+    const batchLengths: number[] = [];
+    let timeouts = 0;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName !== "resume_tasks:submitResumes") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
+      batchLengths.push(resumes.length);
+      // First 1-row call times out, then the retry succeeds — a transient 1s
+      // isolate blowup on a fat resume should not fail the whole batch.
+      if (timeouts === 0) {
+        timeouts += 1;
+        return convexExecutionTimeout();
+      }
+      return convexSuccess({
+        submitted: resumes.length,
+        deduped: 0,
+        inserted: resumes.length,
+        updated: 0,
+        unchanged: 0,
+      });
+    });
+
+    const result = await submitResumeImport({
+      metadata: {
+        sourceUrl: "https://ehire.51job.com/Candidate/SearchResumeNew.aspx",
+        generatedBy: "browser-extension@1.3.7",
+      },
+      resumes: Array.from({ length: 1 }, () => ({
+        name: "Lone Timeout Resume",
+        profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=1",
+        activityStatus: "Active",
+        extractedAt: "2026-09-17T07:17:01.000Z",
+      })),
+    });
+
+    expect(batchLengths).toEqual([1, 1]); // first times out, retry succeeds
+    expect(timeouts).toBe(1);
+    expect(result.success).toBe(true);
+    expect(result.inserted).toBe(1);
+  });
+
+  it("caps a fat 51job detail row before the 1s Convex submit", () => {
+    const huge = "销售经历".repeat(5000);
+    const payload = normalizeResumeImportPayload({
+      metadata: {
+        sourceUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
+        generatedBy: "browser-extension@1.3.7",
+      },
+      resumes: [
+        {
+          name: "Fat 51job Row",
+          profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
+          html: "<html>drop me</html>",
+          workHistory: Array.from({ length: JOB51_SUBMIT_MAX_LIST_ENTRIES + 4 }, (_, index) => ({
+            companyName: `Co ${index + 1}`,
+            jobTitle: "销售工程师",
+            description: huge,
+          })),
+          extractedAt: "2026-09-19T01:00:00.000Z",
+        },
+      ],
+    });
+
+    const content = payload.convexResumes[0]?.content as Record<string, unknown>;
+    const history = content.workHistory as Array<Record<string, unknown>>;
+    expect(content.html).toBeUndefined();
+    expect(history).toHaveLength(JOB51_SUBMIT_MAX_LIST_ENTRIES);
+    expect(String(history[0]?.description)).toHaveLength(JOB51_SUBMIT_MAX_TEXT_CHARS);
+  });
+
+  it("slim51JobSubmitContent is a no-op for already-small list cards", () => {
+    const slimmed = slim51JobSubmitContent({
+      name: "List card",
+      workHistory: [{ jobTitle: "销售工程师", description: "CMM" }],
+    });
+    expect(slimmed.workHistory).toEqual([{ jobTitle: "销售工程师", description: "CMM" }]);
   });
 });

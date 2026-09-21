@@ -1,4 +1,4 @@
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, formatQuickStartSearchQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -152,6 +152,7 @@ export function ResumeSearchPage() {
     overridesByKey,
     setOverride,
     removeOverride,
+    analysisCardLabel,
   } = useResumeSearchState()
   const policyOverrides = useMemo(() => Object.values(overridesByKey), [overridesByKey])
   const collapseExpandedCards = useCallback(() => {
@@ -275,7 +276,7 @@ export function ResumeSearchPage() {
       .join(' ')
 
     const results = filteredResults.map((item) => {
-      const analysis = item.analysis ?? item.resume.analysis
+      const analysis = item.analysis
       return {
         resumeKey: item.identityKey || item.key || String(item.resume.resumeId),
         displayName: item.resume.name,
@@ -332,7 +333,10 @@ export function ResumeSearchPage() {
     maxAge?: number
   }) => {
     collapseExpandedCards()
-    const query = formatKeywordQuery(seed.keywords)
+    const query = formatQuickStartSearchQuery({
+      keywords: seed.keywords,
+      roleFilterType: seed.roleFilterType,
+    })
     setQueryInput(query)
     submitSearch(query, {
       location: seed.location,
@@ -756,6 +760,7 @@ export function ResumeSearchPage() {
                   onSetOverride={canManageCandidateData ? setOverride : undefined}
                   onRemoveOverride={canManageCandidateData ? removeOverride : undefined}
                   searchQuery={queryInput}
+                  analysisCardLabel={analysisCardLabel}
                   onQueueIndustryResearch={industryResearchQueueEnabled ? queueIndustryResearch : undefined}
                   industryResearchQueueEnabled={industryResearchQueueEnabled}
                   verifiedOnlyNotice={

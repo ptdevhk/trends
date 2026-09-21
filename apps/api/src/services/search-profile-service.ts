@@ -63,6 +63,9 @@ export interface SearchProfile {
         unsafeLimits?: boolean;
         job51CollectLimit?: number;
         job51MaxPages?: number;
+        job51Keyword?: string;
+        job51WorkFunc?: string;
+        job51OnlyCurWorkFunc?: boolean;
         collectLimit?: number;
         maxPages?: number;
         mode?: string;
@@ -364,6 +367,9 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
             const unsafeLimits = readBoolean(item.unsafeLimits);
             const job51CollectLimit = readNumber(item.job51CollectLimit);
             const job51MaxPages = readNumber(item.job51MaxPages);
+            const job51Keyword = readString(item.job51Keyword);
+            const job51WorkFunc = readString(item.job51WorkFunc);
+            const job51OnlyCurWorkFunc = readBoolean(item.job51OnlyCurWorkFunc);
             const collectLimit = readNumber(item.collectLimit);
             const maxPages = readNumber(item.maxPages);
             const mode = readString(item.mode);
@@ -377,6 +383,9 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
                 ...(unsafeLimits === true ? { unsafeLimits: true } : {}),
                 ...(typeof job51CollectLimit === "number" ? { job51CollectLimit } : {}),
                 ...(typeof job51MaxPages === "number" ? { job51MaxPages } : {}),
+                ...(typeof job51Keyword === "string" ? { job51Keyword } : {}),
+                ...(typeof job51WorkFunc === "string" ? { job51WorkFunc } : {}),
+                ...(job51OnlyCurWorkFunc === true ? { job51OnlyCurWorkFunc: true } : {}),
                 ...(typeof collectLimit === "number" ? { collectLimit } : {}),
                 ...(typeof maxPages === "number" ? { maxPages } : {}),
                 ...(mode !== undefined ? { mode } : {}),

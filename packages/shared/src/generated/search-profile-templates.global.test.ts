@@ -38,6 +38,10 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
       expect(enabledSources.length).toBeGreaterThan(0)
 
       for (const source of enabledSources) {
+        if (template.profile.id === '51job-cn-cmm-3d-scanning-sales') {
+          expect(source.collectLimit).toBe(2000)
+          continue
+        }
         expect(source.collectLimit).toBe(50)
       }
     }
@@ -133,14 +137,12 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     for (const template of [combined, cmm, scanning]) {
       expect(template?.profile.location).toBe('China')
       expect(template?.profile.filters?.roleFilterType).toBe('sales')
-      expect(template?.profile.keywords).toContain('销售')
       expect(template?.profile.keywords).not.toContain('CNC')
       expect(template?.profile.quickStart?.label).not.toContain('CNC')
       expect(template?.profile.quickStart?.description).not.toContain('CNC')
       expect(template?.profile.schedule?.maxCandidates).toBe(50)
 
       const enabled51job = template?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
-      expect(enabled51job?.collectLimit).toBe(50)
       expect(enabled51job?.jobUrl).toBeUndefined()
 
       const jobUrls = (template?.profile.sources ?? [])
@@ -149,7 +151,12 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
       expect(jobUrls).not.toContain('seek.com')
     }
 
-    expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描', '销售'])
+    for (const template of [cmm, scanning]) {
+      const enabled51job = template?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
+      expect(enabled51job?.collectLimit).toBe(50)
+    }
+
+    expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描'])
     expect(combined?.profile.jobDescription).toBe('cmm-3d-scanning-sales')
     expect(combined?.profile.filters?.salaryRange?.max).toBe(25000)
     expect(cmm?.profile.filters?.salaryRange?.max).toBe(25000)
@@ -157,7 +164,17 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     expect(combined?.profile.quickStart?.enabled).toBe(true)
     expect(combined?.profile.quickStart?.rank).toBe(7)
     expect(combined?.profile.quickStart?.label).toBe('China · 51job · 三坐标 3D扫描 销售')
-    expect(combined?.profile.quickStart?.description).toBe('三坐标, 3D扫描, 销售 · China')
+    expect(combined?.profile.quickStart?.description).toBe('三坐标 or 3D扫描 · 销售职责 · China')
+
+    const combined51job = combined?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
+    expect(combined51job?.collectLimit).toBe(2000)
+    expect(combined51job?.maxPages).toBe(20)
+    expect(combined51job?.unsafeLimits).toBe(true)
+    expect(combined51job?.job51CollectLimit).toBe(2000)
+    expect(combined51job?.job51MaxPages).toBe(20)
+    expect(combined51job?.job51Keyword).toBe('三坐标 or 3D扫描')
+    expect(combined51job?.job51WorkFunc).toBe('3000')
+    expect(combined51job?.job51OnlyCurWorkFunc).toBe(true)
 
     expect(cmm?.profile.keywords).toEqual(['三坐标测量机', '销售'])
     expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])

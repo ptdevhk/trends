@@ -30,8 +30,6 @@ import type {
 } from "./lib/resumes_list_projections.js";
 import {
     DEFAULT_RESUME_LIMIT,
-    MAX_SAFE_LIST_WITH_INGEST_LIMIT,
-    FILTERED_PAGINATE_OVERFETCH_MULTIPLIER,
     MAX_SAFE_JD_PAGINATE_SCAN,
     MAX_RESUME_SCAN_BATCH_SIZE,
     PAGINATE_MAX_BYTES_READ,
@@ -39,7 +37,7 @@ import {
     resolveListWithIngestWindow,
     resolveListWithIngestPageWindow,
     resolvePaginatedResumeOffsetCursor,
-    resolvePaginatedResumePageLimit,
+    resolveListWithIngestDocsPerQuery,
     buildPaginatedOffsetResult,
     resolveResumeBackupPageSize,
 } from "./lib/resumes_pagination.js";
@@ -182,12 +180,14 @@ export {
     PAGINATE_MAX_ROWS_READ,
     MAX_SAFE_SEARCH_PAGINATE_SCAN,
     MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED,
+    MAX_SAFE_LIST_WITH_INGEST_DOCS_PER_QUERY,
     MAX_SAFE_SEARCH_TAKE_LIMIT,
     resolveListWithIngestWindow,
     resolveSearchWithTagExpansionTakeLimit,
     resolveListWithIngestPageWindow,
     resolvePaginatedResumeOffsetCursor,
     resolvePaginatedResumePageLimit,
+    resolveListWithIngestDocsPerQuery,
     buildPaginatedOffsetResult,
     resolveResumeScanBatchSize,
     resolveResumeBackupPageSize,
@@ -644,18 +644,10 @@ export const listWithIngestDataPaginated = query({
         const filters = normalizeResumeListFilters(args);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
         if (!args.sortBy) {
-            const requestedPageSize = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+            const requestedPageSize = resolveListWithIngestDocsPerQuery(args.paginationOpts.numItems);
             const numItems = jobDescriptionId
-                ? Math.min(
-                    Math.max(
-                        requestedPageSize,
-                        filters ? Math.ceil(requestedPageSize * 1.5) : requestedPageSize
-                    ),
-                    MAX_SAFE_JD_PAGINATE_SCAN
-                )
-                : filters
-                    ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
-                    : requestedPageSize;
+                ? Math.min(requestedPageSize, MAX_SAFE_JD_PAGINATE_SCAN)
+                : requestedPageSize;
             const page = await ctx.db
                 .query("resume_digests")
                 .withIndex("by_primaryRuleScore")
@@ -683,7 +675,7 @@ export const listWithIngestDataPaginated = query({
         }
 
         const offset = resolvePaginatedResumeOffsetCursor(args.paginationOpts.cursor);
-        const limit = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+        const limit = resolveListWithIngestDocsPerQuery(args.paginationOpts.numItems);
         const page = await runListWithIngestDataPageQuery(ctx, {
             ...args,
             limit,

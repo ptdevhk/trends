@@ -5,7 +5,7 @@ export const DEFAULT_ANALYSIS_PARALLELISM = 4;
 export const MAX_ANALYSIS_PARALLELISM = 12;
 export const DEFAULT_AI_TAGGING_PARALLELISM = 2;
 export const MAX_AI_TAGGING_PARALLELISM = 8;
-export const DEFAULT_SUBMIT_RESUME_PARALLELISM = 8;
+export const DEFAULT_SUBMIT_RESUME_PARALLELISM = 1;
 export const MAX_SUBMIT_RESUME_PARALLELISM = 24;
 
 function parsePositiveInt(value: string | undefined): number | null {

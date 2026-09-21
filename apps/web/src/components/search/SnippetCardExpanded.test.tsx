@@ -721,6 +721,74 @@ describe('SnippetCardExpanded', () => {
       expect(rejectBtn.className).toMatch(/bg-destructive|destructive/)
     })
 
+    it('shows the always-on 分析针对 card label for the active search', () => {
+      render(
+        <SnippetCardExpanded
+          analysisCardLabel="分析针对：三坐标、3D扫描"
+          item={createResult(1, {
+            analysis: {
+              score: 90,
+              summary: 'CMM operator fit.',
+              highlights: [],
+              concerns: [],
+              recommendation: 'strong_match',
+              breakdown: { industry_db: 48, related_exp: 24 },
+            },
+          })}
+        />,
+      )
+
+      expect(screen.getByTestId('analysis-card-label')).toHaveTextContent('分析针对：三坐标、3D扫描')
+    })
+
+    it('does not render the card label when analysisCardLabel is absent', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            analysis: {
+              score: 90,
+              summary: 'No label here.',
+              highlights: [],
+              concerns: [],
+              recommendation: 'strong_match',
+              breakdown: { industry_db: 48, related_exp: 24 },
+            },
+          })}
+        />,
+      )
+
+      expect(screen.queryByTestId('analysis-card-label')).not.toBeInTheDocument()
+    })
+
+    it('does not fall back to item.resume.analysis.summary when item.analysis is missing', () => {
+      render(
+        <SnippetCardExpanded
+          item={createResult(1, {
+            scoreSource: 'rule',
+            score: 70,
+            resume: createResume(1, {
+              selfIntro: '',
+              jobIntention: '',
+              workHistory: [],
+              // Only the last-write blob (another search's write-up); must not surface here.
+              analysis: {
+                score: 95,
+                summary: 'CNC 销售 write-up from another search.',
+                highlights: [],
+                concerns: [],
+                recommendation: 'strong_match',
+                promptVersion: 1,
+                breakdown: { industry_db: 48, related_exp: 24 },
+              },
+            }),
+          })}
+        />,
+      )
+
+      expect(screen.queryByText('CNC 销售 write-up from another search.')).not.toBeInTheDocument()
+      expect(screen.getByText(/规则 70分/)).toBeInTheDocument()
+    })
+
     it('renders descriptive icons and aria-labels for shortlist, reject, notes, and block actions', () => {
       render(
         <SnippetCardExpanded

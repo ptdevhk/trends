@@ -8,6 +8,14 @@ export const JOB51_DETAIL_FETCH_DELAY_MS = 5000;
 
 export const JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS = 1000;
 
+/** Retry a 51job page submit after preview Convex isolate timeouts. */
+export const JOB51_LIST_SUBMIT_MAX_ATTEMPTS = 3;
+
+export const JOB51_LIST_SUBMIT_RETRY_DELAY_MS = 20000;
+
+/** Let ingest-compute drain before the next 51job list page when details are off. */
+export const JOB51_LIST_INGEST_SETTLE_MS = 30000;
+
 export function hasJob51UnsafeLimitsOverride(search = "") {
   const params = new URLSearchParams(search || "");
   return params.get("tr_unsafe_limits") === "1";
@@ -39,7 +47,7 @@ export function resolveJob51AutoSyncDetailWaitMode(search = "") {
   const params = new URLSearchParams(search || "");
   const mode = normalizeResumeText(params.get("tr_job51_detail_wait") || "")
     .toLowerCase();
-  if (mode === "page1" || mode === "all") {
+  if (mode === "page1" || mode === "all" || mode === "off") {
     return mode;
   }
   return "background";

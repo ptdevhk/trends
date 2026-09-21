@@ -29,6 +29,7 @@ import {
   formatKeywordQuery,
   normalizeSearchRoleFilterType,
   parseKeywordQuery,
+  resolveSalesDutyFilters,
 } from "@trends/shared";
 import { isRecord } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
@@ -792,6 +793,7 @@ app.openapi(getResumesRoute, (c) => {
   } = c.req.valid("query");
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
+  const parsedKeywordQuery = parseKeywordQuery(keyword ?? "");
   const keywordExpansion = resumeService.expandSearchQuery(keyword);
   const canReadOperationalOverlays = Boolean(c.var.auth);
   // Internal web escape: sorting by experience must use the post-filter
@@ -805,16 +807,21 @@ app.openapi(getResumesRoute, (c) => {
     : normalizedLocationAlias
       ? [normalizedLocationAlias]
       : undefined;
-  const effectiveRoleFilterType = normalizeSearchRoleFilterType(
-    roleFilterType?.trim() || roleType?.trim() || undefined,
-  ) || undefined;
+  const salesDutyFilters = resolveSalesDutyFilters(parsedKeywordQuery, {
+    roleFilterType: normalizeSearchRoleFilterType(
+      roleFilterType?.trim() || roleType?.trim() || undefined,
+    ) || undefined,
+    minRoleYears,
+  });
+  const effectiveRoleFilterType = salesDutyFilters.roleFilterType;
+  const effectiveMinRoleYears = salesDutyFilters.minRoleYears;
 
   try {
     if (source === "convex") {
       return (async () => {
         const workspaceSlug = c.var.workspaceSlug ?? "dev";
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
-        const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
+        const normalizedKeywords = keyword ? normalizeKeywords(parsedKeywordQuery.keywords) : [];
         const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
         const convexRequiredKeywords = normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords : undefined;
         const normalizedRecommendations = normalizeMatchRecommendations(recommendation);
@@ -827,7 +834,7 @@ app.openapi(getResumesRoute, (c) => {
           locations: effectiveLocations,
           minSalary,
           maxSalary,
-          minRoleYears,
+          minRoleYears: effectiveMinRoleYears,
           roleFilterType: effectiveRoleFilterType,
           minAge,
           maxAge,
@@ -842,7 +849,7 @@ app.openapi(getResumesRoute, (c) => {
           locations: effectiveLocations,
           minSalary,
           maxSalary,
-          minRoleYears,
+          minRoleYears: effectiveMinRoleYears,
           roleFilterType: effectiveRoleFilterType,
           minAge,
           maxAge,
@@ -893,7 +900,7 @@ app.openapi(getResumesRoute, (c) => {
                 term,
                 expandedFrom,
               })),
-              minRoleYears,
+              minRoleYears: effectiveMinRoleYears,
               roleFilterType: effectiveRoleFilterType,
               minAge,
               maxAge,
@@ -1260,7 +1267,7 @@ app.openapi(getResumesRoute, (c) => {
         maxSalary,
         machineOrigin,
         roleFilterType: effectiveRoleFilterType,
-        minRoleYears,
+        minRoleYears: effectiveMinRoleYears,
       }, sampleVerifiedProfilesMap);
 
       const enriched = filtered.map((item, index) => ({

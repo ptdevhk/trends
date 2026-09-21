@@ -67,6 +67,8 @@ type SnippetCardProps = {
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
   /** Raw search query text for highlighting matches in the card */
   searchQuery?: string
+  /** Always-on AI analysis card target label (computed once per search). */
+  analysisCardLabel?: string
   policyOverrides?: CandidatePolicyOverride[]
   resumeIdentity?: string
 }
@@ -160,6 +162,7 @@ export const SnippetCard = memo(function SnippetCard({
   onCandidateStatusChange,
   onToggleBlock,
   searchQuery,
+  analysisCardLabel,
   policyOverrides,
   resumeIdentity,
 }: SnippetCardProps) {
@@ -167,7 +170,7 @@ export const SnippetCard = memo(function SnippetCard({
   const { limit: workHistoryLimit } = useResumeWorkHistoryLimit()
   const contentLocale = getResumeContentLocale(item.resume)
   const resumeSourceLabel = getResumeSourceLabel(item.resume)
-  const analysis = item.analysis ?? item.resume.analysis
+  const analysis = item.analysis
   const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const searchTerms = useMemo(
     () => (searchQuery ? searchQuery.split(/\s+/).filter(Boolean) : []),
@@ -671,6 +674,7 @@ export const SnippetCard = memo(function SnippetCard({
         <SnippetCardExpanded
           item={item}
           showAiScore={showAiScore}
+          analysisCardLabel={analysisCardLabel}
           onViewDetails={onViewDetails ? () => onViewDetails(item) : undefined}
           candidateStatus={candidateStatus}
           policyOverrides={policyOverrides}

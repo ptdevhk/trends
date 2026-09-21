@@ -65,6 +65,8 @@ export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
     doc.documentElement.getAttribute("data-tr-auto-location") || "";
   const autoAge =
     doc.documentElement.getAttribute("data-tr-auto-age") || "";
+  const autoWorkFunc =
+    doc.documentElement.getAttribute("data-tr-auto-work-func") || "";
   const autoExport =
     doc.documentElement.getAttribute("data-tr-auto-export") || "";
   const autoSync =
@@ -123,6 +125,7 @@ export function getExternalAccessorStatus(deps: ExternalAccessorDeps) {
     autoSearch,
     autoLocation,
     autoAge,
+    autoWorkFunc,
     autoExport,
     autoSync,
     autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
