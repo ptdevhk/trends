@@ -163,5 +163,29 @@ describe('preview CMM v14 keyword analysis storage contract', () => {
     expect(keys).toContain(STORAGE_KEY)
     expect(keys[0]).toBe(STORAGE_KEY)
   })
+
+  it('falls back to the prod-era source-only key when looking up with a locale (old prod blobs must survive clone+upgrade)', () => {
+    // Prod-era blobs were written without the locale segment. A newer lookup
+    // (source+locale) must still reach them, so the source-only key must appear
+    // in the lookup list, after the locale-first key.
+    const prodEraKey = 'source:51job|analysis:keyword-search:2:4dc6f7f9'
+    const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job', locale: 'zh-Hans' })
+    expect(keys).toEqual([
+      STORAGE_KEY,
+      prodEraKey,
+      'keyword-search:2:4dc6f7f9',
+    ])
+    expect(keys).toContain(prodEraKey)
+  })
+
+  it('dedupes the source-only and locale-first keys when locale is omitted', () => {
+    // Without a locale, source+locale and source-only collapse to the same key;
+    // it must appear exactly once, ahead of the bare keyword key.
+    const keys = buildResumeAnalysisLookupKeys(undefined, KEYWORDS, { location: 'China', promptVersion: 14, sourceKey: '51job' })
+    expect(keys).toEqual([
+      'source:51job|analysis:keyword-search:2:4dc6f7f9',
+      'keyword-search:2:4dc6f7f9',
+    ])
+  })
 })
 

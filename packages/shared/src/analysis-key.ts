@@ -196,6 +196,39 @@ export function buildResumeAnalysisStorageKey(
   return parts.join("|");
 }
 
+/**
+ * De-duplicated string list preserving insertion order (first occurrence wins).
+ * Used to collapse overlapping key shapes (e.g. when no locale is supplied the
+ * source+locale and source-only keys are identical) without dropping the search
+ * ordering that earlier keys take precedence over later ones.
+ */
+function dedupeKeys(keys: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const key of keys) {
+    if (seen.has(key) || !key) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+/**
+ * Build the ordered list of analysis-cache keys to probe for a resume.
+ *
+ * Order matters: earlier keys take precedence (the first present blob wins).
+ * When the resume source (and, when known, its storage locale) is available,
+ * the list includes, in order:
+ *   1. the current write key `source:<src>|locale:<locale>|analysis:<id>`
+ *      (matches analysis written since locale-segmentation),
+ *   2. the prod-era source-only key `source:<src>|analysis:<id>`
+ *      (matches old prod blobs written before locale segmentation — these
+ *      survive a clone+upgrade and must keep displaying),
+ *   3. the existing bare `jobDescriptionId` / `keyword-search:…` key.
+ *
+ * When no source/locale is present all three collapse to the bare key, keeping
+ * legacy (pre-source-key) storage reachable.
+ */
 export function buildResumeAnalysisLookupKeys(
   jobDescriptionId: string | undefined,
   keywords: string[],
@@ -204,13 +237,15 @@ export function buildResumeAnalysisLookupKeys(
   if (jobDescriptionId) {
     const legacyKey = normalizeJobDescriptionId(jobDescriptionId);
     const sourceAwareKey = buildResumeAnalysisStorageKey(jobDescriptionId, { sourceKey: options?.sourceKey, locale: options?.locale });
-    return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
+    const prodEraKey = buildResumeAnalysisStorageKey(jobDescriptionId, { sourceKey: options?.sourceKey });
+    return dedupeKeys([sourceAwareKey, prodEraKey, legacyKey]);
   }
 
   if (keywords.length > 0) {
     const legacyKey = buildKeywordAnalysisId(keywords, options);
     const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey, locale: options?.locale });
-    return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
+    const prodEraKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey });
+    return dedupeKeys([sourceAwareKey, prodEraKey, legacyKey]);
   }
 
   return [];

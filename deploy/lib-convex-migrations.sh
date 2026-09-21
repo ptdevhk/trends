@@ -44,6 +44,7 @@ backfillAge	{}	10000	3	idempotent age derivation
 backfillSearchText	{}	10000	3	idempotent search-text derivation
 backfillEvidenceText	{}	10000	3	idempotent evidence-text derivation
 backfillPrimaryRuleScore	{}	10000	3	idempotent primary-rule score derivation
+rekeyResumeAnalysisKeys	{"batchSize":100}	10000	3	idempotent analysis-key rekey onto locale-segmented keys (originals kept)
 validateDataConsistency	{}	10000	3	idempotent consistency validation and derived-data repair
 EOF
 }

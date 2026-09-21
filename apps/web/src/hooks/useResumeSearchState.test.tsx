@@ -643,8 +643,6 @@ describe('useResumeSearchState', () => {
       location: 'China',
     }))
 
-    // Full key only — the saved blob must be reachable through the locale
-    // segment, not through a bare source:51job|analysis:… fallback.
     const savedAnalysis = {
       score: 84,
       summary: 'CMM 三坐标/3D扫描 sales fit',
@@ -654,6 +652,18 @@ describe('useResumeSearchState', () => {
       promptVersion: 14,
     }
 
+    // The lookup now includes BOTH the locale-first key AND the prod-era
+    // source-only key (no locale), so old prod blobs survive a clone+upgrade.
+    expect(buildResumeAnalysisLookupKeys(undefined, analysisKeywordsFor('三坐标 or 3D扫描 销售', ['三坐标', '3D扫描']), {
+      location: 'China',
+      sourceKey: '51job',
+      locale: 'zh-hans',
+    })).toEqual([
+      'source:51job|locale:zh-hans|analysis:keyword-search:2:4dc6f7f9',
+      'source:51job|analysis:keyword-search:2:4dc6f7f9',
+      'keyword-search:2:4dc6f7f9',
+    ])
+
     resumesMock.push(
       // Expected: 51job lane + locale:zh-hans + location China → shows.
       createResume(1, {
@@ -661,7 +671,8 @@ describe('useResumeSearchState', () => {
         source: 'ehire.51job.com',
         analyses: { [savedKey]: savedAnalysis },
       }),
-      // Negative: same hash but no locale segment (the pre-fix lookup) → hidden.
+      // Prod-era: same hash but no locale segment — the older lookup missed
+      // it, but old prod blobs must still display after clone+upgrade → shows.
       createResume(2, {
         primaryRuleScore: 65,
         source: 'ehire.51job.com',
@@ -678,19 +689,20 @@ describe('useResumeSearchState', () => {
 
     const { result } = renderHook(() => useResumeSearchState())
 
+    // Resume 1 reaches the blob through the locale-first key.
     expect(result.current.filteredResults[0]?.analysis?.summary).toBe('CMM 三坐标/3D扫描 sales fit')
     expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
-    expect(result.current.filteredResults[1]?.analysis).toBeUndefined()
-    expect(result.current.filteredResults[1]?.scoreSource).toBe('rule')
+    // Resume 2 reaches the SAME blob through the prod-era source-only key.
+    expect(result.current.filteredResults[1]?.analysis?.summary).toBe('CMM 三坐标/3D扫描 sales fit')
+    expect(result.current.filteredResults[1]?.scoreSource).toBe('ai')
+    // Resume 3 (wrong location context) stays hidden → rule score only.
     expect(result.current.filteredResults[2]?.analysis).toBeUndefined()
     expect(result.current.filteredResults[2]?.scoreSource).toBe('rule')
 
-    // Guard: dropping the locale from resolveSearchAnalysis (the pre-fix
-    // lookup) hides the saved blob even though sourceKey + location + hash
-    // all match.
+    // Guard: a lookup without ANY locale/source-key (the pre-fix lookup) hides
+    // the saved blob even though sourceKey + location + hash all match.
     expect(buildResumeAnalysisLookupKeys(undefined, ['三坐标', '3D扫描'], {
       location: 'China',
-      sourceKey: '51job',
     })).not.toContain(savedKey)
   })
 

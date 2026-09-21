@@ -5,9 +5,11 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
     buildLatestWorkHistoryEvidence,
+    buildResumeAnalysisStorageKey,
     buildSeekNameSearchUrl,
     computeTemplateHash,
     computeVerifiedRoleYears,
+    DEFAULT_RESUME_AI_PROMPT_LOCALE,
     formatLocationHierarchyLabel,
     formatLocationHierarchySearchText,
     getWorkspaceSearchProfileTemplates,
@@ -18,6 +20,7 @@ import {
     isLikelyManual51jobCompanyName,
     isLikelyManual51jobJobTitle,
     parse51jobManualResume,
+    resolveResumeAnalysisSourceKey,
     shouldPreferManual51jobOptionalField,
     splitManual51jobLines,
     isRecord,
@@ -2021,6 +2024,141 @@ export const backfillResumeAnalysesStatus = mutation({
         return {
             scanned: rows.page.length,
             updated,
+            hasMore: !rows.isDone,
+            cursor: rows.isDone ? null : rows.continueCursor,
+        };
+    },
+});
+
+// ---------------------------------------------------------------------------
+// Analysis-key rekey (old prod blobs survive clone + upgrade)
+// ---------------------------------------------------------------------------
+
+/**
+ * Storage-key locale segment for the rekey, mirroring the write path
+ * (`resolveAIOutputLocale` in lib/analysis_config.ts): seek rows analyze in
+ * `en`, every other source uses the default resume AI prompt locale. Must stay
+ * in lock-step with the write path or the copied blobs land under the wrong
+ * key and the CMM card keeps showing "AI 待处理".
+ */
+function resolveAnalysisKeyLocaleForReKey(sourceKey: string | undefined): string {
+    return sourceKey === "seek" ? "en" : DEFAULT_RESUME_AI_PROMPT_LOCALE;
+}
+
+/**
+ * Drain-style rekey of `resume_analyses.analyses` entries onto the
+ * locale-segmented storage key.
+ *
+ * Why: a preview clone of prod imports cold rows verbatim. Prod-era blobs were
+ * written under the source-only key `source:<src>|analysis:<id>` (no locale
+ * segment); the current write path uses `source:<src>|locale:<locale>|analysis:<id>`.
+ * The old source-only key survives the clone+upgrade unchanged, and the lookup
+ * fallback reaches it — but copying each analyses entry onto the derived
+ * locale-segmented key makes the newest (locale-first) lookup path hit the blob
+ * directly and keeps old prod scores displaying even when the lookup's prod-era
+ * fallback is later removed.
+ *
+ * Per row: derive the resume's sourceKey → the target locale, then for each
+ * `analyses` entry whose key is a source-only storage key (`source:…|analysis:…`)
+ * write a copy onto `source:…|locale:<loc>|analysis:…`. Originals are left
+ * untouched, so the migration is idempotent — re-running simply re-copies onto
+ * keys that already exist (no net change).
+ *
+ * The write path never mixes these, so a `source+locale` key and its `source`
+ * sibling can both be present in the same map for the same source — no
+ * collision, no overwrite of a distinct locale-segmented blob.
+ *
+ * Edge cases handled:
+ *   - Rows that only carry bare `keyword-search:…` / `jobDescriptionId` keys
+ *     (no `source:` prefix) are skipped — there is no source to segment on.
+ *   - Source-only keys whose source does not resolve to a known analysis source
+ *     are copied as-is to the `locale` key built from the stored source token
+ *     (matching exactly how the lookup builds both sides from the same token).
+ *   - `status: "archived"` cold rows are skipped (archived = cleared).
+ */
+export const rekeyResumeAnalysisKeys = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const rows = await ctx.db
+            .query("resume_analyses")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        const SOURCE_ONLY_RE = /^source:[^|]+\|analysis:.+$/;
+
+        // Which resumes on this page carry at least one source-only analyses
+        // entry we might copy. Batch-fetch their source in one shot (no N+1).
+        const targetIds: Id<"resumes">[] = [];
+        for (const row of rows.page) {
+            if (row.status === "archived" || !row.analyses) {
+                continue;
+            }
+            if (Object.keys(row.analyses).some((key) => SOURCE_ONLY_RE.test(key))) {
+                if (!targetIds.includes(row.resumeId)) {
+                    targetIds.push(row.resumeId);
+                }
+            }
+        }
+        const resumeSourceKeyById = new Map<string, string | undefined>();
+        const resumeSourceById = new Map<string, string | undefined>();
+        for (const resumeId of targetIds) {
+            const resume = await ctx.db.get(resumeId);
+            if (resume) {
+                resumeSourceKeyById.set(String(resumeId), resume.sourceKey);
+                resumeSourceById.set(String(resumeId), resume.source);
+            }
+        }
+
+        let copied = 0;
+        let scanned = 0;
+        for (const row of rows.page) {
+            scanned += 1;
+            if (row.status === "archived" || !row.analyses) {
+                continue;
+            }
+            const sourceKey = resumeSourceKeyById.get(String(row.resumeId))
+                ?? (resumeSourceById.has(String(row.resumeId))
+                    ? resolveResumeAnalysisSourceKey({ source: resumeSourceById.get(String(row.resumeId)) })
+                    : undefined);
+            const locale = resolveAnalysisKeyLocaleForReKey(sourceKey);
+            const next = { ...row.analyses };
+            let rowCopied = 0;
+            for (const [key, value] of Object.entries(row.analyses)) {
+                if (!SOURCE_ONLY_RE.test(key)) {
+                    continue;
+                }
+                const analysisSegment = key.indexOf("|analysis:");
+                // `analysis:<id>` — the id must NOT include the literal prefix.
+                const analysisToken = key.slice(analysisSegment + "|analysis:".length);
+                const sourceToken = key.slice("source:".length, analysisSegment);
+                const localeKey = buildResumeAnalysisStorageKey(analysisToken, {
+                    sourceKey: sourceToken,
+                    locale,
+                });
+                // Idempotent: only copy onto keys that don't already exist (a
+                // locally-written locale-segmented blob for this source should
+                // never be overwritten by the source-only sibling).
+                if (!(localeKey in next)) {
+                    next[localeKey] = value;
+                    rowCopied += 1;
+                }
+            }
+            if (rowCopied > 0) {
+                await ctx.db.patch(row._id, { analyses: next });
+                copied += rowCopied;
+            }
+        }
+
+        return {
+            scanned,
+            updated: copied,
+            copied,
             hasMore: !rows.isDone,
             cursor: rows.isDone ? null : rows.continueCursor,
         };
