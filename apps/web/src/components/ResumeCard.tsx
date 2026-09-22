@@ -446,7 +446,7 @@ export const ResumeCard = memo(function ResumeCard({
         ? 'bg-amber-500 text-white border-amber-600'
         : ''
   const aiScoreNode = hasAiScore ? (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" data-testid="ai-score">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

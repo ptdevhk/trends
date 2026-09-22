@@ -354,7 +354,7 @@ export const SnippetCard = memo(function SnippetCard({
         {/* Score */}
         {showAiScore ? (
           hasAiScore ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-testid="ai-score">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>

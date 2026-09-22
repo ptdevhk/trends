@@ -702,6 +702,32 @@ describe('SnippetCard', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
+  it('exposes an ai-score testid on the compact AI score badge (e2e smoke contract)', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        showAiScore
+        item={createResult(1, {
+          scoreSource: 'ai',
+          score: 88,
+          analysis: {
+            score: 88,
+            summary: 'Strong CNC sales coverage.',
+            highlights: [],
+            recommendation: 'strong_match',
+          },
+        })}
+        itemKey="result-1"
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    // scripts/e2e-smoke.ts CP3 asserts this testid is visible after Analyze.
+    const badge = screen.getByTestId('ai-score')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveTextContent('88')
+  })
+
   it('renders rule score badge when showAiScore is false', () => {
     render(
       <SnippetCard
