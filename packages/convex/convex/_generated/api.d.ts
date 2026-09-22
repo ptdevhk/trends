@@ -23,6 +23,7 @@ import type * as company_key_projection from "../company_key_projection.js";
 import type * as company_registry from "../company_registry.js";
 import type * as company_resume_links from "../company_resume_links.js";
 import type * as crons from "../crons.js";
+import type * as daily_reports from "../daily_reports.js";
 import type * as embeddings from "../embeddings.js";
 import type * as industry_coverage from "../industry_coverage.js";
 import type * as industry_data_entries from "../industry_data_entries.js";
@@ -105,6 +106,7 @@ declare const fullApi: ApiFromModules<{
   company_registry: typeof company_registry;
   company_resume_links: typeof company_resume_links;
   crons: typeof crons;
+  daily_reports: typeof daily_reports;
   embeddings: typeof embeddings;
   industry_coverage: typeof industry_coverage;
   industry_data_entries: typeof industry_data_entries;
