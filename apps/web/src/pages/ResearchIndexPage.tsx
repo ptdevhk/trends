@@ -621,6 +621,17 @@ export function ResearchIndexPage() {
   const showResumeDeskSection = showcaseLoading || fromDesk.length > 0
   const showIndustrySection = industryLoading || !!industryError || industry.length > 0
 
+  const dailyHref = `/${slug}/research/daily`
+  const shanghaiToday = useMemo(() => {
+    // Asia/Shanghai calendar day (same contract as the worker daily pack).
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date())
+  }, [])
+
   return (
     <div className="space-y-6 p-3 sm:p-4" data-testid="research-index-page">
       <PageHeader
@@ -629,6 +640,36 @@ export function ResearchIndexPage() {
           defaultValue: '精密机械 / 数控机床企业信号 — 面向 HR 简历台（简体中文优先）。',
         })}
       />
+
+      <Card data-testid="research-daily-report-hero">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {t('research.dailyReportLink', { defaultValue: '销售日报' })}
+          </CardTitle>
+          <CardDescription>
+            {t('research.dailyReportHeroBody', {
+              defaultValue:
+                '按日历日看今日商机 / 趋势 / 热闻（不是下方综合热榜的近期列表）。可切换近 7 个报告日。',
+              date: shanghaiToday,
+            })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Button asChild type="button" size="sm">
+            <Link to={dailyHref} data-testid="research-daily-report-link">
+              {t('research.dailyReportOpenToday', {
+                defaultValue: '打开今日日报 · {{date}}',
+                date: shanghaiToday,
+              })}
+            </Link>
+          </Button>
+          <Button asChild type="button" size="sm" variant="outline">
+            <a href={`/daily/${shanghaiToday}.html`} target="_blank" rel="noreferrer">
+              {t('research.dailyReportPublicLink', { defaultValue: '公开分享页' })}
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
 
       <ChannelsBriefingPanel />
 
@@ -646,6 +687,11 @@ export function ResearchIndexPage() {
           {seeding
             ? t('research.seedingShowcase', { defaultValue: '正在加载展示数据…' })
             : t('research.seedShowcase', { defaultValue: '加载展示数据' })}
+        </Button>
+        <Button asChild type="button" size="sm" variant="outline">
+          <Link to={dailyHref} data-testid="research-daily-report-link-toolbar">
+            {t('research.dailyReportLink', { defaultValue: '销售日报' })}
+          </Link>
         </Button>
         <Button
           type="button"
@@ -774,15 +820,25 @@ export function ResearchIndexPage() {
           <h2 className="text-sm font-semibold" data-testid="research-section-hotlist-title">
             {t('research.sectionPulse', { defaultValue: '综合热榜' })}
           </h2>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setKeywordsDialogOpen(true)}
-            data-testid="research-manage-keywords"
-          >
-            {t('research.pulseKeywords.manage', { defaultValue: '管理关键词' })}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild type="button" size="sm" variant="ghost">
+              <Link
+                to={`/${slug}/research/daily`}
+                data-testid="research-daily-report-link-pulse"
+              >
+                {t('research.dailyReportLink', { defaultValue: '销售日报' })}
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setKeywordsDialogOpen(true)}
+              data-testid="research-manage-keywords"
+            >
+              {t('research.pulseKeywords.manage', { defaultValue: '管理关键词' })}
+            </Button>
+          </div>
         </div>
 
         {effectiveKeywords.length > 0 ? (

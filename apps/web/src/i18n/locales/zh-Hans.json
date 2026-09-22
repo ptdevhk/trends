@@ -3179,6 +3179,13 @@
     "sectionIndustryHint": "数控/精密机械品牌目录，简体名称优先；点击进入企业研究页。",
     "sectionLive": "实时信号",
     "sectionPulse": "综合热榜",
+    "dailyReportLink": "销售日报",
+    "dailyReportHeroBody": "按日历日看今日商机 / 趋势 / 热闻（不是下方综合热榜的近期列表）。可切换近 7 个报告日。",
+    "dailyReportOpenToday": "打开今日日报 · {{date}}",
+    "dailyReportPublicLink": "公开分享页",
+    "daily": {
+      "back": "← 返回市场动态"
+    },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",
     "sectionShowcase": "展示数据",

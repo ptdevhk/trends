@@ -40,6 +40,7 @@ from apps.worker.timezone import bootstrap_worker_timezone
 from apps.worker.status_store import resolve_worker_status_path
 from apps.worker.tasks import (
     run_crawl_analyze,
+    run_daily_report_build_task,
     run_industry_evidence_maintenance,
     run_research_ingest,
     run_workspace_summary,
@@ -304,6 +305,62 @@ async def trigger_research_ingest(body: ResearchIngestRequest = ResearchIngestRe
         started_at=started_at,
         finished_at=finished_at,
         message="Research ingest completed",
+    )
+
+
+class DailyReportBuildRequest(BaseModel):
+    """Optional body for operator sales daily-report build trigger."""
+
+    date: Optional[str] = Field(
+        default=None,
+        description="Asia/Shanghai calendar day YYYY-MM-DD; omit for today.",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
+    force: bool = Field(
+        default=True,
+        description="Bypass once-per-day stamp (default true for manual triggers).",
+    )
+
+
+@router.post(
+    "/worker/research/daily-report",
+    response_model=WorkerTriggerResponse,
+    tags=["Research"],
+)
+async def trigger_daily_report_build(
+    body: DailyReportBuildRequest = DailyReportBuildRequest(),
+):
+    """
+    Trigger a one-time sales daily-report build (7-day rolling window HTML).
+    Force-enables DAILY_REPORT_BUILD_ENABLED for the call; defaults force=True
+    so operators can rebuild even when today's stamp already exists.
+    """
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    import os
+
+    previous = os.environ.get("DAILY_REPORT_BUILD_ENABLED")
+    os.environ["DAILY_REPORT_BUILD_ENABLED"] = "1"
+    try:
+        success = await asyncio.to_thread(
+            run_daily_report_build_task,
+            body.date,
+            force=body.force,
+        )
+    finally:
+        if previous is None:
+            os.environ.pop("DAILY_REPORT_BUILD_ENABLED", None)
+        else:
+            os.environ["DAILY_REPORT_BUILD_ENABLED"] = previous
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Daily-report build failed")
+
+    return WorkerTriggerResponse(
+        mode="daily-report-build",
+        started_at=started_at,
+        finished_at=finished_at,
+        message="Daily-report build completed",
     )
 
 

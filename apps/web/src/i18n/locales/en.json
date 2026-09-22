@@ -3152,6 +3152,13 @@
     "sectionIndustryHint": "数控/精密机械品牌目录，简体名称优先；点击进入企业研究页。",
     "sectionLive": "实时信号",
     "sectionPulse": "Hotlist",
+    "dailyReportLink": "Sales Daily",
+    "dailyReportHeroBody": "Calendar-day opportunities / trends / hot stories — not the rolling pulse list below. Switch among the last 7 report days.",
+    "dailyReportOpenToday": "Open today's report · {{date}}",
+    "dailyReportPublicLink": "Public share page",
+    "daily": {
+      "back": "← Back to research hub"
+    },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",
     "sectionShowcase": "展示数据",

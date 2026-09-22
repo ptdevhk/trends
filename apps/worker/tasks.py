@@ -93,6 +93,9 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
     """
     Research Eng native ingest: hotlist/RSS → Convex news_items + research_signals.
     Gated by RESEARCH_INGEST_ENABLED=1.
+
+    On success, optionally chains the sales daily-report builder (7-day window)
+    when DAILY_REPORT_BUILD_ENABLED / RESEARCH_INGEST_ENABLED allows it.
     """
     if _is_maintenance_mode():
         logger.info("[Task] Skipping research ingest — maintenance mode active")
@@ -100,7 +103,51 @@ def run_research_ingest(config_overrides: Optional[Dict[str, Any]] = None) -> bo
 
     from apps.worker.research_ingest import run_research_ingest as _run
 
-    return _run(config_overrides=config_overrides)
+    ok = _run(config_overrides=config_overrides)
+    if not ok:
+        return False
+
+    try:
+        from apps.worker.daily_report import (
+            daily_report_build_enabled,
+            run_daily_report_build,
+        )
+
+        if daily_report_build_enabled():
+            built = run_daily_report_build()
+            if not built:
+                logger.warning(
+                    "[Task] research ingest ok but daily-report build failed "
+                    "(HTML may be stale until next success)"
+                )
+        else:
+            logger.info("[Task] daily-report build skipped (DAILY_REPORT_BUILD_ENABLED off)")
+    except Exception as err:  # noqa: BLE001
+        logger.warning("[Task] daily-report chain error (ingest still ok): %s", err)
+
+    return True
+
+
+def run_daily_report_build_task(
+    date_ymd: Optional[str] = None,
+    *,
+    force: bool = False,
+) -> bool:
+    """Scheduled / manual sales daily-report build (7-day rolling window)."""
+    if _is_maintenance_mode():
+        logger.info("[Task] Skipping daily-report build — maintenance mode active")
+        return True
+
+    from apps.worker.daily_report import (
+        daily_report_build_enabled,
+        run_daily_report_build,
+    )
+
+    if not daily_report_build_enabled() and not force:
+        logger.info("[Task] daily-report build disabled")
+        return True
+
+    return run_daily_report_build(date_ymd, force=force)
 
 
 def run_industry_evidence_maintenance(

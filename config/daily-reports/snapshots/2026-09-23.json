@@ -1,12 +1,12 @@
 {
-  "date": "2026-09-19",
+  "date": "2026-09-23",
   "localeDefault": "zh-Hans",
   "source": "frozen",
   "generatedAt": "2026-09-22T16:08:31.785Z",
   "hero": {
     "headline": "今日行业热度",
     "value": "14",
-    "delta": "—",
+    "delta": "+0%",
     "meta": "0 来源 · 0 热榜命中 · 2026-09-17–2026-09-23",
     "sparkline": [
       0,
@@ -14,7 +14,7 @@
       0,
       0,
       0,
-      0,
+      14,
       0
     ],
     "dayLabels": [
@@ -125,6 +125,6 @@
       "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E7%83%AD%E7%82%B9%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23e6ebf0%22%2F%3E%3Crect%20x%3D%22100%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%235c6b7a%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%235c6b7a%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%235c6b7a%22%3E%E7%83%AD%E7%82%B9%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%235c6b7a%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23d5dde5%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%233a4a5a%22%3E%E6%9C%BA%E5%BA%8A%3C%2Ftext%3E%3C%2Fsvg%3E"
     }
   ],
-  "fallbackFromDate": "2026-09-18",
-  "banner": "沿用最近完整日（2026-09-18）· 2026-09-19 实时命中不足 4 条"
+  "fallbackFromDate": "2026-09-22",
+  "banner": "沿用最近完整日（2026-09-22）· 2026-09-23 实时命中不足 4 条"
 }

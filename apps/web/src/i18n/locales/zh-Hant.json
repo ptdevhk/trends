@@ -3152,6 +3152,13 @@
     "sectionIndustryHint": "數控/精密機械品牌目錄，簡體名稱優先；點擊進入企業研究頁。",
     "sectionLive": "實時信號",
     "sectionPulse": "綜合熱榜",
+    "dailyReportLink": "銷售日報",
+    "dailyReportHeroBody": "按日曆日看今日商機 / 趨勢 / 熱聞（不是下方綜合熱榜的近期列表）。可切換近 7 個報告日。",
+    "dailyReportOpenToday": "打開今日日報 · {{date}}",
+    "dailyReportPublicLink": "公開分享頁",
+    "daily": {
+      "back": "← 返回市場動態"
+    },
     "sectionResumeDesk": "數控品牌臺（展示）",
     "sectionSearch": "搜索企業",
     "sectionShowcase": "展示數據",

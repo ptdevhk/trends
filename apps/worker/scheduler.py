@@ -30,6 +30,7 @@ from apps.worker.tasks import (
     run_crawl_analyze,
     run_industry_evidence_maintenance,
     run_research_ingest,
+    run_daily_report_build_task,
     health_check,
     list_summary_profiles_runtime,
     run_skills_version_check,
@@ -41,6 +42,7 @@ from apps.worker.industry_evidence_research import (
     industry_evidence_maintenance_enabled,
 )
 from apps.worker.research_ingest import research_ingest_enabled
+from apps.worker.daily_report import daily_report_build_enabled
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
 from apps.worker.resume_tasks import run_resume_crawl_task
@@ -258,6 +260,37 @@ class WorkerScheduler:
         )
         logger.info(
             "Scheduled research ingest job (interval=%s min or cron=%s)",
+            self.interval_minutes,
+            self.cron_expression,
+        )
+
+    def add_daily_report_build_job(self) -> None:
+        """Add sales daily-report build when DAILY_REPORT_BUILD_ENABLED (or ingest) is on.
+
+        Runs on the same cadence as research ingest. The builder's once-per-day
+        stamp skips no-op repeats; ingest also chains a build on success.
+        """
+        if not daily_report_build_enabled():
+            logger.info(
+                "Daily-report build job disabled; set DAILY_REPORT_BUILD_ENABLED=1 "
+                "(or RESEARCH_INGEST_ENABLED=1) to enable"
+            )
+            return
+
+        if self.cron_expression:
+            trigger = CronTrigger.from_crontab(self.cron_expression, timezone=self.timezone)
+        else:
+            trigger = IntervalTrigger(minutes=self.interval_minutes, timezone=self.timezone)
+
+        self.scheduler.add_job(
+            run_daily_report_build_task,
+            trigger=trigger,
+            id="daily_report_build",
+            name="Sales Daily Report Build",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled daily-report build job (interval=%s min or cron=%s)",
             self.interval_minutes,
             self.cron_expression,
         )
@@ -497,6 +530,7 @@ class WorkerScheduler:
         # Add the main job
         self.add_crawl_job()
         self.add_research_ingest_job()
+        self.add_daily_report_build_job()
         self.add_industry_evidence_maintenance_job()
         
         # Load dynamic profile jobs

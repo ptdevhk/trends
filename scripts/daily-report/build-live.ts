@@ -270,6 +270,60 @@ async function main(): Promise<void> {
     writeOutputs(result.pack, day)
   }
 
+  // Second pass: thin earlier days in this window may have no prior snapshot
+  // when the only rich day is "today" (single ingest). Fill from the newest
+  // rich pack in the window so Day1…Day7 nav is usable for boss demos.
+  const richInWindow = windowDates
+    .map((d) => {
+      try {
+        return parseDailyReportPack(
+          JSON.parse(readFileSync(join(SNAPSHOT_DIR, `${d}.json`), 'utf8')),
+        )
+      } catch {
+        return null
+      }
+    })
+    .filter((p): p is DailyReportPack => !!p && p.opportunities.length + p.stories.length >= HYBRID_MIN_ITEMS)
+  const newestRich = richInWindow.length ? richInWindow[richInWindow.length - 1] : null
+  if (newestRich) {
+    for (const day of windowDates) {
+      if (day >= newestRich.date) continue
+      let existing: DailyReportPack | null = null
+      try {
+        existing = parseDailyReportPack(
+          JSON.parse(readFileSync(join(SNAPSHOT_DIR, `${day}.json`), 'utf8')),
+        )
+      } catch {
+        existing = null
+      }
+      if (existing && existing.opportunities.length + existing.stories.length >= HYBRID_MIN_ITEMS) {
+        continue
+      }
+      const liveHero = existing?.hero
+      const frozen: DailyReportPack = {
+        ...newestRich,
+        date: day,
+        source: 'frozen',
+        generatedAt,
+        fallbackFromDate: newestRich.date,
+        banner: `沿用最近完整日（${newestRich.date}）· ${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条`,
+        hero: {
+          ...newestRich.hero,
+          ...(liveHero
+            ? {
+                sparkline: liveHero.sparkline,
+                dayLabels: liveHero.dayLabels,
+                dayDates: liveHero.dayDates,
+                meta: liveHero.meta,
+              }
+            : {}),
+        },
+      }
+      writeOutputs(frozen, day)
+      console.log(`hybrid-pass2[${day}]: reused ${newestRich.date} as frozen snapshot`)
+    }
+  }
+
   console.log(`keywords=${keywords.length} hotlistPlatforms=${hotlistPlatforms.length}`)
 }
 

@@ -390,6 +390,33 @@ describe('ResearchIndexPage hub', () => {
     expect(source).toContain('ResearchIndexPage')
   })
 
+  it('links 销售日报 to workspace research/daily', async () => {
+    render(
+      <MemoryRouter>
+        <ResearchIndexPage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-daily-report-hero')).toBeInTheDocument()
+    })
+    const headerLink = screen.getByTestId('research-daily-report-link')
+    expect(headerLink).toHaveAttribute('href', '/hr/research/daily')
+    expect(headerLink).toHaveTextContent(/销售日报|2026-09-22|打开今日/)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('research-daily-report-link-pulse')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('research-daily-report-link-pulse')).toHaveAttribute(
+      'href',
+      '/hr/research/daily',
+    )
+    expect(screen.getByTestId('research-daily-report-link-toolbar')).toHaveAttribute(
+      'href',
+      '/hr/research/daily',
+    )
+  })
+
   it('renders golden, CNC desk, industry browse with nameCn-first and showcase label', async () => {
     render(
       <MemoryRouter>
