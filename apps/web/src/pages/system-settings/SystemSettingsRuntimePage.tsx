@@ -30,11 +30,12 @@ import { reportUiError } from '@/lib/ui-error-reporting'
 
 interface AiRoutingEditorProps {
   loading: boolean
+  onAiStatusChanged?: () => void
 }
 
 const EMPTY_AIR = '__none__'
 
-function AiRoutingEditor({ loading }: AiRoutingEditorProps) {
+function AiRoutingEditor({ loading, onAiStatusChanged }: AiRoutingEditorProps) {
   const { t } = useTranslation()
   const { requestJson } = useSettingsRequestJson()
   const [state, setState] = useState<AiRoutingState | null>(null)
@@ -148,13 +149,16 @@ function AiRoutingEditor({ loading }: AiRoutingEditorProps) {
       }
       setState((current) => current ? { ...current, stored: parsed.stored, effective: parsed.effective } : current)
       toast.success(t('debugConfig.aiRoutingSaved', { defaultValue: 'AI routing saved.' }))
+      // Hot-config changed the effective view — refresh the upper Effective AI
+      // status card so its model/base/source update without a page reload.
+      onAiStatusChanged?.()
     } catch (error) {
       reportUiError('Failed to save AI routing', error)
       toast.error(t('debugConfig.aiRoutingSaveError', { defaultValue: 'Failed to save AI routing.' }))
     } finally {
       setSaving(false)
     }
-  }, [requestJson, modelSelect, otherModel, apiBase, fallbackModel, t, state])
+  }, [requestJson, modelSelect, otherModel, apiBase, fallbackModel, t, state, onAiStatusChanged])
 
   const modelOptions = useMemo(() => {
     const merged = Array.from(new Set([...gatewayModels, ...(state?.curatedModels ?? [])]))
@@ -306,6 +310,19 @@ export function SystemSettingsRuntimePage() {
     () => parseResumeWorkHistoryLimitInput(workHistoryLimitInput),
     [workHistoryLimitInput],
   )
+
+  const loadEffectiveAiStatus = useCallback(async () => {
+    try {
+      const aiPayload = await requestJson('/api/config/ai-status')
+      const parsedAiStatus = parseAIStatusPayload(aiPayload)
+      if (!parsedAiStatus) {
+        throw new Error('Invalid AI status response')
+      }
+      setAiStatus(parsedAiStatus)
+    } catch (error) {
+      reportUiError('Failed to reload AI status', error)
+    }
+  }, [requestJson])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -580,7 +597,12 @@ export function SystemSettingsRuntimePage() {
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
         <Card className="h-full">
           <CardHeader>
-            <CardTitle>{t('debugConfig.aiStatus')}</CardTitle>
+            <CardTitle>{t('debugConfig.aiEffectiveStatusTitle', { defaultValue: 'Effective AI status' })}</CardTitle>
+            <CardDescription>
+              {t('debugConfig.aiEffectiveStatusHint', {
+                defaultValue: 'Model and API base reflect the AI routing hot-config (or environment). The enable switch and API key always come from the environment.',
+              })}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {!aiStatus ? (
@@ -588,14 +610,20 @@ export function SystemSettingsRuntimePage() {
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={aiStatus.source === 'settings' ? 'default' : 'secondary'}
+                    data-testid="ai-status-source"
+                  >
+                    {t('debugConfig.aiRoutingSourceBadge', {
+                      source: aiStatus.source === 'settings'
+                        ? t('debugConfig.aiRoutingSourceSettings', { defaultValue: 'Settings' })
+                        : t('debugConfig.aiRoutingSourceEnv', { defaultValue: 'Environment' }),
+                      defaultValue: 'Source: {{source}}',
+                    })}
+                  </Badge>
                   <Badge variant={aiStatus.enabled ? 'default' : 'secondary'}>
                     {aiStatus.enabled ? t('debugConfig.aiEnabled') : t('debugConfig.aiDisabled')}
                   </Badge>
-                  {aiStatus.bonded?.includes('AI_ANALYSIS_ENABLED') && (
-                    <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
-                      Bound to environment
-                    </Badge>
-                  )}
                   <Badge variant={aiStatus.valid ? 'default' : 'destructive'}>
                     {aiStatus.valid ? t('debugConfig.aiValid') : t('debugConfig.aiInvalid')}
                   </Badge>
@@ -603,19 +631,16 @@ export function SystemSettingsRuntimePage() {
 
                 <div className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
-                      {aiStatus.bonded?.includes('AI_MODEL') && (
-                        <Badge variant="outline" className="h-4 px-1 text-[10px] border-emerald-500/50 text-emerald-600">
-                          Bonded
-                        </Badge>
-                      )}
-                    </div>
+                    <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
                     <p className="font-medium">{aiStatus.model}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{t('debugConfig.aiApiBase')}</p>
                     <p className="font-medium">{aiStatus.apiBase ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">{t('debugConfig.aiFallbackLabel', { defaultValue: 'Fallback model' })}</p>
+                    <p className="font-medium">{aiStatus.fallbackModel ?? '-'}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{t('debugConfig.aiTemperature')}</p>
@@ -634,6 +659,12 @@ export function SystemSettingsRuntimePage() {
                     <p className="font-medium">{aiStatus.apiKeyMasked}</p>
                   </div>
                 </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {t('debugConfig.aiEffectiveStatusEnableEnvOnly', {
+                    defaultValue: 'Enable switch and API key come from the environment',
+                  })}
+                </p>
 
                 {aiStatus.validationError && (
                   <p className="rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
@@ -655,7 +686,7 @@ export function SystemSettingsRuntimePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <AiRoutingEditor loading={loading} />
+            <AiRoutingEditor loading={loading} onAiStatusChanged={loadEffectiveAiStatus} />
           </CardContent>
         </Card>
 

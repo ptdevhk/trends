@@ -7,11 +7,23 @@ const { requestJsonMock, setEffectiveWorkHistoryLimitMock, translateMock } = vi.
   requestJsonMock: vi.fn(),
   setEffectiveWorkHistoryLimitMock: vi.fn(),
   translateMock: vi.fn((_key: string, fallback?: string | Record<string, unknown>) => {
-    if (typeof fallback === 'string') return fallback
-    if (fallback && typeof fallback === 'object' && 'defaultValue' in fallback) {
-      return fallback.defaultValue as string
+    let value: string
+    if (typeof fallback === 'string') {
+      value = fallback
+    } else if (fallback && typeof fallback === 'object' && 'defaultValue' in fallback) {
+      value = fallback.defaultValue as string
+    } else {
+      value = _key
     }
-    return _key
+    // Interpolate {{token}} placeholders from the options/fallback object.
+    if (fallback && typeof fallback === 'object') {
+      for (const [token, replacement] of Object.entries(fallback)) {
+        if (token !== 'defaultValue') {
+          value = value.split(`{{${token}}}`).join(String(replacement))
+        }
+      }
+    }
+    return value
   }),
 }))
 
@@ -248,6 +260,64 @@ describe('SystemSettingsRuntimePage', () => {
       expect(screen.getByText('gpt-4o')).toBeInTheDocument()
     })
     expect(screen.getByText('sk-...abc')).toBeInTheDocument()
+  })
+
+  it('retitles the upper card to Effective AI status and shows a source badge', async () => {
+    render(
+      <BrowserRouter>
+        <SystemSettingsRuntimePage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Effective AI status')).toBeInTheDocument()
+    })
+    // env source (default mockAiStatus has no source → env). The lower
+    // AiRoutingEditor also renders a "Source: Environment" badge, so assert at
+    // least one (the upper card).
+    expect(screen.getAllByText('Source: Environment').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows the settings source badge when AI status comes from hot-config', async () => {
+    requestJsonMock.mockImplementation((url: string) => {
+      if (url === '/api/config/ai-status') return Promise.resolve({ ...mockAiStatus, source: 'settings', model: 'openai/deepseek-v4-flash' })
+      if (url === '/api/config/agents') return Promise.resolve(mockAgentsConfig)
+      return Promise.resolve({})
+    })
+
+    render(
+      <BrowserRouter>
+        <SystemSettingsRuntimePage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Source: Settings')).toBeInTheDocument()
+    })
+    // The model also appears as a Select option in the lower AiRoutingEditor,
+    // so assert at least one occurrence (upper effective card).
+    expect(screen.getAllByText('openai/deepseek-v4-flash').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does not claim model is bonded to env when source is settings', async () => {
+    requestJsonMock.mockImplementation((url: string) => {
+      if (url === '/api/config/ai-status') return Promise.resolve({ ...mockAiStatus, source: 'settings', model: 'openai/deepseek-v4-flash', bonded: ['AI_MODEL', 'AI_ANALYSIS_ENABLED'] })
+      if (url === '/api/config/agents') return Promise.resolve(mockAgentsConfig)
+      return Promise.resolve({})
+    })
+
+    render(
+      <BrowserRouter>
+        <SystemSettingsRuntimePage />
+      </BrowserRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Source: Settings')).toBeInTheDocument()
+    })
+    // The old "Bound to environment" badge for the upper card is gone (the
+    // lower agents card still legitimately shows "Bonded" for bonded stages).
+    expect(screen.queryByText('Bound to environment')).not.toBeInTheDocument()
   })
 
   it('shows AI enabled and valid badges', async () => {
