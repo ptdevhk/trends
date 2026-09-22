@@ -375,14 +375,15 @@ describe("search-profiles legacy adoption", () => {
                 const args = call.args;
                 const profile = isRecord(args.profile) ? args.profile : {};
                 const storageId = typeof args.id === "string" ? args.id : "";
-                const listRecord = listRecords.find((row) => row._id === storageId) ?? listRecords[0];
-                const base = isRecord(listRecord) ? listRecord : {};
+                const listRecord: Record<string, unknown> = listRecords.find((row) => row._id === storageId) ?? listRecords[0];
+                const base = listRecord;
+                const baseProfile = isRecord(base.profile) ? base.profile : {};
                 const nextProfile = {
-                    ...(isRecord(base.profile) ? base.profile : {}),
+                    ...baseProfile,
                     ...profile,
                 };
-                if (isRecord(listRecord) && isRecord(listRecord.profile)) {
-                    listRecord.profile = nextProfile;
+                if (isRecord(base.profile)) {
+                    base.profile = nextProfile;
                 }
                 return convexSuccess({
                     ...base,

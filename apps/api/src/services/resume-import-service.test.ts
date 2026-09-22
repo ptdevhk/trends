@@ -699,6 +699,9 @@ describe("resume-import-service", () => {
 
   it("caps a fat 51job detail row before the 1s Convex submit", () => {
     const huge = "销售经历".repeat(5000);
+    // `html` is dropped by slim51JobSubmitContent; the import-item schema never
+    // accepts it, so it is attached after parse — the same shape the extension
+    // sends on the wire before normalization strips it.
     const payload = normalizeResumeImportPayload({
       metadata: {
         sourceUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
@@ -708,7 +711,6 @@ describe("resume-import-service", () => {
         {
           name: "Fat 51job Row",
           profileUrl: "https://ehire.51job.com/Candidate/ResumeView.aspx?hidUserID=9",
-          html: "<html>drop me</html>",
           workHistory: Array.from({ length: JOB51_SUBMIT_MAX_LIST_ENTRIES + 4 }, (_, index) => ({
             companyName: `Co ${index + 1}`,
             jobTitle: "销售工程师",

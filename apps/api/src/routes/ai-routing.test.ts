@@ -36,6 +36,10 @@ function createTestApp(storage?: ReturnType<typeof createAuthHeaders>['storage']
   return app
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function createEnvConfig() {
   return {
     enabled: true,
@@ -121,9 +125,15 @@ describe('ai-routing routes', () => {
 
     expect(response.status).toBe(200)
     const body = await response.json()
-    expect(body.stored.model).toBe('openai/deepseek-v4-flash')
-    expect(body.effective.model).toBe('openai/deepseek-v4-flash')
-    expect(body.apiKey.present).toBe(true)
+    if (!isRecord(body)) {
+      throw new Error('Expected a JSON object body')
+    }
+    const stored = isRecord(body.stored) ? body.stored : {}
+    const effective = isRecord(body.effective) ? body.effective : {}
+    const apiKey = isRecord(body.apiKey) ? body.apiKey : {}
+    expect(stored.model).toBe('openai/deepseek-v4-flash')
+    expect(effective.model).toBe('openai/deepseek-v4-flash')
+    expect(apiKey.present).toBe(true)
     expect(JSON.stringify(body)).not.toContain('sk-env-key')
 
     const writeArg = mockedService.writeAiRoutingSettings.mock.calls[0][0]
@@ -157,7 +167,11 @@ describe('ai-routing routes', () => {
     })
     expect(response.status).toBe(200)
     const body = await response.json()
-    expect(body.apiKey.present).toBe(true)
+    if (!isRecord(body)) {
+      throw new Error('Expected a JSON object body')
+    }
+    const apiKey = isRecord(body.apiKey) ? body.apiKey : {}
+    expect(apiKey.present).toBe(true)
     expect(JSON.stringify(body)).not.toContain('sk-env-key')
   })
 })
