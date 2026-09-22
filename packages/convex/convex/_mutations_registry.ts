@@ -166,6 +166,8 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
 
     { file: "research_news.ts", name: "upsertItem", quiesceAware: true, reason: "Showcase seed is blocked by BFF middleware; scheduled research ingest skips during maintenance via apps/worker/tasks.py" },
 
+    { file: "daily_reports.ts", name: "upsertReport", quiesceAware: false, reason: "Write-secret-gated builder mutation — called by build-live script, not the BFF" },
+
     { file: "research_ops.ts", name: "startIngestRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },
     { file: "research_ops.ts", name: "finishIngestRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },
     { file: "research_ops.ts", name: "recordParityRun", quiesceAware: true, reason: "Research ingest and parity writers run only after the worker maintenance-mode check" },

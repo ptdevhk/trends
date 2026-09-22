@@ -219,8 +219,9 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
             const current = ymd === pack.date;
             const cls = current ? 'day-link current' : 'day-link';
             const aria = current ? `${md} ${wd} (current)` : `${md} ${wd}`;
-            // Relative href keeps public /daily/ and iframe /daily/ twins working.
-            return `<a class="${cls}" href="./${escAttr(ymd)}.html" data-date="${escAttr(ymd)}" aria-label="${escAttr(aria)}"${current ? ' aria-current="page"' : ''}><span class="day-d">${esc(md)}</span><span class="day-w">${esc(wd)}</span></a>`;
+            // Absolute href + target="_top" so the in-app srcDoc iframe opens the public page,
+            // while public /daily/ pages keep working unchanged.
+            return `<a class="${cls}" href="/daily/${escAttr(ymd)}.html" target="_top" data-date="${escAttr(ymd)}" aria-label="${escAttr(aria)}"${current ? ' aria-current="page"' : ''}><span class="day-d">${esc(md)}</span><span class="day-w">${esc(wd)}</span></a>`;
           })
           .join('')}</nav>`
       : '';

@@ -40,3 +40,4 @@ export { default as resumesPacketsRoutes } from "./resumes_packets.js";
 export { default as resumesFeedbackBatchRoutes } from "./resumes_feedback_batch.js";
 export { default as systemRoutes } from "./system.js";
 export { default as companyIndustryRoutes } from "./company-industry.js";
+export { default as dailyReportsRoutes } from "./daily-reports.js";

@@ -108,6 +108,10 @@ export default defineConfig({
         target: `http://localhost:${mcpPort}`,
         changeOrigin: true,
       },
+      '/daily': {
+        target: `http://localhost:${apiPort}`,
+        changeOrigin: true,
+      },
     },
   },
 })

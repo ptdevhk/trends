@@ -2,9 +2,9 @@
 """
 Sales daily report builder — run `scripts/daily-report/build-live.ts` from the worker.
 
-Writes the rolling 7-day window of public static packs under
-`apps/web/public/daily/` (and snapshots). Intended to run after a successful
-research ingest so the hub 「销售日报」 link has fresh HTML.
+Builds the rolling 7-day window of daily report packs and persists them to
+Convex (`daily_reports` table) plus `config/daily-reports/snapshots/`. Intended
+to run after a successful research ingest so the hub 「销售日报」 link has fresh HTML.
 """
 
 from __future__ import annotations

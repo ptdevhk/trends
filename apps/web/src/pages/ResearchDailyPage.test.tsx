@@ -14,7 +14,14 @@ const FIXTURE = {
   localeDefault: 'zh-Hans',
   source: 'live',
   generatedAt: '2026-09-22T08:00:00Z',
-  hero: { headline: '今日商机热度', value: '37', delta: '+12%', meta: '3 行业 · 8 新公司', sparkline: [1, 2, 3] },
+  hero: {
+    headline: '今日商机热度',
+    value: '37',
+    delta: '+12%',
+    meta: '3 行业 · 8 新公司',
+    sparkline: [1, 2, 3, 4, 5, 6, 7],
+    dayDates: ['2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22'],
+  },
   opportunities: [
     { kind: '商机', label: '3D 扫描 销售', heat: '3.8万', growth: '+1,200%', started: 't1', sparkline: [1, 2], chips: ['三坐标'] },
   ],
@@ -63,7 +70,7 @@ describe('ResearchDailyPage (in-app twin)', () => {
       'fetch',
       vi.fn(async (path: string) => {
         if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [] }
-        if (path === '/daily/index.json') return { ok: true, json: async () => ['2026-09-21', '2026-09-22'] }
+        if (path === '/daily/index.json') return { ok: true, json: async () => ({ dates: ['2026-09-21', '2026-09-22'] }) }
         if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
         return { ok: false, json: async () => [] }
       }),
@@ -93,5 +100,71 @@ describe('ResearchDailyPage (in-app twin)', () => {
       const srcdoc = iframe?.getAttribute('srcdoc') ?? ''
       expect(srcdoc).not.toMatch(/resumeId|phone|身份证|email@/i)
     })
+  })
+
+  it('falls back to the latest day when BFF index.json is desc-ordered (Convex listDates)', async () => {
+    // Production BFF returns dates DESC (listDates order by_date desc); the page
+    // must still pick the newest date, not the last array element.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [] }
+        if (path === '/daily/index.json') return { ok: true, json: async () => ({ dates: ['2026-09-22', '2026-09-21'] }) }
+        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
+        return { ok: false, json: async () => [] }
+      }),
+    )
+
+    renderAt('2026-09-99')
+    await waitFor(() => {
+      const iframe = document.querySelector('iframe[title^="daily-report-2026-09-22"]')
+      expect(iframe).not.toBeNull()
+    })
+  })
+
+  it('renders day-switcher chips using pack.hero.dayDates with active state and correct hrefs', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
+        return { ok: false, json: async () => [] }
+      }),
+    )
+
+    renderAt('2026-09-22')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('daily-day-nav')).toBeInTheDocument()
+    })
+
+    for (const ymd of FIXTURE.hero.dayDates) {
+      const chip = screen.getByTestId(`daily-day-link-${ymd}`)
+      expect(chip).toHaveAttribute('href', `/hr/research/daily/${ymd}`)
+    }
+
+    const active = screen.getByTestId('daily-day-link-2026-09-22')
+    expect(active).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('falls back to a client-side 7-day Shanghai window when pack has no dayDates', async () => {
+    const fixtureNoDates = { ...FIXTURE, hero: { ...FIXTURE.hero, dayDates: undefined } }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => fixtureNoDates }
+        return { ok: false, json: async () => [] }
+      }),
+    )
+
+    renderAt('2026-09-22')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('daily-day-nav')).toBeInTheDocument()
+    })
+
+    const expected = ['2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22']
+    for (const ymd of expected) {
+      expect(screen.getByTestId(`daily-day-link-${ymd}`)).toHaveAttribute('href', `/hr/research/daily/${ymd}`)
+    }
   })
 })

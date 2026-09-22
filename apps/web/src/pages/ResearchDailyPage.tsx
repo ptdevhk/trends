@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { parseDailyReportPack, renderDailyReportHtml, type DailyReportPack } from '@trends/shared'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { Button } from '@/components/ui/button'
 
 /**
  * Thin in-app twin of the public static daily report.
@@ -15,6 +16,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
  */
 
 const STATIC_DAILY_BASE = '/daily'
+const WINDOW_DAYS = 7
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'include' })
@@ -27,10 +29,13 @@ async function fetchPack(date: string): Promise<DailyReportPack> {
     return parseDailyReportPack(await fetchJson(`${STATIC_DAILY_BASE}/${date}.json`))
   } catch (e) {
     // Unknown date → fall back to the latest available day (index.json).
+    // BFF returns { dates: string[] }; legacy static file servers may return string[].
     try {
-      const list = (await fetchJson<string[]>(`${STATIC_DAILY_BASE}/index.json`)) || []
+      const data = await fetchJson<{ dates?: string[] } | string[]>(`${STATIC_DAILY_BASE}/index.json`)
+      const list = Array.isArray(data) ? data : (data?.dates ?? [])
       if (!list.length) throw e
-      const latest = list[list.length - 1]
+      // Order differs by source: BFF (Convex listDates) is desc, legacy static file is asc.
+      const latest = [...list].sort().reverse()[0]
       return parseDailyReportPack(await fetchJson(`${STATIC_DAILY_BASE}/${latest}.json`))
     } catch {
       throw e
@@ -42,6 +47,7 @@ export default function ResearchDailyPage() {
   const { date } = useParams<{ date: string }>()
   const { slug } = useWorkspace()
   const { t } = useTranslation()
+  const [pack, setPack] = useState<DailyReportPack | null>(null)
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [titleDate, setTitleDate] = useState<string | null>(null)
@@ -52,10 +58,11 @@ export default function ResearchDailyPage() {
     let cancelled = false
     const target = date ?? ''
     fetchPack(target || shanghaiToday)
-      .then((pack) => {
+      .then((fetched) => {
         if (cancelled) return
-        setHtml(renderDailyReportHtml(pack))
-        setTitleDate(pack.date)
+        setPack(fetched)
+        setHtml(renderDailyReportHtml(fetched))
+        setTitleDate(fetched.date)
       })
       .catch((e) => {
         if (cancelled) return
@@ -66,6 +73,14 @@ export default function ResearchDailyPage() {
     }
   }, [date, shanghaiToday, t])
 
+  const dayDates = useMemo<string[]>(() => {
+    if (pack?.hero?.dayDates && pack.hero.dayDates.length > 0) {
+      return pack.hero.dayDates
+    }
+    const end = date || shanghaiToday
+    return buildShanghaiWindow(end, WINDOW_DAYS)
+  }, [pack, date, shanghaiToday])
+
   return (
     <div className="py-2" data-testid="research-daily-page">
       <div className="mb-3 text-sm text-muted-foreground">
@@ -73,6 +88,11 @@ export default function ResearchDailyPage() {
           {t('research.daily.back', { defaultValue: '← 返回市场动态' })}
         </Link>
       </div>
+      <DayNav
+        dates={dayDates}
+        currentDate={pack?.date || date || shanghaiToday}
+        slug={slug || 'hr'}
+      />
       <Suspense fallback={<div className="py-6 text-sm text-muted-foreground">Loading daily report…</div>}>
         {error ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -85,6 +105,47 @@ export default function ResearchDailyPage() {
         )}
       </Suspense>
     </div>
+  )
+}
+
+function DayNav({
+  dates,
+  currentDate,
+  slug,
+}: {
+  dates: string[]
+  currentDate: string
+  slug: string
+}) {
+  const { t } = useTranslation()
+  if (dates.length === 0) return null
+
+  return (
+    <nav
+      className="mb-4 flex flex-wrap items-center gap-2"
+      aria-label={t('research.daily.dayNav', { defaultValue: '报告日' })}
+      data-testid="daily-day-nav"
+    >
+      {dates.map((ymd) => {
+        const isCurrent = ymd === currentDate
+        const isToday = ymd === shanghaiTodayYmd()
+        const label = isToday
+          ? t('research.daily.todayLabel', { defaultValue: '今日' })
+          : shortDateLabel(ymd)
+        return (
+          <Button
+            key={ymd}
+            asChild
+            variant={isCurrent ? 'default' : 'outline'}
+            size="sm"
+            data-testid={`daily-day-link-${ymd}`}
+            aria-current={isCurrent ? 'page' : undefined}
+          >
+            <Link to={`/${slug}/research/daily/${ymd}`}>{label}</Link>
+          </Button>
+        )
+      })}
+    </nav>
   )
 }
 
@@ -116,4 +177,35 @@ function shanghaiTodayYmd(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+/** Build the last `count` calendar dates ending at `endYmd` in Asia/Shanghai order. */
+function buildShanghaiWindow(endYmd: string, count: number): string[] {
+  const end = parseYmd(endYmd)
+  if (!end) return []
+  const dates: string[] = []
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(end)
+    d.setUTCDate(d.getUTCDate() - i)
+    dates.push(formatYmd(d))
+  }
+  return dates
+}
+
+function parseYmd(ymd: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  if (!m) return null
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+}
+
+function formatYmd(d: Date): string {
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function shortDateLabel(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
+  return m ? `${m[2]}-${m[3]}` : ymd
 }

@@ -1543,6 +1543,17 @@ export default defineSchema({
         .index("by_run", ["runId"])
         .index("by_proposal", ["proposalId"]),
 
+    // Daily reports: persisted live/frozen packs + rendered HTML served by BFF.
+    daily_reports: defineTable({
+        date: v.string(), // YYYY-MM-DD
+        packJson: v.string(),
+        html: v.string(),
+        source: v.string(), // 'live' | 'frozen'
+        fallbackFromDate: v.optional(v.string()),
+        builtAt: v.number(),
+    })
+        .index("by_date", ["date"]),
+
     // Admin-managed industry data entries (companies / keywords / brands /
     // demoted URLs). Payloads mirror the industry-data YAML/JSON files; the
     // admin UI writes here, readers project back to the file shape.

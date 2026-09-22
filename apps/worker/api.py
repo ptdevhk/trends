@@ -185,6 +185,7 @@ class WorkerTriggerResponse(BaseModel):
     started_at: str
     finished_at: str
     message: str
+    backfill_results: Optional[List[dict]] = None
 
 
 class WorkerSummaryTriggerRequest(BaseModel):
@@ -320,6 +321,26 @@ class DailyReportBuildRequest(BaseModel):
         default=True,
         description="Bypass once-per-day stamp (default true for manual triggers).",
     )
+    backfill_days: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=14,
+        description="When set, build this many sequential days ending at `date` (or today) with force=True.",
+    )
+
+
+def _backfill_dates(end_ymd: Optional[str], backfill_days: int) -> List[str]:
+    """Return the `backfill_days` calendar dates ending at end_ymd (or Shanghai today)."""
+    from apps.worker.daily_report import shanghai_today_ymd
+
+    end = end_ymd or shanghai_today_ymd()
+    from datetime import datetime, timedelta
+
+    dates: List[str] = []
+    for i in range(backfill_days - 1, -1, -1):
+        d = datetime.strptime(end, "%Y-%m-%d") - timedelta(days=i)
+        dates.append(d.strftime("%Y-%m-%d"))
+    return dates
 
 
 @router.post(
@@ -334,18 +355,40 @@ async def trigger_daily_report_build(
     Trigger a one-time sales daily-report build (7-day rolling window HTML).
     Force-enables DAILY_REPORT_BUILD_ENABLED for the call; defaults force=True
     so operators can rebuild even when today's stamp already exists.
+
+    With ``backfill_days`` set, builds that many sequential days ending at
+    ``date`` (or Shanghai today), returning per-day results in the response.
     """
     started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
     import os
 
     previous = os.environ.get("DAILY_REPORT_BUILD_ENABLED")
     os.environ["DAILY_REPORT_BUILD_ENABLED"] = "1"
+    backfill_results: Optional[List[dict]] = None
     try:
-        success = await asyncio.to_thread(
-            run_daily_report_build_task,
-            body.date,
-            force=body.force,
-        )
+        if body.backfill_days:
+            dates = _backfill_dates(body.date, body.backfill_days)
+            backfill_results = []
+            all_ok = True
+            for d in dates:
+                ok = await asyncio.to_thread(
+                    run_daily_report_build_task,
+                    d,
+                    force=True,
+                )
+                skipped_reason = None
+                if not ok:
+                    all_ok = False
+                backfill_results.append(
+                    {"date": d, "ok": ok, "skippedReason": skipped_reason}
+                )
+            success = all_ok
+        else:
+            success = await asyncio.to_thread(
+                run_daily_report_build_task,
+                body.date,
+                force=body.force,
+            )
     finally:
         if previous is None:
             os.environ.pop("DAILY_REPORT_BUILD_ENABLED", None)
@@ -361,6 +404,7 @@ async def trigger_daily_report_build(
         started_at=started_at,
         finished_at=finished_at,
         message="Daily-report build completed",
+        backfill_results=backfill_results,
     )
 
 

@@ -164,9 +164,18 @@ describe('renderDailyReportHtml', () => {
   })
 
   it('links each day chip to that calendar day’s static report', () => {
-    expect(html).toContain('href="./2026-09-16.html"')
-    expect(html).toContain('href="./2026-09-22.html"')
+    expect(html).toContain('href="/daily/2026-09-16.html"')
+    expect(html).toContain('href="/daily/2026-09-22.html"')
     expect(html).toContain('aria-current="page"')
+  })
+
+  it('opens day-nav links in the top frame with absolute URLs', () => {
+    // Inside the in-app srcDoc iframe, relative hrefs resolve against the parent
+    // route and hit research/:companyKey. Absolute /daily/ + target="_top" fixes it.
+    expect(html).toContain('href="/daily/2026-09-16.html" target="_top"')
+    expect(html).toContain('href="/daily/2026-09-22.html" target="_top"')
+    // No relative day links should remain.
+    expect(html).not.toMatch(/href="\.\/2026-09-\d{2}\.html"/)
   })
 
   it('hides nothing in a pic-first file: no prose body text beyond labels', () => {

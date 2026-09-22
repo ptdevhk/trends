@@ -3184,7 +3184,9 @@
     "dailyReportOpenToday": "打开今日日报 · {{date}}",
     "dailyReportPublicLink": "公开分享页",
     "daily": {
-      "back": "← 返回市场动态"
+      "back": "← 返回市场动态",
+      "dayNav": "报告日",
+      "todayLabel": "今日"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",

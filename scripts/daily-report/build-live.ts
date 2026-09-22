@@ -11,6 +11,11 @@
  * snapshot with `source: 'frozen'` + a 沿用 banner instead of publishing an
  * empty report.
  *
+ * Persistence: each day's pack + rendered HTML is upserted into Convex
+ * `daily_reports:upsertReport`. A JSON snapshot is also kept under
+ * config/daily-reports/snapshots/{date}.json for offline replay/re-seed.
+ * No files are written to apps/web/public/daily/ (the BFF serves from DB).
+ *
  * Env: CONVEX_URL + CONVEX_WRITE_SECRET (repo .env pattern). No prod writes.
  * Run:  npx tsx scripts/daily-report/build-live.ts [YYYY-MM-DD]
  */
@@ -31,7 +36,6 @@ import {
 } from '@trends/shared'
 
 const ROOT = process.cwd()
-const PUBLIC_DAILY = join(ROOT, 'apps/web/public/daily')
 const SNAPSHOT_DIR = join(ROOT, 'config/daily-reports/snapshots')
 
 type Env = Record<string, string>
@@ -48,10 +52,20 @@ function loadEnv(): Env {
   return env
 }
 
-async function convexQuery(env: Env, path: string, args: Record<string, unknown>): Promise<unknown> {
+function convexUrl(env: Env): string {
   const url = (env.CONVEX_URL || '').replace(/\/$/, '')
   if (!url) throw new Error('CONVEX_URL missing')
-  const res = await fetch(`${url}/api/query`, {
+  return url
+}
+
+async function convexRequest(
+  env: Env,
+  endpoint: 'query' | 'mutation',
+  path: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const url = convexUrl(env)
+  const res = await fetch(`${url}/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, args }),
@@ -60,6 +74,14 @@ async function convexQuery(env: Env, path: string, args: Record<string, unknown>
   const payload = (await res.json()) as { status?: string; value?: unknown; errorMessage?: string }
   if (payload.status !== 'success') throw new Error(`Convex ${path} error: ${payload.errorMessage ?? 'unknown'}`)
   return payload.value
+}
+
+async function convexQuery(env: Env, path: string, args: Record<string, unknown>): Promise<unknown> {
+  return convexRequest(env, 'query', path, args)
+}
+
+async function convexMutation(env: Env, path: string, args: Record<string, unknown>): Promise<unknown> {
+  return convexRequest(env, 'mutation', path, args)
 }
 
 /** Real pulse keyword seed: YAML groups + industry catalog (mirrors the API seed loader). */
@@ -144,19 +166,24 @@ function lastGoodSnapshot(date: string): DailyReportPack | null {
   return null
 }
 
-function writeOutputs(pack: DailyReportPack, date: string): void {
-  mkdirSync(PUBLIC_DAILY, { recursive: true })
+async function writeOutputs(env: Env, pack: DailyReportPack, date: string): Promise<void> {
   mkdirSync(SNAPSHOT_DIR, { recursive: true })
   const html = renderDailyReportHtml(pack)
-  writeFileSync(join(PUBLIC_DAILY, `${date}.json`), `${JSON.stringify(pack, null, 2)}\n`, 'utf8')
-  writeFileSync(join(PUBLIC_DAILY, `${date}.html`), html, 'utf8')
   writeFileSync(join(SNAPSHOT_DIR, `${date}.json`), `${JSON.stringify(pack, null, 2)}\n`, 'utf8')
-  const dates = readdirSync(SNAPSHOT_DIR)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => f.replace(/\.json$/, ''))
-    .sort()
-  writeFileSync(join(PUBLIC_DAILY, 'index.json'), `${JSON.stringify(dates, null, 2)}\n`, 'utf8')
-  console.log(`wrote ${date}.json + ${date}.html (${html.length} bytes); index=${dates.join(',')}`)
+
+  const upserted = (await convexMutation(env, 'daily_reports:upsertReport', {
+    writeSecret: env.CONVEX_WRITE_SECRET,
+    date,
+    packJson: JSON.stringify(pack),
+    html,
+    source: pack.source ?? 'live',
+    fallbackFromDate: pack.fallbackFromDate,
+    builtAt: Date.now(),
+  })) as { id: string; created: boolean } | undefined
+
+  console.log(
+    `wrote ${date}.json snapshot; convex ${upserted?.created ? 'created' : 'patched'} ${upserted?.id ?? '?'} (${html.length} bytes)`,
+  )
 }
 
 async function main(): Promise<void> {
@@ -249,14 +276,14 @@ async function main(): Promise<void> {
             sparkline: result.pack.hero.sparkline,
             dayLabels: result.pack.hero.dayLabels,
             dayDates: result.pack.hero.dayDates,
-            meta: result.pack.hero.meta,
           },
         }
-        writeOutputs(frozen, day)
+        await writeOutputs(env, frozen, day)
         console.log(`hybrid[${day}]: reused ${fallback.date} as frozen snapshot`)
         continue
       }
-      writeOutputs(
+      await writeOutputs(
+        env,
         {
           ...result.pack,
           banner: `${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条 · 数据偏薄`,
@@ -267,7 +294,7 @@ async function main(): Promise<void> {
       continue
     }
 
-    writeOutputs(result.pack, day)
+    await writeOutputs(env, result.pack, day)
   }
 
   // Second pass: thin earlier days in this window may have no prior snapshot
@@ -314,12 +341,11 @@ async function main(): Promise<void> {
                 sparkline: liveHero.sparkline,
                 dayLabels: liveHero.dayLabels,
                 dayDates: liveHero.dayDates,
-                meta: liveHero.meta,
               }
             : {}),
         },
       }
-      writeOutputs(frozen, day)
+      await writeOutputs(env, frozen, day)
       console.log(`hybrid-pass2[${day}]: reused ${newestRich.date} as frozen snapshot`)
     }
   }

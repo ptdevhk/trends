@@ -3157,7 +3157,9 @@
     "dailyReportOpenToday": "Open today's report · {{date}}",
     "dailyReportPublicLink": "Public share page",
     "daily": {
-      "back": "← Back to research hub"
+      "back": "← Back to research hub",
+      "dayNav": "Report day",
+      "todayLabel": "Today"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",

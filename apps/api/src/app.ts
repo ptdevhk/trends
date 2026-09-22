@@ -47,6 +47,7 @@ import {
   resumesSearchRoutes,
   resumesMatchRoutes,
   systemRoutes,
+  dailyReportsRoutes,
 } from "./routes/index.js";
 import { createAuthRoutes } from "./routes/auth.js";
 import { createAdminUserRoutes } from "./routes/admin_users.js";
@@ -228,6 +229,7 @@ export function createApp(options: CreateAppOptions = {}) {
 
   // Mount routes
   app.route("/", healthRoutes);
+  app.route("/", dailyReportsRoutes);
   app.route("/", createAuthRoutes({
     storage: options.authStorage,
     eventStorage: options.authEventStorage,

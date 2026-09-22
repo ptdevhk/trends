@@ -3157,7 +3157,9 @@
     "dailyReportOpenToday": "打開今日日報 · {{date}}",
     "dailyReportPublicLink": "公開分享頁",
     "daily": {
-      "back": "← 返回市場動態"
+      "back": "← 返回市場動態",
+      "dayNav": "報告日",
+      "todayLabel": "今日"
     },
     "sectionResumeDesk": "數控品牌臺（展示）",
     "sectionSearch": "搜索企業",

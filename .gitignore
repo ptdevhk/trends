@@ -83,6 +83,7 @@ tool-results/
 # Generated OpenAPI spec
 apps/api/openapi.json
 apps/web/public/extension/
+apps/web/public/daily/
 
 # Production env
 .env.production
