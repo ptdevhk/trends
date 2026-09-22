@@ -30,6 +30,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     // ---------------------------------------------------------------------
     { file: "system_settings.ts", name: "set", quiesceAware: false, reason: "This IS the quiesce toggle — must not block itself" },
     { file: "system_settings.ts", name: "setResumeWorkHistoryLimit", quiesceAware: true, reason: "System-setting write is blocked by the BFF maintenance middleware" },
+    { file: "system_settings.ts", name: "setAiRoutingSettings", quiesceAware: true, reason: "Admin AI-routing write via BFF; blocked by the BFF maintenance middleware like other system-setting writes" },
 
     // ---------------------------------------------------------------------
     // Migration mutations — must run during restore to complete the upgrade.
@@ -38,6 +39,7 @@ export const MUTATIONS_REGISTRY: MutationRegistryEntry[] = [
     { file: "migrations.ts", name: "reindexSearchText", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillAge", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillWorkspaceSlugs", quiesceAware: false, reason: "Migration — must run during restore" },
+    { file: "migrations.ts", name: "rekeyResumeAnalysisKeys", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillPrimaryRuleScore", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillEvidenceText", quiesceAware: false, reason: "Migration — must run during restore" },
     { file: "migrations.ts", name: "backfillJob5156ProfileUrls", quiesceAware: false, reason: "Migration — must run during restore" },

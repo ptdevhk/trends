@@ -1316,6 +1316,7 @@
     "aiDisabled": "Disabled",
     "aiModel": "Model",
     "aiApiBase": "API Base",
+    "aiFallbackLabel": "Fallback model",
     "aiTemperature": "Temperature",
     "aiMaxTokens": "Max Tokens",
     "aiTimeout": "Timeout",

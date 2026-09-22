@@ -167,4 +167,9 @@
     "class": "internal-worker",
     "reason": "Worker proxy routes use the worker service's own authorization path."
   }
+,
+  "client-diagnostics.ts": {
+    "class": "telemetry",
+    "reason": "Browser-side Convex connection diagnostics are client telemetry (search-analytics precedent), intentionally not workspace-gated."
+  }
 }

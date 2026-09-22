@@ -121,7 +121,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
   const COMBINED_ID = '51job-cn-cmm-3d-scanning-sales'
   const SPLIT_IDS = ['51job-cn-cmm-sales', '51job-cn-3d-scanning-sales'] as const
 
-  it('seeds the HR-selected combined Option 1 profile and keeps split lanes off quick-start', () => {
+  it('seeds the combined Option 1 profile with quick-start off while split lanes stay on quick-start (polarity flip 2c1a1dfb)', () => {
     const hr = getWorkspaceSearchProfileTemplates('hr')
     const dev = getWorkspaceSearchProfileTemplates('dev')
     const combined = hr.find((t) => t.profile.id === COMBINED_ID)
@@ -161,7 +161,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     expect(combined?.profile.filters?.salaryRange?.max).toBe(25000)
     expect(cmm?.profile.filters?.salaryRange?.max).toBe(25000)
     expect(scanning?.profile.filters?.salaryRange?.max).toBe(25000)
-    expect(combined?.profile.quickStart?.enabled).toBe(true)
+    expect(combined?.profile.quickStart?.enabled).toBe(false)
     expect(combined?.profile.quickStart?.rank).toBe(7)
     expect(combined?.profile.quickStart?.label).toBe('China · 51job · 三坐标 3D扫描 销售')
     expect(combined?.profile.quickStart?.description).toBe('三坐标 or 3D扫描 · 销售职责 · China')
@@ -180,10 +180,10 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
     expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])
     expect(cmm?.profile.jobDescription).toBe('cmm-sales')
     expect(scanning?.profile.jobDescription).toBe('3d-scanner-sales')
-    expect(cmm?.profile.quickStart?.enabled).toBe(false)
-    expect(scanning?.profile.quickStart?.enabled).toBe(false)
+    expect(cmm?.profile.quickStart?.enabled).toBe(true)
+    expect(scanning?.profile.quickStart?.enabled).toBe(true)
 
-    expect(hr.filter((t) => SPLIT_IDS.includes(t.profile.id as (typeof SPLIT_IDS)[number]) && t.profile.quickStart?.enabled)).toEqual([])
+    expect(hr.filter((t) => SPLIT_IDS.includes(t.profile.id as (typeof SPLIT_IDS)[number]) && t.profile.quickStart?.enabled)).toHaveLength(2)
     expect(hr.some((t) => t.profile.id === '51job-cn-cnc-sales')).toBe(true)
     expect(combined?.profile.id).not.toBe('51job-cn-cnc-sales')
   })

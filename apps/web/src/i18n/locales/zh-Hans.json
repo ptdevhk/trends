@@ -1013,6 +1013,7 @@
     "configSourceParsedPreview": "解析预览",
     "presetEducation": "学历",
     "aiApiBase": "API 地址",
+    "aiFallbackLabel": "回退模型",
     "agentParallelism": "并发数",
     "resumeDataCollectionDescription": "触发代理任务以从外部平台抓取简历录入。",
     "brandKeywords": "品牌关键词",

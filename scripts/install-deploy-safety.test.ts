@@ -120,6 +120,7 @@ describe("seed_and_migrate_convex migration order", () => {
     "backfillSearchText",
     "backfillEvidenceText",
     "backfillPrimaryRuleScore",
+    "rekeyResumeAnalysisKeys",
     "validateDataConsistency",
   ];
 

@@ -1316,6 +1316,7 @@
     "aiDisabled": "未啟用",
     "aiModel": "模型",
     "aiApiBase": "API 地址",
+    "aiFallbackLabel": "後備模型",
     "aiTemperature": "溫度",
     "aiMaxTokens": "最大 Token",
     "aiTimeout": "逾時",
