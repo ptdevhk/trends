@@ -68,6 +68,11 @@ const LazyResearchIndexPage = lazy(async () => {
   return { default: module.ResearchIndexPage }
 })
 
+const LazyResearchDailyPage = lazy(async () => {
+  const module = await import('@/pages/ResearchDailyPage')
+  return { default: module.default }
+})
+
 const LazySearchProfilesPage = lazy(async () => {
   const module = await import('@/pages/SearchProfilesPage')
   return { default: module.SearchProfilesPage }
@@ -828,6 +833,22 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazyResearchCompanyPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="research/daily/:date"
+                element={(
+                  <RouteSuspense>
+                    <LazyResearchDailyPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="research/daily"
+                element={(
+                  <RouteSuspense>
+                    <LazyResearchDailyPage />
                   </RouteSuspense>
                 )}
               />
