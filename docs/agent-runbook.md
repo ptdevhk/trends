@@ -188,25 +188,36 @@ make check-project-skills
 - Browser extension-specific guidance:
   - `{REPO_ROOT}/apps/browser-extension/CLAUDE.md`
 
-## Nightly UAT & Fix Loop (preview branch)
+## Nightly UAT & Fix Loop (local stack)
 
 Unattended overnight UAT + fix cycle: a full pass runs every ~30–40 min (a 10-min
 scheduler fires `/tmp/nightly-uat.lock`-guarded passes; fires skip while a pass runs),
-on the **preview branch** against the **local dev stack** (`make dev`, localhost only),
+against the **local dev stack** (`make dev` / `scripts/dev.sh`, localhost only),
 stopping at 09:00 with a finalized report. Proven across 35 passes (2026-08-11/12:
-14 commits — 4 product fixes, 10 harness hardenings).
+14 commits — 4 product fixes, 10 harness hardenings). Local pvelxc discovery passes
+(e.g. 2026-09-16) also run this flow attended / semi-attended without the 09:00
+scheduler.
+
+**Branch:** prefer a dedicated preview branch when one is active; on pvelxc overnight
+it is OK to run on `main` when that is the living tip. Never open PRs, never tag/deploy,
+never touch remote hosts (ptcloud / preview.pt-mes.com / prod).
+
+**NO-PUSH (locked since 2026-08-18):** commit locally only with
+`fix(...): ... [nightly-uat]`. Do **not** push to origin without explicit operator
+approval — the older “push preview on green” line is retired.
 
 Operational flow per pass:
-1. **Branch guard:** `preview-v0.4.23`, clean worktree. Never commit/push off preview,
-   never open PRs, never tag/deploy, never touch remote hosts (ptcloud /
-   preview.pt-mes.com / prod).
+1. **Branch / tree guard:** record `git status -sb`. Prefer a clean tree; if dirty,
+   leave unrelated untracked/WIP alone — only stage files belonging to the UAT fix.
+   Never commit secrets (`.env`, CPA/Poe keys).
 2. **Self-enable (idempotent):** boot `make dev` if :5173 down; seed `hr-demo`
    (`npm run auth:bootstrap-hr-demo`) and `uat-reviewer`
    (`npx tsx scripts/auth/manage-user.ts --username uat-reviewer --workspace hr
    --role reviewer --password-env AUTH_BOOTSTRAP_PASSWORD`); ensure the chrome-debug
    profile + `Page.bringToFront` on the ACTIVE tab (backgrounded tabs throttle rAF →
    smooth scroll-to-detail silently no-ops, F16); restart cmux-devtools if the CDP
-   websocket wedges (F14).
+   websocket wedges (F14). Attach CDP via cmux proxy (`localhost:9222`) — attach-only,
+   do not restart the operator’s Chrome session unless wedged.
 3. **Memory trim (pre-gate):** if `free -m` available < 4000 MB or swap > 90% →
    restart the convex local backend via `scripts/dev.sh --convex-only --no-seed`
    (F18: pkill+respawn does NOT work on the precompiled supervisor; kill by
@@ -215,29 +226,41 @@ Operational flow per pass:
 4. **Gates (all exit 0):** `bun run verify:critical-path`, `npm run e2e` (e2e-smoke),
    `bun run setup:industry-review-uat` (if fixtures missing) +
    `bun run verify:industry-review-uat -- --base-url http://localhost:3000`,
-   `make check` when code changed.
+   `make check` when code changed. Optional multi-role: `bunx tsx scripts/run-multi-role-uat.ts`
+   (export auth env first).
    The industry-review fixture's `companyKeyByCase` maps to CN companies present in
    local Convex (explicit-cnc → `polywell`; see the stewardship runbook for the table
    and rebinding rules). The browser UAT stage takes `--workspace` (default `hr`;
    `dev` for the dev workspace) and selects the manual-approval row by `data-testid`,
    so it never depends on localized button text.
-5. **Browser UAT (playwright-cli, localhost:5173 only):** hr-demo smoke routes +
+5. **Browser UAT (playwright-cli / CDP, localhost:5173 only):** hr-demo smoke routes +
    6-step checklist (`dev-docs/qa/critical-path-ui-smoke.md`); uat-reviewer
    industry-review workflow (sidebar 行业验证 entry, proposals list, 查看 no
    SystemAccessGate bounce, queue-ordered prev/next, scroll-to-detail, verdict
    revision, evidence sources, legacy notice). 0 app console errors.
-6. **Fix loop:** confirmed issue → systematic-debugging → TDD tests first → minimal fix →
-   re-run affected gate + unit tests → browser re-verify → commit
-   `fix(...): ... [nightly-uat]` → push to origin/preview-v0.4.23 only when all gates
-   + tests pass.
+   **Also walk these newer surfaces (added 2026-09):**
+   - **Runtime Effective AI status** — `/admin/system/settings/runtime` (demo-admin):
+     Effective AI status card + AiRoutingEditor; post-save refresh shows
+     `source=settings` / bonded keys; `/api/config/ai-status` + connection test green.
+     CPA key ≠ Poe key — local/dev CPA client key via ptcloud; do not “fix” auth by
+     pasting the Poe key into CPA.
+   - **CMM / 3D SearchHero quickstarts** — `/hr/resumes` or `/dev/resumes`: cards for
+     三坐标 / 3D扫描; convex search hits > 0 after sample restore; keyword analyze
+     completes (not hung). Thin 3D corpus is OK; do not flag low hit count alone as P0
+     if cards render and analyze finishes.
+6. **Fix loop (一路改一路試):** confirmed issue → systematic-debugging → TDD tests first →
+   minimal fix → re-run affected gate + unit tests → browser re-verify → commit
+   `fix(...): ... [nightly-uat]` (NO-PUSH). Keep cycling until backlog empty or 09:00.
 7. **Report:** `/tmp/uat-report-<date>.md` (one row per pass), evidence under
    `/tmp/uat-evidence/`, P1/P2 vault captures at
-   `raw/transcripts/YYYY-MM-DD-nightly-uat-*.md`; the 09:00 pass writes the FINAL
-   SUMMARY (pass count, fixed/open findings, per-critical-path verdicts) + one-line retro.
+   `raw/transcripts/YYYY-MM-DD-nightly-uat-*.md`; the 09:00 (or session-end) pass writes
+   the FINAL SUMMARY (pass count, fixed/open findings, per-critical-path verdicts) +
+   one-line retro.
 
 Gotchas (all observed; F-numbers reference the nightly report):
 - `bun run <pkg-script>` does not propagate .env to tsx children — export
-  `CONVEX_WRITE_SECRET`/auth vars before gates (F32).
+  `CONVEX_WRITE_SECRET`/auth vars before gates (F32). Prefer
+  `set -a; source .env; set +a` at the start of each pass.
 - chrome-debug profile is shared across UAT roles — sessions flip between passes;
   e2e self-heals via `ensureDevAdminSession` (F12); re-login per role walk.
 - 智通直聘 extension auto-scrape can hijack the driven tab to job5156 (F18b) — settle
@@ -246,6 +269,11 @@ Gotchas (all observed; F-numbers reference the nightly report):
 - `sales` empty state after e2e bulk actions = new-only filter, not a bug (F19).
 - e2e first-run flakes after cmux/chrome restarts = extension re-scrape churn (F17);
   settle polls reload on stuck loading + wait for analysis quiescence (F17 follow-ups).
+- CLI search defaults to `--source sample` — use `--source convex` for live corpus probes
+  after sample upsert (otherwise “0 hits” is a source mistake, not a product bug).
+- deepseek-v4-flash family: chat completions must send `enable_thinking:false` or
+  scoring batches stall (~2m+ TTFT). Wired in Convex `ai_model` + BFF `ai-chat-client`;
+  if analyze hangs, check that path first — not CPA reachability alone.
 - Convex local backend heap grows with activity (searches/ingest churn; ~100–150 MB/pass
   steady-state, larger on first bursts; idle ≈ flat — no leak); trim floor 4 GB available (F18).
   Root cause (2026-08-12): glibc-malloc heap ratchet in the precompiled backend
@@ -261,7 +289,13 @@ Gotchas (all observed; F-numbers reference the nightly report):
 - Notifications are integrated extension points.
 - Dev flow is TDD-first.
 - Embedding/RAG search remains disabled; use BM25 + tag expansion.
-- LLM scoring provider is Convex `callLLM` (not the BFF `aiConfig` snapshot). Default/basic model is Poe `openai/deepseek-v4-flash`. `openai/deepseek-v4-flash-e` is the fallback. The former Poe `response_format` rejection bug on `deepseek-v4-flash` was confirmed fixed 2026-08-25 (see `docs/runbooks/llm-api-provider-fallback.md`).
+- LLM scoring: Convex `callLLM` (not the BFF import-time `aiConfig` snapshot). Model/base
+  can be hot-configured via admin Runtime (`aiRouting`) + CLI; key + `AI_ANALYSIS_ENABLED`
+  stay env-only. Default/basic model `openai/deepseek-v4-flash` via CPA
+  (`https://cpa.pt-mes.com/v1` local; `http://127.0.0.1:8317/v1` preview/prod). Fallback
+  `openai/deepseek-v4-flash-e`. Poe `response_format` bug closed 2026-08-25
+  (`docs/runbooks/llm-api-provider-fallback.md`). Always disable thinking for this family
+  on structured scoring paths (`enable_thinking:false`).
 
 ## Migrations & Environment Policy
 - Do not keep temporary migration checklists in root `CLAUDE.md`.
