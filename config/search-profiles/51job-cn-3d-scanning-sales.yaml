@@ -40,7 +40,7 @@ sources:
     priority: 2
 
 quickStart:
-  enabled: false
+  enabled: true
   rank: 8
   label: China · 51job · 3D扫描销售
   description: 3D扫描仪, 销售 · China

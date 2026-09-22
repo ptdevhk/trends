@@ -34,6 +34,143 @@ export interface AIStatus {
   valid: boolean
   validationError?: string
   bonded?: string[]
+  /** Effective fallback model (settings-merged). */
+  fallbackModel?: string
+  /** Whether model/base come from operator settings or env. */
+  source?: 'settings' | 'env'
+}
+
+export interface AiRoutingState {
+  effective: {
+    apiBase: string | null
+    model: string | null
+    fallbackModel: string | null
+    source: 'settings' | 'env'
+  }
+  stored: {
+    apiBase: string | null
+    model: string | null
+    fallbackModel: string | null
+    updatedBy: string | null
+    updatedAt: number | null
+  }
+  apiKey: {
+    present: boolean
+    masked: string | null
+  }
+  curatedModels: string[]
+}
+
+export interface AiRoutingModelsResult {
+  gatewayModels: string[]
+  gatewayAvailable: boolean
+  warning: string | null
+  curatedModels: string[]
+}
+
+export interface AiRoutingTestResult {
+  model: string
+  apiBase: string
+  reachable: boolean
+  modelFound: boolean
+  chatOk: boolean | null
+  warning: string | null
+}
+
+export function parseAiRoutingPayload(payload: unknown): AiRoutingState | null {
+  if (!isRecord(payload) || payload.success !== true || !isRecord(payload.effective)) {
+    return null
+  }
+  const effectiveRecord = payload.effective as Record<string, unknown>
+  const storedRecord = isRecord(payload.stored) ? payload.stored as Record<string, unknown> : {}
+  const apiKeyRecord = isRecord(payload.apiKey) ? payload.apiKey as Record<string, unknown> : {}
+
+  const readNullable = (v: unknown): string | null => {
+    if (typeof v !== 'string' || v.length === 0) return null
+    return v
+  }
+
+  const source = effectiveRecord.source === 'settings' ? ('settings' as const) : ('env' as const)
+
+  return {
+    effective: {
+      apiBase: readNullable(effectiveRecord.apiBase),
+      model: readNullable(effectiveRecord.model),
+      fallbackModel: readNullable(effectiveRecord.fallbackModel),
+      source,
+    },
+    stored: {
+      apiBase: readNullable(storedRecord.apiBase),
+      model: readNullable(storedRecord.model),
+      fallbackModel: readNullable(storedRecord.fallbackModel),
+      updatedBy: readNullable(storedRecord.updatedBy),
+      updatedAt: typeof storedRecord.updatedAt === 'number' ? storedRecord.updatedAt : null,
+    },
+    apiKey: {
+      present: typeof apiKeyRecord.present === 'boolean' ? apiKeyRecord.present : false,
+      masked: readNullable(apiKeyRecord.masked),
+    },
+    curatedModels: Array.isArray(payload.curatedModels)
+      ? payload.curatedModels.filter((item): item is string => typeof item === 'string')
+      : [],
+  }
+}
+
+export function parseAiRoutingModelsPayload(payload: unknown): AiRoutingModelsResult | null {
+  if (!isRecord(payload) || payload.success !== true) {
+    return null
+  }
+  return {
+    gatewayModels: Array.isArray(payload.gatewayModels)
+      ? payload.gatewayModels.filter((item): item is string => typeof item === 'string')
+      : [],
+    gatewayAvailable: typeof payload.gatewayAvailable === 'boolean' ? payload.gatewayAvailable : false,
+    warning: typeof payload.warning === 'string' ? payload.warning : null,
+    curatedModels: Array.isArray(payload.curatedModels)
+      ? payload.curatedModels.filter((item): item is string => typeof item === 'string')
+      : [],
+  }
+}
+
+export function parseAiRoutingTestPayload(payload: unknown): AiRoutingTestResult | null {
+  if (!isRecord(payload) || payload.success !== true) {
+    return null
+  }
+  return {
+    model: typeof payload.model === 'string' ? payload.model : '',
+    apiBase: typeof payload.apiBase === 'string' ? payload.apiBase : '',
+    reachable: typeof payload.reachable === 'boolean' ? payload.reachable : false,
+    modelFound: typeof payload.modelFound === 'boolean' ? payload.modelFound : false,
+    chatOk: typeof payload.chatOk === 'boolean' ? payload.chatOk : null,
+    warning: typeof payload.warning === 'string' ? payload.warning : null,
+  }
+}
+
+export function parseAiRoutingUpdatePayload(payload: unknown): Pick<AiRoutingState, 'stored' | 'effective'> | null {
+  if (!isRecord(payload) || payload.success !== true) {
+    return null
+  }
+  const effectiveRecord = isRecord(payload.effective) ? payload.effective as Record<string, unknown> : {}
+  const storedRecord = isRecord(payload.stored) ? payload.stored as Record<string, unknown> : {}
+  const readNullable = (v: unknown): string | null => {
+    if (typeof v !== 'string' || v.length === 0) return null
+    return v
+  }
+  return {
+    effective: {
+      apiBase: readNullable(effectiveRecord.apiBase),
+      model: readNullable(effectiveRecord.model),
+      fallbackModel: readNullable(effectiveRecord.fallbackModel),
+      source: effectiveRecord.source === 'settings' ? ('settings' as const) : ('env' as const),
+    },
+    stored: {
+      apiBase: readNullable(storedRecord.apiBase),
+      model: readNullable(storedRecord.model),
+      fallbackModel: readNullable(storedRecord.fallbackModel),
+      updatedBy: readNullable(storedRecord.updatedBy),
+      updatedAt: typeof storedRecord.updatedAt === 'number' ? storedRecord.updatedAt : null,
+    },
+  }
 }
 
 export interface AgentConfig {
@@ -429,6 +566,8 @@ export function parseAIStatusPayload(payload: unknown): AIStatus | null {
   const apiBase = readString(payload.apiBase) ?? undefined
   const validationError = readString(payload.validationError) ?? undefined
   const bonded = Array.isArray(payload.bonded) ? payload.bonded.filter((item): item is string => typeof item === 'string') : undefined
+  const fallbackModel = readString(payload.fallbackModel) ?? undefined
+  const source = payload.source === 'settings' ? ('settings' as const) : payload.source === 'env' ? ('env' as const) : undefined
 
   return {
     enabled,
@@ -441,6 +580,8 @@ export function parseAIStatusPayload(payload: unknown): AIStatus | null {
     valid,
     validationError,
     bonded,
+    fallbackModel,
+    source,
   }
 }
 

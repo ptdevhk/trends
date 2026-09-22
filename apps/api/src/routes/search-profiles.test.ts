@@ -267,6 +267,150 @@ describe("search-profiles legacy adoption", () => {
         expect(filters.minRoleYears).toBe(1);
         expect(filters.maxAge).toBe(45);
     });
+
+    it("reconciles wrong quickStart.enabled from YAML without full reseed flag (CMM option 1 off / 2+3 on)", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([
+            {
+                profile: {
+                    id: "51job-cn-cmm-3d-scanning-sales",
+                    name: "China 51job CMM & 3D Scanning Sales",
+                    status: "active" as const,
+                    location: "China",
+                    keywords: ["三坐标", "3D扫描"],
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: {
+                        enabled: false,
+                        rank: 7,
+                        label: "China · 51job · 三坐标 3D扫描 销售",
+                    },
+                },
+            },
+            {
+                profile: {
+                    id: "51job-cn-cmm-sales",
+                    name: "China 51job CMM & Metrology Sales",
+                    status: "active" as const,
+                    location: "China",
+                    keywords: ["三坐标测量机", "销售"],
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: {
+                        enabled: true,
+                        rank: 7,
+                        label: "China · 51job · CMM 销售",
+                    },
+                },
+            },
+            {
+                profile: {
+                    id: "51job-cn-3d-scanning-sales",
+                    name: "China 51job 3D Scanning Sales",
+                    status: "active" as const,
+                    location: "China",
+                    keywords: ["3D扫描仪", "销售"],
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: {
+                        enabled: true,
+                        rank: 8,
+                        label: "China · 51job · 3D扫描销售",
+                    },
+                },
+            },
+        ]);
+
+        // Prod-upgrade shape: stamped hashes, but quickStart flags inverted vs YAML
+        // (option1 on, option2/3 off — the old wrong landing layout).
+        const listRecords = [
+            {
+                _id: "storage-cmm-option1",
+                profileId: "51job-cn-cmm-3d-scanning-sales",
+                name: "China 51job CMM & 3D Scanning Sales",
+                profile: {
+                    id: "51job-cn-cmm-3d-scanning-sales",
+                    seedSource: "config/search-profiles",
+                    templateHash: "prod-hash-option1",
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: { enabled: true, rank: 7 },
+                },
+                criteria: { keywords: ["三坐标", "3D扫描"], locations: ["China"] },
+            },
+            {
+                _id: "storage-cmm-option2",
+                profileId: "51job-cn-cmm-sales",
+                name: "China 51job CMM & Metrology Sales",
+                profile: {
+                    id: "51job-cn-cmm-sales",
+                    seedSource: "config/search-profiles",
+                    templateHash: "prod-hash-option2",
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: { enabled: false, rank: 7 },
+                },
+                criteria: { keywords: ["三坐标测量机", "销售"], locations: ["China"] },
+            },
+            {
+                _id: "storage-cmm-option3",
+                profileId: "51job-cn-3d-scanning-sales",
+                name: "China 51job 3D Scanning Sales",
+                profile: {
+                    id: "51job-cn-3d-scanning-sales",
+                    seedSource: "config/search-profiles",
+                    templateHash: "prod-hash-option3",
+                    filters: { minRoleYears: 1, roleFilterType: "sales" },
+                    quickStart: { enabled: false, rank: 8 },
+                },
+                criteria: { keywords: ["3D扫描仪", "销售"], locations: ["China"] },
+            },
+        ];
+
+        const calls: ConvexCall[] = [];
+        vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+            const call = parseConvexCall(input, init);
+            calls.push(call);
+
+            if (call.pathName === "search_profiles:list") {
+                return convexSuccess(listRecords);
+            }
+            if (call.pathName === "search_profiles:update") {
+                const args = call.args;
+                const profile = isRecord(args.profile) ? args.profile : {};
+                const storageId = typeof args.id === "string" ? args.id : "";
+                const listRecord = listRecords.find((row) => row._id === storageId) ?? listRecords[0];
+                const base = isRecord(listRecord) ? listRecord : {};
+                const nextProfile = {
+                    ...(isRecord(base.profile) ? base.profile : {}),
+                    ...profile,
+                };
+                if (isRecord(listRecord) && isRecord(listRecord.profile)) {
+                    listRecord.profile = nextProfile;
+                }
+                return convexSuccess({
+                    ...base,
+                    profile: nextProfile,
+                });
+            }
+            throw new Error(`Unexpected convex path: ${call.pathName}`);
+        });
+
+        const response = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        const body = await response.json() as {
+            success: boolean;
+            profiles: Array<{ id: string; quickStart?: { enabled?: boolean; rank?: number } }>;
+        };
+        expect(body.success).toBe(true);
+
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(3);
+
+        const byId = new Map(body.profiles.map((profile) => [profile.id, profile]));
+        expect(byId.get("51job-cn-cmm-3d-scanning-sales")?.quickStart?.enabled).toBe(false);
+        expect(byId.get("51job-cn-cmm-sales")?.quickStart?.enabled).toBe(true);
+        expect(byId.get("51job-cn-3d-scanning-sales")?.quickStart?.enabled).toBe(true);
+    });
 });
 
 describe("search-profiles seeded edits", () => {

@@ -73,10 +73,11 @@ if created:
 # filtering wins over materialization above). Environment-local flags
 # (maintenanceMode, industryMaintenanceSchedulePaused) must not propagate to
 # the target; other settings (e.g. resumeWorkHistoryLimit) do, so the target
-# no longer reverts to defaults on every sync.
+# no longer reverts to defaults on every sync. aiRouting is also env-local:
+# AI model/base hot-config must not clobber the target's own routing on sync.
 if os.path.exists("system_settings"):
     path = "system_settings/documents.jsonl"
-    env_local = {"maintenanceMode", "industryMaintenanceSchedulePaused"}
+    env_local = {"maintenanceMode", "industryMaintenanceSchedulePaused", "aiRouting"}
     if os.path.exists(path):
         docs = [json.loads(line) for line in open(path) if line.strip()]
         kept = [d for d in docs if not (isinstance(d, dict) and d.get("key") in env_local)]

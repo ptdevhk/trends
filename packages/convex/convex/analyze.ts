@@ -44,7 +44,8 @@ import {
     getAiApiBase,
     getAiModel,
     getAiTemperature,
-    resolveAnalyzeLlmRuntimeConfig,
+    resolveAnalyzeLlmRuntimeConfigFromSettings,
+    type AiRoutingSettingsInput,
     type ChatMessage,
 } from "./lib/analysis_config.js";
 import {
@@ -94,7 +95,6 @@ export {
     getAiModel,
     getAiFallbackModel,
     getAiTemperature,
-    resolveAnalyzeLlmRuntimeConfig,
     SYSTEM_PROMPT,
     USER_PROMPT_TEMPLATE,
 } from "./lib/analysis_config.js";
@@ -267,8 +267,14 @@ function computeAuditFields(resume: Record<string, unknown>) {
 }
 
 // Helper to call OpenAI/Compatible API
-export async function callLLM(messages: ChatMessage[], apiKey: string) {
-    const runtime = resolveAnalyzeLlmRuntimeConfig();
+export async function callLLM(
+    messages: ChatMessage[],
+    apiKey: string,
+    opts?: { settings?: AiRoutingSettingsInput | null },
+) {
+    const runtime = resolveAnalyzeLlmRuntimeConfigFromSettings(
+        opts?.settings === undefined ? null : opts.settings,
+    );
     const apiBase = runtime.apiBase;
     const url = `${apiBase}/chat/completions`;
     const primary = resolveChatCompletionModel(apiBase, runtime.primary);
@@ -412,10 +418,11 @@ export const analyzeResume = action({
             { role: "user", content: prompt },
         ];
 
-        // 3. Call LLM
+        // 3. Call LLM (settings override env for model/base; key stays from env)
         let rawResult;
+        const aiRouting = await ctx.runQuery(internal.system_settings.getAiRoutingSettingsInternal, {});
         try {
-            rawResult = (await callLLM(messages, apiKey)).content;
+            rawResult = (await callLLM(messages, apiKey, { settings: aiRouting })).content;
         } catch (e) {
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
@@ -542,6 +549,7 @@ export async function callLLMWithTracking(
     messages: ChatMessage[],
     apiKey: string,
     workspaceId: string,
+    opts?: { settings?: AiRoutingSettingsInput | null },
 ): Promise<Record<string, unknown>> {
     // Check budget
     const budget = await ctx.runQuery(api.llm_cost.getBudget, { workspaceId });
@@ -549,7 +557,9 @@ export async function callLLMWithTracking(
         throw new Error(`LLM budget exhausted for workspace ${workspaceId}: ${budget.remainingTokens} tokens remaining`);
     }
 
-    const { content: result, usage } = await callLLM(messages, apiKey);
+    const { content: result, usage } = await callLLM(messages, apiKey, {
+        settings: opts?.settings === undefined ? null : opts.settings,
+    });
 
     // Record actual token usage from the API response
     const inputTokens = (usage as Record<string, unknown>)?.prompt_tokens as number ?? 0;
@@ -655,6 +665,10 @@ export const confirmSearchResults = action({
         const results: Array<{ resumeId: string; confirmedScore: number; confirmedRecommendation: string; error?: string }> = [];
         let totalConfirmed = 0;
 
+        // Load operator-editable AI routing once per confirm batch (settings
+        // override env for model/base; key stays from env).
+        const aiRouting = await ctx.runQuery(internal.system_settings.getAiRoutingSettingsInternal, {});
+
         for (const resumeId of confirmIds) {
             try {
                 const resume = await ctx.runQuery(internal.resumes.getResume, { resumeId });
@@ -674,7 +688,9 @@ export const confirmSearchResults = action({
                     },
                 ];
 
-                const rawResult = await callLLMWithTracking(ctx, messages, apiKey, args.workspaceId);
+                const rawResult = await callLLMWithTracking(ctx, messages, apiKey, args.workspaceId, {
+                    settings: aiRouting,
+                });
                 const analysis = normalizeAnalysisResult(
                     isRecord(rawResult) ? rawResult : {},
                     resume,

@@ -437,6 +437,11 @@ async function analyzeOneResume(
     },
     apiKey: string,
     localeOverride?: string,
+    aiRouting?: {
+        apiBase: string | null;
+        model: string | null;
+        fallbackModel: string | null;
+    },
 ): Promise<AnalysisResult> {
     const normalizedKeywords = normalizeKeywords(config.keywords ?? []);
     const useKeywordPath = normalizedKeywords.length > 0 && !config.jobDescriptionContent;
@@ -481,7 +486,7 @@ async function analyzeOneResume(
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            const rawResult = await callLLM(messages, apiKey);
+            const rawResult = await callLLM(messages, apiKey, { settings: aiRouting });
             const parsedResult = parseLlmResult(rawResult);
             const normalizedResult = normalizeAnalysisResult(
                 parsedResult,
@@ -1312,6 +1317,10 @@ export const processAnalysisTask = internalAction({
                 internal.system_settings.getResumeWorkHistoryLimitInternal,
                 {},
             );
+            const aiRouting = await ctx.runQuery(
+                internal.system_settings.getAiRoutingSettingsInternal,
+                {},
+            );
 
             const exactTaskMetadata = task.dispatchMode === "exact"
                 ? resolveExactTaskMetadata(task, task.workspaceSlug ?? "")
@@ -1454,6 +1463,7 @@ export const processAnalysisTask = internalAction({
                                 },
                                 apiKey,
                                 exactIdentity?.locale,
+                                aiRouting,
                             );
 
                             await ctx.runMutation(internal.resumes_mutations.updateAnalysis, {

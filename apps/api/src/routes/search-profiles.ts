@@ -577,6 +577,39 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             continue;
         }
 
+        // Safe additive migrate: YAML owns quickStart.enabled for template-id rows.
+        // Fresh install seeds correctly; prod→preview / prod-data upgrades often keep
+        // stamped rows with the wrong landing flag (e.g. CMM option 1 on, option 2/3 off (YAML now wants the reverse)). Reconcile without RESEED_ON_DRIFT so sources/filters/schedule edits
+        // stay intact. Applies to seeded rows and prod-imported rows that share a
+        // config template id.
+        const templateQuickStartEnabled = Boolean(profile.quickStart?.enabled);
+        const existingQuickStartEnabled = Boolean(existing.profile.quickStart?.enabled);
+        if (templateQuickStartEnabled !== existingQuickStartEnabled) {
+            const patchedProfile = searchProfileService.normalizeProfileInput(
+                {
+                    ...existing.profile,
+                    id: existing.profile.id,
+                    quickStart: profile.quickStart,
+                },
+                existing.profile,
+            );
+            patchedProfile.id = existing.profile.id;
+            await updateCustomProfile(
+                existing.storageId,
+                toStoredProfilePayload(patchedProfile, {
+                    seededFromConfig: true,
+                    templateHash: existing.templateHash ?? currentHash,
+                }),
+                workspaceSlug,
+            );
+            logger.warn(
+                `reconciled quickStart.enabled on "${logicalId}" (workspace=${workspaceSlug}) ` +
+                `from YAML template (${existingQuickStartEnabled} → ${templateQuickStartEnabled}).`,
+                { route: "search-profiles" },
+            );
+            continue;
+        }
+
         // Drift detection: seeded profile whose YAML template has changed since
         // it was inserted. Only refresh when the operator opts in via
         // SEARCH_PROFILES_RESEED_ON_DRIFT — refresh clobbers any user edits to

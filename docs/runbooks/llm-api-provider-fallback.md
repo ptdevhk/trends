@@ -66,6 +66,35 @@ npx convex env set AI_API_BASE https://api.poe.com/v1
 The BFF `export const aiConfig = loadAIConfig()` is an **import-time snapshot**.
 That path is not the Convex analyze caller.
 
+## AI routing hot-config (model + base URL, no restart) — 2026-09-22
+
+System admins can hot-switch the primary **model** and **API base URL** for both
+Convex scoring and BFF AI paths without a BFF restart, via the **Admin Runtime
+page** (`Settings → AI review runtime → AI routing`) or the **Trends CLI**:
+
+```bash
+trends ai-config get
+trends ai-config set --model openai/deepseek-v4-flash --api-base https://cpa.pt-mes.com/v1 [--fallback ...]
+trends ai-config test
+```
+
+- Source of truth is the Convex `system_settings` document keyed `aiRouting`
+  (`apiBase` / `model` / `fallbackModel`), with env fallback. BFF reads it via a
+  short TTL cache and invalidates on write, so model/base changes apply within
+  seconds **without restart**.
+- **The API key stays env-only.** It is never stored in Convex, never returned
+  by the BFF routes, and never written via the browser. Only masked presence is
+  shown. Key rotation remains an ops step (`convex env set AI_API_KEY` /
+  `scripts/sync-convex-env.sh`), and may require a BFF reload.
+- `aiRouting` is filtered as an **env-local** key in
+  `deploy/lib-convex-export-fix.sh`, so preview/prod sync never clobbers a
+  deployment's own AI routing.
+- Curated defaults (`openai/deepseek-v4-flash`, `openai/deepseek-v4-flash-e`,
+  ...) are always available offline; `GET .../models` against the gateway can
+  refresh the picker, and the "other" free-form field accepts any
+  `provider/model` with a warn, not a hard block.
+- Writes require a workspace **admin** and record `updatedBy`/`updatedAt`.
+
 ## Routing on ptcloud (CPA proxy)
 
 Live preview/prod on `ptcloud` do **not** call Poe directly. They use the

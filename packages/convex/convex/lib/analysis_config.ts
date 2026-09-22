@@ -108,3 +108,36 @@ export function getAiTemperature(): number {
     }
     return 0;
 }
+
+// ---------------------------------------------------------------------------
+// AI routing settings (hybrid source of truth)
+// ---------------------------------------------------------------------------
+
+export type AiRoutingSettingsInput = {
+    apiBase: string | null;
+    model: string | null;
+    fallbackModel: string | null;
+};
+
+/**
+ * Merge operator-editable AI routing settings over env-derived values.
+ * Non-null settings fields override env getters; null/missing fields fall
+ * back to env. Used by the analyze read path and the BFF effective config.
+ */
+export function resolveAnalyzeLlmRuntimeConfigFromSettings(
+    settings: AiRoutingSettingsInput | null,
+): {
+    apiBase: string;
+    primary: string;
+    fallback: string;
+} {
+    const env = resolveAnalyzeLlmRuntimeConfig();
+    if (!settings) {
+        return env;
+    }
+    return {
+        apiBase: settings.apiBase ?? env.apiBase,
+        primary: settings.model ?? env.primary,
+        fallback: settings.fallbackModel ?? env.fallback,
+    };
+}

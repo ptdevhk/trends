@@ -26,6 +26,7 @@ import {
 } from "@trends/shared";
 import { logger } from "./logger.js";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
+import { loadEffectiveAIConfig } from "./ai-routing-settings.js";
 import { findProjectRoot } from "./db.js";
 import { computeDirectIndustryDbScore } from "./industry-db-batch-stats.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
@@ -813,27 +814,37 @@ Return strictly valid JSON:
             });
         }
 
+        // Read effective config fresh each call so model/base hot-config applies
+        // without a BFF restart. The API key always comes from env (never the
+        // settings document).
+        const eff = await loadEffectiveAIConfig();
+        const baseUrl = eff.apiBase || "https://api.openai.com/v1";
+        const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${eff.apiKey}`,
+        };
+
         // Extract model name (remove provider prefix for some APIs)
-        const modelParts = aiConfig.model.split("/");
-        const modelName = modelParts.length > 1 ? modelParts.slice(1).join("/") : aiConfig.model;
+        const modelParts = eff.model.split("/");
+        const modelName = modelParts.length > 1 ? modelParts.slice(1).join("/") : eff.model;
 
         const requestBody: Record<string, unknown> = {
             model: modelName,
             messages,
-            temperature: aiConfig.temperature,
-            max_tokens: aiConfig.maxTokens,
+            temperature: eff.temperature,
+            max_tokens: eff.maxTokens,
         };
         if (shouldDisableThinking(modelName)) {
             requestBody.enable_thinking = false;
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), aiConfig.timeout);
+        const timeoutId = setTimeout(() => controller.abort(), eff.timeout);
 
         try {
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
+            const response = await fetch(`${baseUrl}/chat/completions`, {
                 method: "POST",
-                headers: this.headers,
+                headers,
                 body: JSON.stringify(requestBody),
                 signal: controller.signal,
             });

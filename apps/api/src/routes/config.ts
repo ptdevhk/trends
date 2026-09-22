@@ -20,8 +20,22 @@ import {
   SYSTEM_NAV_ITEMS,
   isRecord,
 } from "@trends/shared";
-import { getAdminAccessError, getWorkspaceUserAccessError } from "../middleware/auth.js";
+import {
+  getAdminAccessError,
+  getAuthenticatedActorId,
+  getWorkspaceUserAccessError,
+} from "../middleware/auth.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
+import {
+  getCachedAiRoutingSettings,
+  loadEffectiveAIConfig,
+  writeAiRoutingSettings,
+} from "../services/ai-routing-settings.js";
+import {
+  CURATED_AI_ROUTING_MODELS,
+  mapGatewayModelIdToProviderModel,
+  isProviderModelForm,
+} from "@trends/shared";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { customKeywordService } from "../services/custom-keyword-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
@@ -225,6 +239,43 @@ const AIStatusResponseSchema = z.object({
   valid: z.boolean(),
   validationError: z.string().nullish(),
   bonded: z.array(z.string()).nullish(),
+  // AI routing hot-config — additive, backward-compatible.
+  fallbackModel: z.string().nullish(),
+  source: z.enum(["settings", "env"]).nullish(),
+});
+
+const AiRoutingFieldSchema = z.string().optional();
+
+const AiRoutingUpdateSchema = z.object({
+  apiBase: AiRoutingFieldSchema,
+  model: AiRoutingFieldSchema,
+  fallbackModel: AiRoutingFieldSchema,
+  reason: z.string().optional(),
+});
+
+const AiRoutingGetResponseSchema = z.object({
+  success: z.literal(true),
+  // Effective view (settings merged over env) — never includes the API key.
+  effective: z.object({
+    apiBase: z.string().nullish(),
+    model: z.string().nullish(),
+    fallbackModel: z.string().nullish(),
+    source: z.enum(["settings", "env"]).nullish(),
+  }),
+  // Stored operator settings (null = env fallback).
+  stored: z.object({
+    apiBase: z.string().nullish(),
+    model: z.string().nullish(),
+    fallbackModel: z.string().nullish(),
+    updatedBy: z.string().nullish(),
+    updatedAt: z.number().nullish(),
+  }),
+  // Key presence only — never the raw value.
+  apiKey: z.object({
+    present: z.boolean(),
+    masked: z.string().nullish(),
+  }),
+  curatedModels: z.array(z.string()),
 });
 
 const AgentsGetResponseSchema = z.object({
@@ -483,31 +534,364 @@ const getAIStatusRoute = createRoute({
   },
 });
 
-app.openapi(getAIStatusRoute, (c) => {
+app.openapi(getAIStatusRoute, async (c) => {
   try {
-    const aiConfig = loadAIConfig();
+    // Effective config = operator settings merged over env (hot-config); the
+    // key is masked and never returned raw.
+    const effective = await loadEffectiveAIConfig();
+    const settings = await getCachedAiRoutingSettings();
     const validation = validateAIConfig();
 
     return c.json(
       {
         success: true as const,
-        enabled: aiConfig.enabled ?? null,
-        resumesEnabled: aiConfig.resumesEnabled ?? null,
-        model: aiConfig.model ?? null,
-        apiBase: aiConfig.apiBase ?? null,
-        temperature: aiConfig.temperature ?? null,
-        maxTokens: aiConfig.maxTokens ?? null,
-        timeout: aiConfig.timeout ?? null,
+        enabled: effective.enabled ?? null,
+        resumesEnabled: effective.resumesEnabled ?? null,
+        model: effective.model ?? null,
+        apiBase: effective.apiBase ?? null,
+        temperature: effective.temperature ?? null,
+        maxTokens: effective.maxTokens ?? null,
+        timeout: effective.timeout ?? null,
         apiKeyMasked: getMaskedApiKey() ?? null,
         valid: validation.valid,
         validationError: validation.error ?? null,
-        bonded: aiConfig.bonded ?? null,
+        bonded: effective.bonded ?? null,
+        fallbackModel: effective.fallbackModel ?? null,
+        source: settings && (settings.model || settings.apiBase) ? ("settings" as const) : ("env" as const),
       },
       200,
     );
   } catch (error) {
     logger.error("Failed to load AI status", error, { route: "config" });
     return c.json({ success: false as const, error: "Failed to load AI status" }, 500);
+  }
+});
+
+const getAiRoutingRoute = createRoute({
+  method: "get",
+  path: "/ai-routing",
+  tags: ["config"],
+  summary: "Get AI routing settings (model + base URL)",
+  responses: {
+    200: { description: "AI routing settings", content: { "application/json": { schema: AiRoutingGetResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getAiRoutingRoute, async (c) => {
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
+  try {
+    const stored = await getCachedAiRoutingSettings();
+    const effective = await loadEffectiveAIConfig();
+    const effectiveHasSettings = Boolean(stored && (stored.model || stored.apiBase || stored.fallbackModel));
+    const apiKey = loadAIConfig().apiKey || "";
+    return c.json(
+      {
+        success: true as const,
+        effective: {
+          apiBase: effective.apiBase ?? null,
+          model: effective.model ?? null,
+          fallbackModel: effective.fallbackModel ?? null,
+          source: effectiveHasSettings ? ("settings" as const) : ("env" as const),
+        },
+        stored: {
+          apiBase: stored?.apiBase ?? null,
+          model: stored?.model ?? null,
+          fallbackModel: stored?.fallbackModel ?? null,
+          updatedBy: stored?.updatedBy ?? null,
+          updatedAt: stored?.updatedAt ?? null,
+        },
+        apiKey: {
+          present: Boolean(apiKey),
+          masked: getMaskedApiKey() ?? null,
+        },
+        curatedModels: [...CURATED_AI_ROUTING_MODELS],
+      },
+      200,
+    );
+  } catch (error) {
+    logger.error("Failed to load AI routing settings", error, { route: "config" });
+    return c.json({ success: false as const, error: "Failed to load AI routing settings" }, 500);
+  }
+});
+
+const putAiRoutingRoute = createRoute({
+  method: "put",
+  path: "/ai-routing",
+  tags: ["config"],
+  summary: "Update AI routing settings (model + base URL)",
+  request: {
+    body: { content: { "application/json": { schema: AiRoutingUpdateSchema } } },
+  },
+  responses: {
+    200: { description: "Updated AI routing settings", content: { "application/json": { schema: AiRoutingGetResponseSchema } } },
+    400: { description: "Invalid payload", content: { "application/json": { schema: ErrorResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(putAiRoutingRoute, async (c) => {
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
+  try {
+    const data = c.req.valid("json");
+    // Local validation mirroring the Convex mutation so the BFF returns 400
+    // instead of a generic 500 for bad model form.
+    for (const field of ["model", "fallbackModel"] as const) {
+      const value = data[field];
+      if (value !== undefined && value.trim() && !isProviderModelForm(value.trim())) {
+        return c.json(
+          { success: false as const, error: `${field} must be provider/model form (e.g. openai/deepseek-v4-flash)` },
+          400,
+        );
+      }
+    }
+    const actorId = getAuthenticatedActorId(c);
+    const stored = await writeAiRoutingSettings({
+      ...(data.apiBase !== undefined ? { apiBase: data.apiBase } : {}),
+      ...(data.model !== undefined ? { model: data.model } : {}),
+      ...(data.fallbackModel !== undefined ? { fallbackModel: data.fallbackModel } : {}),
+      updatedBy: actorId,
+      reason: data.reason,
+    });
+    const effective = await loadEffectiveAIConfig();
+    const effectiveHasSettings = Boolean(stored && (stored.model || stored.apiBase || stored.fallbackModel));
+    const apiKey = loadAIConfig().apiKey || "";
+    return c.json(
+      {
+        success: true as const,
+        effective: {
+          apiBase: effective.apiBase ?? null,
+          model: effective.model ?? null,
+          fallbackModel: effective.fallbackModel ?? null,
+          source: effectiveHasSettings ? ("settings" as const) : ("env" as const),
+        },
+        stored: {
+          apiBase: stored?.apiBase ?? null,
+          model: stored?.model ?? null,
+          fallbackModel: stored?.fallbackModel ?? null,
+          updatedBy: stored?.updatedBy ?? null,
+          updatedAt: stored?.updatedAt ?? null,
+        },
+        apiKey: {
+          present: Boolean(apiKey),
+          masked: getMaskedApiKey() ?? null,
+        },
+        curatedModels: [...CURATED_AI_ROUTING_MODELS],
+      },
+      200,
+    );
+  } catch (error) {
+    logger.error("Failed to update AI routing settings", error, { route: "config" });
+    const message = error instanceof Error ? error.message : "Failed to update AI routing settings";
+    // Surface validation errors from Convex as 400.
+    if (typeof message === "string" && /provider\/model/.test(message)) {
+      return c.json({ success: false as const, error: message }, 400);
+    }
+    return c.json({ success: false as const, error: "Failed to update AI routing settings" }, 500);
+  }
+});
+
+const AiRoutingModelsResponseSchema = z.object({
+  success: z.literal(true),
+  gatewayModels: z.array(z.string()),
+  gatewayAvailable: z.boolean(),
+  warning: z.string().nullish(),
+  curatedModels: z.array(z.string()),
+});
+
+const getAiRoutingModelsRoute = createRoute({
+  method: "get",
+  path: "/ai-routing/models",
+  tags: ["config"],
+  summary: "List gateway models for the AI routing picker (admin)",
+  responses: {
+    200: { description: "Gateway model list", content: { "application/json": { schema: AiRoutingModelsResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(getAiRoutingModelsRoute, async (c) => {
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
+  try {
+    const effective = await loadEffectiveAIConfig();
+    const apiKey = effective.apiKey || "";
+    const baseUrl = effective.apiBase || "https://api.openai.com/v1";
+    const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
+
+    if (!apiKey) {
+      return c.json({
+        success: true as const,
+        gatewayModels: [],
+        gatewayAvailable: false,
+        warning: "API key is not set — gateway refresh unavailable. Using curated list.",
+        curatedModels: [...CURATED_AI_ROUTING_MODELS],
+      }, 200);
+    }
+
+    const response = await fetch(modelsUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) {
+      return c.json({
+        success: true as const,
+        gatewayModels: [],
+        gatewayAvailable: false,
+        warning: `Gateway returned HTTP ${response.status} — using curated list.`,
+        curatedModels: [...CURATED_AI_ROUTING_MODELS],
+      }, 200);
+    }
+    const payload = await response.json() as { data?: Array<{ id?: string }> };
+    const ids = (payload.data ?? []).map((entry) => entry.id).filter(Boolean) as string[];
+    // Map gateway ids into provider/model picker entries.
+    const mapped = Array.from(new Set(ids.map(mapGatewayModelIdToProviderModel)))
+      .sort((a, b) => a.localeCompare(b));
+    return c.json({
+      success: true as const,
+      gatewayModels: mapped,
+      gatewayAvailable: true,
+      warning: null,
+      curatedModels: [...CURATED_AI_ROUTING_MODELS],
+    }, 200);
+  } catch (error) {
+    logger.error("Failed to list gateway models", error, { route: "config" });
+    return c.json({
+      success: true as const,
+      gatewayModels: [],
+      gatewayAvailable: false,
+      warning: "Gateway refresh failed — using curated list.",
+      curatedModels: [...CURATED_AI_ROUTING_MODELS],
+    }, 200);
+  }
+});
+
+const AiRoutingTestResponseSchema = z.object({
+  success: z.literal(true),
+  model: z.string(),
+  apiBase: z.string(),
+  reachable: z.boolean(),
+  modelFound: z.boolean(),
+  chatOk: z.boolean().nullish(),
+  warning: z.string().nullish(),
+});
+
+const postAiRoutingTestRoute = createRoute({
+  method: "post",
+  path: "/ai-routing/test",
+  tags: ["config"],
+  summary: "Test connection to the effective AI endpoint (admin)",
+  responses: {
+    200: { description: "Test result", content: { "application/json": { schema: AiRoutingTestResponseSchema } } },
+    401: { description: "Authentication required", content: { "application/json": { schema: ErrorResponseSchema } } },
+    403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+    500: { description: "Server error", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+app.openapi(postAiRoutingTestRoute, async (c) => {
+  const adminError = getAdminAccessError(c);
+  if (adminError) {
+    return c.json(adminError.body, adminError.status);
+  }
+  try {
+    const effective = await loadEffectiveAIConfig();
+    const apiKey = effective.apiKey || "";
+    const baseUrl = effective.apiBase || "https://api.openai.com/v1";
+    const modelName = effective.model.split("/").slice(1).join("/") || effective.model;
+
+    if (!apiKey) {
+      return c.json({
+        success: true as const,
+        model: modelName,
+        apiBase: baseUrl,
+        reachable: false,
+        modelFound: false,
+        warning: "API key is not set — cannot test connection.",
+      }, 200);
+    }
+
+    const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
+    let reachable = false;
+    let modelFound = false;
+    try {
+      const modelsResponse = await fetch(modelsUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      reachable = modelsResponse.ok;
+      if (reachable) {
+        const payload = await modelsResponse.json() as { data?: Array<{ id?: string }> };
+        modelFound = (payload.data ?? []).some((entry) => entry.id === modelName);
+      }
+    } catch {
+      reachable = false;
+    }
+
+    // Minimal chat completion to confirm the endpoint actually serves inference.
+    let chatOk: boolean | undefined;
+    let chatError: string | undefined;
+    if (reachable) {
+      try {
+        const chatResponse = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: "user", content: "Reply with the single word ok." }],
+            temperature: 0,
+            max_tokens: 5,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+        chatOk = chatResponse.ok;
+        if (!chatResponse.ok) {
+          chatError = `chat HTTP ${chatResponse.status}`;
+        }
+      } catch {
+        chatOk = false;
+        chatError = "chat request failed";
+      }
+    }
+
+    let warning: string | null = null;
+    if (!reachable) {
+      warning = `Gateway not reachable at ${baseUrl}`;
+    } else if (!modelFound) {
+      warning = `Model '${modelName}' not found in gateway list — it may still work.`;
+    } else if (chatOk === false) {
+      warning = `Endpoint reachable but chat completion failed${chatError ? ` (${chatError})` : ""}.`;
+    }
+
+    return c.json({
+      success: true as const,
+      model: modelName,
+      apiBase: baseUrl,
+      reachable,
+      modelFound,
+      chatOk,
+      warning,
+    }, 200);
+  } catch (error) {
+    logger.error("Failed to test AI connection", error, { route: "config" });
+    return c.json({ success: false as const, error: "Failed to test AI connection" }, 500);
   }
 });
 

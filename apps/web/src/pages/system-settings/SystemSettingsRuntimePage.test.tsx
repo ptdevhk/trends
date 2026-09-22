@@ -24,6 +24,30 @@ vi.mock('@/pages/system-settings/lib', () => ({
     if (!payload || typeof payload !== 'object') return null
     return payload
   },
+  parseAiRoutingPayload: (payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return null
+    return {
+      effective: { apiBase: null, model: null, fallbackModel: null, source: 'env' },
+      stored: { apiBase: null, model: null, fallbackModel: null, updatedBy: null, updatedAt: null },
+      apiKey: { present: false, masked: null },
+      curatedModels: ['openai/deepseek-v4-flash'],
+    }
+  },
+  parseAiRoutingModelsPayload: (payload: unknown) =>
+    payload && typeof payload === 'object'
+      ? { gatewayModels: [], gatewayAvailable: false, warning: null, curatedModels: [] }
+      : null,
+  parseAiRoutingTestPayload: (payload: unknown) =>
+    payload && typeof payload === 'object'
+      ? { model: '', apiBase: '', reachable: false, modelFound: false, chatOk: null, warning: null }
+      : null,
+  parseAiRoutingUpdatePayload: (payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return null
+    return {
+      effective: { apiBase: null, model: null, fallbackModel: null, source: 'env' as const },
+      stored: { apiBase: null, model: null, fallbackModel: null, updatedBy: null, updatedAt: null },
+    }
+  },
   parseOptionalNumberInput: (raw: string) => {
     if (raw === '') return { valid: true, value: undefined }
     const n = Number(raw)

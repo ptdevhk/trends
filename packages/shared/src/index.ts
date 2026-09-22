@@ -32,3 +32,4 @@ export * from "./scoring/brand-signals.js";
 export * from "./scoring/score-cap-rules.js";
 export * from "./scoring/adjacent-product-cap.js";
 export * from "./search-text.js";
+export * from "./ai-routing-models.js";

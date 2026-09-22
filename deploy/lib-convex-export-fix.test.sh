@@ -20,6 +20,7 @@ printf '"uniform"\n' > "$TMP/src/screening_sessions/generated_schema.jsonl"
 printf '{"_id":"m1","key":"maintenanceMode","value":false,"updatedAt":0,"updatedBy":"restore-script"}\n' > "$TMP/src/system_settings/documents.jsonl"
 printf '{"_id":"p1","key":"industryMaintenanceSchedulePaused","value":true,"updatedAt":0,"updatedBy":"restore-script"}\n' >> "$TMP/src/system_settings/documents.jsonl"
 printf '{"_id":"r1","key":"resumeWorkHistoryLimit","value":15,"updatedAt":0,"updatedBy":"operator"}\n' >> "$TMP/src/system_settings/documents.jsonl"
+printf '{"_id":"a1","key":"aiRouting","value":{"apiBase":"https://x/v1","model":"openai/deepseek-v4-flash"},"updatedAt":0,"updatedBy":"operator"}\n' >> "$TMP/src/system_settings/documents.jsonl"
 printf '"uniform"\n' > "$TMP/src/system_settings/generated_schema.jsonl"
 printf '{"_id":"jd1"}\n' > "$TMP/src/job_descriptions/documents.jsonl"
 printf '"uniform"\n' > "$TMP/src/job_descriptions/generated_schema.jsonl"
@@ -41,6 +42,7 @@ unzip -p "$TMP/out.zip" screening_sessions/documents.jsonl | grep -q showBlocked
 unzip -l "$TMP/out.zip" | grep -q "system_settings/" || fail "system_settings dropped entirely"
 unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"maintenanceMode"' && fail "maintenanceMode row not dropped" || pass "maintenanceMode row dropped"
 unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"industryMaintenanceSchedulePaused"' && fail "industryMaintenanceSchedulePaused row not dropped" || pass "industryMaintenanceSchedulePaused row dropped"
+unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"aiRouting"' && fail "aiRouting row not dropped" || pass "aiRouting row dropped"
 # 3. non-env-local settings survive (search-affecting settings must propagate)
 unzip -p "$TMP/out.zip" system_settings/documents.jsonl | grep -q '"key":"resumeWorkHistoryLimit"' && pass "resumeWorkHistoryLimit preserved" || fail "resumeWorkHistoryLimit lost"
 # 4. missing schema table materialized empty

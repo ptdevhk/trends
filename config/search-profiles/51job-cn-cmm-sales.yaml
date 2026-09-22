@@ -40,7 +40,7 @@ sources:
     priority: 2
 
 quickStart:
-  enabled: false
+  enabled: true
   rank: 7
   label: China · 51job · CMM 销售
   description: 三坐标测量机, 销售 · China

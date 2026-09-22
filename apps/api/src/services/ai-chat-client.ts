@@ -1,4 +1,5 @@
 import { aiConfig, loadAIConfig } from "./ai-config.js";
+import { getCachedAiRoutingSettings } from "./ai-routing-settings.js";
 
 export type AIChatMessage = {
   role: string;
@@ -24,7 +25,21 @@ export async function callChatCompletion(args: {
   model: string;
   temperature?: number;
 }): Promise<string> {
-  const config = args.config ?? loadAIConfig();
+  let config = args.config ?? loadAIConfig();
+  // When no explicit config is passed, hot-merge operator-editable AI routing
+  // settings (model/base) over the env snapshot so BFF AI paths pick up changes
+  // without a restart. The key always stays from env.
+  if (!args.config) {
+    const settings = await getCachedAiRoutingSettings();
+    if (settings) {
+      config = {
+        ...config,
+        ...(settings.apiBase ? { apiBase: settings.apiBase } : {}),
+        ...(settings.model ? { model: settings.model } : {}),
+        ...(settings.fallbackModel ? { fallbackModel: settings.fallbackModel } : {}),
+      };
+    }
+  }
   const baseUrl = config.apiBase || aiConfig.apiBase || "https://api.openai.com/v1";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout);

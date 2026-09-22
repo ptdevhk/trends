@@ -78,6 +78,7 @@ func init() {
 		newMigrateCmd(),
 		newMCPCmd(),
 		newWorkspaceCmd(),
+		newAiConfigCmd(),
 	)
 }
 

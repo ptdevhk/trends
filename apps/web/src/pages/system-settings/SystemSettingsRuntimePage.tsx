@@ -10,17 +10,252 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, type SelectOption } from '@/components/ui/select'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import {
   parseAgentsConfigPayload,
   parseAIStatusPayload,
+  parseAiRoutingModelsPayload,
+  parseAiRoutingPayload,
+  parseAiRoutingTestPayload,
+  parseAiRoutingUpdatePayload,
   parseOptionalNumberInput,
   type AgentItem,
   type AgentNumericField,
   type AgentsConfig,
+  type AiRoutingState,
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
 import { reportUiError } from '@/lib/ui-error-reporting'
+
+interface AiRoutingEditorProps {
+  loading: boolean
+}
+
+const EMPTY_AIR = '__none__'
+
+function AiRoutingEditor({ loading }: AiRoutingEditorProps) {
+  const { t } = useTranslation()
+  const { requestJson } = useSettingsRequestJson()
+  const [state, setState] = useState<AiRoutingState | null>(null)
+  const [modelSelect, setModelSelect] = useState<string>(EMPTY_AIR)
+  const [otherModel, setOtherModel] = useState('')
+  const [fallbackModel, setFallbackModel] = useState('')
+  const [apiBase, setApiBase] = useState('')
+  const [gatewayModels, setGatewayModels] = useState<string[]>([])
+  const [testResult, setTestResult] = useState<string | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const loadAiRouting = useCallback(async () => {
+    try {
+      const payload = await requestJson('/api/config/ai-routing')
+      const parsed = parseAiRoutingPayload(payload)
+      if (!parsed) {
+        throw new Error('Invalid AI routing response')
+      }
+      setState(parsed)
+      // Seed form fields from stored settings (or effective if nothing stored).
+      const model = parsed.stored.model ?? parsed.effective.model ?? ''
+      const curated = new Set([...parsed.curatedModels, ...gatewayModels])
+      setModelSelect(curated.has(model) ? model : EMPTY_AIR)
+      setOtherModel(curated.has(model) ? '' : model)
+      setFallbackModel(parsed.stored.fallbackModel ?? parsed.effective.fallbackModel ?? '')
+      setApiBase(parsed.stored.apiBase ?? parsed.effective.apiBase ?? '')
+    } catch (error) {
+      reportUiError('Failed to load AI routing', error)
+    } finally {
+      setLoaded(true)
+    }
+  }, [requestJson, gatewayModels])
+
+  useEffect(() => {
+    if (!loading) {
+      loadAiRouting().catch(() => undefined)
+    }
+  }, [loading, loadAiRouting])
+
+  const refreshModels = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const payload = await requestJson('/api/config/ai-routing/models')
+      const parsed = parseAiRoutingModelsPayload(payload)
+      if (!parsed) {
+        throw new Error('Invalid models response')
+      }
+      setGatewayModels(parsed.gatewayModels)
+      if (parsed.warning) {
+        toast.info(parsed.warning)
+      } else {
+        toast.success(t('debugConfig.aiRoutingModelsRefreshed', {
+          defaultValue: 'Gateway models refreshed ({{count}}).',
+          count: parsed.gatewayModels.length,
+        }))
+      }
+    } catch (error) {
+      reportUiError('Failed to refresh gateway models', error)
+      toast.error(t('debugConfig.aiRoutingModelsRefreshError', {
+        defaultValue: 'Gateway refresh failed — using curated list.',
+      }))
+    } finally {
+      setRefreshing(false)
+    }
+  }, [requestJson, t])
+
+  const testConnection = useCallback(async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const payload = await requestJson('/api/config/ai-routing/test', { method: 'POST' })
+      const parsed = parseAiRoutingTestPayload(payload)
+      if (!parsed) {
+        throw new Error('Invalid test response')
+      }
+      if (parsed.reachable && parsed.chatOk !== false) {
+        setTestResult(parsed.warning ? t('debugConfig.aiRoutingTestWarn', { warning: parsed.warning, defaultValue: parsed.warning ?? '' }) : t('debugConfig.aiRoutingTestOk', { defaultValue: 'Connection OK.' }))
+      } else {
+        setTestResult(parsed.warning ?? (t('debugConfig.aiRoutingTestFail', { defaultValue: 'Connection failed.' })))
+      }
+    } catch (error) {
+      reportUiError('Failed to test AI connection', error)
+      setTestResult(t('debugConfig.aiRoutingTestFail', { defaultValue: 'Connection failed.' }))
+    } finally {
+      setTesting(false)
+    }
+  }, [requestJson, t])
+
+  const save = useCallback(async () => {
+    const resolvedModel = modelSelect === EMPTY_AIR ? otherModel.trim() : modelSelect
+    if (resolvedModel && !resolvedModel.includes('/')) {
+      toast.error(t('debugConfig.aiRoutingSaveError', { defaultValue: 'Failed to save AI routing.' }))
+      return
+    }
+    setSaving(true)
+    try {
+      const body: Record<string, string> = {}
+      body.apiBase = apiBase.trim()
+      body.model = resolvedModel
+      body.fallbackModel = fallbackModel.trim()
+      const payload = await requestJson('/api/config/ai-routing', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      })
+      const parsed = parseAiRoutingUpdatePayload(payload)
+      if (!parsed) {
+        throw new Error('Invalid AI routing save response')
+      }
+      setState((current) => current ? { ...current, stored: parsed.stored, effective: parsed.effective } : current)
+      toast.success(t('debugConfig.aiRoutingSaved', { defaultValue: 'AI routing saved.' }))
+    } catch (error) {
+      reportUiError('Failed to save AI routing', error)
+      toast.error(t('debugConfig.aiRoutingSaveError', { defaultValue: 'Failed to save AI routing.' }))
+    } finally {
+      setSaving(false)
+    }
+  }, [requestJson, modelSelect, otherModel, apiBase, fallbackModel, t, state])
+
+  const modelOptions = useMemo(() => {
+    const merged = Array.from(new Set([...gatewayModels, ...(state?.curatedModels ?? [])]))
+    return merged.length > 0 ? merged : ['openai/deepseek-v4-flash', 'openai/deepseek-v4-flash-e']
+  }, [gatewayModels, state])
+
+  const selectOptions: SelectOption[] = useMemo(() => [
+    ...modelOptions.map((model) => ({ value: model, label: model })),
+    { value: EMPTY_AIR, label: t('debugConfig.aiRoutingOtherModel', { defaultValue: 'Other (free-form provider/model)' }) },
+  ], [modelOptions, t])
+
+  return (
+    <div className="space-y-4">
+      {!loaded && loading ? (
+        <p className="text-sm text-muted-foreground">{t('trends.loading')}</p>
+      ) : (
+        <>
+          <div>
+            <p className="text-sm text-muted-foreground">{t('debugConfig.aiStatus')}</p>
+            <Badge variant={state?.effective.source === 'settings' ? 'default' : 'secondary'}>
+              {t('debugConfig.aiRoutingSourceBadge', {
+                source: state?.effective.source === 'settings'
+                  ? t('debugConfig.aiRoutingSourceSettings', { defaultValue: 'Settings' })
+                  : t('debugConfig.aiRoutingSourceEnv', { defaultValue: 'Environment' }),
+                defaultValue: 'Source: {{source}}',
+              })}
+            </Badge>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('debugConfig.aiRoutingModelLabel', { defaultValue: 'Primary model' })}</label>
+              <Select
+                options={selectOptions}
+                value={modelSelect}
+                onChange={(event) => setModelSelect(event.target.value)}
+                disabled={saving}
+                aria-label={t('debugConfig.aiRoutingModelLabel', { defaultValue: 'Primary model' })}
+              />
+              {modelSelect === EMPTY_AIR && (
+                <Input
+                  value={otherModel}
+                  onChange={(event) => setOtherModel(event.target.value)}
+                  placeholder={t('debugConfig.aiRoutingModelPlaceholder', { defaultValue: 'provider/model' })}
+                  aria-invalid={Boolean(otherModel) && !otherModel.includes('/')}
+                  disabled={saving}
+                />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('debugConfig.aiRoutingFallbackLabel', { defaultValue: 'Fallback model' })}</label>
+              <Input
+                value={fallbackModel}
+                onChange={(event) => setFallbackModel(event.target.value)}
+                placeholder={t('debugConfig.aiRoutingFallbackPlaceholder', { defaultValue: 'provider/model' })}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-sm font-medium">{t('debugConfig.aiRoutingApiBaseLabel', { defaultValue: 'API base URL' })}</label>
+              <Input
+                value={apiBase}
+                onChange={(event) => setApiBase(event.target.value)}
+                placeholder={t('debugConfig.aiRoutingApiBasePlaceholder', { defaultValue: 'https://cpa.pt-mes.com/v1' })}
+                disabled={saving}
+              />
+              <p className="text-xs text-muted-foreground">{t('debugConfig.aiRoutingClearToEnv', { defaultValue: 'Clear field to fall back to environment.' })}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge variant={state?.apiKey.present ? 'default' : 'destructive'}>
+              {state?.apiKey.present
+                ? t('debugConfig.aiRoutingKeyPresent', { defaultValue: 'API key present in environment' })
+                : t('debugConfig.aiRoutingKeyMissing', { defaultValue: 'API key is NOT set in the environment' })}
+            </Badge>
+            {state?.apiKey.masked && <span className="text-muted-foreground">{state.apiKey.masked}</span>}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => { save().catch(() => undefined) }} disabled={saving || loading}>
+              {saving ? t('debugConfig.saving') : t('debugConfig.aiRoutingSave', { defaultValue: 'Save AI routing' })}
+            </Button>
+            <Button variant="outline" onClick={() => { refreshModels().catch(() => undefined) }} disabled={refreshing || saving} title={t('debugConfig.aiRoutingRefreshModelsHint', { defaultValue: 'Refresh gateway model list' })}>
+              {refreshing ? t('trends.loading') : t('debugConfig.aiRoutingRefreshModels', { defaultValue: 'Refresh models' })}
+            </Button>
+            <Button variant="outline" onClick={() => { testConnection().catch(() => undefined) }} disabled={testing || saving}>
+              {testing ? t('debugConfig.aiRoutingTesting', { defaultValue: 'Testing…' }) : t('debugConfig.aiRoutingTest', { defaultValue: 'Test connection' })}
+            </Button>
+          </div>
+
+          {testResult && (
+            <p className="rounded border border-border bg-muted/30 p-2 text-sm">{testResult}</p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
 function parseResumeWorkHistoryLimitPayload(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') {
@@ -407,6 +642,20 @@ export function SystemSettingsRuntimePage() {
                 )}
               </>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('debugConfig.aiRoutingTitle', { defaultValue: 'AI routing (hot-config)' })}</CardTitle>
+            <CardDescription>
+              {t('debugConfig.aiRoutingDescription', {
+                defaultValue: 'Hot-switch the primary model and API base URL without a restart. The API key stays in the environment — only its presence is shown here.',
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AiRoutingEditor loading={loading} />
           </CardContent>
         </Card>
 

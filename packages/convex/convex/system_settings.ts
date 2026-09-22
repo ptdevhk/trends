@@ -10,9 +10,12 @@ import {
     MAX_RESUME_WORK_HISTORY_LIMIT,
     MIN_RESUME_WORK_HISTORY_LIMIT,
     normalizeResumeWorkHistoryLimit,
+    normalizeAiApiBase,
+    isProviderModelForm,
 } from "@trends/shared";
 
 const RESUME_WORK_HISTORY_LIMIT_KEY = "resumeWorkHistoryLimit";
+const AI_ROUTING_KEY = "aiRouting";
 
 async function readSettingValue(
     ctx: Pick<QueryCtx | MutationCtx, "db">,
@@ -86,6 +89,107 @@ export const setResumeWorkHistoryLimit = mutation({
         }
 
         return args.limit;
+    },
+});
+
+export type AiRoutingSettings = {
+    apiBase: string | null;
+    model: string | null;
+    fallbackModel: string | null;
+    updatedAt?: number;
+    updatedBy?: string;
+};
+
+async function readAiRoutingSettings(
+    ctx: Pick<QueryCtx | MutationCtx, "db">,
+): Promise<AiRoutingSettings> {
+    const row = await ctx.db
+        .query("system_settings")
+        .withIndex("by_key", (q) => q.eq("key", AI_ROUTING_KEY))
+        .unique();
+    const value = row?.value as
+        | { apiBase?: unknown; model?: unknown; fallbackModel?: unknown }
+        | undefined;
+    const read = (v: unknown): string | null =>
+        typeof v === "string" && v.length > 0 ? v : null;
+    return {
+        apiBase: read(value?.apiBase),
+        model: read(value?.model),
+        fallbackModel: read(value?.fallbackModel),
+        ...(row ? { updatedAt: row.updatedAt, updatedBy: row.updatedBy } : {}),
+    };
+}
+
+export const getAiRoutingSettings = query({
+    args: {},
+    handler: async (ctx) => readAiRoutingSettings(ctx),
+});
+
+export const getAiRoutingSettingsInternal = internalQuery({
+    args: {},
+    handler: async (ctx) => readAiRoutingSettings(ctx),
+});
+
+export const setAiRoutingSettings = mutation({
+    args: {
+        apiBase: v.optional(v.string()),
+        model: v.optional(v.string()),
+        fallbackModel: v.optional(v.string()),
+        updatedBy: v.string(),
+        reason: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const value: { apiBase?: string; model?: string; fallbackModel?: string } = {};
+
+        if (args.apiBase !== undefined) {
+            const normalized = normalizeAiApiBase(args.apiBase);
+            if (normalized) {
+                value.apiBase = normalized;
+            }
+            // empty string clears → field omitted from stored value (env fallback)
+        }
+        if (args.model !== undefined) {
+            if (args.model.trim() && !isProviderModelForm(args.model.trim())) {
+                throw new Error(
+                    "AI model must be in provider/model form (e.g. openai/deepseek-v4-flash).",
+                );
+            }
+            if (args.model.trim()) {
+                value.model = args.model.trim();
+            }
+        }
+        if (args.fallbackModel !== undefined) {
+            if (args.fallbackModel.trim() && !isProviderModelForm(args.fallbackModel.trim())) {
+                throw new Error(
+                    "AI fallback model must be in provider/model form (e.g. openai/deepseek-v4-flash-e).",
+                );
+            }
+            if (args.fallbackModel.trim()) {
+                value.fallbackModel = args.fallbackModel.trim();
+            }
+        }
+
+        const existing = await ctx.db
+            .query("system_settings")
+            .withIndex("by_key", (q) => q.eq("key", AI_ROUTING_KEY))
+            .unique();
+        const patch = {
+            value,
+            reason: args.reason,
+            updatedAt: Date.now(),
+            updatedBy: args.updatedBy,
+        };
+
+        if (existing) {
+            await ctx.db.patch(existing._id, patch);
+        } else {
+            await ctx.db.insert("system_settings", {
+                key: AI_ROUTING_KEY,
+                ...patch,
+            });
+        }
+
+        return await readAiRoutingSettings(ctx);
     },
 });
 

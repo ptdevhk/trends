@@ -35,6 +35,7 @@ import {
   getAiFallbackModel,
   getAiTemperature,
   resolveAnalyzeLlmRuntimeConfig,
+  resolveAnalyzeLlmRuntimeConfigFromSettings,
   SYSTEM_PROMPT,
   USER_PROMPT_TEMPLATE,
 } from "../convex/lib/analysis_config.js";
@@ -279,6 +280,60 @@ describe("resolveAnalyzeLlmRuntimeConfig (call-time, no process reload)", () => 
       apiBase: "https://api.example-runtime.test/v1",
       primary: "openai/gpt-4o-mini",
       fallback: "openai/deepseek-chat",
+    });
+  });
+});
+
+describe("resolveAnalyzeLlmRuntimeConfigFromSettings", () => {
+  const keys = ["AI_API_BASE", "OPENAI_API_BASE", "AI_MODEL", "OPENAI_MODEL", "AI_FALLBACK_MODEL"] as const;
+  const originals: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of keys) {
+      originals[key] = process.env[key];
+      delete process.env[key];
+    }
+    process.env.AI_API_BASE = "https://env.api/v1";
+    process.env.AI_MODEL = "openai/env-primary";
+    process.env.AI_FALLBACK_MODEL = "openai/env-fallback";
+  });
+
+  afterEach(() => {
+    for (const key of keys) {
+      if (originals[key] === undefined) delete process.env[key];
+      else process.env[key] = originals[key];
+    }
+  });
+
+  it("settings.model overrides env; missing fields fall back to env", () => {
+    expect(resolveAnalyzeLlmRuntimeConfigFromSettings({
+      apiBase: null,
+      model: "openai/settings-model",
+      fallbackModel: null,
+    })).toEqual({
+      apiBase: "https://env.api/v1",
+      primary: "openai/settings-model",
+      fallback: "openai/env-fallback",
+    });
+  });
+
+  it("null settings returns env-only config", () => {
+    expect(resolveAnalyzeLlmRuntimeConfigFromSettings(null)).toEqual({
+      apiBase: "https://env.api/v1",
+      primary: "openai/env-primary",
+      fallback: "openai/env-fallback",
+    });
+  });
+
+  it("settings fields fully override env when all present", () => {
+    expect(resolveAnalyzeLlmRuntimeConfigFromSettings({
+      apiBase: "https://settings.api/v1",
+      model: "openai/settings-primary",
+      fallbackModel: "openai/settings-fallback",
+    })).toEqual({
+      apiBase: "https://settings.api/v1",
+      primary: "openai/settings-primary",
+      fallback: "openai/settings-fallback",
     });
   });
 });
