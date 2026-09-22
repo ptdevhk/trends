@@ -54,6 +54,10 @@ export type DailyReportPack = {
     delta: string;
     meta: string;
     sparkline: number[];
+    /** Day1…DayN labels aligned with sparkline (oldest → newest). */
+    dayLabels?: string[];
+    /** Calendar dates (YYYY-MM-DD) for Day1…DayN — used as nav links. */
+    dayDates?: string[];
   };
   opportunities: DailyOpportunity[];
   stories: DailyStory[];
@@ -121,6 +125,14 @@ export function isDailyReportPack(v: unknown): v is DailyReportPack {
     isStr(hero.delta) &&
     isStr(hero.meta) &&
     isNumArr(hero.sparkline) &&
+    (hero.dayLabels === undefined ||
+      (Array.isArray(hero.dayLabels) &&
+        hero.dayLabels.every((x) => typeof x === 'string') &&
+        hero.dayLabels.length === (hero.sparkline as number[]).length)) &&
+    (hero.dayDates === undefined ||
+      (Array.isArray(hero.dayDates) &&
+        hero.dayDates.every((x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) &&
+        hero.dayDates.length === (hero.sparkline as number[]).length)) &&
     Array.isArray(p.opportunities) &&
     p.opportunities.every((o) => isDailyOpportunity(o)) &&
     Array.isArray(p.stories) &&

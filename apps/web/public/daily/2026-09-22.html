@@ -72,6 +72,20 @@
   .hero .v .d{font-size:20px;color:var(--up);font-weight:700;margin-left:6px;}
   .hero .meta{font-size:12px;color:var(--mute);text-align:right;}
   .hero svg{display:block;width:100%;margin-top:12px;opacity:.9;position:relative;z-index:1;}
+  .day-labels{
+    display:flex;justify-content:space-between;gap:4px;margin-top:8px;position:relative;z-index:1;
+    font-size:10px;color:var(--mute);letter-spacing:.02em;
+  }
+  .day-labels .day-link{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:4px 2px;border-radius:6px;text-decoration:none;color:var(--mute);
+    border:1px solid transparent;transition:color .12s ease,border-color .12s ease,background .12s ease;
+  }
+  .day-labels .day-link:hover{color:var(--heat);border-color:var(--edge);background:rgba(196,92,38,.06);}
+  .day-labels .day-link.current{color:var(--ink);font-weight:700;border-color:var(--heat);background:rgba(196,92,38,.08);}
+  .day-labels .day-d{font-family:"Barlow Condensed",sans-serif;font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .day-labels .day-w{font-size:10px;opacity:.9;}
+  .day-labels .day-link:focus-visible{outline:2px solid var(--heat);outline-offset:1px;}
   .section{margin-bottom:18px;}
   .section-title{
     font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
@@ -165,9 +179,10 @@
         <div class="k">今日行业热度</div>
         <div class="v">102 <span class="d">—</span></div>
       </div>
-      <div class="meta">10 来源 · 0 热榜命中</div>
+      <div class="meta">10 来源 · 0 热榜命中 · 2026-09-16–2026-09-22</div>
     </div>
     <svg viewBox="0 0 280 28" preserveAspectRatio="none" height="28" width="100%" aria-hidden="true"><polyline points="0.0,27.0 46.7,27.0 93.3,27.0 140.0,27.0 186.7,27.0 233.3,27.0 280.0,1.0" fill="none" stroke="#1a8f5a" stroke-width="2" stroke-linecap="round"/></svg>
+    <nav class="day-labels" data-testid="hero-day-labels" aria-label="7-day reports"><a class="day-link" href="./2026-09-16.html" data-date="2026-09-16" aria-label="09-16 星期三"><span class="day-d">09-16</span><span class="day-w">星期三</span></a><a class="day-link" href="./2026-09-17.html" data-date="2026-09-17" aria-label="09-17 星期四"><span class="day-d">09-17</span><span class="day-w">星期四</span></a><a class="day-link" href="./2026-09-18.html" data-date="2026-09-18" aria-label="09-18 星期五"><span class="day-d">09-18</span><span class="day-w">星期五</span></a><a class="day-link" href="./2026-09-19.html" data-date="2026-09-19" aria-label="09-19 星期六"><span class="day-d">09-19</span><span class="day-w">星期六</span></a><a class="day-link" href="./2026-09-20.html" data-date="2026-09-20" aria-label="09-20 星期日"><span class="day-d">09-20</span><span class="day-w">星期日</span></a><a class="day-link" href="./2026-09-21.html" data-date="2026-09-21" aria-label="09-21 星期一"><span class="day-d">09-21</span><span class="day-w">星期一</span></a><a class="day-link current" href="./2026-09-22.html" data-date="2026-09-22" aria-label="09-22 星期二 (current)" aria-current="page"><span class="day-d">09-22</span><span class="day-w">星期二</span></a></nav>
   </div>
 
   <div class="section">

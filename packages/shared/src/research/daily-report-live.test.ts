@@ -269,6 +269,51 @@ describe('buildLivePack', () => {
     expect(result.pack.hero.sparkline).toHaveLength(7)
   })
 
+  it('labels sparkline Day1…Day7 (oldest → report day)', () => {
+    expect(result.pack.hero.dayLabels).toEqual([
+      'Day1',
+      'Day2',
+      'Day3',
+      'Day4',
+      'Day5',
+      'Day6',
+      'Day7',
+    ])
+    expect(result.pack.hero.dayDates).toEqual([
+      '2026-09-16',
+      '2026-09-17',
+      '2026-09-18',
+      '2026-09-19',
+      '2026-09-20',
+      '2026-09-21',
+      '2026-09-22',
+    ])
+    expect(result.pack.hero.meta).toContain('2026-09-16–2026-09-22')
+  })
+
+  it('hero matched count is report-day only; prior days feed sparkline', () => {
+    const prior = Date.UTC(2026, 8, 20, 8, 0, 0) // 2026-09-20
+    const withHistory = buildLivePack(
+      [
+        ...rows,
+        row({
+          title: '数控机床昨日订单',
+          platform: 'weibo',
+          url: 'https://a/prior',
+          capturedAt: prior,
+        }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    // Same-day matched stays 4; prior row is window-only.
+    expect(withHistory.counts.matched).toBe(4)
+    expect(withHistory.counts.windowMatched).toBe(5)
+    expect(withHistory.pack.hero.value).toBe('4')
+    expect(withHistory.pack.hero.sparkline[withHistory.pack.hero.sparkline.length - 1]).toBe(4)
+    // Day5 = 2026-09-20 when Day7 = 2026-09-22 → index 4
+    expect(withHistory.pack.hero.sparkline[4]).toBe(1)
+  })
+
   it('is not thin when >= HYBRID_MIN_ITEMS items', () => {
     expect(result.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
     expect(result.thin).toBe(false)

@@ -15,6 +15,23 @@
 import type { DailyOpportunity, DailyReportPack, DailyStory, OpportunityKind } from './daily-report-pack.js';
 import { isGoogleNewsArticleUrl } from './daily-report-article-url.js';
 
+function shortMdDate(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  return m ? `${m[2]}-${m[3]}` : ymd;
+}
+
+/** 星期N / weekday short for a YYYY-MM-DD calendar date. */
+function weekdayLabel(ymd: string, locale: DailyReportLocale): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return '';
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (locale === 'en') {
+    return dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+  }
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  return `星期${weekdays[dt.getUTCDay()]}`;
+}
+
 export type DailyReportLocale = 'zh-Hans' | 'en';
 
 /** Optional pack-side SVG thumb (may land from a parallel agent). */
@@ -192,6 +209,21 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
 
   const heroSpark = sparklineSvg(pack.hero.sparkline, '#1a8f5a', 280, 28);
   const dateLabel = formatPackDate(pack.date, locale);
+  const dayDates = pack.hero.dayDates ?? [];
+  const dayLabelHtml =
+    dayDates.length > 0
+      ? `<nav class="day-labels" data-testid="hero-day-labels" aria-label="7-day reports">${dayDates
+          .map((ymd) => {
+            const md = shortMdDate(ymd);
+            const wd = weekdayLabel(ymd, locale);
+            const current = ymd === pack.date;
+            const cls = current ? 'day-link current' : 'day-link';
+            const aria = current ? `${md} ${wd} (current)` : `${md} ${wd}`;
+            // Relative href keeps public /daily/ and iframe /daily/ twins working.
+            return `<a class="${cls}" href="./${escAttr(ymd)}.html" data-date="${escAttr(ymd)}" aria-label="${escAttr(aria)}"${current ? ' aria-current="page"' : ''}><span class="day-d">${esc(md)}</span><span class="day-w">${esc(wd)}</span></a>`;
+          })
+          .join('')}</nav>`
+      : '';
 
   const cardHtml = cards
     .map((o) => {
@@ -330,6 +362,20 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   .hero .v .d{font-size:20px;color:var(--up);font-weight:700;margin-left:6px;}
   .hero .meta{font-size:12px;color:var(--mute);text-align:right;}
   .hero svg{display:block;width:100%;margin-top:12px;opacity:.9;position:relative;z-index:1;}
+  .day-labels{
+    display:flex;justify-content:space-between;gap:4px;margin-top:8px;position:relative;z-index:1;
+    font-size:10px;color:var(--mute);letter-spacing:.02em;
+  }
+  .day-labels .day-link{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:4px 2px;border-radius:6px;text-decoration:none;color:var(--mute);
+    border:1px solid transparent;transition:color .12s ease,border-color .12s ease,background .12s ease;
+  }
+  .day-labels .day-link:hover{color:var(--heat);border-color:var(--edge);background:rgba(196,92,38,.06);}
+  .day-labels .day-link.current{color:var(--ink);font-weight:700;border-color:var(--heat);background:rgba(196,92,38,.08);}
+  .day-labels .day-d{font-family:"Barlow Condensed",sans-serif;font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .day-labels .day-w{font-size:10px;opacity:.9;}
+  .day-labels .day-link:focus-visible{outline:2px solid var(--heat);outline-offset:1px;}
   .section{margin-bottom:18px;}
   .section-title{
     font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
@@ -426,6 +472,7 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
       <div class="meta">${esc(pack.hero.meta)}</div>
     </div>
     ${heroSpark}
+    ${dayLabelHtml}
   </div>
 
   <div class="section">

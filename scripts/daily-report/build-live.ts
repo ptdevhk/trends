@@ -23,6 +23,8 @@ import {
   renderDailyReportHtml,
   resolveOriginalArticleUrls,
   isGoogleNewsArticleUrl,
+  sparklineWindowSinceMs,
+  sparklineDayDates,
   HYBRID_MIN_ITEMS,
   type DailyReportPack,
   type LiveNewsRow,
@@ -124,10 +126,16 @@ function loadPreviousPack(date: string): DailyReportPack | null {
 
 function lastGoodSnapshot(date: string): DailyReportPack | null {
   if (!existsSync(SNAPSHOT_DIR)) return null
-  const files = readdirSync(SNAPSHOT_DIR).filter((f) => f.endsWith('.json') && f !== `${date}.json`).sort().reverse()
-  for (const f of files) {
+  // Only earlier calendar days — never clone a future/same-run newer day backward.
+  const files = readdirSync(SNAPSHOT_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.replace(/\.json$/, ''))
+    .filter((d) => d < date)
+    .sort()
+    .reverse()
+  for (const d of files) {
     try {
-      const pack = parseDailyReportPack(JSON.parse(readFileSync(join(SNAPSHOT_DIR, f), 'utf8')))
+      const pack = parseDailyReportPack(JSON.parse(readFileSync(join(SNAPSHOT_DIR, `${d}.json`), 'utf8')))
       if (pack.opportunities.length + pack.stories.length >= HYBRID_MIN_ITEMS) return pack
     } catch {
       // skip
@@ -157,9 +165,13 @@ async function main(): Promise<void> {
   const keywords = loadKeywordSeed()
   const hotlistPlatforms = loadHotlistPlatforms()
 
+  const since = sparklineWindowSinceMs(date)
+  console.log(`window: date=${date} since=${new Date(since).toISOString()} (Day1–Day7 Asia/Shanghai)`)
+
   const raw = (await convexQuery(env, 'research_news:listRecent', {
     writeSecret: env.CONVEX_WRITE_SECRET,
     limit: 500,
+    since,
   })) as Array<Record<string, unknown>>
   const rawRows: LiveNewsRow[] = (Array.isArray(raw) ? raw : [])
     .map((r) => ({
@@ -201,47 +213,64 @@ async function main(): Promise<void> {
     hotlistRankTotals[r.platform] = Math.max(hotlistRankTotals[r.platform] ?? 0, r.rank)
   }
 
-  const previous = loadPreviousPack(date)
-  const result = buildLivePack(rows, {
-    date,
-    generatedAt: new Date().toISOString(),
-    keywords,
-    hotlistPlatforms,
-    previous,
-    hotlistRankTotals,
-  })
+  // Write the full rolling window so Day1…Day7 nav links resolve (09-16…09-22).
+  const windowDates = sparklineDayDates(date)
+  console.log(`rolling-days: ${windowDates.join(' → ')}`)
+  const generatedAt = new Date().toISOString()
 
-  console.log(
-    `live: rows=${result.counts.rows} matched=${result.counts.matched} hotlist=${result.counts.hotlistMatched} items=${result.counts.items} thin=${result.thin}`,
-  )
-  console.log(`keywords=${keywords.length} hotlistPlatforms=${hotlistPlatforms.length}`)
+  for (const day of windowDates) {
+    const previous = loadPreviousPack(day)
+    const result = buildLivePack(rows, {
+      date: day,
+      navAnchorDate: date,
+      generatedAt,
+      keywords,
+      hotlistPlatforms,
+      previous,
+      hotlistRankTotals,
+    })
 
-  if (result.thin) {
-    const fallback = lastGoodSnapshot(date)
-    if (fallback) {
-      const frozen: DailyReportPack = {
-        ...fallback,
-        date,
-        source: 'frozen',
-        generatedAt: new Date().toISOString(),
-        fallbackFromDate: fallback.date,
-        banner: `沿用最近完整日（${fallback.date}）· 今日实时命中不足 ${HYBRID_MIN_ITEMS} 条`,
+    console.log(
+      `live[${day}]: rows=${result.counts.rows} matched=${result.counts.matched} windowMatched=${result.counts.windowMatched} hotlist=${result.counts.hotlistMatched} items=${result.counts.items} thin=${result.thin}`,
+    )
+
+    if (result.thin) {
+      const fallback = lastGoodSnapshot(day)
+      if (fallback) {
+        const frozen: DailyReportPack = {
+          ...fallback,
+          date: day,
+          source: 'frozen',
+          generatedAt,
+          fallbackFromDate: fallback.date,
+          banner: `沿用最近完整日（${fallback.date}）· ${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条`,
+          hero: {
+            ...fallback.hero,
+            sparkline: result.pack.hero.sparkline,
+            dayLabels: result.pack.hero.dayLabels,
+            dayDates: result.pack.hero.dayDates,
+            meta: result.pack.hero.meta,
+          },
+        }
+        writeOutputs(frozen, day)
+        console.log(`hybrid[${day}]: reused ${fallback.date} as frozen snapshot`)
+        continue
       }
-      writeOutputs(frozen, date)
-      console.log(`hybrid: reused ${fallback.date} as frozen snapshot`)
-      return
+      writeOutputs(
+        {
+          ...result.pack,
+          banner: `${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条 · 数据偏薄`,
+        },
+        day,
+      )
+      console.log(`hybrid[${day}]: no prior snapshot; published thin live pack with banner`)
+      continue
     }
-    // No prior good snapshot → publish the honest thin live pack with a banner.
-    const thinLive: DailyReportPack = {
-      ...result.pack,
-      banner: `今日实时命中不足 ${HYBRID_MIN_ITEMS} 条 · 数据偏薄`,
-    }
-    writeOutputs(thinLive, date)
-    console.log('hybrid: no prior snapshot; published thin live pack with banner')
-    return
+
+    writeOutputs(result.pack, day)
   }
 
-  writeOutputs(result.pack, date)
+  console.log(`keywords=${keywords.length} hotlistPlatforms=${hotlistPlatforms.length}`)
 }
 
 main().catch((e) => {

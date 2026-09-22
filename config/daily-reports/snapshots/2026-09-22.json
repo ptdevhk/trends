@@ -2,12 +2,12 @@
   "date": "2026-09-22",
   "localeDefault": "zh-Hans",
   "source": "live",
-  "generatedAt": "2026-09-22T14:34:33.542Z",
+  "generatedAt": "2026-09-22T15:23:53.933Z",
   "hero": {
     "headline": "今日行业热度",
     "value": "102",
     "delta": "—",
-    "meta": "10 来源 · 0 热榜命中",
+    "meta": "10 来源 · 0 热榜命中 · Day1–Day7",
     "sparkline": [
       0,
       0,
@@ -16,6 +16,24 @@
       0,
       0,
       102
+    ],
+    "dayLabels": [
+      "Day1",
+      "Day2",
+      "Day3",
+      "Day4",
+      "Day5",
+      "Day6",
+      "Day7"
+    ],
+    "dayDates": [
+      "2026-09-16",
+      "2026-09-17",
+      "2026-09-18",
+      "2026-09-19",
+      "2026-09-20",
+      "2026-09-21",
+      "2026-09-22"
     ]
   },
   "opportunities": [

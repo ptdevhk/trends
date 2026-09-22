@@ -11,8 +11,18 @@ const pack: DailyReportPack = {
     headline: '今日商机热度',
     value: '37',
     delta: '+8%',
-    meta: '3 行业 · 8 新公司',
-    sparkline: [30, 25, 27, 16, 10, 14, 7, 4],
+    meta: '3 行业 · 8 新公司 · Day1–Day7',
+    sparkline: [30, 25, 27, 16, 10, 14, 7],
+    dayLabels: ['Day1', 'Day2', 'Day3', 'Day4', 'Day5', 'Day6', 'Day7'],
+    dayDates: [
+      '2026-09-16',
+      '2026-09-17',
+      '2026-09-18',
+      '2026-09-19',
+      '2026-09-20',
+      '2026-09-21',
+      '2026-09-22',
+    ],
   },
   opportunities: [
     {
@@ -141,6 +151,22 @@ describe('renderDailyReportHtml', () => {
 
   it('embeds sparkline SVGs (hero + cards + rows)', () => {
     expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('renders date + 星期N nav under the hero sparkline (not DayN as head)', () => {
+    expect(html).toContain('data-testid="hero-day-labels"')
+    expect(html).toContain('>09-22<')
+    expect(html).toContain('>09-16<')
+    expect(html).toContain('>星期二<') // 2026-09-22 was a Tuesday
+    expect(html).toContain('>星期三<') // 2026-09-16 was a Wednesday
+    expect(html).not.toContain('>Day1<')
+    expect(html).not.toContain('>Day7<')
+  })
+
+  it('links each day chip to that calendar day’s static report', () => {
+    expect(html).toContain('href="./2026-09-16.html"')
+    expect(html).toContain('href="./2026-09-22.html"')
+    expect(html).toContain('aria-current="page"')
   })
 
   it('hides nothing in a pic-first file: no prose body text beyond labels', () => {

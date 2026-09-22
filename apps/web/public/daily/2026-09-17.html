@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>销售日报 · 2026-09-17</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f0f3f6;
+    --surface:#ffffff;
+    --ink:#1a222c;
+    --edge:#d0d7e0;
+    --mute:#5c6b7a;
+    --heat:#c45c26;
+    --signal:#2f6fed;
+    --up:#1a8f5a;
+    --chip-bg:#e8eef4;
+    --chip-ink:#3a4a5c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Noto Sans SC",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:20px 14px 40px;
+    display:flex;flex-direction:column;align-items:center;
+    background-image:
+      linear-gradient(180deg,rgba(240,243,246,.98),rgba(232,237,242,1)),
+      repeating-linear-gradient(90deg,transparent,transparent 47px,rgba(208,215,224,.55) 47px,rgba(208,215,224,.55) 48px);
+  }
+  a.tile,a.row,a.story{text-decoration:none;color:inherit;}
+  a.tile{display:flex;flex-direction:column;}
+  a.row{display:flex;}
+  a.story{display:flex;}
+  a.tile:focus-visible,a.row:focus-visible,a.story:focus-visible{outline:2px solid var(--heat);outline-offset:2px;}
+  .page{max-width:720px;width:100%;}
+  .header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;}
+  .header .title{
+    font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
+    font-size:28px;font-weight:700;letter-spacing:.02em;color:var(--ink);line-height:1;
+  }
+  .header .date{font-size:12px;color:var(--mute);margin-top:4px;}
+  .toggle{display:flex;border:1px solid var(--edge);overflow:hidden;background:var(--surface);border-radius:6px;}
+  .toggle button{border:0;background:transparent;padding:6px 14px;font-size:12px;cursor:pointer;color:var(--mute);font-family:inherit;}
+  .toggle button.on{background:var(--ink);color:#fff;font-weight:600;}
+  .hero{
+    background:var(--surface);
+    border:1px solid var(--edge);
+    border-left:4px solid var(--heat);
+    border-radius:8px;
+    padding:22px 20px 16px;
+    margin-bottom:18px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 1px 2px rgba(26,34,44,.04);
+  }
+  .hero::after{
+    content:"";position:absolute;inset:0 auto 0 0;width:40%;
+    background:linear-gradient(90deg,rgba(196,92,38,.08),transparent);
+    pointer-events:none;
+  }
+  .hero .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;position:relative;z-index:1;}
+  .hero .brand{font-family:"Barlow Condensed",sans-serif;font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--mute);}
+  .hero .k{font-size:12px;color:var(--mute);margin-bottom:4px;}
+  .hero .v{
+    font-family:"Barlow Condensed",sans-serif;
+    font-size:56px;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--ink);
+  }
+  .hero .v .d{font-size:20px;color:var(--up);font-weight:700;margin-left:6px;}
+  .hero .meta{font-size:12px;color:var(--mute);text-align:right;}
+  .hero svg{display:block;width:100%;margin-top:12px;opacity:.9;position:relative;z-index:1;}
+  .day-labels{
+    display:flex;justify-content:space-between;gap:4px;margin-top:8px;position:relative;z-index:1;
+    font-size:10px;color:var(--mute);letter-spacing:.02em;
+  }
+  .day-labels .day-link{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:4px 2px;border-radius:6px;text-decoration:none;color:var(--mute);
+    border:1px solid transparent;transition:color .12s ease,border-color .12s ease,background .12s ease;
+  }
+  .day-labels .day-link:hover{color:var(--heat);border-color:var(--edge);background:rgba(196,92,38,.06);}
+  .day-labels .day-link.current{color:var(--ink);font-weight:700;border-color:var(--heat);background:rgba(196,92,38,.08);}
+  .day-labels .day-d{font-family:"Barlow Condensed",sans-serif;font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .day-labels .day-w{font-size:10px;opacity:.9;}
+  .day-labels .day-link:focus-visible{outline:2px solid var(--heat);outline-offset:1px;}
+  .section{margin-bottom:18px;}
+  .section-title{
+    font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
+    font-size:18px;font-weight:700;margin-bottom:10px;
+    display:flex;align-items:baseline;gap:8px;color:var(--ink);
+    border-bottom:1px solid var(--edge);padding-bottom:6px;
+  }
+  .section-title .en{font-size:11px;color:var(--mute);font-weight:400;font-family:"Noto Sans SC",sans-serif;}
+  .grid{display:flex;gap:10px;}
+  .tile{
+    flex:1;background:var(--surface);border:1px solid var(--edge);border-radius:8px;
+    overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease;
+    box-shadow:0 1px 2px rgba(26,34,44,.04);
+  }
+  .tile:hover{border-color:var(--heat);box-shadow:0 2px 8px rgba(196,92,38,.1);}
+  .tile .cover{position:relative;height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .tile .cover img,.tile .cover > svg{width:100%;height:100%;object-fit:cover;display:block;}
+  .cover .glyph{
+    font-family:"Barlow Condensed",sans-serif;
+    font-size:42px;color:rgba(26,34,44,.55);font-weight:700;
+  }
+  .cover .badge{
+    position:absolute;background:rgba(255,255,255,.92);color:var(--ink);
+    font-size:10px;font-weight:600;padding:2px 7px;z-index:1;border:1px solid var(--edge);border-radius:4px;
+  }
+  .cover .b-grow{top:8px;left:8px;}.cover .b-hot{top:8px;right:8px;color:var(--heat);}
+  .tile .body{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1;}
+  .tile .name-row{display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .tile .name{font-size:13px;font-weight:600;line-height:1.3;}.tile .when{font-size:10px;color:var(--mute);flex-shrink:0;}
+  .tile .chips{display:flex;gap:4px;flex-wrap:wrap;}
+  .tile .chip{font-size:10px;background:var(--chip-bg);color:var(--chip-ink);padding:1px 6px;border-radius:4px;}
+  .spark-mini{margin-top:auto;opacity:.75;max-width:80px;}
+  .spark-mini svg{display:block;width:100%;height:22px;}
+  .panel{background:var(--surface);border:1px solid var(--edge);overflow:hidden;border-radius:8px;box-shadow:0 1px 2px rgba(26,34,44,.04);}
+  .row{
+    align-items:center;gap:12px;padding:11px 14px;
+    border-bottom:1px solid var(--edge);transition:background .12s ease;
+  }
+  .row:last-child{border-bottom:0;}
+  .row:hover{background:rgba(196,92,38,.06);}
+  .rank{font-family:"Barlow Condensed",sans-serif;font-size:16px;color:var(--heat);width:22px;flex-shrink:0;font-weight:700;}
+  .row .main{flex:1;min-width:0;}
+  .row .name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;}
+  .kind{font-size:10px;color:#fff;padding:1px 6px;flex-shrink:0;border-radius:3px;}
+  .k-j{background:var(--signal);}.k-z{background:var(--up);}.k-d{background:var(--heat);}
+  .chips{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;}
+  .chip{font-size:10px;background:var(--chip-bg);color:var(--chip-ink);padding:1px 6px;border-radius:4px;}
+  .figs{text-align:right;flex-shrink:0;}
+  .figs .hot{font-size:13px;font-weight:700;}.figs .grow{font-size:13px;font-weight:700;}.figs .when{font-size:10px;color:var(--mute);}
+  .stories{display:flex;flex-direction:column;gap:8px;}
+  .story{
+    align-items:stretch;gap:0;
+    background:var(--surface);border:1px solid var(--edge);border-radius:8px;
+    overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease;
+    box-shadow:0 1px 2px rgba(26,34,44,.04);
+  }
+  .story:hover{border-color:var(--heat);box-shadow:0 2px 8px rgba(196,92,38,.1);}
+  .story .cover{width:96px;flex-shrink:0;min-height:64px;overflow:hidden;background:var(--chip-bg);}
+  .story .cover img,.story .cover > svg,.story .cover .thumb-plate{width:100%;height:100%;min-height:64px;object-fit:cover;display:block;}
+  .story .body{padding:12px 14px;font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;flex:1;line-height:1.35;}
+  .footer{margin-top:18px;text-align:center;font-size:11px;color:var(--mute);}
+  .banner{
+    margin:0 0 14px;background:#fff8f0;border:1px solid #e8c9a0;border-radius:6px;
+    padding:8px 12px;font-size:12px;color:#7a4e1a;
+  }
+  @media (max-width:560px){
+    .grid{flex-direction:column;}
+    .hero .v{font-size:44px;}
+    .story .cover{width:72px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .tile,.row,.story{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="banner">2026-09-17 实时命中不足 4 条 · 数据偏薄</div>
+  <div class="header">
+    <div>
+      <div class="title" data-i18n="title">销售日报</div>
+      <div class="date" data-date="2026-09-17">9月17日 星期四</div>
+    </div>
+    <div class="toggle"><button type="button" id="btn-zh" class="on">中文</button><button type="button" id="btn-en">EN</button></div>
+  </div>
+
+  <div class="hero">
+    <div class="top"><div class="brand" data-i18n="title">销售日报</div></div>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;position:relative;z-index:1">
+      <div>
+        <div class="k">今日行业热度</div>
+        <div class="v">0 <span class="d">-100%</span></div>
+      </div>
+      <div class="meta">0 来源 · 0 热榜命中 · 2026-09-16–2026-09-22</div>
+    </div>
+    <svg viewBox="0 0 280 28" preserveAspectRatio="none" height="28" width="100%" aria-hidden="true"><polyline points="0.0,27.0 46.7,27.0 93.3,27.0 140.0,27.0 186.7,27.0 233.3,27.0 280.0,27.0" fill="none" stroke="#1a8f5a" stroke-width="2" stroke-linecap="round"/></svg>
+    <nav class="day-labels" data-testid="hero-day-labels" aria-label="7-day reports"><a class="day-link" href="./2026-09-16.html" data-date="2026-09-16" aria-label="09-16 星期三"><span class="day-d">09-16</span><span class="day-w">星期三</span></a><a class="day-link current" href="./2026-09-17.html" data-date="2026-09-17" aria-label="09-17 星期四 (current)" aria-current="page"><span class="day-d">09-17</span><span class="day-w">星期四</span></a><a class="day-link" href="./2026-09-18.html" data-date="2026-09-18" aria-label="09-18 星期五"><span class="day-d">09-18</span><span class="day-w">星期五</span></a><a class="day-link" href="./2026-09-19.html" data-date="2026-09-19" aria-label="09-19 星期六"><span class="day-d">09-19</span><span class="day-w">星期六</span></a><a class="day-link" href="./2026-09-20.html" data-date="2026-09-20" aria-label="09-20 星期日"><span class="day-d">09-20</span><span class="day-w">星期日</span></a><a class="day-link" href="./2026-09-21.html" data-date="2026-09-21" aria-label="09-21 星期一"><span class="day-d">09-21</span><span class="day-w">星期一</span></a><a class="day-link" href="./2026-09-22.html" data-date="2026-09-22" aria-label="09-22 星期二"><span class="day-d">09-22</span><span class="day-w">星期二</span></a></nav>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span data-i18n="sec1">今日商机</span><span class="en" data-i18n="sec1en">Top opportunities</span></div>
+    <div class="grid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span data-i18n="sec2">今日趋势</span><span class="en" data-i18n="sec2en">Trending</span></div>
+    <div class="panel"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span data-i18n="sec3">热闻</span><span class="en" data-i18n="sec3en">Hot stories</span></div>
+    <div class="stories"></div>
+  </div>
+
+  <div class="footer" data-i18n="footer">Trends · 销售日报 · 分享链接</div>
+</div>
+
+<script>
+var PACK_DATE="2026-09-17";
+var I18N={"zh-Hans":{"title":"销售日报","sec1":"今日商机","sec1en":"Top opportunities","sec2":"今日趋势","sec2en":"Trending","sec3":"热闻","sec3en":"Hot stories","kind-商机":"商机","kind-转机":"转机","kind-动态":"动态","footer":"Trends · 销售日报 · 分享链接"},"en":{"title":"Sales Daily","sec1":"Top Opportunities","sec1en":"","sec2":"Trending","sec2en":"","sec3":"Hot Stories","sec3en":"","kind-商机":"Opportunity","kind-转机":"Turnaround","kind-动态":"Signal","footer":"Trends · Sales Daily · share link"}};
+function formatDate(iso,lang){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m)return iso;
+  var y=+m[1],mo=+m[2],d=+m[3];
+  var dt=new Date(Date.UTC(y,mo-1,d));
+  if(lang==='en'){
+    return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'});
+  }
+  var wd=['日','一','二','三','四','五','六'];
+  return mo+'月'+d+'日 星期'+wd[dt.getUTCDay()];
+}
+function applyLang(lang){
+  var map=I18N[lang];
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    var k=el.getAttribute('data-i18n');
+    if(map[k]!=null&&map[k]!=='')el.textContent=map[k];
+  });
+  var dateEl=document.querySelector('[data-date]');
+  if(dateEl)dateEl.textContent=formatDate(dateEl.getAttribute('data-date')||PACK_DATE,lang);
+  document.getElementById('btn-zh').classList.toggle('on',lang==='zh-Hans');
+  document.getElementById('btn-en').classList.toggle('on',lang!=='zh-Hans');
+  document.documentElement.lang=lang;
+}
+document.getElementById('btn-zh').addEventListener('click',function(){applyLang('zh-Hans');try{localStorage.setItem('daily-lang','zh-Hans')}catch(e){}});
+document.getElementById('btn-en').addEventListener('click',function(){applyLang('en');try{localStorage.setItem('daily-lang','en')}catch(e){}});
+var saved=(function(){try{return localStorage.getItem('daily-lang')}catch(e){return null}})();
+applyLang(saved==='en'?'en':'zh-Hans');
+</script>
+</body>
+</html>

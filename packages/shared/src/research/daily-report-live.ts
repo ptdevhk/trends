@@ -5,9 +5,15 @@
  * (b) the effective pulse keyword set, produce a `DailyReportPack` whose
  * metrics are ALL derived from the rows — no invented heat/growth numbers.
  *
+ * Window policy (operator B, 2026-09-22):
+ *  - Cards / stories / hero value = **report calendar day** (Asia/Shanghai).
+ *  - Sparklines = **rolling 7 days ending on that day**, labeled Day1…Day7
+ *    (Day1 = oldest, Day7 = report date).
+ * Hub 综合热榜 stays limit-capped “近期”; this module does not change it.
+ *
  * The API-side builder (`apps/api` / script) is responsible for fetching the
- * rows (Convex `research_news:listRecent`) and the keyword seed; this module
- * only shapes them, so it is unit-testable in the node vitest env.
+ * rows (Convex `research_news:listRecent` with `since` = day−6) and the
+ * keyword seed; this module only shapes them.
  */
 
 import type {
@@ -54,17 +60,33 @@ export type LivePackOptions = {
   hotlistRanks?: Record<string, Record<string, number>>;
   /** Total ranked rows per platform (for the rank→heat inversion). */
   hotlistRankTotals?: Record<string, number>;
+  /**
+   * When set, Day1…Day7 nav dates are anchored to this calendar day (the build
+   * tip), so every page in a rolling-window build shares the same nav links.
+   * Defaults to `date` (self-centered window).
+   */
+  navAnchorDate?: string;
 };
 
 export type LivePackResult = {
   pack: DailyReportPack;
   /** Real counts used for hybrid fallback decisions. */
-  counts: { rows: number; matched: number; hotlistMatched: number; items: number };
+  counts: {
+    rows: number;
+    matched: number;
+    /** Matched in the full 7d window (sparkline corpus). */
+    windowMatched: number;
+    hotlistMatched: number;
+    items: number;
+  };
   /** true when items < threshold → caller should use last good snapshot. */
   thin: boolean;
 };
 
 export const HYBRID_MIN_ITEMS = 4;
+
+/** Sparkline length / Day1…DayN count. */
+export const SPARKLINE_DAYS = 7;
 
 /**
  * Ultra-generic hiring/sales tokens. Alone they match crime/business noise
@@ -120,31 +142,17 @@ function cjkCharCount(s: string): number {
 export function isStrongKeyword(kw: string): boolean {
   const nk = normalizePulseKeyword(kw);
   if (!nk || ULTRA_GENERIC_KEYWORDS.has(nk)) return false;
-  const cjk = cjkCharCount(nk);
-  if (cjk > 0) return [...nk].length >= 2;
-  const latin = (nk.match(/[a-z0-9]/gi) ?? []).length;
-  return latin >= 3;
+  if (cjkCharCount(nk) >= 2) return true;
+  const alnum = nk.replace(/[^A-Za-z0-9]/g, '');
+  return alnum.length >= 3;
 }
 
-export function isUltraGenericKeyword(kw: string): boolean {
-  return ULTRA_GENERIC_KEYWORDS.has(normalizePulseKeyword(kw));
-}
-
-/**
- * Keep strong (industrial) hits; drop generic-only match sets.
- * When ≥1 strong hit exists, return strong hits first then generics (for chips).
- * Generic-only → [] (caller filters the row out).
- */
+/** Keep strong hits; append ultra-generics only when ≥1 strong hit coexists. */
 export function meaningfulHits(hits: string[]): string[] {
-  if (hits.length === 0) return [];
-  const strong: string[] = [];
-  const weak: string[] = [];
-  for (const h of hits) {
-    if (isStrongKeyword(h)) strong.push(h);
-    else if (isUltraGenericKeyword(h)) weak.push(h);
-  }
+  const strong = hits.filter((h) => isStrongKeyword(h));
   if (strong.length === 0) return [];
-  return [...strong, ...weak];
+  const generics = hits.filter((h) => ULTRA_GENERIC_KEYWORDS.has(normalizePulseKeyword(h)));
+  return [...strong, ...generics];
 }
 
 /** Substring (OR) match of the effective keyword set on title+snippet. */
@@ -166,15 +174,77 @@ function kindForPlatform(platform: string): OpportunityKind {
   return '动态';
 }
 
+/* ---------------------------------------------------------------------------
+ * Asia/Shanghai calendar helpers (CN sales desk)
+ * ------------------------------------------------------------------------- */
+
+/** YYYY-MM-DD in Asia/Shanghai for a unix-ms timestamp. */
+export function shanghaiIsoDay(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+}
+
+/** Start of calendar day `YYYY-MM-DD` in Asia/Shanghai (ms). */
+export function shanghaiDayStartMs(dateYmd: string): number {
+  const t = Date.parse(`${dateYmd}T00:00:00+08:00`);
+  if (!Number.isFinite(t)) throw new Error(`Invalid date: ${dateYmd}`);
+  return t;
+}
+
+/** `since` for listRecent: start of (reportDate − (SPARKLINE_DAYS−1)). */
+export function sparklineWindowSinceMs(reportDateYmd: string): number {
+  return shanghaiDayStartMs(reportDateYmd) - (SPARKLINE_DAYS - 1) * 86_400_000;
+}
+
+/**
+ * Pulse hub window: start of (Shanghai today − (windowDays−1)).
+ * `windowDays=1` → 今日; `windowDays=7` → Day1…Day7 ending today.
+ */
+export function pulseWindowSinceMs(windowDays: number, nowMs = Date.now()): number {
+  const days = Math.min(Math.max(Math.floor(windowDays) || 1, 1), 31);
+  const today = shanghaiIsoDay(nowMs);
+  return shanghaiDayStartMs(today) - (days - 1) * 86_400_000;
+}
+
+/** Day1…DayN labels (oldest → newest). DayN = report date. */
+export function sparklineDayLabels(n = SPARKLINE_DAYS): string[] {
+  return Array.from({ length: n }, (_, i) => `Day${i + 1}`);
+}
+
+/**
+ * Calendar dates for Day1…DayN ending on `reportDateYmd` (Asia/Shanghai).
+ * DayN = report date; Day1 = report − (n−1) days.
+ */
+export function sparklineDayDates(reportDateYmd: string, n = SPARKLINE_DAYS): string[] {
+  const end = shanghaiDayStartMs(reportDateYmd);
+  return Array.from({ length: n }, (_, i) => {
+    const ms = end - (n - 1 - i) * 86_400_000;
+    return shanghaiIsoDay(ms);
+  });
+}
+
+/** MM-DD short label for nav (from YYYY-MM-DD). */
+export function shortMdDate(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  return m ? `${m[2]}-${m[3]}` : ymd;
+}
+
 export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LivePackResult {
   const hotlistPlatforms = opts.hotlistPlatforms ?? [];
   const isHot = (p: string) =>
     hotlistPlatforms.length > 0 ? hotlistPlatforms.includes(p) : isHotlistPlatform(p);
 
-  // Drop rows without a real news URL before ranking — cards/stories always
-  // carry href. Then require ≥1 industry-strong keyword hit (generic-only → 0).
-  const annotated = rows
+  const reportDate = opts.date;
+  const windowEndMs = shanghaiDayStartMs(reportDate) + 86_400_000 - 1;
+
+  // Annotate the full 7d window (caller should pass since=day−6).
+  const windowAnnotated = rows
     .filter((row) => hasRealNewsUrl(row))
+    .filter((row) => shanghaiIsoDay(row.capturedAt) <= reportDate)
     .map((row) => {
       const rawHits = matchKeywords(row, opts.keywords);
       const hits = meaningfulHits(rawHits);
@@ -183,12 +253,13 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     .filter((x) => x.hits.length > 0)
     .sort((a, b) => b.row.capturedAt - a.row.capturedAt);
 
-  const hotlistMatched = annotated.filter((x) => isHot(x.row.platform));
+  // Cards / stories / hero = report calendar day only.
+  const dayAnnotated = windowAnnotated.filter((x) => shanghaiIsoDay(x.row.capturedAt) === reportDate);
+  const hotlistMatched = dayAnnotated.filter((x) => isHot(x.row.platform));
 
-  // Dedupe by the display label (same story syndicated across feeds with a
-  // different " - 来源" suffix collapses to one row).
+  // Dedupe by the display label (same story syndicated across feeds).
   const seen = new Set<string>();
-  const unique = annotated.filter((x) => {
+  const unique = dayAnnotated.filter((x) => {
     const key = normalizePulseKeyword(shortLabel(x.row.title));
     if (seen.has(key)) return false;
     seen.add(key);
@@ -211,13 +282,10 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   const maxRows = opts.maxTrendRows ?? 6;
   const maxStories = opts.maxStories ?? 3;
 
-  // Real per-platform matched-title count (used for honest growth).
+  // Growth = this platform's matched-title count on the report day.
   const platformCount = (platform: string): number =>
-    annotated.filter((a) => a.row.platform === platform).length;
+    dayAnnotated.filter((a) => a.row.platform === platform).length;
 
-  // Real 热度: prefer the platform-native hotlist rank when the row has one
-  // (higher position → higher heat); otherwise the matched-keyword count is the
-  // only honest signal available.
   const heatFor = (row: LiveNewsRow, hits: string[]): string => {
     const total = opts.hotlistRankTotals?.[row.platform];
     if (row.rank != null && total != null && total > 0) {
@@ -235,11 +303,10 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       kind,
       label: shortLabel(row.title),
       heat: heatFor(row, hits),
-      // Honest growth: this platform's matched-title count in the window.
       growth: String(platformCount(row.platform)),
-      started: isoDay(row.capturedAt),
-      // 7-point series: this platform's matched-title count across the last 7 days.
-      sparkline: platformDailySeries(annotated, row.platform, row.capturedAt),
+      started: shanghaiIsoDay(row.capturedAt),
+      // 7-point series from the full window (Day1…Day7).
+      sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
       chips,
       href,
       imageUrl: buildDailyReportThumbDataUri({ title: row.title, kind, chips }),
@@ -248,8 +315,6 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   };
 
   const opportunities = ranked.slice(0, maxOpp).map(toOpportunity);
-  // Trend-table rows are the same shape, just a longer slice; the renderer
-  // reuses `opportunities` for both sections (cards = first 3, table = all).
   void maxRows;
 
   const stories: DailyStory[] = ranked.slice(0, maxStories).map((x) => {
@@ -265,13 +330,16 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     };
   });
 
-  const matchedCount = annotated.length;
+  const matchedCount = dayAnnotated.length;
   const prevMatched = opts.previous?.hero?.value ? Number(opts.previous.hero.value) : null;
   const delta =
     prevMatched && Number.isFinite(prevMatched) && prevMatched > 0
       ? `${matchedCount >= prevMatched ? '+' : ''}${Math.round(((matchedCount - prevMatched) / prevMatched) * 100)}%`
       : '—';
 
+  const dayLabels = sparklineDayLabels(SPARKLINE_DAYS);
+  const navAnchor = opts.navAnchorDate ?? reportDate;
+  const dayDates = sparklineDayDates(navAnchor, SPARKLINE_DAYS);
   const items = opportunities.length + stories.length;
   const pack: DailyReportPack = {
     date: opts.date,
@@ -282,8 +350,10 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       headline: '今日行业热度',
       value: String(matchedCount),
       delta,
-      meta: `${new Set(annotated.map((a) => a.row.platform)).size} 来源 · ${hotlistMatched.length} 热榜命中`,
-      sparkline: overallDailySeries(annotated),
+      meta: `${new Set(dayAnnotated.map((a) => a.row.platform)).size} 来源 · ${hotlistMatched.length} 热榜命中 · ${dayDates[0]}–${dayDates[dayDates.length - 1]}`,
+      sparkline: overallDailySeries(windowAnnotated, windowEndMs, reportDate),
+      dayLabels,
+      dayDates,
     },
     opportunities,
     stories,
@@ -291,7 +361,13 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
 
   return {
     pack,
-    counts: { rows: rows.length, matched: matchedCount, hotlistMatched: hotlistMatched.length, items },
+    counts: {
+      rows: rows.length,
+      matched: matchedCount,
+      windowMatched: windowAnnotated.length,
+      hotlistMatched: hotlistMatched.length,
+      items,
+    },
     thin: items < HYBRID_MIN_ITEMS,
   };
 }
@@ -305,12 +381,8 @@ export function shortLabel(title: string, max = 42): string {
   return t;
 }
 
-function isoDay(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
 /**
- * Matched-title count per day for one platform over the 7 days ending at `endMs`.
+ * Matched-title count per day for one platform over Day1…DayN ending on reportDate.
  *
  * NOTE: `capturedAt` is the INGEST time, not the article publish time, so a
  * single ingest run puts every row on one day. The series therefore only shows
@@ -320,28 +392,36 @@ function isoDay(ms: number): string {
 function platformDailySeries(
   annotated: Array<{ row: LiveNewsRow }>,
   platform: string,
-  endMs: number,
+  _endMs: number,
+  reportDate: string,
 ): number[] {
-  return dailySeries(annotated.filter((a) => a.row.platform === platform).map((a) => a.row), endMs);
+  return dailySeries(
+    annotated.filter((a) => a.row.platform === platform).map((a) => a.row),
+    reportDate,
+  );
 }
 
-/** Overall matched-title count per day over the last 7 days. */
-function overallDailySeries(annotated: Array<{ row: LiveNewsRow }>): number[] {
-  const endMs = Math.max(...annotated.map((a) => a.row.capturedAt), 0);
-  return dailySeries(annotated.map((a) => a.row), endMs);
+function overallDailySeries(
+  annotated: Array<{ row: LiveNewsRow }>,
+  _endMs: number,
+  reportDate: string,
+): number[] {
+  return dailySeries(
+    annotated.map((a) => a.row),
+    reportDate,
+  );
 }
 
-function dailySeries(rows: LiveNewsRow[], endMs: number): number[] {
-  const days = 7;
-  const end = startOfUtcDay(endMs);
+/** Bucket counts into Day1…DayN where DayN = reportDate (Shanghai). */
+function dailySeries(rows: LiveNewsRow[], reportDate: string): number[] {
+  const days = SPARKLINE_DAYS;
+  const endStart = shanghaiDayStartMs(reportDate);
   const out = new Array(days).fill(0);
   for (const row of rows) {
-    const idx = days - 1 - Math.round((end - startOfUtcDay(row.capturedAt)) / 86_400_000);
+    const day = shanghaiIsoDay(row.capturedAt);
+    const dayStart = shanghaiDayStartMs(day);
+    const idx = days - 1 - Math.round((endStart - dayStart) / 86_400_000);
     if (idx >= 0 && idx < days) out[idx] += 1;
   }
   return out;
-}
-
-function startOfUtcDay(ms: number): number {
-  return Math.floor(ms / 86_400_000) * 86_400_000;
 }
