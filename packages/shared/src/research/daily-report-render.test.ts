@@ -173,7 +173,29 @@ describe('renderDailyReportHtml', () => {
     expect(html).toMatch(/object-fit:\s*cover/)
   })
 
-  it('embeds thumbSvg when present on a pack item', () => {
+  it('renders fallback plate as an <img>, never as bare text', () => {
+    // A pack item WITHOUT a usable imageUrl must produce an <img src="data:...">
+    // (branded plate), NOT a raw-injected SVG string that leaks as text.
+    const noImg = {
+      ...pack,
+      opportunities: [
+        {
+          ...pack.opportunities[0],
+          imageUrl: undefined,
+          thumbSvg: undefined,
+          href: 'https://example.com/opp/noimg',
+        },
+      ],
+      stories: [],
+    }
+    const out = renderDailyReportHtml(noImg)
+    // must contain an <img whose src is a data:image/svg data URI
+    expect(out).toMatch(/<img src="data:image\/svg\+xml;charset=utf-8/)
+    // and must NOT contain the raw SVG markup leaked as page text
+    expect(out).not.toContain('<svg xmlns="http://www.w3.org/2000/svg" width="320"')
+  })
+
+it('embeds thumbSvg when present on a pack item', () => {
     const withSvg = {
       ...pack,
       opportunities: [

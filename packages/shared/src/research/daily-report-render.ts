@@ -144,16 +144,23 @@ function asThumbFields(item: DailyOpportunity | DailyStory): ThumbFields {
  * Prefer a REAL validated imageUrl (http(s), SVG data-URI) with a graceful
  * onerror fallback to the branded SVG plate. A publisher cover can be an
  * `http://` plain URL (i.ce.cn), a non-standard aspect (sina 96x134), or
- * occasionally dead — so every image tag gets an onerror that swaps in the
- * branded plate the moment it fails to load. Empty/blank fallback is no longer
- * possible: if imageUrl is unusable we return the plate SVG, and if a usable
- * URL later 404s/bot-blocks at load time we swap to the plate client-side.
+ * occasionally dead/403/bot-blocked — so every image tag gets an onerror that
+ * points the SAME <img src> at the branded plate the moment it fails to load.
+ *
+ * IMPORTANT: onerror must swap `this.src`, NEVER `this.outerHTML`. Injecting a
+ * data-URI string via outerHTML renders the URI as literal text (a raw blob of
+ * SVG/CSS code), not as an image. Keeping the <img> and repointing its src is
+ * what renders the plate correctly.
  */
 function renderMediaInner(item: ThumbFields, alt: string, plateSvg: string): string {
   if (isUsableImageUrl(item.imageUrl)) {
-    return `<img src="${escAttr(item.imageUrl)}" alt="${escAttr(alt)}" loading="lazy" onerror="this.outerHTML=\`${escAttr(plateSvg)}\`"/>`;
+    // Keep the <img>; on failure swap its src to the plate data-URI (this.src,
+    // not outerHTML). onerror=null prevents an error loop.
+    return `<img src="${escAttr(item.imageUrl)}" alt="${escAttr(alt)}" loading="lazy" onerror="this.onerror=null;this.src='${escAttr(plateSvg)}'"/>`;
   }
-  return plateSvg;
+  // No real image → render the branded plate as an <img> (never inject the bare
+  // data URI as text into the DOM).
+  return `<img src="${escAttr(plateSvg)}" alt="${escAttr(alt)}" loading="lazy"/>`;
 }
 
 /** Normalize a series into an SVG polyline (preserveAspectRatio=none). */
