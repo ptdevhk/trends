@@ -311,8 +311,10 @@ export async function fetchArticleThumb(url: string): Promise<string | null> {
   }
 }
 
-/** Cap raw image bytes so a shareable HTML stays transfer-friendly (~15 thumbs). */
-const MAX_EMBED_BYTES = 280_000;
+/** Cap raw image bytes. Packs stay under Convex's 1 MiB when html is not stored
+ * (BFF re-renders). Allow up to ~250KB so common CN covers (people.cn ~220KB)
+ * still embed as real-photo SVG. */
+const MAX_EMBED_BYTES = 250_000;
 
 /** Sniff raster MIME from magic bytes (ignore unreliable Content-Type). */
 function sniffMime(buf: Buffer): string | null {
@@ -333,10 +335,33 @@ function sniffMime(buf: Buffer): string | null {
 }
 
 /**
- * Download an image and return a `data:image/…;base64,…` URI for offline /
- * single-file HTML sharing. Uses the same Referer/UA as dim probes so
- * hotlink-gated CDNs serve. Returns null on any failure (size, type, network).
- * Never throws.
+ * Wrap a real raster cover inside an SVG `<image>` so the pack stores a
+ * `data:image/svg+xml` URI that still shows the REAL photo (not a branded
+ * plate). The HTML stays a single transferable file with zero remote deps.
+ *
+ * `preserveAspectRatio=xMidYMid slice` matches the CSS object-fit:cover crop.
+ */
+export function wrapRasterAsSvgDataUri(
+  mime: string,
+  base64: string,
+  width = 320,
+  height = 160,
+): string {
+  const href = `data:${mime};base64,${base64}`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}" role="img">` +
+    `<image href="${href}" width="${width}" height="${height}" ` +
+    `preserveAspectRatio="xMidYMid slice"/>` +
+    `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Download a publisher cover and return an SVG data-URI that EMBEDS the real
+ * photo (`<svg><image href="data:image/…;base64,…"/></svg>`). Uses the same
+ * Referer/UA as dim probes so hotlink-gated CDNs serve. Returns null on any
+ * failure — caller keeps the branded plate. Never throws.
  */
 export async function fetchImageAsDataUri(
   url: string,
@@ -373,10 +398,9 @@ export async function fetchImageAsDataUri(
     const buf = Buffer.concat(chunks);
     const mime = sniffMime(buf);
     if (!mime) return null;
-    // Re-check cover size on the full buffer (probe only saw a Range slice).
     const dims = sniffDims(buf);
     if (!dims || dims.w < MIN_W || dims.h < MIN_H) return null;
-    return `data:${mime};base64,${buf.toString('base64')}`;
+    return wrapRasterAsSvgDataUri(mime, buf.toString('base64'));
   } catch {
     return null;
   }
@@ -384,10 +408,9 @@ export async function fetchImageAsDataUri(
 
 /**
  * Fetch real thumbs for up to `limit` article URLs, honoring a small
- * concurrency cap. Returns a map articleUrl → **embedded data-URI** (not a
- * remote CDN URL) so the daily HTML is a single transferable file. When the
- * publisher cover cannot be embedded, the entry is omitted and the renderer
- * keeps the branded SVG plate (option-2 outcome for that card).
+ * concurrency cap. Returns a map articleUrl → **publisher cover URL** (kept
+ * small for Convex packJson). The BFF wraps these into real-photo SVG
+ * data-URIs when serving/downloading HTML (Convex 1 MiB doc limit).
  */
 export async function fetchThumbsForUrls(
   urls: string[],
@@ -401,12 +424,53 @@ export async function fetchThumbsForUrls(
     while (idx < unique.length) {
       const u = unique[idx++];
       const thumb = await fetchArticleThumb(u);
-      if (!thumb) continue;
-      const embedded = await fetchImageAsDataUri(thumb, u);
-      if (embedded) out.set(u, embedded);
+      if (thumb) out.set(u, thumb);
     }
   };
   const workers = Array.from({ length: Math.min(concurrency, Math.max(unique.length, 1)) }, () => worker());
   await Promise.all(workers);
   return out;
+}
+
+/**
+ * In-place: convert any remote http(s) `imageUrl` on opportunities/stories
+ * into SVG-wrapped real-photo data-URIs (`<svg><image href="data:image/…"/>`).
+ * Leaves branded SVG plates and already-embedded data URIs untouched.
+ * Used by the BFF HTML path so the downloadable file shows REAL covers while
+ * Convex packJson stays small (remote URLs only).
+ */
+export async function embedPackRemoteCovers(
+  pack: {
+    opportunities?: Array<{ imageUrl?: string; href?: string }>;
+    stories?: Array<{ imageUrl?: string; href?: string }>;
+  },
+  concurrency = 4,
+): Promise<{ converted: number; failed: number }> {
+  type Item = { imageUrl?: string; href?: string };
+  const items: Item[] = [...(pack.opportunities ?? []), ...(pack.stories ?? [])];
+  const targets = items.filter((it) => typeof it.imageUrl === 'string' && /^https?:\/\//i.test(it.imageUrl));
+  let converted = 0;
+  let failed = 0;
+  let idx = 0;
+  const worker = async () => {
+    while (idx < targets.length) {
+      const it = targets[idx++];
+      const url = it.imageUrl!;
+      const embedded = await fetchImageAsDataUri(url, it.href);
+      if (embedded) {
+        it.imageUrl = embedded;
+        converted += 1;
+      } else {
+        // Keep the remote URL for online viewing; shareable HTML path will
+        // fall back to the branded plate when render rejects http(s).
+        failed += 1;
+      }
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(concurrency, Math.max(targets.length, 1)) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return { converted, failed };
 }

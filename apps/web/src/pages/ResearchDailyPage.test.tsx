@@ -28,6 +28,26 @@ const FIXTURE = {
   stories: [{ title: '数控机床订单回暖' }],
 }
 
+/** BFF shareable HTML — real covers already SVG-wrapped server-side. */
+const FIXTURE_HTML =
+  '<!DOCTYPE html><html><body><h1>今日商机</h1>' +
+  '<img src="data:image/svg+xml;charset=utf-8,%3Csvg%3E%3Cimage%20href%3D%22data:image/jpeg;base64,/9j/%22/%3E%3C/svg%3E"/>' +
+  '</body></html>'
+
+function mockDailyFetch(extra?: (path: string) => Response | undefined) {
+  return vi.fn(async (path: string) => {
+    const override = extra?.(path)
+    if (override) return override
+    if (path === '/daily/2026-09-22.json') {
+      return { ok: true, json: async () => FIXTURE, text: async () => JSON.stringify(FIXTURE) }
+    }
+    if (path === '/daily/2026-09-22.html') {
+      return { ok: true, json: async () => ({}), text: async () => FIXTURE_HTML }
+    }
+    return { ok: false, json: async () => [], text: async () => '' }
+  })
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -43,16 +63,8 @@ function renderAt(date: string) {
 }
 
 describe('ResearchDailyPage (in-app twin)', () => {
-  it('fetches the pack and renders the M3 report HTML into the iframe', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-22.json') {
-          return { ok: true, json: async () => FIXTURE }
-        }
-        return { ok: false, json: async () => [] }
-      }),
-    )
+  it('fetches pack + BFF HTML and renders shareable HTML into the iframe', async () => {
+    vi.stubGlobal('fetch', mockDailyFetch())
 
     renderAt('2026-09-22')
 
@@ -61,6 +73,7 @@ describe('ResearchDailyPage (in-app twin)', () => {
       expect(iframe).not.toBeNull()
       const srcdoc = iframe?.getAttribute('srcdoc') ?? ''
       expect(srcdoc).toContain('今日商机')
+      expect(srcdoc).toContain('data:image/svg+xml')
     })
     expect(screen.getByTestId('research-daily-back')).toHaveAttribute('href', '/hr/research')
     const download = screen.getByTestId('research-daily-download')
@@ -68,16 +81,8 @@ describe('ResearchDailyPage (in-app twin)', () => {
     expect(download).toHaveTextContent(/下载完整 HTML|Download complete HTML/)
   })
 
-  it('download button triggers a blob save of the rendered HTML', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-22.json') {
-          return { ok: true, json: async () => FIXTURE }
-        }
-        return { ok: false, json: async () => [] }
-      }),
-    )
+  it('download button triggers a blob save of the BFF HTML', async () => {
+    vi.stubGlobal('fetch', mockDailyFetch())
     const click = vi.fn()
     const revoke = vi.fn()
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:daily-test')
@@ -103,11 +108,12 @@ describe('ResearchDailyPage (in-app twin)', () => {
   it('falls back to the latest day when the requested date has no pack', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [] }
-        if (path === '/daily/index.json') return { ok: true, json: async () => ({ dates: ['2026-09-21', '2026-09-22'] }) }
-        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
-        return { ok: false, json: async () => [] }
+      mockDailyFetch((path) => {
+        if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [], text: async () => '' } as never
+        if (path === '/daily/index.json') {
+          return { ok: true, json: async () => ({ dates: ['2026-09-21', '2026-09-22'] }), text: async () => '' } as never
+        }
+        return undefined
       }),
     )
 
@@ -122,13 +128,7 @@ describe('ResearchDailyPage (in-app twin)', () => {
   })
 
   it('does not render PII/resume in the srcdoc', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
-        return { ok: false, json: async () => [] }
-      }),
-    )
+    vi.stubGlobal('fetch', mockDailyFetch())
     renderAt('2026-09-22')
     await waitFor(() => {
       const iframe = document.querySelector('iframe')
@@ -142,11 +142,12 @@ describe('ResearchDailyPage (in-app twin)', () => {
     // must still pick the newest date, not the last array element.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [] }
-        if (path === '/daily/index.json') return { ok: true, json: async () => ({ dates: ['2026-09-22', '2026-09-21'] }) }
-        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
-        return { ok: false, json: async () => [] }
+      mockDailyFetch((path) => {
+        if (path === '/daily/2026-09-99.json') return { ok: false, json: async () => [], text: async () => '' } as never
+        if (path === '/daily/index.json') {
+          return { ok: true, json: async () => ({ dates: ['2026-09-22', '2026-09-21'] }), text: async () => '' } as never
+        }
+        return undefined
       }),
     )
 
@@ -158,13 +159,7 @@ describe('ResearchDailyPage (in-app twin)', () => {
   })
 
   it('renders day-switcher chips using pack.hero.dayDates with active state and correct hrefs', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => FIXTURE }
-        return { ok: false, json: async () => [] }
-      }),
-    )
+    vi.stubGlobal('fetch', mockDailyFetch())
 
     renderAt('2026-09-22')
 
@@ -185,9 +180,11 @@ describe('ResearchDailyPage (in-app twin)', () => {
     const fixtureNoDates = { ...FIXTURE, hero: { ...FIXTURE.hero, dayDates: undefined } }
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/daily/2026-09-22.json') return { ok: true, json: async () => fixtureNoDates }
-        return { ok: false, json: async () => [] }
+      mockDailyFetch((path) => {
+        if (path === '/daily/2026-09-22.json') {
+          return { ok: true, json: async () => fixtureNoDates, text: async () => JSON.stringify(fixtureNoDates) } as never
+        }
+        return undefined
       }),
     )
 

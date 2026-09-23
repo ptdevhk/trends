@@ -3162,7 +3162,7 @@
       "dayNav": "報告日",
       "todayLabel": "今日",
       "downloadBundle": "下載完整 HTML",
-      "downloadBundleHint": "單檔可轉發（圖片已內嵌或使用品牌底圖）"
+      "downloadBundleHint": "單檔可轉發（真實封面已嵌進 SVG）"
     },
     "sectionResumeDesk": "數控品牌臺（展示）",
     "sectionSearch": "搜索企業",

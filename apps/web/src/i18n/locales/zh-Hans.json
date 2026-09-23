@@ -3189,7 +3189,7 @@
       "dayNav": "报告日",
       "todayLabel": "今日",
       "downloadBundle": "下载完整 HTML",
-      "downloadBundleHint": "单文件可转发（图片已内嵌或使用品牌底图）"
+      "downloadBundleHint": "单文件可转发（真实封面已嵌进 SVG）"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",

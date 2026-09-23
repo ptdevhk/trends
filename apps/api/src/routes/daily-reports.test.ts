@@ -90,13 +90,24 @@ vi.mock("../services/convex-utils.js", () => ({
   callConvexQuery: vi.fn(),
 }));
 
+vi.mock("@trends/shared", async () => {
+  const actual = await vi.importActual<typeof import("@trends/shared")>("@trends/shared");
+  return {
+    ...actual,
+    // Unit tests have no network; skip real CDN downloads.
+    embedPackRemoteCovers: vi.fn(async () => ({ converted: 0, failed: 0 })),
+  };
+});
+
 import { callConvexQuery } from "../services/convex-utils.js";
+import { embedPackRemoteCovers } from "@trends/shared";
 
 const mockedCallConvexQuery = vi.mocked(callConvexQuery);
+const mockedEmbed = vi.mocked(embedPackRemoteCovers);
 
 describe("daily reports routes", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("returns dates from index.json", async () => {
@@ -146,6 +157,7 @@ describe("daily reports routes", () => {
     expect(body).toContain("2026-09-23");
     expect(body).toMatch(/\.story \.cover\{[^}]*aspect-ratio:\s*4\/3/);
     expect(body).not.toBe("<html>pre-rendered</html>");
+    expect(mockedEmbed).toHaveBeenCalled();
   });
 
   it("renders html on demand when stored html is empty", async () => {

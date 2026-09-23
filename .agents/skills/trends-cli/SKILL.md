@@ -91,9 +91,6 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends research company "CNC 东莞" --persona hr` (persona re-ranked company signals)
 - `./bin/trends research ingest` (trigger Research Eng native ingest; operator command)
 - `./bin/trends research parity` (latest research parity run / kill-switch ledger)
-- `./bin/trends ai-config get` (show effective + stored AI routing: model/base, source, key presence)
-- `./bin/trends ai-config set --model openai/deepseek-v4-flash --api-base https://cpa.pt-mes.com/v1 [--fallback ...]` (hot-switch AI routing; empty clears to env)
-- `./bin/trends ai-config test` (test connection to the effective AI endpoint)
 - `./bin/trends system metadata`
 - `./bin/trends system sources`
 - `./bin/trends system source <key>`

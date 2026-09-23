@@ -265,21 +265,22 @@ function lastGoodSnapshot(date: string): DailyReportPack | null {
 
 async function writeOutputs(env: Env, pack: DailyReportPack, date: string): Promise<void> {
   mkdirSync(SNAPSHOT_DIR, { recursive: true })
-  const html = renderDailyReportHtml(pack)
   writeFileSync(join(SNAPSHOT_DIR, `${date}.json`), `${JSON.stringify(pack, null, 2)}\n`, 'utf8')
 
+  // BFF always re-renders from packJson. Skip storing the full HTML blob —
+  // SVG-wrapped real covers make pack+html exceed Convex's 1 MiB doc limit.
   const upserted = (await convexMutation(env, 'daily_reports:upsertReport', {
     writeSecret: env.CONVEX_WRITE_SECRET,
     date,
     packJson: JSON.stringify(pack),
-    html,
+    html: '',
     source: pack.source ?? 'live',
     fallbackFromDate: pack.fallbackFromDate,
     builtAt: Date.now(),
   })) as { id: string; created: boolean } | undefined
 
   console.log(
-    `wrote ${date}.json snapshot; convex ${upserted?.created ? 'created' : 'patched'} ${upserted?.id ?? '?'} (${html.length} bytes)`,
+    `wrote ${date}.json snapshot; convex ${upserted?.created ? 'created' : 'patched'} ${upserted?.id ?? '?'} (packBytes=${JSON.stringify(pack).length})`,
   )
 }
 
@@ -414,10 +415,9 @@ async function main(): Promise<void> {
   // so cards/rows/stories all reflect the Chinese CNC desk.
   const excludePlatforms = loadExcludedPlatforms()
 
-  // Render-time thumbnail resolution for the SURFACED items (not raw rows).
-  // Fetch is keyed on the actual 商机/趋势/热闻 hrefs that render. Each cover is
-  // EMBEDDED as a data:image/…;base64 URI so the HTML is a single transferable
-  // file (no remote CDN/hotlink deps). Embed failure → keep branded SVG plate.
+  // Surfaced-item thumbnail resolution. Store publisher cover URLs only —
+  // Convex docs are 1 MiB; the BFF wraps remotes into real-photo SVG data-URIs
+  // when serving /daily/{date}.html (iframe + 下载完整 HTML).
   async function patchSurfacedThumbs(pack: DailyReportPack): Promise<void> {
     const surfacedHrefs = [
       ...(pack.opportunities.map((o) => o.href).filter((h): h is string => !!h)),
@@ -432,6 +432,7 @@ async function main(): Promise<void> {
     for (const st of pack.stories) {
       if (st.href && thumbByUrl.has(st.href)) st.imageUrl = thumbByUrl.get(st.href)
     }
+    console.log(`thumbs[remote]: resolved=${thumbByUrl.size}/${unique.length}`)
   }
 
   for (const day of windowDates) {

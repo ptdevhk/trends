@@ -1,19 +1,16 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { parseDailyReportPack, renderDailyReportHtml, type DailyReportPack } from '@trends/shared'
+import { parseDailyReportPack, type DailyReportPack } from '@trends/shared'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { Button } from '@/components/ui/button'
 
 /**
  * Thin in-app twin of the public static daily report.
- * `/:workspace/research/daily/:date` loads the SAME pack the worker/renderer uses and
- * renders the identical M3 HTML into an iframe, so the public share and the
- * in-app view are byte-for-byte consistent.
- *
- * Download: "下载完整 HTML" saves the rendered srcdoc as one transferable file
- * (system fonts only; covers are embedded data-URIs or branded SVG plates —
- * no remote CDN deps required to open offline).
+ * `/:workspace/research/daily/:date` loads the pack for day-nav metadata and
+ * the BFF-rendered HTML (`/daily/{date}.html`) into an iframe. The BFF wraps
+ * remote publisher covers into real-photo SVG data-URIs at serve time, so the
+ * iframe and "下载完整 HTML" are one offline file with real covers.
  *
  * No route-scoped auth gate beyond the workspace shell this lives under (the
  * public static file itself is unauthenticated by design).
@@ -26,6 +23,12 @@ async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'include' })
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`)
   return (await res.json()) as T
+}
+
+async function fetchText(path: string): Promise<string> {
+  const res = await fetch(path, { credentials: 'include' })
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`)
+  return await res.text()
 }
 
 async function fetchPack(date: string): Promise<DailyReportPack> {
@@ -75,17 +78,21 @@ export default function ResearchDailyPage() {
   useEffect(() => {
     let cancelled = false
     const target = date ?? ''
-    fetchPack(target || shanghaiToday)
-      .then((fetched) => {
+    ;(async () => {
+      try {
+        const fetched = await fetchPack(target || shanghaiToday)
         if (cancelled) return
         setPack(fetched)
-        setHtml(renderDailyReportHtml(fetched))
         setTitleDate(fetched.date)
-      })
-      .catch((e) => {
+        // BFF embeds real covers as SVG at HTML serve time (packJson keeps remotes).
+        const shareable = await fetchText(`${STATIC_DAILY_BASE}/${fetched.date}.html`)
+        if (cancelled) return
+        setHtml(shareable)
+      } catch (e) {
         if (cancelled) return
         setError(e instanceof Error ? e.message : String(e))
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -118,7 +125,7 @@ export default function ResearchDailyPage() {
           onClick={onDownload}
           data-testid="research-daily-download"
           title={t('research.daily.downloadBundleHint', {
-            defaultValue: '单文件可转发（图片已内嵌或使用品牌底图）',
+            defaultValue: '单文件可转发（真实封面已嵌进 SVG）',
           })}
         >
           {t('research.daily.downloadBundle', { defaultValue: '下载完整 HTML' })}

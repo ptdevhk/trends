@@ -4,6 +4,8 @@ import {
   isImageUrl,
   fetchThumbsForUrls,
   fetchArticleThumb,
+  wrapRasterAsSvgDataUri,
+  embedPackRemoteCovers,
 } from './daily-report-thumb-fetch'
 
 describe('extractThumbFromHtml', () => {
@@ -252,7 +254,7 @@ describe('fetchThumbsForUrls', () => {
     expect(out).toBeInstanceOf(Map)
   })
 
-  it('embeds passing covers as data:image base64 (shareable HTML)', async () => {
+  it('returns publisher cover URLs (BFF wraps to SVG on HTML serve)', async () => {
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('article')) {
@@ -261,7 +263,6 @@ describe('fetchThumbsForUrls', () => {
           { headers: { 'content-type': 'text/html' } },
         )
       }
-      // Dim probe (Range) + full embed download both hit the cover URL.
       const range =
         init?.headers &&
         String((init.headers as Record<string, string>).Range || '').includes('bytes')
@@ -273,7 +274,44 @@ describe('fetchThumbsForUrls', () => {
     vi.stubGlobal('fetch', fetchMock)
     const out = await fetchThumbsForUrls(['https://example.com/article/1'], 1, 1)
     expect(out.size).toBe(1)
-    const embedded = out.get('https://example.com/article/1')
-    expect(embedded).toMatch(/^data:image\/png;base64,/)
+    expect(out.get('https://example.com/article/1')).toBe('https://cdn.example.com/cover.jpg')
+  })
+})
+
+describe('embedPackRemoteCovers', () => {
+  const bigPng = Buffer.from(
+    '89504e470d0a1a0a0000000d4948445200000190000001040806000000' +
+      'f8f8f8f80000000049454e44ae426082',
+    'hex',
+  )
+
+  it('wraps remote covers as SVG with the real raster inside', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(bigPng, { status: 200, headers: { 'content-type': 'image/png' } })),
+    )
+    const pack = {
+      opportunities: [{ imageUrl: 'https://cdn.example.com/cover.jpg', href: 'https://example.com/a' }],
+      stories: [{ imageUrl: 'data:image/svg+xml;charset=utf-8,%3Csvg%3E', href: 'https://example.com/s' }],
+    }
+    const { converted, failed } = await embedPackRemoteCovers(pack)
+    expect(converted).toBe(1)
+    expect(failed).toBe(0)
+    const uri = pack.opportunities[0].imageUrl!
+    expect(uri).toMatch(/^data:image\/svg\+xml;charset=utf-8,/)
+    const decoded = decodeURIComponent(uri.slice('data:image/svg+xml;charset=utf-8,'.length))
+    expect(decoded).toContain('<image href="data:image/png;base64,')
+    // Already-embedded plate left alone
+    expect(pack.stories[0].imageUrl).toMatch(/^data:image\/svg\+xml/)
+  })
+})
+
+describe('wrapRasterAsSvgDataUri', () => {
+  it('wraps a real raster as an SVG data-URI with embedded <image>', () => {
+    const uri = wrapRasterAsSvgDataUri('image/jpeg', '/9j/fake', 320, 160)
+    expect(uri).toMatch(/^data:image\/svg\+xml;charset=utf-8,/)
+    const decoded = decodeURIComponent(uri.slice('data:image/svg+xml;charset=utf-8,'.length))
+    expect(decoded).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
+    expect(decoded).toContain('href="data:image/jpeg;base64,/9j/fake"')
   })
 })

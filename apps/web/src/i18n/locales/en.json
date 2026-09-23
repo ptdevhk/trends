@@ -3162,7 +3162,7 @@
       "dayNav": "Report day",
       "todayLabel": "Today",
       "downloadBundle": "Download complete HTML",
-      "downloadBundleHint": "Single transferable file (covers inlined or branded plate)"
+      "downloadBundleHint": "Single transferable file (real covers nested in SVG)"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",

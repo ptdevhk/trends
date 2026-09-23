@@ -107,8 +107,9 @@ function escAttr(s: string): string {
 }
 
 /** Accept embedded data-URI thumbs only (shareable single-file HTML).
- * Remote http(s) covers are rejected here — the build pipeline must embed them
- * as `data:image/…;base64,…` first; otherwise the branded SVG plate is used.
+ * Remote http(s) covers are rejected here — the BFF HTML path must wrap them
+ * as real-photo SVG data-URIs (`embedPackRemoteCovers`) first; otherwise the
+ * branded SVG plate is used.
  */
 function isUsableImageUrl(url: string | undefined): url is string {
   if (!url || typeof url !== 'string') return false;
@@ -134,11 +135,13 @@ function asThumbFields(item: DailyOpportunity | DailyStory): ThumbFields {
 }
 
 /**
- * Prefer an embedded data-URI cover (raster base64 or SVG plate). Remote
- * http(s) URLs are intentionally NOT rendered — a shareable daily report is
- * one transferable HTML file with zero hotlink/CDN deps. Build-live embeds
- * successful publisher covers as data URIs; failures keep the branded SVG
- * plate (option-2 outcome for that card).
+ * Prefer an SVG data-URI cover that embeds the REAL photo
+ * (`data:image/svg+xml…` with `<image href="data:image/jpeg|png|webp;base64,…">`)
+ * or a branded SVG plate. Remote http(s) URLs are intentionally NOT rendered
+ * (packJson keeps remotes for Convex size; BFF embeds on `/daily/*.html`) —
+ * a shareable daily report is one transferable HTML file with zero hotlink/CDN
+ * deps. Build-live / embed-covers wrap successful publisher covers as SVG;
+ * failures keep the branded plate.
  *
  * IMPORTANT: onerror must swap `this.src`, NEVER `this.outerHTML`.
  */
