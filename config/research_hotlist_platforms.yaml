@@ -41,10 +41,16 @@ groups:
         expectedDomain: bilibili.com
 
 # Defaults bias CNC/HR desk toward finance + major CN portals (not pure entertainment).
+# All platforms default ON (owner: "do all first, if unstable we can one-by-one off").
 defaults:
   - weibo
   - zhihu
   - baidu
+  - toutiao
+  - thepaper
+  - ifeng
+  - tieba
   - wallstreetcn-hot
   - cls-hot
-  - thepaper
+  - douyin
+  - bilibili-hot-search

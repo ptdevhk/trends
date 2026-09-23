@@ -124,6 +124,39 @@ function loadKeywordSeed(): string[] {
  * Mirrors mergePulseKeywords(seed, workspace): seed ∪ custom ∪ enabled − excluded.
  * Overlay absent → seed unchanged (workspace defaults).
  */
+
+async function mergeWorkspaceHotlistPlatforms(env: Env, seed: string[]): Promise<string[]> {
+  const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
+  let raw: unknown
+  try {
+    raw = await convexQuery(env, 'workspace_config:get', {
+      workspaceSlug,
+      configKey: 'research.hotlistPlatforms',
+    })
+  } catch {
+    return seed
+  }
+  const row = raw as { configValue?: unknown } | undefined
+  const ov = row?.configValue as { enabled?: unknown; excluded?: unknown } | undefined
+  if (!ov) return seed
+  const asList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [])
+  const enabled = asList(ov.enabled).map((x) => x.trim())
+  const excluded = new Set(asList(ov.excluded).map((x) => x.trim()))
+  // Mirror hub mergeHotlistPlatforms: non-empty enabled → enabled ∩ catalog; else seed.defaults.
+  // Drop excluded; empty-after-exclude → seed defaults. Never union (would leak narrowed-off platforms).
+  const catalogSet = new Set(seed)
+  const base = enabled.length > 0 ? enabled.filter((id) => catalogSet.has(id)) : [...seed]
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const p of base) {
+    const t = p.trim()
+    if (!t || seen.has(t) || excluded.has(t)) continue
+    seen.add(t)
+    out.push(t)
+  }
+  return out.length > 0 ? out : seed
+}
+
 async function mergeWorkspaceKeywords(env: Env, seed: string[]): Promise<string[]> {
   const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
   let raw: unknown
@@ -246,7 +279,8 @@ async function main(): Promise<void> {
   const env = loadEnv()
   const seedKeywords = loadKeywordSeed()
   const keywords = await mergeWorkspaceKeywords(env, seedKeywords)
-  const hotlistPlatforms = loadHotlistPlatforms()
+  const seedHotlist = loadHotlistPlatforms()
+  const hotlistPlatforms = await mergeWorkspaceHotlistPlatforms(env, seedHotlist)
   console.log(`keywords: seed=${seedKeywords.length} effective=${keywords.length}`)
 
   const since = sparklineWindowSinceMs(date)
