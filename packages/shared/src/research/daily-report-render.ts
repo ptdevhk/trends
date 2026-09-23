@@ -203,8 +203,10 @@ function withHref<T extends { href?: string }>(items: T[]): Array<T & { href: st
 export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReportLocale = 'zh-Hans'): string {
   const t = I18N[locale];
   const linkedOpps = withHref(pack.opportunities);
+  // 商机 cards = first 3; 今日趋势 rows = the remaining opportunities (from the
+  // buildLivePack disjoint carve). Distinct items in each section.
   const cards = linkedOpps.slice(0, 3);
-  const rows = linkedOpps;
+  const rows = linkedOpps.slice(3);
   const stories = withHref(pack.stories);
 
   const heroSpark = sparklineSvg(pack.hero.sparkline, '#1a8f5a', 280, 28);

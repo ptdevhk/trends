@@ -26,6 +26,7 @@ export * from "./research/daily-report-pack.js";
 export * from "./research/daily-report-render.js";
 export * from "./research/daily-report-live.js";
 export * from "./research/daily-report-thumb.js";
+export * from "./research/daily-report-thumb-fetch.js";
 export * from "./research/daily-report-article-url.js";
 export * from "./resume-filter-helpers.js";
 export * from "./generated/search-profile-templates.js";

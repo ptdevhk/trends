@@ -67,6 +67,37 @@ const pack: DailyReportPack = {
       started: 't4',
       sparkline: [1, 1, 1],
     },
+    // Trend-table rows (index 3+) render in 今日趋势, disjoint from the cards.
+    {
+      kind: '商机',
+      label: '行1 五轴出货',
+      heat: '1.2万',
+      growth: '+220%',
+      started: 't5',
+      sparkline: [20, 18, 19, 15, 12, 10, 9],
+      chips: ['五轴'],
+      href: 'https://example.com/opp/4',
+    },
+    {
+      kind: '转机',
+      label: '行2 牧野扩产',
+      heat: '0.9万',
+      growth: '+150%',
+      started: 't6',
+      sparkline: [16, 15, 15, 13, 11, 10, 9],
+      chips: ['牧野'],
+      href: 'https://example.com/opp/5',
+    },
+    {
+      kind: '动态',
+      label: '行3 电火花回暖',
+      heat: '0.7万',
+      growth: '+90%',
+      started: 't7',
+      sparkline: [12, 11, 11, 10, 9, 8, 8],
+      chips: ['电火花'],
+      href: 'https://example.com/opp/6',
+    },
   ],
   stories: [
     {
@@ -115,8 +146,19 @@ describe('renderDailyReportHtml', () => {
 
   it('renders trend-table rows as clickable <a href=…>', () => {
     const rows = (html.match(/class="row"/g) ?? []).length
+    // Cards = first 3 opps; the remaining opportunities render as trend rows.
     expect(rows).toBe(3)
-    expect(html).toContain('<a href="https://example.com/opp/2" class="row"')
+    expect(html).toContain('<a href="https://example.com/opp/4" class="row"')
+  })
+
+  it('shows distinct items in 商机 cards vs 今日趋势 rows (no echo)', () => {
+    const cardHrefs = (html.match(/class="tile"/g) ?? []).length
+    const rowHrefs = (html.match(/class="row"/g) ?? []).length
+    // 3 cards + 3 row items render from a 6-opportunity pool
+    expect(cardHrefs).toBe(3)
+    expect(rowHrefs).toBe(3)
+    // the 3 no-href opportunities (opp index 3 '无链接应被省略') are dropped from rows
+    expect(html).not.toContain('无链接应被省略')
   })
 
   it('renders hot stories as clickable rows with thumbs', () => {

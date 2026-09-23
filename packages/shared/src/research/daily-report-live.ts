@@ -66,6 +66,11 @@ export type LivePackOptions = {
    * Defaults to `date` (self-centered window).
    */
   navAnchorDate?: string;
+  /**
+   * Platform ids to drop from the row pool before ranking — used to keep a
+   * sales-desk report CN-audience only (excludes EN feeds from TrendRadar).
+   */
+  excludePlatforms?: string[];
 };
 
 export type LivePackResult = {
@@ -241,8 +246,14 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   const reportDate = opts.date;
   const windowEndMs = shanghaiDayStartMs(reportDate) + 86_400_000 - 1;
 
+  // CN-audience, sales-first: drop non-CN sources (EN feeds from TrendRadar)
+  // before anything ranks, so hero/cards/rows/stories all reflect the CN desk.
+  const cnOnlyRows = opts.excludePlatforms?.length
+    ? rows.filter((row) => !opts.excludePlatforms!.includes(row.platform))
+    : rows;
+
   // Annotate the full 7d window (caller should pass since=day−6).
-  const windowAnnotated = rows
+  const windowAnnotated = cnOnlyRows
     .filter((row) => hasRealNewsUrl(row))
     .filter((row) => shanghaiIsoDay(row.capturedAt) <= reportDate)
     .map((row) => {
@@ -253,21 +264,27 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     .filter((x) => x.hits.length > 0)
     .sort((a, b) => b.row.capturedAt - a.row.capturedAt);
 
-  // Cards / stories / hero = report calendar day only.
+  // Hero = report calendar day only (honest matched count stays day-scoped).
   const dayAnnotated = windowAnnotated.filter((x) => shanghaiIsoDay(x.row.capturedAt) === reportDate);
   const hotlistMatched = dayAnnotated.filter((x) => isHot(x.row.platform));
 
-  // Dedupe by the display label (same story syndicated across feeds).
+  // De-dupe across the FULL 7d window so the sections can fill with distinct
+  // items instead of echoing a thin report day (a single ingest run stamps
+  // every row on one day; without window fallback the page would show 3).
   const seen = new Set<string>();
-  const unique = dayAnnotated.filter((x) => {
+  const windowUnique = windowAnnotated.filter((x) => {
     const key = normalizePulseKeyword(shortLabel(x.row.title));
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  // Rank: hotlist first, then strong-hit count, then total hits, then recency.
-  const ranked = [...unique].sort((a, b) => {
+  // Rank: report-day first (cards feel fresh), then hotlist, strong-hit count,
+  // total hits, then recency.
+  const ranked = [...windowUnique].sort((a, b) => {
+    const dayA = shanghaiIsoDay(a.row.capturedAt) === reportDate ? 1 : 0;
+    const dayB = shanghaiIsoDay(b.row.capturedAt) === reportDate ? 1 : 0;
+    if (dayA !== dayB) return dayB - dayA;
     const ha = isHot(a.row.platform) ? 1 : 0;
     const hb = isHot(b.row.platform) ? 1 : 0;
     if (ha !== hb) return hb - ha;
@@ -278,9 +295,12 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     return b.row.capturedAt - a.row.capturedAt;
   });
 
-  const maxOpp = opts.maxOpportunities ?? 3;
-  const maxRows = opts.maxTrendRows ?? 6;
-  const maxStories = opts.maxStories ?? 3;
+  // Carve SECTIONS from one ranked pool so 今日商机 cards, 今日趋势 rows and
+  // 热闻 stories are DISJOINT (previously the same top-3 echoed in all three).
+  const maxOpp = opts.maxOpportunities ?? 3; // 商机 cards
+  const maxRows = opts.maxTrendRows ?? 8; // 今日趋势 rows (raised 6 → 8)
+  const maxStories = opts.maxStories ?? 6; // 热闻 stories (raised 3 → 6)
+  const oppCount = Math.min(maxOpp + maxRows, ranked.length);
 
   // Growth = this platform's matched-title count on the report day.
   const platformCount = (platform: string): number =>
@@ -314,10 +334,13 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     };
   };
 
-  const opportunities = ranked.slice(0, maxOpp).map(toOpportunity);
-  void maxRows;
+  // 商机 opportunities pool = top distinct items up to maxOpp+maxRows. The
+  // renderer splits this into cards (first maxOpp) + trend rows (the rest) so
+  // even when a day is thin the window fills the table, and stories are carved
+  // from the REMAINING distinct items (never a repeat of a card or a row).
+  const opportunities = ranked.slice(0, oppCount).map(toOpportunity);
 
-  const stories: DailyStory[] = ranked.slice(0, maxStories).map((x) => {
+  const stories: DailyStory[] = ranked.slice(oppCount, oppCount + maxStories).map((x) => {
     const chips = x.hits.slice(0, 2);
     return {
       title: shortLabel(x.row.title),
@@ -340,6 +363,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   const dayLabels = sparklineDayLabels(SPARKLINE_DAYS);
   const navAnchor = opts.navAnchorDate ?? reportDate;
   const dayDates = sparklineDayDates(navAnchor, SPARKLINE_DAYS);
+  // Distinct items surfaced across all three sections (card + row + story).
   const items = opportunities.length + stories.length;
   const pack: DailyReportPack = {
     date: opts.date,
@@ -362,7 +386,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   return {
     pack,
     counts: {
-      rows: rows.length,
+      rows: cnOnlyRows.length,
       matched: matchedCount,
       windowMatched: windowAnnotated.length,
       hotlistMatched: hotlistMatched.length,

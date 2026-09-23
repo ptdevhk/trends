@@ -246,7 +246,9 @@ describe('buildLivePack', () => {
     )
     expect(mixed.counts.matched).toBe(1)
     expect(mixed.pack.opportunities[0].href).toBe('https://ok.example/cmm')
-    expect(mixed.pack.stories[0].href).toBe('https://ok.example/cmm')
+    // A single distinct matched row fills the 商机 card; stories stay empty
+    // rather than echoing the same item (sections are disjoint).
+    expect(mixed.pack.stories).toHaveLength(0)
   })
 
   it('keeps 订单 when paired with an industrial hit', () => {
@@ -367,11 +369,93 @@ describe('buildLivePack', () => {
       maxTrendRows: 2,
       maxStories: 1,
     })
-    expect(capped.pack.opportunities).toHaveLength(1)
+    // opportunities pool = maxOpportunities + maxTrendRows = 3 distinct (cards+rows)
+    expect(capped.pack.opportunities).toHaveLength(3)
+    // stories carved from the REMAINING pool (4 matched − 3 opportunity slots = 1)
     expect(capped.pack.stories).toHaveLength(1)
+    // the 4 matched rows fill 3 opportunity slots + 1 story slot, disjoint
+    const all = [
+      ...capped.pack.opportunities.map((o) => shortLabel(o.label)),
+      ...capped.pack.stories.map((s) => shortLabel(s.title)),
+    ]
+    expect(new Set(all).size).toBe(all.length)
+    expect(capped.counts.items).toBe(4)
+  })
+
+  it('carves stories disjoint from opportunities (no echo)', () => {
+    const many = buildLivePack(
+      [
+        ...rows,
+        row({ title: '数控机床出口创新高', platform: 'weibo', url: 'https://a/5' }),
+        row({ title: '三坐标测量机新品发布', platform: 'rss:gnews-cmm', url: 'https://a/6' }),
+        row({ title: '重型数控龙门镗铣床', platform: 'zhihu', url: 'https://a/7' }),
+        row({ title: '牧野机床新工厂开工', platform: 'weibo', url: 'https://a/8' }),
+        row({ title: '数控车床需求回暖', platform: 'rss:gnews-cmm', url: 'https://a/9' }),
+        row({ title: '龙门铣床数控订单', platform: 'weibo', url: 'https://a/10' }),
+        row({ title: '车铣复合机床热销', platform: 'zhihu', url: 'https://a/11' }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    const cardLabels = many.pack.opportunities.slice(0, 3).map((o) => shortLabel(o.label))
+    const rowLabels = many.pack.opportunities.slice(3).map((o) => shortLabel(o.label))
+    const storyLabels = many.pack.stories.map((s) => shortLabel(s.title))
+    const all = [...cardLabels, ...rowLabels, ...storyLabels]
+    expect(new Set(all).size).toBe(all.length) // fully disjoint across sections
+    // 11 matched distinct rows: cards(3) + rows(8) + stories(remaining)
+    expect(many.counts.matched).toBe(11)
+    expect(many.pack.opportunities).toHaveLength(11)
+    expect(many.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
+  })
+
+  it('window-fallback fills the table when the report day alone is thin', () => {
+    const prior = Date.UTC(2026, 8, 20, 8, 0, 0) // 2026-09-20
+    const windowed = buildLivePack(
+      [
+        // only ONE report-day match, but 5 prior-window matches on distinct titles
+        row({ title: '今日数控机床成交', platform: 'weibo', url: 'https://a/today' }),
+        row({ title: '昨日机床扩产', platform: 'weibo', url: 'https://a/p1', capturedAt: prior }),
+        row({ title: '前日五轴数控出口', platform: 'weibo', url: 'https://a/p2', capturedAt: prior }),
+        row({ title: '昨日慢走丝机床新品', platform: 'weibo', url: 'https://a/p3', capturedAt: prior }),
+        row({ title: '前日数控机床工厂', platform: 'weibo', url: 'https://a/p4', capturedAt: prior }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    // hero stays report-day-only (honest)
+    expect(windowed.pack.hero.value).toBe('1')
+    expect(windowed.counts.matched).toBe(1)
+    // 1 report-day + 4 prior-window distinct matches
+    expect(windowed.counts.windowMatched).toBe(5)
+    // but the table fills from the window so the page isn't a single echo
+    expect(windowed.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
+    expect(windowed.pack.opportunities.length).toBeGreaterThanOrEqual(4)
   })
 
   it('marks source live (real data)', () => {
     expect(result.pack.source).toBe('live')
+  })
+
+  it('excludes non-CN sources from the pool (sales-first, CN audience)', () => {
+    const withEn = buildLivePack(rows, {
+      date: '2026-09-22',
+      generatedAt: 'x',
+      keywords: KEYWORDS,
+      excludePlatforms: ['rss:hacker-news', 'rss:yahoo-finance', 'rss:gnews-fanuc-en'],
+    })
+    // the base `rows` fixture has no EN platforms, so nothing is dropped here
+    expect(withEn.counts.matched).toBe(4)
+    // now add an EN feed and confirm it is excluded from ranking/hero
+    const mixed = buildLivePack(
+      [
+        ...rows,
+        row({ title: 'FANUC CNC global sales', platform: 'rss:hacker-news', url: 'https://en/1' }),
+        row({ title: 'US machine tool index', platform: 'rss:yahoo-finance', url: 'https://en/2' }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS, excludePlatforms: ['rss:hacker-news', 'rss:yahoo-finance', 'rss:gnews-fanuc-en'] },
+    )
+    expect(mixed.counts.matched).toBe(4) // the 2 EN rows are excluded
+    expect(mixed.pack.opportunities.length).toBe(4)
+    for (const s of mixed.pack.stories) {
+      expect(s.title).not.toMatch(/FANUC CNC|machine tool index/i)
+    }
   })
 })

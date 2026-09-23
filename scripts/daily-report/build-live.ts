@@ -31,6 +31,7 @@ import {
   sparklineWindowSinceMs,
   sparklineDayDates,
   HYBRID_MIN_ITEMS,
+  fetchThumbsForUrls,
   type DailyReportPack,
   type LiveNewsRow,
 } from '@trends/shared'
@@ -130,6 +131,14 @@ function loadHotlistPlatforms(): string[] {
   return out
 }
 
+/**
+ * Platform ids to exclude from the daily report (EN / non-CN-audience feeds
+ * harvested by TrendRadar). Sales-first: keeps the report CN-only.
+ */
+function loadExcludedPlatforms(): string[] {
+  return ['rss:hacker-news', 'rss:yahoo-finance', 'rss:gnews-fanuc-en']
+}
+
 function loadPreviousPack(date: string): DailyReportPack | null {
   if (!existsSync(SNAPSHOT_DIR)) return null
   const files = readdirSync(SNAPSHOT_DIR)
@@ -195,12 +204,76 @@ async function main(): Promise<void> {
   const since = sparklineWindowSinceMs(date)
   console.log(`window: date=${date} since=${new Date(since).toISOString()} (Day1–Day7 Asia/Shanghai)`)
 
-  const raw = (await convexQuery(env, 'research_news:listRecent', {
+  // Single flat listRecent caps at 200 DESC — with every row on one ingest day
+  // that top-200 is dominated by hotlist noise and starves the CN gnews feeds
+  // (which carry the actual CNC content). Fetch the CN feeds PER-PLATFORM and
+  // merge, so the report corpus actually contains all the CNC rows.
+  const flatRaw = (await convexQuery(env, 'research_news:listRecent', {
     writeSecret: env.CONVEX_WRITE_SECRET,
-    limit: 500,
+    limit: 200,
     since,
   })) as Array<Record<string, unknown>>
-  const rawRows: LiveNewsRow[] = (Array.isArray(raw) ? raw : [])
+
+  // Enabled CN gnews feeds (CN-audience CNC content) — fetch each explicitly.
+  const cnFeedRows: Array<Record<string, unknown>> = []
+  for (const plat of [
+    'rss:gnews-cnc-machine',
+    'rss:gnews-cnc-hiring',
+    'rss:gnews-mazak-cn',
+    'rss:gnews-fanuc-cn',
+    'rss:gnews-makino-cn',
+    'rss:gnews-robot-cnc',
+    'rss:gnews-baoli',
+    'rss:gnews-polywell',
+    'rss:gnews-genesis',
+    'rss:gnews-qiaofeng',
+    'rss:gnews-diecast',
+  ]) {
+    try {
+      const rows = (await convexQuery(env, 'research_news:listRecent', {
+        writeSecret: env.CONVEX_WRITE_SECRET,
+        limit: 200,
+        since,
+        platform: plat,
+      })) as Array<Record<string, unknown>>
+      if (Array.isArray(rows)) cnFeedRows.push(...rows)
+    } catch {
+      // soft-fail per feed
+    }
+  }
+
+  // Merge flat + per-platform gnews rows, dedupe by contentHash (prefer gnews).
+  const seen = new Set<string>()
+  const merged: Array<Record<string, unknown>> = []
+  const pushRow = (r: Record<string, unknown>) => {
+    const key = r.contentHash ?? `${r.platform}|${r.title}`
+    if (seen.has(key)) return
+    seen.add(key)
+    merged.push(r)
+  }
+  for (const plat of [
+    'rss:gnews-cnc-machine',
+    'rss:gnews-cnc-hiring',
+    'rss:gnews-mazak-cn',
+    'rss:gnews-fanuc-cn',
+    'rss:gnews-makino-cn',
+    'rss:gnews-robot-cnc',
+    'rss:gnews-baoli',
+    'rss:gnews-polywell',
+    'rss:gnews-genesis',
+    'rss:gnews-qiaofeng',
+    'rss:gnews-diecast',
+  ]) {
+    for (const r of cnFeedRows.filter((x) => x.platform === plat)) pushRow(r)
+  }
+  for (const r of (Array.isArray(flatRaw) ? flatRaw : [])) {
+    if (!r.platform || String(r.platform).startsWith('rss:gnews')) continue
+    pushRow(r)
+  }
+  const raw = merged
+  console.log(`corpus: flat=${(Array.isArray(flatRaw) ? flatRaw : []).length} cn-feeds=${cnFeedRows.length} merged=${raw.length}`)
+
+  const rawRows: LiveNewsRow[] = raw
     .map((r) => ({
       title: typeof r.title === 'string' ? r.title : '',
       platform: typeof r.platform === 'string' ? r.platform : '',
@@ -245,6 +318,22 @@ async function main(): Promise<void> {
   console.log(`rolling-days: ${windowDates.join(' → ')}`)
   const generatedAt = new Date().toISOString()
 
+  // CN-audience, sales-first: the TrendRadar harvest pulls EN feeds (news
+  // sources outside the CN sales desk's audience). Exclude them before packing
+  // so cards/rows/stories all reflect the Chinese CNC desk.
+  const excludePlatforms = loadExcludedPlatforms()
+
+  // Render-time thumbnail resolution: patch real article thumbs onto the packs
+  // (og:image → first <img>), so cards/stories show a real image instead of a
+  // generated SVG plate. Fails gracefully back to the SVG datum per item.
+  const thumbUrls = rows
+    .filter((r) => !excludePlatforms.includes(r.platform))
+    .map((r) => r.url)
+    .filter((u): u is string => !!u && isGoogleNewsArticleUrl(u) === false)
+    .slice(0, 16)
+  const thumbByUrl = await fetchThumbsForUrls(thumbUrls)
+  console.log(`thumbs: fetched=${thumbByUrl.size}/${thumbUrls.length}`)
+
   for (const day of windowDates) {
     const previous = loadPreviousPack(day)
     const result = buildLivePack(rows, {
@@ -255,7 +344,16 @@ async function main(): Promise<void> {
       hotlistPlatforms,
       previous,
       hotlistRankTotals,
+      excludePlatforms,
     })
+
+    // Patch real thumbnails onto the freshly-built pack before persisting.
+    for (const [i, opp] of result.pack.opportunities.entries()) {
+      if (opp.href && thumbByUrl.has(opp.href)) result.pack.opportunities[i].imageUrl = thumbByUrl.get(opp.href)
+    }
+    for (const [i, st] of result.pack.stories.entries()) {
+      if (st.href && thumbByUrl.has(st.href)) result.pack.stories[i].imageUrl = thumbByUrl.get(st.href)
+    }
 
     console.log(
       `live[${day}]: rows=${result.counts.rows} matched=${result.counts.matched} windowMatched=${result.counts.windowMatched} hotlist=${result.counts.hotlistMatched} items=${result.counts.items} thin=${result.thin}`,
