@@ -415,9 +415,9 @@ async function main(): Promise<void> {
   const excludePlatforms = loadExcludedPlatforms()
 
   // Render-time thumbnail resolution for the SURFACED items (not raw rows).
-  // Fetch is keyed on the actual 商机/趋势/热闻 hrefs that render, so a card with a
-  // valid og:image (e.g. m.mp.oeeee.com) isn't skipped just because it ranked outside
-  // an arbitrary top-N of raw rows. Fails gracefully back to the branded SVG plate.
+  // Fetch is keyed on the actual 商机/趋势/热闻 hrefs that render. Each cover is
+  // EMBEDDED as a data:image/…;base64 URI so the HTML is a single transferable
+  // file (no remote CDN/hotlink deps). Embed failure → keep branded SVG plate.
   async function patchSurfacedThumbs(pack: DailyReportPack): Promise<void> {
     const surfacedHrefs = [
       ...(pack.opportunities.map((o) => o.href).filter((h): h is string => !!h)),

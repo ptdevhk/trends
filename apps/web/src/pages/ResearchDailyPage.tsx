@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { parseDailyReportPack, renderDailyReportHtml, type DailyReportPack } from '@trends/shared'
@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button'
  * `/:workspace/research/daily/:date` loads the SAME pack the worker/renderer uses and
  * renders the identical M3 HTML into an iframe, so the public share and the
  * in-app view are byte-for-byte consistent.
+ *
+ * Download: "下载完整 HTML" saves the rendered srcdoc as one transferable file
+ * (system fonts only; covers are embedded data-URIs or branded SVG plates —
+ * no remote CDN deps required to open offline).
  *
  * No route-scoped auth gate beyond the workspace shell this lives under (the
  * public static file itself is unauthenticated by design).
@@ -41,6 +45,20 @@ async function fetchPack(date: string): Promise<DailyReportPack> {
       throw e
     }
   }
+}
+
+/** Trigger a browser download of the self-contained daily HTML blob. */
+export function downloadDailyReportBundle(html: string, date: string): void {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `销售日报-${date}.html`
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 export default function ResearchDailyPage() {
@@ -81,12 +99,30 @@ export default function ResearchDailyPage() {
     return buildShanghaiWindow(end, WINDOW_DAYS)
   }, [pack, date, shanghaiToday])
 
+  const onDownload = useCallback(() => {
+    if (!html || !titleDate) return
+    downloadDailyReportBundle(html, titleDate)
+  }, [html, titleDate])
+
   return (
     <div className="py-2" data-testid="research-daily-page">
-      <div className="mb-3 text-sm text-muted-foreground">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
         <Link to={hubHref} className="underline" data-testid="research-daily-back">
           {t('research.daily.back', { defaultValue: '← 返回市场动态' })}
         </Link>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!html}
+          onClick={onDownload}
+          data-testid="research-daily-download"
+          title={t('research.daily.downloadBundleHint', {
+            defaultValue: '单文件可转发（图片已内嵌或使用品牌底图）',
+          })}
+        >
+          {t('research.daily.downloadBundle', { defaultValue: '下载完整 HTML' })}
+        </Button>
       </div>
       <DayNav
         dates={dayDates}

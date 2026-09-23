@@ -236,6 +236,13 @@ describe('fetchArticleThumb', () => {
 })
 
 describe('fetchThumbsForUrls', () => {
+  // Minimal valid 400x260 PNG (IHDR) — plausible cover for embed path.
+  const bigPng = Buffer.from(
+    '89504e470d0a1a0a0000000d4948445200000190000001040806000000' +
+      'f8f8f8f80000000049454e44ae426082',
+    'hex',
+  )
+
   it('returns a map subset and never throws on flaky targets', async () => {
     const out = await fetchThumbsForUrls(
       ['https://example.com/a', 'https://example.com/b', 'not-a-url'],
@@ -243,5 +250,30 @@ describe('fetchThumbsForUrls', () => {
       1,
     )
     expect(out).toBeInstanceOf(Map)
+  })
+
+  it('embeds passing covers as data:image base64 (shareable HTML)', async () => {
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('article')) {
+        return new Response(
+          '<meta property="og:image" content="https://cdn.example.com/cover.jpg">',
+          { headers: { 'content-type': 'text/html' } },
+        )
+      }
+      // Dim probe (Range) + full embed download both hit the cover URL.
+      const range =
+        init?.headers &&
+        String((init.headers as Record<string, string>).Range || '').includes('bytes')
+      return new Response(bigPng, {
+        status: range ? 206 : 200,
+        headers: { 'content-type': 'image/png' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const out = await fetchThumbsForUrls(['https://example.com/article/1'], 1, 1)
+    expect(out.size).toBe(1)
+    const embedded = out.get('https://example.com/article/1')
+    expect(embedded).toMatch(/^data:image\/png;base64,/)
   })
 })

@@ -106,13 +106,14 @@ function escAttr(s: string): string {
   return esc(s).split("'").join('&#39;');
 }
 
-/** Accept http(s) or SVG data-URI thumbs only. */
+/** Accept embedded data-URI thumbs only (shareable single-file HTML).
+ * Remote http(s) covers are rejected here — the build pipeline must embed them
+ * as `data:image/…;base64,…` first; otherwise the branded SVG plate is used.
+ */
 function isUsableImageUrl(url: string | undefined): url is string {
   if (!url || typeof url !== 'string') return false;
   const u = url.trim();
-  if (u.startsWith('https://') || u.startsWith('http://')) return true;
-  if (u.startsWith('data:image/svg+xml')) return true;
-  return false;
+  return /^data:image\/(png|jpeg|jpg|webp|svg\+xml)/i.test(u);
 }
 
 
@@ -133,25 +134,22 @@ function asThumbFields(item: DailyOpportunity | DailyStory): ThumbFields {
 }
 
 /**
- * Prefer a REAL validated imageUrl (http(s), SVG data-URI) with a graceful
- * onerror fallback to the branded SVG plate. A publisher cover can be an
- * `http://` plain URL (i.ce.cn), a non-standard aspect (sina 96x134), or
- * occasionally dead/403/bot-blocked — so every image tag gets an onerror that
- * points the SAME <img src> at the branded plate the moment it fails to load.
+ * Prefer an embedded data-URI cover (raster base64 or SVG plate). Remote
+ * http(s) URLs are intentionally NOT rendered — a shareable daily report is
+ * one transferable HTML file with zero hotlink/CDN deps. Build-live embeds
+ * successful publisher covers as data URIs; failures keep the branded SVG
+ * plate (option-2 outcome for that card).
  *
- * IMPORTANT: onerror must swap `this.src`, NEVER `this.outerHTML`. Injecting a
- * data-URI string via outerHTML renders the URI as literal text (a raw blob of
- * SVG/CSS code), not as an image. Keeping the <img> and repointing its src is
- * what renders the plate correctly.
+ * IMPORTANT: onerror must swap `this.src`, NEVER `this.outerHTML`.
  */
 function renderMediaInner(item: ThumbFields, alt: string, plateSvg: string): string {
   if (isUsableImageUrl(item.imageUrl)) {
     // Keep the <img>; on failure swap its src to the plate data-URI (this.src,
-    // not outerHTML). onerror=null prevents an error loop.
+    // not outerHTML). onerror=null prevents an error loop. Data-URIs rarely
+    // fail, but keep the guard for corrupt embeds.
     return `<img src="${escAttr(item.imageUrl)}" alt="${escAttr(alt)}" loading="lazy" onerror="this.onerror=null;this.src='${escAttr(plateSvg)}'"/>`;
   }
-  // No real image → render the branded plate as an <img> (never inject the bare
-  // data URI as text into the DOM).
+  // No embedded image → branded plate as an <img> (never bare URI text).
   return `<img src="${escAttr(plateSvg)}" alt="${escAttr(alt)}" loading="lazy"/>`;
 }
 
@@ -315,9 +313,6 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>销售日报 · ${esc(pack.date)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --paper:#f0f3f6;
@@ -335,7 +330,8 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   body{
     background:var(--paper);
     color:var(--ink);
-    font-family:"Noto Sans SC",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    /* System stacks only — no Google Fonts CDN (single-file shareable HTML). */
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
     padding:20px 14px 40px;
     display:flex;flex-direction:column;align-items:center;
     background-image:
@@ -350,7 +346,7 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   .page{max-width:720px;width:100%;}
   .header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;}
   .header .title{
-    font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
+    font-family:ui-sans-serif,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
     font-size:28px;font-weight:700;letter-spacing:.02em;color:var(--ink);line-height:1;
   }
   .header .date{font-size:12px;color:var(--mute);margin-top:4px;}
@@ -374,10 +370,10 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
     pointer-events:none;
   }
   .hero .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;position:relative;z-index:1;}
-  .hero .brand{font-family:"Barlow Condensed",sans-serif;font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--mute);}
+  .hero .brand{font-family:ui-sans-serif,system-ui,sans-serif;font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--mute);}
   .hero .k{font-size:12px;color:var(--mute);margin-bottom:4px;}
   .hero .v{
-    font-family:"Barlow Condensed",sans-serif;
+    font-family:ui-sans-serif,system-ui,sans-serif;
     font-size:56px;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--ink);
   }
   .hero .v .d{font-size:20px;color:var(--up);font-weight:700;margin-left:6px;}
@@ -394,17 +390,17 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   }
   .day-labels .day-link:hover{color:var(--heat);border-color:var(--edge);background:rgba(196,92,38,.06);}
   .day-labels .day-link.current{color:var(--ink);font-weight:700;border-color:var(--heat);background:rgba(196,92,38,.08);}
-  .day-labels .day-d{font-family:"Barlow Condensed",sans-serif;font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .day-labels .day-d{font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
   .day-labels .day-w{font-size:10px;opacity:.9;}
   .day-labels .day-link:focus-visible{outline:2px solid var(--heat);outline-offset:1px;}
   .section{margin-bottom:18px;}
   .section-title{
-    font-family:"Barlow Condensed","Noto Sans SC",sans-serif;
+    font-family:ui-sans-serif,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
     font-size:18px;font-weight:700;margin-bottom:10px;
     display:flex;align-items:baseline;gap:8px;color:var(--ink);
     border-bottom:1px solid var(--edge);padding-bottom:6px;
   }
-  .section-title .en{font-size:11px;color:var(--mute);font-weight:400;font-family:"Noto Sans SC",sans-serif;}
+  .section-title .en{font-size:11px;color:var(--mute);font-weight:400;}
   .grid{display:flex;gap:10px;}
   .tile{
     flex:1;background:var(--surface);border:1px solid var(--edge);border-radius:8px;
@@ -415,7 +411,7 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   .tile .cover{position:relative;height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
   .tile .cover img,.tile .cover > svg{width:100%;height:100%;object-fit:cover;display:block;}
   .cover .glyph{
-    font-family:"Barlow Condensed",sans-serif;
+    font-family:ui-sans-serif,system-ui,sans-serif;
     font-size:42px;color:rgba(26,34,44,.55);font-weight:700;
   }
   .cover .badge{
@@ -437,7 +433,7 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
   }
   .row:last-child{border-bottom:0;}
   .row:hover{background:rgba(196,92,38,.06);}
-  .rank{font-family:"Barlow Condensed",sans-serif;font-size:16px;color:var(--heat);width:22px;flex-shrink:0;font-weight:700;}
+  .rank{font-family:ui-sans-serif,system-ui,sans-serif;font-size:16px;color:var(--heat);width:22px;flex-shrink:0;font-weight:700;}
   .row .main{flex:1;min-width:0;}
   .row .name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;}
   .kind{font-size:10px;color:#fff;padding:1px 6px;flex-shrink:0;border-radius:3px;}

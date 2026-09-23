@@ -34,7 +34,8 @@ const pack: DailyReportPack = {
       sparkline: [26, 21, 23, 14, 9, 12, 6, 5],
       chips: ['三坐标测量机', '工业测量'],
       href: 'https://example.com/opp/1',
-      imageUrl: 'https://example.com/thumbs/scan.jpg',
+      imageUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     },
     {
       kind: '商机',
@@ -103,7 +104,8 @@ const pack: DailyReportPack = {
     {
       title: '数控机床订单回暖',
       href: 'https://example.com/story/1',
-      imageUrl: 'https://example.com/thumbs/story1.jpg',
+      imageUrl:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     },
     {
       title: '长三角招工潮',
@@ -163,14 +165,34 @@ describe('renderDailyReportHtml', () => {
 
   it('renders hot stories as clickable rows with thumbs', () => {
     expect(html).toContain('<a href="https://example.com/story/1" class="story"')
-    expect(html).toContain('src="https://example.com/thumbs/story1.jpg"')
+    expect(html).toContain('src="data:image/png;base64,')
     expect(html).not.toContain('无链接热闻应被省略')
   })
 
-  it('shows img thumbs for http(s) and SVG data-URI imageUrl', () => {
-    expect(html).toContain('src="https://example.com/thumbs/scan.jpg"')
+  it('shows embedded data-URI thumbs only (shareable single-file HTML)', () => {
+    expect(html).toContain('src="data:image/png;base64,')
     expect(html).toContain('src="data:image/svg+xml,')
     expect(html).toMatch(/object-fit:\s*cover/)
+    // Remote CDN covers must NOT appear — download/share would break offline.
+    expect(html).not.toMatch(/src="https?:\/\//)
+    expect(html).not.toContain('fonts.googleapis.com')
+  })
+
+  it('rejects remote http(s) imageUrl and falls back to branded SVG plate', () => {
+    const remote = {
+      ...pack,
+      opportunities: [
+        {
+          ...pack.opportunities[0],
+          imageUrl: 'https://cdn.example.com/cover.jpg',
+          href: 'https://example.com/opp/remote',
+        },
+      ],
+      stories: [],
+    }
+    const out = renderDailyReportHtml(remote)
+    expect(out).not.toContain('cdn.example.com/cover.jpg')
+    expect(out).toMatch(/<img src="data:image\/svg\+xml;charset=utf-8/)
   })
 
   it('crops story covers to a fixed 4:3 box (not intrinsic portrait height)', () => {

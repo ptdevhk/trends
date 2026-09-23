@@ -6,9 +6,11 @@
  * back to the article-body `<img>`s) so the sales desk sees a real image.
  *
  * Pure HTTP: no schema change, no ingest-time capture, no backfill. The caller
- * (scripts/daily-report/build-live.ts) patches the pack's `imageUrl` in place,
- * and falls back to the existing SVG data-URI whenever fetch fails (graceful,
- * not fatal) — a live artifact should never hard-fail on a flaky publisher.
+ * (scripts/daily-report/build-live.ts) patches the pack's `imageUrl` in place
+ * with an **embedded data-URI** (base64 raster) so the rendered HTML is a
+ * single transferable file with zero remote image deps. When embed fails, the
+ * entry is omitted and the branded SVG plate already on the pack stays —
+ * same visual outcome as "SVG plates only" for that card.
  *
  * Security: the returned value is a raw publisher URL that the static HTML
  * embeds in an `<img src>`; it is NOT an executable script. It is scoped for
@@ -309,9 +311,83 @@ export async function fetchArticleThumb(url: string): Promise<string | null> {
   }
 }
 
+/** Cap raw image bytes so a shareable HTML stays transfer-friendly (~15 thumbs). */
+const MAX_EMBED_BYTES = 280_000;
+
+/** Sniff raster MIME from magic bytes (ignore unreliable Content-Type). */
+function sniffMime(buf: Buffer): string | null {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf.slice(1, 4).toString('ascii') === 'PNG') {
+    return 'image/png';
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+/**
+ * Download an image and return a `data:image/…;base64,…` URI for offline /
+ * single-file HTML sharing. Uses the same Referer/UA as dim probes so
+ * hotlink-gated CDNs serve. Returns null on any failure (size, type, network).
+ * Never throws.
+ */
+export async function fetchImageAsDataUri(
+  url: string,
+  referer?: string,
+  timeoutMs = 8000,
+): Promise<string | null> {
+  if (!/^https?:\/\//i.test(url)) return null;
+  try {
+    const headers: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+    };
+    if (referer) headers.Referer = referer;
+    const res = await fetch(url, {
+      headers,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return null;
+    const reader = res.body?.getReader();
+    if (!reader) return null;
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_EMBED_BYTES) {
+        reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(value);
+    }
+    const buf = Buffer.concat(chunks);
+    const mime = sniffMime(buf);
+    if (!mime) return null;
+    // Re-check cover size on the full buffer (probe only saw a Range slice).
+    const dims = sniffDims(buf);
+    if (!dims || dims.w < MIN_W || dims.h < MIN_H) return null;
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch real thumbs for up to `limit` article URLs, honoring a small
- * concurrency cap. Returns a map url → thumb-or-undefined.
+ * concurrency cap. Returns a map articleUrl → **embedded data-URI** (not a
+ * remote CDN URL) so the daily HTML is a single transferable file. When the
+ * publisher cover cannot be embedded, the entry is omitted and the renderer
+ * keeps the branded SVG plate (option-2 outcome for that card).
  */
 export async function fetchThumbsForUrls(
   urls: string[],
@@ -325,7 +401,9 @@ export async function fetchThumbsForUrls(
     while (idx < unique.length) {
       const u = unique[idx++];
       const thumb = await fetchArticleThumb(u);
-      if (thumb) out.set(u, thumb);
+      if (!thumb) continue;
+      const embedded = await fetchImageAsDataUri(thumb, u);
+      if (embedded) out.set(u, embedded);
     }
   };
   const workers = Array.from({ length: Math.min(concurrency, Math.max(unique.length, 1)) }, () => worker());

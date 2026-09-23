@@ -63,6 +63,41 @@ describe('ResearchDailyPage (in-app twin)', () => {
       expect(srcdoc).toContain('今日商机')
     })
     expect(screen.getByTestId('research-daily-back')).toHaveAttribute('href', '/hr/research')
+    const download = screen.getByTestId('research-daily-download')
+    expect(download).toBeEnabled()
+    expect(download).toHaveTextContent(/下载完整 HTML|Download complete HTML/)
+  })
+
+  it('download button triggers a blob save of the rendered HTML', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path === '/daily/2026-09-22.json') {
+          return { ok: true, json: async () => FIXTURE }
+        }
+        return { ok: false, json: async () => [] }
+      }),
+    )
+    const click = vi.fn()
+    const revoke = vi.fn()
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:daily-test')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(revoke)
+    const realCreate = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag)
+      if (tag === 'a') {
+        Object.defineProperty(el, 'click', { value: click })
+      }
+      return el
+    })
+
+    renderAt('2026-09-22')
+    await waitFor(() => {
+      expect(screen.getByTestId('research-daily-download')).toBeEnabled()
+    })
+    screen.getByTestId('research-daily-download').click()
+    expect(click).toHaveBeenCalled()
+    expect(revoke).toHaveBeenCalledWith('blob:daily-test')
   })
 
   it('falls back to the latest day when the requested date has no pack', async () => {

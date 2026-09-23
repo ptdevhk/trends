@@ -3160,7 +3160,9 @@
     "daily": {
       "back": "← Back to research hub",
       "dayNav": "Report day",
-      "todayLabel": "Today"
+      "todayLabel": "Today",
+      "downloadBundle": "Download complete HTML",
+      "downloadBundleHint": "Single transferable file (covers inlined or branded plate)"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",
