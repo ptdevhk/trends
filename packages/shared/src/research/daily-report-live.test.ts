@@ -407,7 +407,7 @@ describe('buildLivePack', () => {
     expect(many.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
   })
 
-  it('window-fallback fills the table when the report day alone is thin', () => {
+  it('honest thin page: report-day-only items, no window backfill (operator policy a)', () => {
     const prior = Date.UTC(2026, 8, 20, 8, 0, 0) // 2026-09-20
     const windowed = buildLivePack(
       [
@@ -423,11 +423,13 @@ describe('buildLivePack', () => {
     // hero stays report-day-only (honest)
     expect(windowed.pack.hero.value).toBe('1')
     expect(windowed.counts.matched).toBe(1)
-    // 1 report-day + 4 prior-window distinct matches
+    // 1 report-day + 4 prior-window distinct matches in the window corpus
     expect(windowed.counts.windowMatched).toBe(5)
-    // but the table fills from the window so the page isn't a single echo
-    expect(windowed.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
-    expect(windowed.pack.opportunities.length).toBeGreaterThanOrEqual(4)
+    // Sections draw ONLY from the report day → 1 item, flagged thin (banner),
+    // instead of backfilling cards from prior days.
+    expect(windowed.counts.items).toBe(1)
+    expect(windowed.pack.opportunities).toHaveLength(1)
+    expect(windowed.thin).toBe(true)
   })
 
   it('marks source live (real data)', () => {

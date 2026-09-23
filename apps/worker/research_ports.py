@@ -452,6 +452,12 @@ def parse_rss_xml(
         guid = _child_text(node, "guid") or _child_text(node, "{http://www.w3.org/2005/Atom}id") or link
         summary = _child_text(node, "description") or _child_text(node, "{http://www.w3.org/2005/Atom}summary")
         summary = strip_html_to_text(summary) if summary else None
+        published_text = (
+            _child_text(node, "pubDate")
+            or _child_text(node, "{http://www.w3.org/2005/Atom}updated")
+            or _child_text(node, "{http://www.w3.org/2005/Atom}published")
+        )
+        published_at = _parse_published_ms(published_text)
         content_hash = stable_content_hash(
             platform=f"rss:{feed_id}",
             title=title,
@@ -467,6 +473,7 @@ def parse_rss_xml(
                 captured_at=captured_at,
                 external_id=guid,
                 url=link,
+                published_at=published_at,
                 raw_snippet=summary[:500] if summary else None,
             )
         )
@@ -495,3 +502,37 @@ def _atom_link(node: ET.Element) -> Optional[str]:
     if link is None:
         return None
     return link.attrib.get("href")
+
+
+def _parse_published_ms(text: Optional[str]) -> Optional[int]:
+    """Parse RSS <pubDate> (RFC 822) or Atom <updated>/<published> (ISO 8601) to epoch ms.
+
+    Returns None when absent or unparseable. The daily report ranks by article
+    publish time (not ingest time); without this every row inherits the ingest
+    timestamp and old evergreen articles (e.g. 2022/2023 CNC explainers) surface
+    as "today's news".
+    """
+    if not text:
+        return None
+    raw = text.strip()
+    if not raw:
+        return None
+    from datetime import datetime, timezone
+    from email.utils import parsedate_to_datetime
+
+    try:
+        dt = parsedate_to_datetime(raw)
+        if dt is not None:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp() * 1000)
+    except (ValueError, TypeError):
+        pass
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
+    except (ValueError, TypeError):
+        pass
+    return None

@@ -30,6 +30,10 @@ export type LiveNewsRow = {
   platform: string;
   url?: string;
   capturedAt: number;
+  /** Article publish time when the source feed exposes it (RSS pubDate / Atom updated).
+   *  Falls back to capturedAt when absent. Used to keep surfacing headlines fresh
+   *  instead of ranking every article by its (single, shared) ingest timestamp. */
+  publishedAt?: number;
   rawSnippet?: string;
   /** Platform-native hotlist rank (1 = top), when the source exposes one. */
   rank?: number;
@@ -71,6 +75,12 @@ export type LivePackOptions = {
    * sales-desk report CN-audience only (excludes EN feeds from TrendRadar).
    */
   excludePlatforms?: string[];
+  /**
+   * Hard freshness cutoff: articles whose effective recency (publish time when
+   * known, else ingest time) is older than N days before the report date are
+   * dropped from 商機/趨勢/熱聞 entirely. Default 14. Set 0/Infinity to disable.
+   */
+  maxAgeDays?: number;
 };
 
 export type LivePackResult = {
@@ -109,6 +119,11 @@ export function normalizePulseKeyword(k: string): string {
 export function isHotlistPlatform(platform: string): boolean {
   const p = platform.trim().toLowerCase();
   return p.length > 0 && !p.startsWith('rss:');
+}
+
+/** Effective recency = article publish time when known, else ingest time. */
+export function effectiveRecencyMs(row: Pick<LiveNewsRow, 'capturedAt' | 'publishedAt'>): number {
+  return row.publishedAt ?? row.capturedAt;
 }
 
 /**
@@ -252,39 +267,51 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     ? rows.filter((row) => !opts.excludePlatforms!.includes(row.platform))
     : rows;
 
-  // Annotate the full 7d window (caller should pass since=day−6).
+  // Effective recency day = article publish day when known, else ingest day.
+  // Bucketing by this (not capturedAt) lets a historical day show articles
+  // ACTUALLY published that day instead of everything stamped on the single
+  // ingest day.
+  const recencyDay = (row: LiveNewsRow): string => shanghaiIsoDay(effectiveRecencyMs(row));
+
+  // Hard freshness cutoff: drop articles older than maxAgeDays before the report
+  // date. Convex listRecent filters on capturedAt (ingest), so old evergreen
+  // articles captured today would otherwise leak into 商機/熱聞.
+  const maxAgeDays = opts.maxAgeDays ?? 14;
+  const cutoffMs = maxAgeDays > 0
+    ? shanghaiDayStartMs(reportDate) - maxAgeDays * 86_400_000
+    : -Infinity;
+
+  // Annotate the full window (caller should pass since=day−6).
   const windowAnnotated = cnOnlyRows
     .filter((row) => hasRealNewsUrl(row))
-    .filter((row) => shanghaiIsoDay(row.capturedAt) <= reportDate)
+    .filter((row) => recencyDay(row) <= reportDate)
+    .filter((row) => effectiveRecencyMs(row) >= cutoffMs)
     .map((row) => {
       const rawHits = matchKeywords(row, opts.keywords);
       const hits = meaningfulHits(rawHits);
       return { row, hits };
     })
     .filter((x) => x.hits.length > 0)
-    .sort((a, b) => b.row.capturedAt - a.row.capturedAt);
+    .sort((a, b) => effectiveRecencyMs(b.row) - effectiveRecencyMs(a.row));
 
   // Hero = report calendar day only (honest matched count stays day-scoped).
-  const dayAnnotated = windowAnnotated.filter((x) => shanghaiIsoDay(x.row.capturedAt) === reportDate);
+  const dayAnnotated = windowAnnotated.filter((x) => recencyDay(x.row) === reportDate);
   const hotlistMatched = dayAnnotated.filter((x) => isHot(x.row.platform));
 
-  // De-dupe across the FULL 7d window so the sections can fill with distinct
-  // items instead of echoing a thin report day (a single ingest run stamps
-  // every row on one day; without window fallback the page would show 3).
+  // Sections draw from the REPORT DAY only (honest per-day report, operator
+  // choice 2026-09-23 = "(a) 誠實薄頁+banner"). We do NOT backfill cards from the
+  // wider window; a day with few actually-published items shows the thin page +
+  // banner. The full window still feeds the sparkline / hero counts.
   const seen = new Set<string>();
-  const windowUnique = windowAnnotated.filter((x) => {
+  const dayUnique = dayAnnotated.filter((x) => {
     const key = normalizePulseKeyword(shortLabel(x.row.title));
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  // Rank: report-day first (cards feel fresh), then hotlist, strong-hit count,
-  // total hits, then recency.
-  const ranked = [...windowUnique].sort((a, b) => {
-    const dayA = shanghaiIsoDay(a.row.capturedAt) === reportDate ? 1 : 0;
-    const dayB = shanghaiIsoDay(b.row.capturedAt) === reportDate ? 1 : 0;
-    if (dayA !== dayB) return dayB - dayA;
+  // Rank: hotlist first, then strong-hit count, total hits, then recency.
+  const ranked = [...dayUnique].sort((a, b) => {
     const ha = isHot(a.row.platform) ? 1 : 0;
     const hb = isHot(b.row.platform) ? 1 : 0;
     if (ha !== hb) return hb - ha;
@@ -292,7 +319,8 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     const sb = b.hits.filter((h) => isStrongKeyword(h)).length;
     if (sa !== sb) return sb - sa;
     if (a.hits.length !== b.hits.length) return b.hits.length - a.hits.length;
-    return b.row.capturedAt - a.row.capturedAt;
+    // Recency tiebreak uses article publish time (when known), not ingest time.
+    return effectiveRecencyMs(b.row) - effectiveRecencyMs(a.row);
   });
 
   // Carve SECTIONS from one ranked pool so 今日商机 cards, 今日趋势 rows and
@@ -324,7 +352,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       label: shortLabel(row.title),
       heat: heatFor(row, hits),
       growth: String(platformCount(row.platform)),
-      started: shanghaiIsoDay(row.capturedAt),
+      started: recencyDay(row),
       // 7-point series from the full window (Day1…Day7).
       sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
       chips,
@@ -415,10 +443,9 @@ export function shortLabel(title: string, max = 42): string {
 /**
  * Matched-title count per day for one platform over Day1…DayN ending on reportDate.
  *
- * NOTE: `capturedAt` is the INGEST time, not the article publish time, so a
- * single ingest run puts every row on one day. The series therefore only shows
- * real spread once the worker has run on ≥2 days; until then it is honestly
- * flat except for the newest day.
+ * Buckets by the article's EFFECTIVE recency day (publish time when known, else
+ * ingest time), so a multi-day corpus spreads across Day1…DayN honestly instead
+ * of stamping every row on the single ingest day.
  */
 function platformDailySeries(
   annotated: Array<{ row: LiveNewsRow }>,
@@ -443,13 +470,13 @@ function overallDailySeries(
   );
 }
 
-/** Bucket counts into Day1…DayN where DayN = reportDate (Shanghai). */
+/** Bucket counts into Day1…DayN where DayN = reportDate (Shanghai), by effective recency day. */
 function dailySeries(rows: LiveNewsRow[], reportDate: string): number[] {
   const days = SPARKLINE_DAYS;
   const endStart = shanghaiDayStartMs(reportDate);
   const out = new Array(days).fill(0);
   for (const row of rows) {
-    const day = shanghaiIsoDay(row.capturedAt);
+    const day = shanghaiIsoDay(effectiveRecencyMs(row));
     const dayStart = shanghaiDayStartMs(day);
     const idx = days - 1 - Math.round((endStart - dayStart) / 86_400_000);
     if (idx >= 0 && idx < days) out[idx] += 1;
