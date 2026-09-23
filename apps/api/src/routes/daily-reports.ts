@@ -86,11 +86,15 @@ app.get("/daily/:file", async (c) => {
     });
   }
 
-  // ext === "html"
+  // Always re-render from packJson so shared CSS/layout fixes (e.g. story
+  // cover crop) ship without re-upserting stored html. Fall back to the
+  // build-time html blob only if the pack is unreadable.
   let html = row.html;
-  if (html === "" && row.packJson) {
+  try {
     const pack = parseDailyReportPack(JSON.parse(row.packJson));
     html = renderDailyReportHtml(pack);
+  } catch {
+    if (!html) return notFound(c, "Report not found");
   }
 
   c.header("Cache-Control", "public, max-age=60");

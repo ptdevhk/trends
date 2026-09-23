@@ -462,8 +462,16 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
     box-shadow:0 1px 2px rgba(26,34,44,.04);
   }
   .story:hover{border-color:var(--heat);box-shadow:0 2px 8px rgba(196,92,38,.1);}
-  .story .cover{width:96px;flex-shrink:0;min-height:64px;overflow:hidden;background:var(--chip-bg);}
-  .story .cover img,.story .cover > svg,.story .cover .thumb-plate{width:100%;height:100%;min-height:64px;object-fit:cover;display:block;}
+  /* Fixed 4:3 crop box — portrait publisher covers (people.cn/sina) no longer
+     stretch the row to intrinsic 96×206; object-fit:cover centers the photo. */
+  .story .cover{
+    width:96px;aspect-ratio:4/3;flex-shrink:0;align-self:center;
+    position:relative;overflow:hidden;background:var(--chip-bg);
+  }
+  .story .cover img,.story .cover > svg,.story .cover .thumb-plate{
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;object-position:center;display:block;
+  }
   .story .body{padding:12px 14px;font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;flex:1;line-height:1.35;}
   .footer{margin-top:18px;text-align:center;font-size:11px;color:var(--mute);}
   .banner{

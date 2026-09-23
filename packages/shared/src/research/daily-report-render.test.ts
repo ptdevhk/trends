@@ -173,6 +173,14 @@ describe('renderDailyReportHtml', () => {
     expect(html).toMatch(/object-fit:\s*cover/)
   })
 
+  it('crops story covers to a fixed 4:3 box (not intrinsic portrait height)', () => {
+    // Portrait publisher covers (people.cn ~96×206, sina ~96×134) must not
+    // stretch the story row — cover is a fixed aspect-ratio crop frame.
+    expect(html).toMatch(/\.story \.cover\{[^}]*aspect-ratio:\s*4\/3/)
+    expect(html).toMatch(/\.story \.cover img[^}]*object-fit:\s*cover/)
+    expect(html).not.toMatch(/\.story \.cover\{[^}]*min-height:\s*64px/)
+  })
+
   it('renders fallback plate as an <img>, never as bare text', () => {
     // A pack item WITHOUT a usable imageUrl must produce an <img src="data:...">
     // (branded plate), NOT a raw-injected SVG string that leaks as text.

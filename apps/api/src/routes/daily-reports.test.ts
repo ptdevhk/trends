@@ -131,7 +131,7 @@ describe("daily reports routes", () => {
     );
   });
 
-  it("returns stored html for a valid date", async () => {
+  it("re-renders html from packJson (ignores stale stored html)", async () => {
     mockedCallConvexQuery.mockResolvedValue(sampleRow);
 
     const app = createTestApp();
@@ -141,7 +141,11 @@ describe("daily reports routes", () => {
     expect(response.headers.get("Content-Type")).toContain("text/html");
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
     const body = await response.text();
-    expect(body).toBe("<html>pre-rendered</html>");
+    // Must come from renderDailyReportHtml(pack), not the frozen "<html>pre-rendered</html>" blob.
+    expect(body).toContain("<!DOCTYPE html>");
+    expect(body).toContain("2026-09-23");
+    expect(body).toMatch(/\.story \.cover\{[^}]*aspect-ratio:\s*4\/3/);
+    expect(body).not.toBe("<html>pre-rendered</html>");
   });
 
   it("renders html on demand when stored html is empty", async () => {
