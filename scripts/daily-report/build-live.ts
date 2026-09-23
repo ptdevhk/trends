@@ -125,38 +125,6 @@ function loadKeywordSeed(): string[] {
  * Overlay absent → seed unchanged (workspace defaults).
  */
 
-async function mergeWorkspaceHotlistPlatforms(env: Env, seed: string[]): Promise<string[]> {
-  const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
-  let raw: unknown
-  try {
-    raw = await convexQuery(env, 'workspace_config:get', {
-      workspaceSlug,
-      configKey: 'research.hotlistPlatforms',
-    })
-  } catch {
-    return seed
-  }
-  const row = raw as { configValue?: unknown } | undefined
-  const ov = row?.configValue as { enabled?: unknown; excluded?: unknown } | undefined
-  if (!ov) return seed
-  const asList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [])
-  const enabled = asList(ov.enabled).map((x) => x.trim())
-  const excluded = new Set(asList(ov.excluded).map((x) => x.trim()))
-  // Mirror hub mergeHotlistPlatforms: non-empty enabled → enabled ∩ catalog; else seed.defaults.
-  // Drop excluded; empty-after-exclude → seed defaults. Never union (would leak narrowed-off platforms).
-  const catalogSet = new Set(seed)
-  const base = enabled.length > 0 ? enabled.filter((id) => catalogSet.has(id)) : [...seed]
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const p of base) {
-    const t = p.trim()
-    if (!t || seen.has(t) || excluded.has(t)) continue
-    seen.add(t)
-    out.push(t)
-  }
-  return out.length > 0 ? out : seed
-}
-
 async function mergeWorkspaceKeywords(env: Env, seed: string[]): Promise<string[]> {
   const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
   let raw: unknown
@@ -198,16 +166,57 @@ async function mergeWorkspaceKeywords(env: Env, seed: string[]): Promise<string[
   return effective.length > 0 ? effective : seed
 }
 
-function loadHotlistPlatforms(): string[] {
+function loadHotlistPlatforms(): { ids: string[]; defaults: string[]; catalog: Set<string> } {
   const p = join(ROOT, 'config/research_hotlist_platforms.yaml')
   const doc = parseYaml(readFileSync(p, 'utf8')) as {
     groups?: Array<{ platforms?: Array<{ id?: string }> }>
     defaults?: string[]
   }
-  if (doc.defaults?.length) return doc.defaults
-  const out: string[] = []
-  for (const g of doc.groups ?? []) for (const pl of g.platforms ?? []) if (pl.id) out.push(pl.id)
-  return out
+  const catalog: string[] = []
+  const seen = new Set<string>()
+  for (const g of doc.groups ?? []) {
+    for (const pl of g.platforms ?? []) {
+      if (pl.id && !seen.has(pl.id)) {
+        seen.add(pl.id)
+        catalog.push(pl.id)
+      }
+    }
+  }
+  const defaults = (doc.defaults ?? []).filter((id) => seen.has(id))
+  const orderedDefaults = catalog.filter((id) => defaults.includes(id))
+  return { ids: catalog, defaults: orderedDefaults, catalog: seen }
+}
+
+/**
+ * Effective hotlist platform set, mirroring the hub's mergeHotlistPlatforms
+ * EXACTLY (catalog ∩ + defaults fallback): non-empty enabled → enabled ∩ catalog;
+ * enabled empty → seed.defaults; drop excluded; empty-after-exclude → defaults.
+ * Unlike the old build-live logic this intersects the FULL catalog, not just
+ * defaults — so a desk-enabled id outside defaults isn't silently dropped.
+ */
+async function mergeWorkspaceHotlistPlatforms(env: Env, seed: { ids: string[]; defaults: string[]; catalog: Set<string> }): Promise<string[]> {
+  const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
+  let raw: unknown
+  try {
+    raw = await convexQuery(env, 'workspace_config:get', {
+      workspaceSlug,
+      configKey: 'research.hotlistPlatforms',
+    })
+  } catch {
+    return seed.defaults
+  }
+  const row = raw as { configValue?: unknown } | undefined
+  const ov = row?.configValue as { enabled?: unknown; excluded?: unknown } | undefined
+  if (!ov) return seed.defaults
+  const asList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [])
+  const enabled = asList(ov.enabled).map((x) => x.trim())
+  const excluded = new Set(asList(ov.excluded).map((x) => x.trim()))
+  const catalogSet = seed.catalog
+  const baseIds = enabled.length > 0 ? enabled.filter((id) => catalogSet.has(id)) : [...seed.defaults]
+  const baseSet = new Set(baseIds)
+  const order = seed.ids.filter((id) => baseSet.has(id))
+  const effective = order.filter((id) => !excluded.has(id))
+  return effective.length > 0 ? effective : [...seed.defaults]
 }
 
 /**

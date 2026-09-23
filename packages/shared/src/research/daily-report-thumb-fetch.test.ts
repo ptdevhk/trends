@@ -99,6 +99,18 @@ describe('extractThumbFromHtml', () => {
     const out = extractThumbFromHtml(html, 'https://example.com/x')
     expect(out).toEqual(['https://cdn.example.com/real.jpg'])
   })
+
+  it('keeps a real image whose HOST contains a chrome token (basename-only filter)', () => {
+    const html = '<img src="https://weibo.example.com/media/photo_20260822_12345.jpg">'
+    expect(extractThumbFromHtml(html, 'https://example.com/x')).toContain(
+      'https://weibo.example.com/media/photo_20260822_12345.jpg',
+    )
+  })
+
+  it('drops an image whose BASENAME contains a chrome token', () => {
+    const html = '<img src="https://cdn.example.com/promo/share_btn.png">'
+    expect(extractThumbFromHtml(html, 'https://example.com/x')).toEqual([])
+  })
 })
 
 describe('isImageUrl', () => {

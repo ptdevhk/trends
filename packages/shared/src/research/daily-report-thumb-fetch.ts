@@ -69,9 +69,27 @@ const MIN_H = 144;
 /** A query token that marks a tracking/1x1 beacon. */
 const BEACON_RE = /(tracker|pixel|beacon|impression|1x1)/i;
 
-/** True when the URL/value is free of site-chrome / beacon markers. */
+/**
+ * True when the URL/value is free of site-chrome / beacon markers.
+ *
+ * The chrome blocklist is applied to the URL PATH BASENAME only (not the host /
+ * scheme), so a CDN host or domain that legitimately contains a chrome token
+ * (e.g. `weibo.../photo.jpg`, `.../wx_share/pic.png`) doesn't false-drop a real
+ * image purely because of its hostname. The og/img alt token is still checked
+ * against the raw meta tag text when it is passed here, so chrome in the alt is
+ * caught, but a URL's hostname never is.
+ */
 function isCleanUrl(url: string): boolean {
-  return !BEACON_RE.test(url) && !CHROME_RE.test(url);
+  if (BEACON_RE.test(url)) return false;
+  let basename = url;
+  try {
+    const u = new URL(url);
+    // decodeURIComponent-safe basename: last path segment before any query/hash.
+    basename = u.pathname.split('/').filter(Boolean).pop() ?? u.pathname;
+  } catch {
+    // not a parseable URL — fall back to checking the raw string
+  }
+  return !CHROME_RE.test(basename);
 }
 
 /**
@@ -108,8 +126,13 @@ export function extractThumbFromHtml(html: string, baseUrl: string): string[] {
   while ((m = imgRe.exec(html)) !== null) {
     const token = m[0];
     if (SHORT_SRC_RE.test(token)) continue;
-    if (CHROME_RE.test(token)) continue; // skip share/login/icon/logo marks
-    push(m[1]);
+    const src = m[1];
+    // Chrome check via isCleanUrl (basename-of-URL only, so a chrome token in
+    // the HOST — e.g. weibo.example.com — doesn't drop a real photo). The alt
+    // attribute is not present in the src capture; chrome in a URL basename
+    // (share_btn.png) is still caught.
+    if (!isCleanUrl(resolveAbsolute(src.trim(), baseUrl) || src)) continue;
+    push(src);
   }
   return out;
 }
@@ -175,11 +198,18 @@ function sniffDims(buf: Buffer): { w: number; h: number } | null {
 
 /**
  * Read up to PROBE_BYTES of the image to reach the header. Servers that ignore
- * Range still return the full body; we cap what we read.
+ * Range still return the full body; we cap what we read. Sends a publisher
+ * Referer (the article page) + browser UA so hotlink-gated CDNs (sina, qq) that
+ * would 403 a headerless request serve the bytes — matching how the report page
+ * renders them.
  */
-async function probeImageDims(url: string, timeoutMs: number): Promise<{ w: number; h: number } | null> {
+async function probeImageDims(url: string, referer: string | undefined, timeoutMs: number): Promise<{ w: number; h: number } | null> {
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+  };
+  if (referer) headers['Referer'] = referer;
   const res = await fetch(url, {
-    headers: { Range: 'bytes=0-131071' },
+    headers: { ...headers, Range: 'bytes=0-131071' },
     redirect: 'follow',
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -205,13 +235,15 @@ async function probeImageDims(url: string, timeoutMs: number): Promise<{ w: numb
  * True when the URL is http(s) AND the image bytes are an allowed raster format
  * (PNG/JPEG/WebP) AND a plausible cover size (min-width/height gate, content-
  * sniffed). The size gate rejects chrome that a word blocklist can't catch
- * (icons, lock/float bars, download banners). Never throws.
+ * (icons, lock/float bars, download banners). `referer` (the article page the
+ * image came from) is passed to the probe so hotlink-gated CDNs serve it. Never
+ * throws.
  */
-export async function isImageUrl(url: string, timeoutMs = 5000): Promise<boolean> {
+export async function isImageUrl(url: string, referer?: string, timeoutMs = 5000): Promise<boolean> {
   if (!/^https?:\/\//i.test(url)) return false;
   if (!isCleanUrl(url)) return false;
   try {
-    const d = await probeImageDims(url, timeoutMs);
+    const d = await probeImageDims(url, referer, timeoutMs);
     if (!d) return false;
     if (d.w < MIN_W || d.h < MIN_H) return false;
     return true;
@@ -267,7 +299,9 @@ export async function fetchArticleThumb(url: string): Promise<string | null> {
 
     const candidates = extractThumbFromHtml(html, url).slice(0, MAX_PROBE_CANDIDATES);
     for (const cand of candidates) {
-      if (await isImageUrl(cand)) return cand;
+      // Pass the article URL as Referer so hotlink-gated CDNs serve the image
+      // header (matches how the report page renders it).
+      if (await isImageUrl(cand, url)) return cand;
     }
     return null;
   } catch {
