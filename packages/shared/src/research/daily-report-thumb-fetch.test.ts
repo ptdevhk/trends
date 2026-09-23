@@ -36,7 +36,20 @@ describe('extractThumbFromHtml', () => {
       'https://cdn.example.com/photo.jpg',
     )
   })
-  it('returns null when no usable image exists', () => {
+    it('upgrades plain-http og:image to https (mixed-content safe)', () => {
+    const html = '<meta property="og:image" content="http://i.ce.cn/district/images/item.png">'
+    expect(extractThumbFromHtml(html, 'https://example.com/x')).toBe(
+      'https://i.ce.cn/district/images/item.png',
+    )
+  })
+  it('leaves https urls unchanged', () => {
+    const html = '<meta property="og:image" content="https://cdn.example.com/a.jpg">'
+    expect(extractThumbFromHtml(html, 'https://example.com/x')).toBe(
+      'https://cdn.example.com/a.jpg',
+    )
+  })
+
+it('returns null when no usable image exists', () => {
     expect(extractThumbFromHtml('<div>no image</div>', 'https://example.com/x')).toBeNull()
     expect(extractThumbFromHtml('', 'https://example.com/x')).toBeNull()
   })

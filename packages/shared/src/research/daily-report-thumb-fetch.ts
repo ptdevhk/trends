@@ -24,6 +24,17 @@ function resolveAbsolute(url: string, base: string): string | null {
   }
 }
 
+/**
+ * Upgrade an absolute http(s) URL to https:// when plain-text `http://` — most
+ * publisher CDNs (e.g. i.ce.cn, sinaimg) serve the same asset over https, and
+ * shipping a plain-http URL into an https report triggers a browser
+ * mixed-content auto-upgrade/warning. Returns the input unchanged when it is
+ * already https (or not http at all).
+ */
+function secureUrl(abs: string): string {
+  return /^http:\/\//i.test(abs) ? abs.replace(/^http:\/\//i, 'https://') : abs;
+}
+
 /** A small icon/spacer-ish src we should skip in the <img> fallback. */
 const TINY_IMG = /(logo|icon|spacer|pixel|blank|avatar|\.(ico|gif)|src=[^"']{0,12}\/)/i;
 
@@ -36,7 +47,7 @@ export function extractThumbFromHtml(html: string, baseUrl: string): string | nu
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:image|og:image:url)["']/i.exec(html);
   if (og) {
     const abs = resolveAbsolute(og[1], baseUrl);
-    if (abs && (abs.startsWith('http://') || abs.startsWith('https://'))) return abs;
+    if (abs && (abs.startsWith('http://') || abs.startsWith('https://'))) return secureUrl(abs);
   }
   // Fallback: first real <img> in the body (skip tiny icons/spacers/logos).
   const imgRe = /<img[^>]+src=["']([^"']+)["']/gi;
@@ -45,7 +56,7 @@ export function extractThumbFromHtml(html: string, baseUrl: string): string | nu
     const abs = resolveAbsolute(m[1], baseUrl);
     if (!abs || !/^https?:\/\//i.test(abs)) continue;
     if (TINY_IMG.test(m[0])) continue;
-    return abs;
+    return secureUrl(abs);
   }
   return null;
 }
