@@ -371,6 +371,7 @@ async function main(): Promise<void> {
       platform: typeof r.platform === 'string' ? r.platform : '',
       ...(typeof r.url === 'string' ? { url: r.url } : {}),
       capturedAt: typeof r.capturedAt === 'number' ? r.capturedAt : 0,
+      ...(typeof r.publishedAt === 'number' && r.publishedAt > 0 ? { publishedAt: r.publishedAt } : {}),
       ...(typeof r.rawSnippet === 'string' ? { rawSnippet: r.rawSnippet } : {}),
       ...(typeof r.rank === 'number' ? { rank: r.rank } : {}),
     }))
@@ -456,93 +457,25 @@ async function main(): Promise<void> {
       `live[${day}]: rows=${result.counts.rows} matched=${result.counts.matched} windowMatched=${result.counts.windowMatched} hotlist=${result.counts.hotlistMatched} items=${result.counts.items} thin=${result.thin}`,
     )
 
+    // Operator choice 2026-09-23 = "(a) 誠實薄頁+banner": when a day has fewer
+    // than HYBRID_MIN_ITEMS actually-published items, publish the THIN live pack
+    // itself with an honest banner. We do NOT clone a prior/richer day's content
+    // (no frozen hand-me-down, no second-pass backfill) — the page stays truthful
+    // about what that day actually contained.
     if (result.thin) {
-      const fallback = lastGoodSnapshot(day)
-      if (fallback) {
-        const frozen: DailyReportPack = {
-          ...fallback,
-          date: day,
-          source: 'frozen',
-          generatedAt,
-          fallbackFromDate: fallback.date,
-          banner: `沿用最近完整日（${fallback.date}）· ${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条`,
-          hero: {
-            ...fallback.hero,
-            sparkline: result.pack.hero.sparkline,
-            dayLabels: result.pack.hero.dayLabels,
-            dayDates: result.pack.hero.dayDates,
-          },
-        }
-        await writeOutputs(env, frozen, day)
-        console.log(`hybrid[${day}]: reused ${fallback.date} as frozen snapshot`)
-        continue
-      }
       await writeOutputs(
         env,
         {
           ...result.pack,
-          banner: `${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条 · 数据偏薄`,
+          banner: `${day} 当日命中不足 ${HYBRID_MIN_ITEMS} 条 · 数据偏薄`,
         },
         day,
       )
-      console.log(`hybrid[${day}]: no prior snapshot; published thin live pack with banner`)
+      console.log(`thin[${day}]: published thin live pack with banner`)
       continue
     }
 
     await writeOutputs(env, result.pack, day)
-  }
-
-  // Second pass: thin earlier days in this window may have no prior snapshot
-  // when the only rich day is "today" (single ingest). Fill from the newest
-  // rich pack in the window so Day1…Day7 nav is usable for boss demos.
-  const richInWindow = windowDates
-    .map((d) => {
-      try {
-        return parseDailyReportPack(
-          JSON.parse(readFileSync(join(SNAPSHOT_DIR, `${d}.json`), 'utf8')),
-        )
-      } catch {
-        return null
-      }
-    })
-    .filter((p): p is DailyReportPack => !!p && p.opportunities.length + p.stories.length >= HYBRID_MIN_ITEMS)
-  const newestRich = richInWindow.length ? richInWindow[richInWindow.length - 1] : null
-  if (newestRich) {
-    for (const day of windowDates) {
-      if (day >= newestRich.date) continue
-      let existing: DailyReportPack | null = null
-      try {
-        existing = parseDailyReportPack(
-          JSON.parse(readFileSync(join(SNAPSHOT_DIR, `${day}.json`), 'utf8')),
-        )
-      } catch {
-        existing = null
-      }
-      if (existing && existing.opportunities.length + existing.stories.length >= HYBRID_MIN_ITEMS) {
-        continue
-      }
-      const liveHero = existing?.hero
-      const frozen: DailyReportPack = {
-        ...newestRich,
-        date: day,
-        source: 'frozen',
-        generatedAt,
-        fallbackFromDate: newestRich.date,
-        banner: `沿用最近完整日（${newestRich.date}）· ${day} 实时命中不足 ${HYBRID_MIN_ITEMS} 条`,
-        hero: {
-          ...newestRich.hero,
-          ...(liveHero
-            ? {
-                sparkline: liveHero.sparkline,
-                dayLabels: liveHero.dayLabels,
-                dayDates: liveHero.dayDates,
-              }
-            : {}),
-        },
-      }
-      await writeOutputs(env, frozen, day)
-      console.log(`hybrid-pass2[${day}]: reused ${newestRich.date} as frozen snapshot`)
-    }
   }
 
   console.log(`keywords=${keywords.length} hotlistPlatforms=${hotlistPlatforms.length}`)
