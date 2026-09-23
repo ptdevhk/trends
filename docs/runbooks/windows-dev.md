@@ -116,13 +116,14 @@ The local Convex database has no users by default. Bootstrap the demo admin:
 
 ```powershell
 cd D:\GitHub\trends
-$env:AUTH_BOOTSTRAP_PASSWORD = "admin123"   # or whatever is in .env
+# Load AUTH_BOOTSTRAP_PASSWORD from .env (do NOT hardcode the value)
+$env:AUTH_BOOTSTRAP_PASSWORD = (Get-Content .env | Select-String '^AUTH_BOOTSTRAP_PASSWORD=').ToString().Split('=')[1]
 bun run auth:bootstrap-demo
 ```
 
 Then log in at http://127.0.0.1:5173/login with:
 - Username: `demo-admin`
-- Password: `admin123` (from `.env` `AUTH_BOOTSTRAP_PASSWORD`)
+- Password: the value of `AUTH_BOOTSTRAP_PASSWORD` from your local `.env` file
 
 ## Seeding resume data
 
