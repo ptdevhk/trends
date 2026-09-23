@@ -14,6 +14,7 @@
 
 import type { DailyOpportunity, DailyReportPack, DailyStory, OpportunityKind } from './daily-report-pack.js';
 import { isGoogleNewsArticleUrl } from './daily-report-article-url.js';
+import { buildDailyReportThumbDataUri } from './daily-report-thumb.js';
 
 function shortMdDate(ymd: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
@@ -38,7 +39,11 @@ export type DailyReportLocale = 'zh-Hans' | 'en';
 type ThumbFields = {
   imageUrl?: string;
   thumbSvg?: string;
+  chips?: string[];
 };
+
+/** Plate kind for fallback-branding (商机/转机/动态/story). */
+type ThumbKind = OpportunityKind | 'story';
 
 /* ---------------------------------------------------------------------------
  * i18n string map (mirrors what the generated HTML ships inline for the toggle)
@@ -110,6 +115,15 @@ function isUsableImageUrl(url: string | undefined): url is string {
   return false;
 }
 
+
+/**
+ * Branded fallback plate (data-URI SVG) used when no real thumb is available, and
+ * as the client-side onerror replacement if a real image fails to load.
+ */
+function fallbackPlate(item: ThumbFields, alt: string, kind: ThumbKind): string {
+  return buildDailyReportThumbDataUri({ title: alt, kind, chips: (item as { chips?: string[] }).chips ?? [] });
+}
+
 function rawThumbSvg(item: ThumbFields): string | undefined {
   const raw = item.thumbSvg;
   if (typeof raw !== 'string') return undefined;
@@ -127,16 +141,19 @@ function asThumbFields(item: DailyOpportunity | DailyStory): ThumbFields {
 }
 
 /**
- * Prefer imageUrl (SVG data-URI / http(s)), else embed thumbSvg.
- * Returns empty string when neither is usable (caller supplies plate fallback).
+ * Prefer a REAL validated imageUrl (http(s), SVG data-URI) with a graceful
+ * onerror fallback to the branded SVG plate. A publisher cover can be an
+ * `http://` plain URL (i.ce.cn), a non-standard aspect (sina 96x134), or
+ * occasionally dead — so every image tag gets an onerror that swaps in the
+ * branded plate the moment it fails to load. Empty/blank fallback is no longer
+ * possible: if imageUrl is unusable we return the plate SVG, and if a usable
+ * URL later 404s/bot-blocks at load time we swap to the plate client-side.
  */
-function renderMediaInner(item: ThumbFields, alt: string): string {
+function renderMediaInner(item: ThumbFields, alt: string, plateSvg: string): string {
   if (isUsableImageUrl(item.imageUrl)) {
-    return `<img src="${escAttr(item.imageUrl)}" alt="${escAttr(alt)}" loading="lazy"/>`;
+    return `<img src="${escAttr(item.imageUrl)}" alt="${escAttr(alt)}" loading="lazy" onerror="this.outerHTML=\`${escAttr(plateSvg)}\`"/>`;
   }
-  const svg = rawThumbSvg(item);
-  if (svg) return svg;
-  return '';
+  return plateSvg;
 }
 
 /** Normalize a series into an SVG polyline (preserveAspectRatio=none). */
@@ -240,7 +257,8 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
       );
       const chips = (o.chips ?? []).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
       const fields = asThumbFields(o);
-      const media = renderMediaInner(fields, o.label);
+      const plateSvg = fallbackPlate(fields, o.label, o.kind);
+      const media = renderMediaInner(fields, o.label, plateSvg);
       const coverInner = media
         ? media
         : `<span class="glyph">${glyph}</span>`;
@@ -280,7 +298,8 @@ export function renderDailyReportHtml(pack: DailyReportPack, locale: DailyReport
     .map((s, i) => {
       const fields = asThumbFields(s);
       const plate = i % 2 === 0 ? '#ebe4d8' : '#e0e6ee';
-      const media = renderMediaInner(fields, s.title);
+      const plateSvg = fallbackPlate(fields, s.title, 'story');
+      const media = renderMediaInner(fields, s.title, plateSvg);
       const coverInner = media
         ? media
         : `<div class="thumb-plate" style="background:${plate}"></div>`;

@@ -93,7 +93,6 @@ function loadKeywordSeed(): string[] {
     defaults?: { enabledGroupIds?: string[]; excludedKeywords?: string[] }
   }
   const groups = doc.groups ?? []
-  const enabled = new Set(doc.defaults?.enabledGroupIds ?? groups.map((g) => ''))
   const excluded = new Set((doc.defaults?.excludedKeywords ?? []).map((k) => k.trim().normalize('NFKC')))
   const out = new Set<string>()
   for (const g of groups) {
@@ -117,6 +116,53 @@ function loadKeywordSeed(): string[] {
     // brands.json optional — YAML groups alone still give a real keyword set.
   }
   return [...out]
+}
+
+/**
+ * Merge the workspace pulse-keyword overlay (管理关键词) from Convex into the seed,
+ * so the daily report uses the SAME effective keyword set as the hub 综合热榜.
+ * Mirrors mergePulseKeywords(seed, workspace): seed ∪ custom ∪ enabled − excluded.
+ * Overlay absent → seed unchanged (workspace defaults).
+ */
+async function mergeWorkspaceKeywords(env: Env, seed: string[]): Promise<string[]> {
+  const workspaceSlug = (env.WORKSPACE_SLUG || 'hr').trim() || 'hr'
+  let raw: unknown
+  try {
+    raw = await convexQuery(env, 'workspace_config:get', {
+      workspaceSlug,
+      configKey: 'research.pulseKeywords',
+    })
+  } catch {
+    return seed
+  }
+  // worker req needs no writeSecret; but the convex query may. Pass if set.
+  const row = raw as { configValue?: unknown } | undefined
+  const ov = row?.configValue as
+    | { custom?: unknown; enabled?: unknown; excluded?: unknown }
+    | undefined
+  if (!ov) return seed
+
+  const asList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [])
+  const custom = asList(ov.custom)
+  const enabled = asList(ov.enabled)
+  const excluded = asList(ov.excluded)
+
+  const base: string[] = []
+  const seenNorm = new Set<string>()
+  const pushU = (kw: string) => {
+    const t = kw.trim()
+    if (!t) return
+    const norm = t.normalize('NFKC').replace(/[A-Za-z]+/g, (m) => m.toLowerCase())
+    if (seenNorm.has(norm)) return
+    seenNorm.add(norm)
+    base.push(t)
+  }
+  for (const k of seed) pushU(k)
+  for (const k of custom) pushU(k)
+  for (const k of enabled) pushU(k)
+  const ex = new Set(excluded.map((k) => k.normalize('NFKC').replace(/[A-Za-z]+/g, (m) => m.toLowerCase())))
+  const effective = base.filter((k) => !ex.has(k.normalize('NFKC').replace(/[A-Za-z]+/g, (m) => m.toLowerCase())))
+  return effective.length > 0 ? effective : seed
 }
 
 function loadHotlistPlatforms(): string[] {
@@ -198,8 +244,10 @@ async function writeOutputs(env: Env, pack: DailyReportPack, date: string): Prom
 async function main(): Promise<void> {
   const date = process.argv[2] || new Date().toISOString().slice(0, 10)
   const env = loadEnv()
-  const keywords = loadKeywordSeed()
+  const seedKeywords = loadKeywordSeed()
+  const keywords = await mergeWorkspaceKeywords(env, seedKeywords)
   const hotlistPlatforms = loadHotlistPlatforms()
+  console.log(`keywords: seed=${seedKeywords.length} effective=${keywords.length}`)
 
   const since = sparklineWindowSinceMs(date)
   console.log(`window: date=${date} since=${new Date(since).toISOString()} (Day1–Day7 Asia/Shanghai)`)
@@ -323,16 +371,25 @@ async function main(): Promise<void> {
   // so cards/rows/stories all reflect the Chinese CNC desk.
   const excludePlatforms = loadExcludedPlatforms()
 
-  // Render-time thumbnail resolution: patch real article thumbs onto the packs
-  // (og:image → first <img>), so cards/stories show a real image instead of a
-  // generated SVG plate. Fails gracefully back to the SVG datum per item.
-  const thumbUrls = rows
-    .filter((r) => !excludePlatforms.includes(r.platform))
-    .map((r) => r.url)
-    .filter((u): u is string => !!u && isGoogleNewsArticleUrl(u) === false)
-    .slice(0, 16)
-  const thumbByUrl = await fetchThumbsForUrls(thumbUrls)
-  console.log(`thumbs: fetched=${thumbByUrl.size}/${thumbUrls.length}`)
+  // Render-time thumbnail resolution for the SURFACED items (not raw rows).
+  // Fetch is keyed on the actual 商机/趋势/热闻 hrefs that render, so a card with a
+  // valid og:image (e.g. m.mp.oeeee.com) isn't skipped just because it ranked outside
+  // an arbitrary top-N of raw rows. Fails gracefully back to the branded SVG plate.
+  async function patchSurfacedThumbs(pack: DailyReportPack): Promise<void> {
+    const surfacedHrefs = [
+      ...(pack.opportunities.map((o) => o.href).filter((h): h is string => !!h)),
+      ...(pack.stories.map((s) => s.href).filter((h): h is string => !!h)),
+    ]
+    const unique = [...new Set(surfacedHrefs)].filter((u) => isGoogleNewsArticleUrl(u) === false)
+    if (unique.length === 0) return
+    const thumbByUrl = await fetchThumbsForUrls(unique, 24, 4)
+    for (const opp of pack.opportunities) {
+      if (opp.href && thumbByUrl.has(opp.href)) opp.imageUrl = thumbByUrl.get(opp.href)
+    }
+    for (const st of pack.stories) {
+      if (st.href && thumbByUrl.has(st.href)) st.imageUrl = thumbByUrl.get(st.href)
+    }
+  }
 
   for (const day of windowDates) {
     const previous = loadPreviousPack(day)
@@ -347,13 +404,9 @@ async function main(): Promise<void> {
       excludePlatforms,
     })
 
-    // Patch real thumbnails onto the freshly-built pack before persisting.
-    for (const [i, opp] of result.pack.opportunities.entries()) {
-      if (opp.href && thumbByUrl.has(opp.href)) result.pack.opportunities[i].imageUrl = thumbByUrl.get(opp.href)
-    }
-    for (const [i, st] of result.pack.stories.entries()) {
-      if (st.href && thumbByUrl.has(st.href)) result.pack.stories[i].imageUrl = thumbByUrl.get(st.href)
-    }
+    // Patch real thumbnails onto the freshly-built pack before persisting — fetched
+    // from the surfaced hrefs so every rendered card/story gets a real-thumb chance.
+    await patchSurfacedThumbs(result.pack)
 
     console.log(
       `live[${day}]: rows=${result.counts.rows} matched=${result.counts.matched} windowMatched=${result.counts.windowMatched} hotlist=${result.counts.hotlistMatched} items=${result.counts.items} thin=${result.thin}`,

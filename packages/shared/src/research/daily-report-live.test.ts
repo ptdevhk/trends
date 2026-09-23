@@ -434,6 +434,24 @@ describe('buildLivePack', () => {
     expect(result.pack.source).toBe('live')
   })
 
+  it('hero falls back to the 7-day window total when the report day is empty (never 0)', () => {
+    const prior = Date.UTC(2026, 8, 22, 8, 0, 0) // 2026-09-22 (report day is 09-23)
+    const sparse = buildLivePack(
+      [
+        row({ title: '数控机床扩产', platform: 'weibo', url: 'https://a/p1', capturedAt: prior }),
+        row({ title: '数控机床出口', platform: 'weibo', url: 'https://a/p2', capturedAt: prior }),
+        row({ title: '数控招聘火爆', platform: 'weibo', url: 'https://a/p3', capturedAt: prior }),
+      ],
+      { date: '2026-09-23', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    // report day (09-23) has 0 matches → hero shows the 7-day window total, not 0
+    expect(sparse.counts.matched).toBe(0)
+    expect(sparse.counts.windowMatched).toBe(3)
+    expect(sparse.pack.hero.value).toBe('3')
+    // delta is — on fallback (no day-vs-prev comparison)
+    expect(sparse.pack.hero.delta).toBe('—')
+  })
+
   it('excludes non-CN sources from the pool (sales-first, CN audience)', () => {
     const withEn = buildLivePack(rows, {
       date: '2026-09-22',

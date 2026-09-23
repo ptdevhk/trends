@@ -24,23 +24,42 @@ function resolveAbsolute(url: string, base: string): string | null {
   }
 }
 
-/** Pull `og:image` from an HTML doc; fall back to the first `<img src>`. */
+/** A small icon/spacer-ish src we should skip in the <img> fallback. */
+const TINY_IMG = /(logo|icon|spacer|pixel|blank|avatar|\.(ico|gif)|src=[^"']{0,12}\/)/i;
+
+/** Pull og:image / og:image:url / twitter:image; fall back to first real <img>. */
 export function extractThumbFromHtml(html: string, baseUrl: string): string | null {
   // og:image meta — most publishers set this to the article cover.
   const og =
-    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i.exec(html);
+    /<meta[^>]+property=["'](?:og:image|og:image:url)["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
+    /<meta[^>]+(?:property|name)=["']twitter:image["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["'](?:og:image|og:image:url)["']/i.exec(html);
   if (og) {
     const abs = resolveAbsolute(og[1], baseUrl);
     if (abs && (abs.startsWith('http://') || abs.startsWith('https://'))) return abs;
   }
-  // Fallback: first <img> in the body.
-  const img = /<img[^>]+src=["']([^"']+)["']/i.exec(html);
-  if (img) {
-    const abs = resolveAbsolute(img[1], baseUrl);
-    if (abs && (abs.startsWith('http://') || abs.startsWith('https://'))) return abs;
+  // Fallback: first real <img> in the body (skip tiny icons/spacers/logos).
+  const imgRe = /<img[^>]+src=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = imgRe.exec(html)) !== null) {
+    const abs = resolveAbsolute(m[1], baseUrl);
+    if (!abs || !/^https?:\/\//i.test(abs)) continue;
+    if (TINY_IMG.test(m[0])) continue;
+    return abs;
   }
   return null;
+}
+
+/** True when the URL responds with an image content-type (HEAD probe). */
+export async function isImageUrl(url: string, timeoutMs = 5000): Promise<boolean> {
+  if (!/^https?:\/\//i.test(url)) return false;
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return false;
+    return (res.headers.get('content-type') || '').toLowerCase().startsWith('image/');
+  } catch {
+    return false;
+  }
 }
 
 const FETCH_TIMEOUT_MS = 6000;
@@ -80,7 +99,10 @@ export async function fetchArticleThumb(url: string): Promise<string | null> {
     const buf = Buffer.concat(chunks);
     const htmlUtf8 = buf.toString('utf8');
     const html = ctype.includes('utf-8') ? htmlUtf8 : buf.toString('latin1');
-    return extractThumbFromHtml(html, url);
+    const cand = extractThumbFromHtml(html, url);
+    // Reject wrong-but-real URLs by HEAD-probing the candidate is actually an image.
+    if (cand && (await isImageUrl(cand))) return cand;
+    return null;
   } catch {
     return null;
   }

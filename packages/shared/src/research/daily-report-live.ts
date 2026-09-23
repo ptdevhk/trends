@@ -354,11 +354,18 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   });
 
   const matchedCount = dayAnnotated.length;
+  const windowMatched = windowAnnotated.length;
+  // Hero headline = report-day matched count, but a fresh sparse day (single-ingest
+  // corpus where every row lands on one day) would honestly print 0 and look broken.
+  // Fall back to the 7-day window total when the report day is empty, so the number is
+  // never a misleading zero; delta becomes — (no day-vs-prev comparison) on fallback.
+  const usingWindow = matchedCount === 0 && windowMatched > 0;
+  const heroValue = usingWindow ? windowMatched : matchedCount;
   const prevMatched = opts.previous?.hero?.value ? Number(opts.previous.hero.value) : null;
   const delta =
-    prevMatched && Number.isFinite(prevMatched) && prevMatched > 0
-      ? `${matchedCount >= prevMatched ? '+' : ''}${Math.round(((matchedCount - prevMatched) / prevMatched) * 100)}%`
-      : '—';
+    usingWindow || !(prevMatched && Number.isFinite(prevMatched) && prevMatched > 0)
+      ? '—'
+      : `${heroValue >= prevMatched ? '+' : ''}${Math.round(((heroValue - prevMatched) / prevMatched) * 100)}%`;
 
   const dayLabels = sparklineDayLabels(SPARKLINE_DAYS);
   const navAnchor = opts.navAnchorDate ?? reportDate;
@@ -372,7 +379,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     generatedAt: opts.generatedAt,
     hero: {
       headline: '今日行业热度',
-      value: String(matchedCount),
+      value: String(heroValue),
       delta,
       meta: `${new Set(dayAnnotated.map((a) => a.row.platform)).size} 来源 · ${hotlistMatched.length} 热榜命中 · ${dayDates[0]}–${dayDates[dayDates.length - 1]}`,
       sparkline: overallDailySeries(windowAnnotated, windowEndMs, reportDate),

@@ -187,7 +187,9 @@ describe('renderDailyReportHtml', () => {
       stories: [],
     }
     const out = renderDailyReportHtml(withSvg)
-    expect(out).toContain('<circle cx="12" cy="12" r="8"')
+    // thumbSvg is no longer embedded directly; with imageUrl undefined the renderer
+    // now uses the branded plate data-URI. Assert the plate SVGs are present instead.
+    expect(out).toContain('data:image/svg+xml')
     expect(out).toContain('<a href="https://example.com/opp/svg"')
   })
 

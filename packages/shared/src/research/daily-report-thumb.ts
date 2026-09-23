@@ -80,6 +80,15 @@ export function chipGlyph(chip: string, max = 4): string {
   return `${chars.slice(0, max - 1).join('')}…`;
 }
 
+/** Short label glyph for the plate title (CJK keep ≤6, Latin ≤10). */
+function plateGlyph(chip: string, max = 6): string {
+  const t = chip.normalize('NFKC').trim();
+  if (!t) return '行业';
+  const chars = [...t];
+  if (chars.length <= max) return t;
+  return `${chars.slice(0, max - 1).join('')}…`;
+}
+
 /**
  * Raw SVG markup (no data-URI wrapper). Deterministic for the same inputs.
  */
@@ -92,6 +101,13 @@ export function buildDailyReportThumbSvg(input: DailyReportThumbInput): string {
     .map((c) => chipGlyph(c))
     .filter(Boolean)
     .slice(0, 2);
+
+  // Branded plate: overline with kind + a bold keyword/title glyph so a
+  // card without a real photo still reads as an industry signal, not a blank.
+  const titleGlyph = plateGlyph(input.title);
+  const titleY = 90;
+  const titleX = 16;
+  const titleW = Math.min(150, titleGlyph.length * 17 + 16);
 
   const chipBlocks = chips
     .map((g, i) => {
@@ -106,6 +122,8 @@ export function buildDailyReportThumbSvg(input: DailyReportThumbInput): string {
 <rect x="${stripeX + 40}" y="0" width="6" height="160" fill="${pal.accent}" opacity="0.35"/>
 <text x="16" y="36" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13" font-weight="600" letter-spacing="0.12em" fill="${pal.accent}">${escapeXml(kindLabel)}</text>
 <line x1="16" y1="48" x2="120" y2="48" stroke="${pal.accent}" stroke-width="1" opacity="0.5"/>
+<rect x="${titleX}" y="64" width="${titleW}" height="30" rx="4" fill="${pal.accent}" opacity="0.12"/>
+<text x="${titleX + 8}" y="${titleY}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="15" font-weight="600" fill="${pal.ink}">${escapeXml(titleGlyph)}</text>
 ${chipBlocks}
 </svg>`.replace(/\n/g, '');
 }
