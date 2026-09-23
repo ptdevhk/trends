@@ -124,14 +124,6 @@ function fallbackPlate(item: ThumbFields, alt: string, kind: ThumbKind): string 
   return buildDailyReportThumbDataUri({ title: alt, kind, chips: (item as { chips?: string[] }).chips ?? [] });
 }
 
-function rawThumbSvg(item: ThumbFields): string | undefined {
-  const raw = item.thumbSvg;
-  if (typeof raw !== 'string') return undefined;
-  const t = raw.trim();
-  if (!t.toLowerCase().startsWith('<svg')) return undefined;
-  return t;
-}
-
 function asThumbFields(item: DailyOpportunity | DailyStory): ThumbFields {
   const extra = item as (DailyOpportunity | DailyStory) & { thumbSvg?: string };
   return {
