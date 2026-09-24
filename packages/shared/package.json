@@ -29,6 +29,12 @@
       "import": "./dist/seek-my-th-e2e-fixtures.js",
       "require": "./dist/seek-my-th-e2e-fixtures.js",
       "default": "./dist/seek-my-th-e2e-fixtures.js"
+    },
+    "./research-news-sources-seed": {
+      "types": "./src/research/research-news-sources-seed.ts",
+      "import": "./dist/research/research-news-sources-seed.js",
+      "require": "./dist/research/research-news-sources-seed.js",
+      "default": "./dist/research/research-news-sources-seed.js"
     }
   },
   "scripts": {

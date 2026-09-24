@@ -3213,7 +3213,15 @@
     "tabBrand": "品牌动态",
     "tabHotlist": "综合热榜",
     "signalCountBadge": "{{count}} 条信号",
-    "seedMeta": "种子 id: {{id}}"
+    "seedMeta": "种子 id: {{id}}",
+    "newsSources": {
+      "open": "新闻数据源",
+      "summary": "新闻源 {{count}}",
+      "dialogTitle": "新闻数据源",
+      "dialogDescription": "管理 CNC/机床新闻数据源（默认全部开启）。可按主开关、按组或按单个源关闭。",
+      "master": "启用 CNC/机床新闻数据源",
+      "activeCount": "已启用 {{count}} 个数据源"
+    }
   },
   "publicShare": {
     "queryAria": "共享快照查询",

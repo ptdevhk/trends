@@ -12,11 +12,13 @@ import json
 import logging
 import os
 import re
+import socket
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener, urlopen
+from email.utils import parsedate_to_datetime  # RFC-2822 RSS <pubDate> -> datetime
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +360,12 @@ class StaticRssPort:
 
 # Cap per-feed RSS items so brand Google News packs cannot flood Convex upserts
 # or drown NewsNow rows out of listRecent(top-N by capturedAt).
-DEFAULT_RSS_MAX_ITEMS_PER_FEED = 20
+# Raised to 100 (operator 2026-09-23, "we raise cap since we have keyword filter
+# enabled"): the 7-day daily-report window needs enough fresh rows per feed to fill
+# >=10 distinct CNC news/day; gnews feeds return up to 100 items and downstream is
+# keyword-filtered, so per-feed depth is safe. Day-level spread rides on publishedAt
+# (see parse_rss_xml), not ingest-time collapsing.
+DEFAULT_RSS_MAX_ITEMS_PER_FEED = 100
 
 
 @dataclass
@@ -366,6 +373,10 @@ class HttpRssPort:
     timeout_seconds: float = 15.0
     max_retries: int = 2
     max_items_per_feed: int = DEFAULT_RSS_MAX_ITEMS_PER_FEED
+    # Optional SOCKS5 proxy override for feeds Google 503s from this egress
+    # (RESEARCH_GNEWS_SOCKS_PROXY, e.g. socks5h://127.0.0.1:1081). Enables the
+    # gnews-* feeds through a ptcloud ssh -D tunnel whose egress Google allows.
+    socks_proxy: Optional[str] = None
 
     def fetch(self, feed_id: str, feed_url: str, captured_at: int) -> List[NormalizedNewsItem]:
         body = self._get_with_retries(feed_url)
@@ -378,15 +389,31 @@ class HttpRssPort:
             max_items=self.max_items_per_feed,
         )
 
+    def _opener(self):
+        if self.socks_proxy:
+            try:
+                import socks  # PySocks
+
+                # Decode socks5h://host:port (remote DNS)
+                proxy = self.socks_proxy.replace("socks5h://", "").replace("socks5://", "")
+                host, _, port = proxy.partition(":")
+                socks.set_default_proxy(socks.SOCKS5, host, int(port or 1081))
+                socket.socket = socks.socksocket
+            except Exception:
+                # keep default opener if PySocks unavailable
+                return build_opener()
+        return build_opener()
+
     def _get_with_retries(self, url: str) -> Optional[str]:
         last_error: Optional[Exception] = None
+        opener = self._opener()
         for attempt in range(self.max_retries + 1):
             try:
                 request = Request(
                     url,
                     headers={"Accept": "application/rss+xml, application/xml, text/xml", "User-Agent": "trends-research-ingest/1.0"},
                 )
-                with urlopen(request, timeout=self.timeout_seconds) as response:
+                with opener.open(request, timeout=self.timeout_seconds) as response:
                     return response.read().decode("utf-8", errors="replace")
             except (HTTPError, URLError, TimeoutError, OSError) as error:
                 last_error = error
@@ -452,6 +479,10 @@ def parse_rss_xml(
         guid = _child_text(node, "guid") or _child_text(node, "{http://www.w3.org/2005/Atom}id") or link
         summary = _child_text(node, "description") or _child_text(node, "{http://www.w3.org/2005/Atom}summary")
         summary = strip_html_to_text(summary) if summary else None
+        # RSS <pubDate> (RFC-2822) or Atom <published>/<updated> (ISO-8601). This
+        # is the real article publish time; the daily report buckets Day1..Day7 by
+        # it (not capturedAt/ingest time) so a 7-day window spreads news by day.
+        published_ms = _parse_published_ms(node)
         content_hash = stable_content_hash(
             platform=f"rss:{feed_id}",
             title=title,
@@ -467,10 +498,34 @@ def parse_rss_xml(
                 captured_at=captured_at,
                 external_id=guid,
                 url=link,
+                published_at=published_ms,
                 raw_snippet=summary[:500] if summary else None,
             )
         )
     return items
+
+
+def _parse_published_ms(node: ET.Element) -> Optional[int]:
+    """Best-effort RSS <pubDate> / Atom <published> / <updated> -> epoch-ms."""
+    raw = (
+        _child_text(node, "pubDate")
+        or _child_text(node, "{http://www.w3.org/2005/Atom}published")
+        or _child_text(node, "{http://www.w3.org/2005/Atom}updated")
+    )
+    if not raw:
+        return None
+    for parser in (parsedate_to_datetime,):
+        try:
+            dt = parser(raw)
+            return int(dt.timestamp() * 1000)
+        except (ValueError, TypeError):
+            pass
+    # Fall back to plain datetime.today parsing for ISO strings without timezone.
+    try:
+        from datetime import datetime
+        return int(datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp() * 1000)
+    except (ValueError, TypeError):
+        return None
 
 
 def _child_text(node: ET.Element, tag: str) -> Optional[str]:

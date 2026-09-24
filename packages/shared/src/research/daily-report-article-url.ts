@@ -4,9 +4,21 @@
  * Google News RSS often stores `news.google.com/rss/articles/CBMi…` wrappers.
  * Those must never ship as pack `href` — decode to the publisher URL via
  * Google's batchexecute RPC (garturlreq), matching public decoder protocols.
+ *
+ * NOTE: decoding is best-effort and network-gated. Google can 503/400 our
+ * egress region, in which case every resolve returns null — swallowing ~N×150ms
+ * of sequential fetches per build. `resolveOriginalArticleUrls` therefore
+ * parallelizes with a per-URL timeout and aborts the whole pass early when the
+ * region is returning null en masse, so a fresh-ingest → build never stalls the
+ * daily day-roll on Google decode work that yields nothing anyway.
  */
 
 const GOOGLE_NEWS_HOST = /(^|\.)news\.google\.com$/i;
+
+/** Hard cap on how long a single Google decode may take (ms). */
+export const GOOGLE_DECODE_TIMEOUT_MS = 2500;
+/** If this many consecutive Google decodes fail, stop trying the rest. */
+export const GOOGLE_DECODE_NULL_THRESHOLD = 6;
 
 export function isGoogleNewsArticleUrl(url: string): boolean {
   try {
@@ -133,23 +145,87 @@ export async function resolveOriginalArticleUrl(url: string): Promise<string | n
   return preferHttpsArticleUrl(decoded);
 }
 
-/** Resolve many URLs with a small delay between Google fetches. */
+/** Resolve many URLs, parallelized with a per-URL timeout and an early null abort. */
 export async function resolveOriginalArticleUrls(
   urls: string[],
-  opts?: { delayMs?: number },
+  opts?: { delayMs?: number; concurrency?: number },
 ): Promise<Map<string, string | null>> {
   const delayMs = opts?.delayMs ?? 120;
+  const concurrency = opts?.concurrency ?? 12;
   const out = new Map<string, string | null>();
+
+  // One task per unique URL (respect the earlier dedupe contract).
+  const tasks: Array<{ url: string; run: () => Promise<string | null> }> = [];
+  const tasksDone = new Set<string>();
   for (const url of urls) {
-    if (out.has(url)) continue;
-    try {
-      out.set(url, await resolveOriginalArticleUrl(url));
-    } catch {
-      out.set(url, null);
+    if (tasksDone.has(url)) continue;
+    tasksDone.add(url);
+    tasks.push({
+      url,
+      run: async () => {
+        if (!isGoogleNewsArticleUrl(url)) {
+          // Non-Google URL: decode is identity (https-preferred) — no network.
+          return preferHttpsArticleUrl(url);
+        }
+        return resolveGoogleWithTimeout(url, delayMs);
+      },
+    });
+  }
+
+  // Process batches of `concurrency` at a time; abort the whole pass once we've
+  // seen a run of Google URLs all return null (region-blocked / nothing to win).
+  let consecutiveNull = 0;
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    const results = await Promise.all(
+      batch.map((t) =>
+        t.run().catch(() => null),
+      ),
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const value = results[j]!;
+      out.set(batch[j]!.url, value);
+      if (isGoogleNewsArticleUrl(batch[j]!.url)) {
+        if (value == null) {
+          consecutiveNull += 1;
+        } else {
+          consecutiveNull = 0;
+        }
+      }
     }
+    if (consecutiveNull >= GOOGLE_DECODE_NULL_THRESHOLD) {
+      // Region is returning null en masse — stop burning network on the rest;
+      // leave any remaining tasks unset (caller treats absent as a drop/non-match
+      // exactly like a null).
+      break;
+    }
+  }
+
+  return out;
+}
+
+/** One Google article decode with a hard timeout attached. */
+async function resolveGoogleWithTimeout(url: string, delayMs: number): Promise<string | null> {
+  try {
+    const result = await withTimeout(resolveOriginalArticleUrl(url), GOOGLE_DECODE_TIMEOUT_MS);
     if (isGoogleNewsArticleUrl(url) && delayMs > 0) {
       await new Promise((r) => setTimeout(r, delayMs));
     }
+    return result;
+  } catch {
+    return null;
   }
-  return out;
+}
+
+/** Resolve a promise or reject once the timeout elapses. */
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`google decode timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

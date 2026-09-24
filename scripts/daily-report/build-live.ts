@@ -32,9 +32,12 @@ import {
   sparklineDayDates,
   HYBRID_MIN_ITEMS,
   fetchThumbsForUrls,
+  mergeNewsSources,
+  parseNewsSourcesWorkspace,
   type DailyReportPack,
   type LiveNewsRow,
 } from '@trends/shared'
+import { loadResearchNewsSourcesSeed } from '@trends/shared/research-news-sources-seed'
 
 const ROOT = process.cwd()
 const SNAPSHOT_DIR = join(ROOT, 'config/daily-reports/snapshots')
@@ -306,6 +309,27 @@ async function main(): Promise<void> {
     since,
   })) as Array<Record<string, unknown>>
 
+  // Effective feed-set from the workspace news-sources opt-out overlay (default ON).
+  // Catalog feed ids not in `effective` are skipped (non-catalog ids untouched).
+  const newsSourcesSeed = loadResearchNewsSourcesSeed(ROOT)
+  let newsWorkspace
+  try {
+    const row = (await convexQuery(env, 'workspace_config:get', {
+      workspaceSlug: (env.WORKSPACE_SLUG || 'hr').trim() || 'hr',
+      configKey: 'research.enabledNewsSources',
+    })) as { configValue?: unknown } | undefined
+    newsWorkspace = parseNewsSourcesWorkspace(row?.configValue)
+  } catch {
+    newsWorkspace = parseNewsSourcesWorkspace(undefined)
+  }
+  const effectiveNewsFeeds = new Set(mergeNewsSources(newsSourcesSeed, newsWorkspace))
+  const newsCatalog = new Set(newsSourcesSeed.catalogIds)
+  const isNewsFeedActive = (plat: string): boolean => {
+    const id = plat.replace(/^rss:/, '')
+    return !newsCatalog.has(id) || effectiveNewsFeeds.has(id)
+  }
+  console.log(`news-sources: seed=${newsCatalog.size} effective=${effectiveNewsFeeds.size} master=${newsWorkspace.masterEnabled ?? true}`)
+
   // Enabled CN gnews feeds (CN-audience CNC content) — fetch each explicitly.
   const cnFeedRows: Array<Record<string, unknown>> = []
   for (const plat of [
@@ -320,7 +344,86 @@ async function main(): Promise<void> {
     'rss:gnews-genesis',
     'rss:gnews-qiaofeng',
     'rss:gnews-diecast',
+    // 2026-09-23 CNC topic expansion — broadens the 7d window to >=10/day.
+    'rss:gnews-cnc-core-process',
+    'rss:gnews-cnc-turning',
+    'rss:gnews-cnc-systems',
+    'rss:gnews-cnc-market',
+    'rss:gnews-cnc-laser',
+    'rss:gnews-cnc-wirecut',
+    'rss:gnews-cnc-brand-more',
+    'rss:gnews-cnc-mould',
+    'rss:gnews-cnc-automation',
+    'rss:gnews-cnc-gantry',
+    'rss:gnews-cnc-machines-export',
+    'rss:gnews-gongyemuji',
+    'rss:gnews-shukongxitong',
+    'rss:gnews-shukongzhuantai',
+    'rss:gnews-daoku',
+    'rss:gnews-zhuzhou-jichuang',
+    'rss:gnews-sigang',
+    'rss:gnews-daogui-jichuang',
+    'rss:gnews-sifudianji',
+    'rss:gnews-jiansuji',
+    'rss:gnews-dianhuohua',
+    'rss:gnews-xianqiege',
+    'rss:gnews-manzousi',
+    'rss:gnews-jiguang-qiege',
+    'rss:gnews-jiguang-hanjie',
+    'rss:gnews-chexifuhe',
+    'rss:gnews-zuangong',
+    'rss:gnews-zouxinji',
+    'rss:gnews-wuzhou-liandong',
+    'rss:gnews-longmenxi',
+    'rss:gnews-rouxingzhzao',
+    'rss:gnews-jichuang-chukou',
+    'rss:gnews-jichuang-caigou',
+    'rss:gnews-jichuang-zhongbiao',
+    'rss:gnews-muju-qiche',
+    'rss:gnews-chongya',
+    'rss:gnews-duanya',
+    'rss:gnews-yazhuji',
+    'rss:gnews-zhusuji',
+    'rss:gnews-guochantidai',
+    'rss:gnews-shukong-chukou',
+    'rss:gnews-haitianjinggong',
+    'rss:gnews-chuangshiji',
+    'rss:gnews-kede',
+    'rss:gnews-guosheng',
+    'rss:gnews-niupi',
+    'rss:gnews-huaizhong',
+    'rss:gnews-guangzhou',
+    'rss:gnews-shenyang',
+    'rss:gnews-qinchuan',
+    'rss:gnews-rifa',
+    'rss:gnews-jinan',
+    'rss:gnews-xinghuo',
+    'rss:gnews-baoji',
+    'rss:gnews-dianzhuzhou',
+    'rss:gnews-shukong-daoju',
+    'rss:gnews-jiansuqi-jichuang',
+    'rss:bing-cnc-machine',
+    'rss:bing-gongyemuji',
+    'rss:bing-haitian',
+    'rss:bing-chexifuhe',
+    'rss:bing-shukong-chechuang',
+    'rss:bing-shukong-xichuang',
+    'rss:bing-chechuang',
+    'rss:bing-wuzhou',
+    'rss:bing-zhusuji',
+    'rss:bing-muju',
+    'rss:bing-chongya',
+    'rss:bing-jiansuji',
+    'rss:bing-jiguang-qiege',
+    'rss:bing-sigang',
+    'rss:bing-jichuang-caigou',
+    'rss:bing-jichuang-chukou',
+    'rss:bing-guochantidai',
   ]) {
+    if (!isNewsFeedActive(plat)) {
+      // opted-out catalog feed: skip fetching (respect shared effective set)
+      continue
+    }
     try {
       const rows = (await convexQuery(env, 'research_news:listRecent', {
         writeSecret: env.CONVEX_WRITE_SECRET,
@@ -338,7 +441,8 @@ async function main(): Promise<void> {
   const seen = new Set<string>()
   const merged: Array<Record<string, unknown>> = []
   const pushRow = (r: Record<string, unknown>) => {
-    const key = r.contentHash ?? `${r.platform}|${r.title}`
+    const key: string =
+      r.contentHash != null ? String(r.contentHash) : `${String(r.platform)}|${String(r.title)}`
     if (seen.has(key)) return
     seen.add(key)
     merged.push(r)
@@ -355,11 +459,88 @@ async function main(): Promise<void> {
     'rss:gnews-genesis',
     'rss:gnews-qiaofeng',
     'rss:gnews-diecast',
+    'rss:gnews-cnc-core-process',
+    'rss:gnews-cnc-turning',
+    'rss:gnews-cnc-systems',
+    'rss:gnews-cnc-market',
+    'rss:gnews-cnc-laser',
+    'rss:gnews-cnc-wirecut',
+    'rss:gnews-cnc-brand-more',
+    'rss:gnews-cnc-mould',
+    'rss:gnews-cnc-automation',
+    'rss:gnews-cnc-gantry',
+    'rss:gnews-cnc-machines-export',
+    'rss:gnews-gongyemuji',
+    'rss:gnews-shukongxitong',
+    'rss:gnews-shukongzhuantai',
+    'rss:gnews-daoku',
+    'rss:gnews-zhuzhou-jichuang',
+    'rss:gnews-sigang',
+    'rss:gnews-daogui-jichuang',
+    'rss:gnews-sifudianji',
+    'rss:gnews-jiansuji',
+    'rss:gnews-dianhuohua',
+    'rss:gnews-xianqiege',
+    'rss:gnews-manzousi',
+    'rss:gnews-jiguang-qiege',
+    'rss:gnews-jiguang-hanjie',
+    'rss:gnews-chexifuhe',
+    'rss:gnews-zuangong',
+    'rss:gnews-zouxinji',
+    'rss:gnews-wuzhou-liandong',
+    'rss:gnews-longmenxi',
+    'rss:gnews-rouxingzhzao',
+    'rss:gnews-jichuang-chukou',
+    'rss:gnews-jichuang-caigou',
+    'rss:gnews-jichuang-zhongbiao',
+    'rss:gnews-muju-qiche',
+    'rss:gnews-chongya',
+    'rss:gnews-duanya',
+    'rss:gnews-yazhuji',
+    'rss:gnews-zhusuji',
+    'rss:gnews-guochantidai',
+    'rss:gnews-shukong-chukou',
+    'rss:gnews-haitianjinggong',
+    'rss:gnews-chuangshiji',
+    'rss:gnews-kede',
+    'rss:gnews-guosheng',
+    'rss:gnews-niupi',
+    'rss:gnews-huaizhong',
+    'rss:gnews-guangzhou',
+    'rss:gnews-shenyang',
+    'rss:gnews-qinchuan',
+    'rss:gnews-rifa',
+    'rss:gnews-jinan',
+    'rss:gnews-xinghuo',
+    'rss:gnews-baoji',
+    'rss:gnews-dianzhuzhou',
+    'rss:gnews-shukong-daoju',
+    'rss:gnews-jiansuqi-jichuang',
+    'rss:bing-cnc-machine',
+    'rss:bing-gongyemuji',
+    'rss:bing-haitian',
+    'rss:bing-chexifuhe',
+    'rss:bing-shukong-chechuang',
+    'rss:bing-shukong-xichuang',
+    'rss:bing-chechuang',
+    'rss:bing-wuzhou',
+    'rss:bing-zhusuji',
+    'rss:bing-muju',
+    'rss:bing-chongya',
+    'rss:bing-jiansuji',
+    'rss:bing-jiguang-qiege',
+    'rss:bing-sigang',
+    'rss:bing-jichuang-caigou',
+    'rss:bing-jichuang-chukou',
+    'rss:bing-guochantidai',
   ]) {
     for (const r of cnFeedRows.filter((x) => x.platform === plat)) pushRow(r)
   }
   for (const r of (Array.isArray(flatRaw) ? flatRaw : [])) {
-    if (!r.platform || String(r.platform).startsWith('rss:gnews')) continue
+    const p = typeof r.platform === 'string' ? r.platform : ''
+    if (!p || p.startsWith('rss:gnews')) continue
+    // also drop opted-out catalog feeds that sneak in via the flat list
+    if (p.startsWith('rss:') && !isNewsFeedActive(p)) continue
     pushRow(r)
   }
   const raw = merged
@@ -371,6 +552,10 @@ async function main(): Promise<void> {
       platform: typeof r.platform === 'string' ? r.platform : '',
       ...(typeof r.url === 'string' ? { url: r.url } : {}),
       capturedAt: typeof r.capturedAt === 'number' ? r.capturedAt : 0,
+      // Real article publish time (RSS <pubDate> -> ms). The report buckets
+      // Day1..Day7 by this so a 7-day window spreads news by actual publish day
+      // instead of collapsing onto the single ingest capturedAt day.
+      ...(typeof r.publishedAt === 'number' ? { publishedAt: r.publishedAt } : {}),
       ...(typeof r.rawSnippet === 'string' ? { rawSnippet: r.rawSnippet } : {}),
       ...(typeof r.rank === 'number' ? { rank: r.rank } : {}),
     }))
@@ -380,6 +565,8 @@ async function main(): Promise<void> {
   const googleUrls = [
     ...new Set(rawRows.map((r) => r.url).filter((u): u is string => !!u && isGoogleNewsArticleUrl(u))),
   ]
+  // Parallelized + time-bounded decode (never stalls a day-roll on Google
+  // decode work that returns null en masse from a region-blocked egress).
   const resolved = googleUrls.length > 0 ? await resolveOriginalArticleUrls(googleUrls) : new Map()
   let googleDecoded = 0
   let googleDropped = 0

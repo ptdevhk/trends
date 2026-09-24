@@ -12,6 +12,10 @@ import {
   HotlistPlatformsDialog,
   type HotlistPlatformsDialogState,
 } from '@/components/research/HotlistPlatformsDialog'
+import {
+  NewsSourcesDialog,
+  type NewsSourcesDialogState,
+} from '@/components/research/NewsSourcesDialog'
 import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
 import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
@@ -125,6 +129,10 @@ type PulseKeywordsResponse = PulseKeywordsDialogState & {
 }
 
 type HotlistPlatformsResponse = HotlistPlatformsDialogState & {
+  success: boolean
+}
+
+type NewsSourcesResponse = NewsSourcesDialogState & {
   success: boolean
 }
 
@@ -247,6 +255,10 @@ export function ResearchIndexPage() {
   const [platformsState, setPlatformsState] = useState<HotlistPlatformsDialogState | null>(null)
   const [platformsDialogOpen, setPlatformsDialogOpen] = useState(false)
   const [platformsSaving, setPlatformsSaving] = useState(false)
+
+  const [newsSourcesState, setNewsSourcesState] = useState<NewsSourcesDialogState | null>(null)
+  const [newsSourcesDialogOpen, setNewsSourcesDialogOpen] = useState(false)
+  const [newsSourcesSaving, setNewsSourcesSaving] = useState(false)
 
   const loadShowcase = useCallback(async () => {
     setShowcaseLoading(true)
@@ -393,13 +405,35 @@ export function ResearchIndexPage() {
     })
   }, [])
 
+  const loadNewsSources = useCallback(async () => {
+    const { data, error: apiError } = await rawApiClient.GET<NewsSourcesResponse>(
+      '/api/research/news-sources',
+    )
+    if (apiError || !data?.success || !data.seed || !Array.isArray(data.effective)) {
+      setNewsSourcesState(null)
+      return
+    }
+    setNewsSourcesState({
+      seed: data.seed,
+      workspace:
+        data.workspace ?? {
+          version: 1,
+          excludedGroups: [],
+          excludedFeeds: [],
+          enabledFeeds: [],
+        },
+      effective: data.effective,
+    })
+  }, [])
+
   useEffect(() => {
     void loadShowcase()
     void loadIndustry()
     void loadPulse()
     void loadKeywords()
     void loadPlatforms()
-  }, [loadShowcase, loadIndustry, loadPulse, loadKeywords, loadPlatforms])
+    void loadNewsSources()
+  }, [loadShowcase, loadIndustry, loadPulse, loadKeywords, loadPlatforms, loadNewsSources])
 
   useEffect(() => {
     if (pulseParam) {
@@ -483,6 +517,35 @@ export function ResearchIndexPage() {
         setPlatformsDialogOpen(false)
       } finally {
         setPlatformsSaving(false)
+      }
+    },
+    [],
+  )
+
+  const handleSaveNewsSources = useCallback(
+    async (body: {
+      masterEnabled?: boolean
+      excludedGroups: string[]
+      excludedFeeds: string[]
+      enabledFeeds: string[]
+    }) => {
+      setNewsSourcesSaving(true)
+      try {
+        const { data, error: apiError } = await rawApiClient.PUT<NewsSourcesResponse>(
+          '/api/research/news-sources',
+          { body },
+        )
+        if (apiError || !data?.success) {
+          return
+        }
+        setNewsSourcesState({
+          seed: data.seed,
+          workspace: data.workspace,
+          effective: data.effective,
+        })
+        setNewsSourcesDialogOpen(false)
+      } finally {
+        setNewsSourcesSaving(false)
       }
     },
     [],
@@ -722,6 +785,26 @@ export function ResearchIndexPage() {
             {t('research.platforms.summary', {
               defaultValue: `数据源 ${platformsState.effective.length}`,
               count: platformsState.effective.length,
+            })}
+          </span>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setNewsSourcesDialogOpen(true)}
+          data-testid="research-news-sources-open"
+        >
+          {t('research.newsSources.open', { defaultValue: '新闻数据源' })}
+        </Button>
+        {newsSourcesState?.effective ? (
+          <span
+            className="text-xs text-muted-foreground"
+            data-testid="research-news-sources-summary"
+          >
+            {t('research.newsSources.summary', {
+              defaultValue: `新闻源 ${newsSourcesState.effective.length}`,
+              count: newsSourcesState.effective.length,
             })}
           </span>
         ) : null}
@@ -1138,6 +1221,14 @@ export function ResearchIndexPage() {
         initial={platformsState}
         saving={platformsSaving}
         onSave={handleSavePlatforms}
+      />
+
+      <NewsSourcesDialog
+        open={newsSourcesDialogOpen}
+        onOpenChange={setNewsSourcesDialogOpen}
+        initial={newsSourcesState}
+        saving={newsSourcesSaving}
+        onSave={handleSaveNewsSources}
       />
 
       {showGoldenSection ? (

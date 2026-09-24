@@ -30,6 +30,11 @@ import {
 } from "../services/research-hotlist-platforms-service.js";
 import { purgeDemoResearchSignals } from "../services/research-demo-purge-service.js";
 import {
+  getNewsSourcesState,
+  putNewsSources,
+  NewsSourcesValidationError,
+} from "../services/research-news-sources-service.js";
+import {
   buildChannelsBriefing,
   ChannelsBriefingValidationError,
   ChannelsPreviewUpstreamError,
@@ -804,6 +809,111 @@ app.openapi(putHotlistPlatformsRoute, async (c) => {
     return c.json({ success: true as const, ...state }, 200);
   } catch (error) {
     if (error instanceof HotlistPlatformsValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
+const NewsSourceGroupSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  feeds: z.array(z.string()),
+});
+
+const NewsSourcesWorkspaceSchema = z.object({
+  version: z.literal(1),
+  masterEnabled: z.boolean().optional(),
+  excludedGroups: z.array(z.string()),
+  excludedFeeds: z.array(z.string()),
+  enabledFeeds: z.array(z.string()),
+});
+
+const NewsSourcesStateSchema = z.object({
+  success: z.literal(true),
+  seed: z.object({
+    version: z.string(),
+    groups: z.array(NewsSourceGroupSchema),
+    catalogIds: z.array(z.string()),
+    defaultGroupIds: z.array(z.string()),
+  }),
+  workspace: NewsSourcesWorkspaceSchema,
+  effective: z.array(z.string()),
+});
+
+const getNewsSourcesRoute = createRoute({
+  method: "get",
+  path: "/api/research/news-sources",
+  tags: ["research"],
+  summary: "Get research news-source catalog, workspace opt-out overlay, and effective ingest set",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: NewsSourcesStateSchema,
+        },
+      },
+      description: "News-sources state",
+    },
+  },
+});
+
+app.openapi(getNewsSourcesRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const state = await getNewsSourcesState(workspaceSlug);
+  return c.json({ success: true as const, ...state }, 200);
+});
+
+const putNewsSourcesRoute = createRoute({
+  method: "put",
+  path: "/api/research/news-sources",
+  tags: ["research"],
+  summary: "Upsert workspace research news-source opt-out overlay (ingest set)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            masterEnabled: z.boolean().optional(),
+            excludedGroups: z.array(z.string()).optional(),
+            excludedFeeds: z.array(z.string()).optional(),
+            enabledFeeds: z.array(z.string()).optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: NewsSourcesStateSchema,
+        },
+      },
+      description: "Updated news-sources state",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(false),
+            error: z.string(),
+          }),
+        },
+      },
+      description: "Validation error",
+    },
+  },
+});
+
+app.openapi(putNewsSourcesRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const body = c.req.valid("json");
+  try {
+    const state = await putNewsSources(workspaceSlug, body);
+    return c.json({ success: true as const, ...state }, 200);
+  } catch (error) {
+    if (error instanceof NewsSourcesValidationError) {
       return c.json({ success: false as const, error: error.message }, 400);
     }
     throw error;

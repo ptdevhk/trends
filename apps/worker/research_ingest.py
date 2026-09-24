@@ -177,7 +177,56 @@ def load_rss_feeds(
             continue
         seen_ids.add(feed["id"])
         feeds.append(feed)
+
+    # Networked opt-in/out: filter catalog feed ids (gnews-*/bing-*) by the workspace
+    # `research.enabledNewsSources` overlay. Non-catalog feeds are untouched.
+    try:
+        feeds = _filter_feeds_by_news_sources(feeds)
+    except Exception as error:  # noqa: BLE001 — fail-open, never fail ingest
+        logger.warning("[ResearchIngest] news-sources overlay filter skipped: %s", error)
     return feeds
+
+
+def _filter_feeds_by_news_sources(feeds: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Drop catalog feed ids not in the effective news-sources set; keep non-catalog.
+
+    Reads the workspace overlay via Convex `workspace_config:get` (no writeSecret).
+    Convex unavailable / no row => seed defaults (all ON). Fail-open.
+    """
+    from apps.worker.research_convex import resolve_convex_url, convex_query
+    from apps.worker.research_news_sources import (
+        catalog_feed_ids,
+        empty_news_sources_workspace,
+        load_news_sources_seed,
+        merge_news_sources,
+        parse_news_sources_workspace,
+    )
+
+    seed = load_news_sources_seed()
+    catalog = set(catalog_feed_ids(seed))
+    workspace = empty_news_sources_workspace()
+    try:
+        ctx_url = resolve_convex_url()
+        if not ctx_url:
+            raise RuntimeError("no convex url")
+        workspace_slug = (os.environ.get("WORKSPACE_SLUG") or "hr").strip() or "hr"
+        row = convex_query(
+            ctx_url,
+            "workspace_config:get",
+            {"workspaceSlug": workspace_slug, "configKey": "research.enabledNewsSources"},
+        )
+        raw = row.get("configValue") if isinstance(row, dict) else None
+        workspace = parse_news_sources_workspace(raw)
+    except Exception as error:  # noqa: BLE001 — Convex down -> all ON
+        workspace = empty_news_sources_workspace()
+        logger.debug("[ResearchIngest] news-sources overlay unavailable; using defaults: %s", error)
+
+    effective = set(merge_news_sources(seed, workspace))
+    filtered = [f for f in feeds if f["id"] not in catalog or f["id"] in effective]
+    dropped = [f["id"] for f in feeds if f["id"] in catalog and f["id"] not in effective]
+    if dropped:
+        logger.info("[ResearchIngest] news-sources opt-out dropped %d catalog feeds: %s", len(dropped), dropped)
+    return filtered
 
 
 class ResearchIngestJob:
@@ -205,7 +254,9 @@ class ResearchIngestJob:
                 )
             else:
                 self.hotlist_port = HttpHotlistPort(base_url=base_url)
-        self.rss_port = rss_port or HttpRssPort()
+        self.rss_port = rss_port or HttpRssPort(
+            socks_proxy=(os.environ.get("RESEARCH_GNEWS_SOCKS_PROXY") or "").strip() or None,
+        )
         self.platforms = list(platforms) if platforms is not None else load_enabled_platforms()
         self.rss_feeds = list(rss_feeds) if rss_feeds is not None else load_rss_feeds()
         self.now_ms: Callable[[], int] = now_ms or (lambda: int(time.time() * 1000))

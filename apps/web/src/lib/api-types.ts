@@ -13323,6 +13323,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/news-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get research news-source catalog, workspace opt-out overlay, and effective ingest set */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description News-sources state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    feeds: string[];
+                                }[];
+                                catalogIds: string[];
+                                defaultGroupIds: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                masterEnabled?: boolean;
+                                excludedGroups: string[];
+                                excludedFeeds: string[];
+                                enabledFeeds: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+            };
+        };
+        /** Upsert workspace research news-source opt-out overlay (ingest set) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        masterEnabled?: boolean;
+                        excludedGroups?: string[];
+                        excludedFeeds?: string[];
+                        enabledFeeds?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated news-sources state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            seed: {
+                                version: string;
+                                groups: {
+                                    id: string;
+                                    label: string;
+                                    feeds: string[];
+                                }[];
+                                catalogIds: string[];
+                                defaultGroupIds: string[];
+                            };
+                            workspace: {
+                                /** @enum {number} */
+                                version: 1;
+                                masterEnabled?: boolean;
+                                excludedGroups: string[];
+                                excludedFeeds: string[];
+                                enabledFeeds: string[];
+                            };
+                            effective: string[];
+                        };
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research/channels-briefing": {
         parameters: {
             query?: never;

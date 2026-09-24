@@ -30,6 +30,11 @@ export type LiveNewsRow = {
   platform: string;
   url?: string;
   capturedAt: number;
+  /** Real article publish time (RSS <pubDate> -> ms), when the source exposes it.
+   *  When present, the report buckets Day1..Day7 by this day; otherwise it
+   *  falls back to capturedAt (ingest time). Carry it so a 7-day window spreads
+   *  CNC news across actual publish days instead of collapsing to the ingest day. */
+  publishedAt?: number;
   rawSnippet?: string;
   /** Platform-native hotlist rank (1 = top), when the source exposes one. */
   rank?: number;
@@ -200,6 +205,26 @@ export function shanghaiDayStartMs(dateYmd: string): number {
   return t;
 }
 
+/**
+ * Calendar day (Asia/Shanghai) a row belongs to.
+ * Prefer the real publish time (`publishedAt`) so a 7-day window spreads news
+ * across its actual publish days even when every row was ingested in one run;
+ * fall back to `capturedAt` (ingest time) when the source carried no date.
+ */
+export function rowDay(row: LiveNewsRow): string {
+  const ms = typeof row.publishedAt === 'number' && Number.isFinite(row.publishedAt)
+    ? row.publishedAt
+    : row.capturedAt;
+  return shanghaiIsoDay(ms);
+}
+
+/** "As-of" timestamp used for sparkline series + recency: publish day when set. */
+export function rowAsOf(row: LiveNewsRow): number {
+  return typeof row.publishedAt === 'number' && Number.isFinite(row.publishedAt)
+    ? row.publishedAt
+    : row.capturedAt;
+}
+
 /** `since` for listRecent: start of (reportDate − (SPARKLINE_DAYS−1)). */
 export function sparklineWindowSinceMs(reportDateYmd: string): number {
   return shanghaiDayStartMs(reportDateYmd) - (SPARKLINE_DAYS - 1) * 86_400_000;
@@ -253,19 +278,23 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     : rows;
 
   // Annotate the full 7d window (caller should pass since=day−6).
+  // day-scoping uses publish day (publishedAt) so a 7d window spreads rows by
+  // their actual publish day, not by a single ingest capturedAt day.
   const windowAnnotated = cnOnlyRows
     .filter((row) => hasRealNewsUrl(row))
-    .filter((row) => shanghaiIsoDay(row.capturedAt) <= reportDate)
+    .filter((row) => rowDay(row) <= reportDate)
     .map((row) => {
       const rawHits = matchKeywords(row, opts.keywords);
       const hits = meaningfulHits(rawHits);
       return { row, hits };
     })
     .filter((x) => x.hits.length > 0)
-    .sort((a, b) => b.row.capturedAt - a.row.capturedAt);
+    .sort((a, b) => rowAsOf(b.row) - rowAsOf(a.row));
 
   // Hero = report calendar day only (honest matched count stays day-scoped).
-  const dayAnnotated = windowAnnotated.filter((x) => shanghaiIsoDay(x.row.capturedAt) === reportDate);
+  // Bucketed by publish day (publishedAt) so a row published today counts today
+  // even though it may have been ingested earlier/later in the same run.
+  const dayAnnotated = windowAnnotated.filter((x) => rowDay(x.row) === reportDate);
   const hotlistMatched = dayAnnotated.filter((x) => isHot(x.row.platform));
 
   // De-dupe across the FULL 7d window so the sections can fill with distinct
@@ -280,10 +309,10 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   });
 
   // Rank: report-day first (cards feel fresh), then hotlist, strong-hit count,
-  // total hits, then recency.
+  // total hits, then recency (as-of time = publish day when set).
   const ranked = [...windowUnique].sort((a, b) => {
-    const dayA = shanghaiIsoDay(a.row.capturedAt) === reportDate ? 1 : 0;
-    const dayB = shanghaiIsoDay(b.row.capturedAt) === reportDate ? 1 : 0;
+    const dayA = rowDay(a.row) === reportDate ? 1 : 0;
+    const dayB = rowDay(b.row) === reportDate ? 1 : 0;
     if (dayA !== dayB) return dayB - dayA;
     const ha = isHot(a.row.platform) ? 1 : 0;
     const hb = isHot(b.row.platform) ? 1 : 0;
@@ -292,7 +321,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     const sb = b.hits.filter((h) => isStrongKeyword(h)).length;
     if (sa !== sb) return sb - sa;
     if (a.hits.length !== b.hits.length) return b.hits.length - a.hits.length;
-    return b.row.capturedAt - a.row.capturedAt;
+    return rowAsOf(b.row) - rowAsOf(a.row);
   });
 
   // Carve SECTIONS from one ranked pool so 今日商机 cards, 今日趋势 rows and
@@ -324,7 +353,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       label: shortLabel(row.title),
       heat: heatFor(row, hits),
       growth: String(platformCount(row.platform)),
-      started: shanghaiIsoDay(row.capturedAt),
+      started: rowDay(row),
       // 7-point series from the full window (Day1…Day7).
       sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
       chips,
@@ -449,7 +478,7 @@ function dailySeries(rows: LiveNewsRow[], reportDate: string): number[] {
   const endStart = shanghaiDayStartMs(reportDate);
   const out = new Array(days).fill(0);
   for (const row of rows) {
-    const day = shanghaiIsoDay(row.capturedAt);
+    const day = rowDay(row);
     const dayStart = shanghaiDayStartMs(day);
     const idx = days - 1 - Math.round((endStart - dayStart) / 86_400_000);
     if (idx >= 0 && idx < days) out[idx] += 1;

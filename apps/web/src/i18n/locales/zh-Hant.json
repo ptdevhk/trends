@@ -3186,7 +3186,15 @@
     "tabBrand": "品牌動態",
     "tabHotlist": "綜合熱榜",
     "signalCountBadge": "{{count}} 條訊號",
-    "seedMeta": "種子 id: {{id}}"
+    "seedMeta": "種子 id: {{id}}",
+    "newsSources": {
+      "open": "新聞數據源",
+      "summary": "新聞源 {{count}}",
+      "dialogTitle": "新聞數據源",
+      "dialogDescription": "管理 CNC/機床新聞數據源（預設全部開啟）。可按主開關、按組或按單一來源關閉。",
+      "master": "啟用 CNC/機床新聞數據源",
+      "activeCount": "已啟用 {{count}} 個數據源"
+    }
   },
   "publicShare": {
     "queryAria": "共享快照查詢",

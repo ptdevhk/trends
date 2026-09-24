@@ -3186,7 +3186,15 @@
     "tabBrand": "Brand pulse",
     "tabHotlist": "Hotlist",
     "signalCountBadge": "{{count}} signals",
-    "seedMeta": "Seed id: {{id}}"
+    "seedMeta": "Seed id: {{id}}",
+    "newsSources": {
+      "open": "News sources",
+      "summary": "News sources {{count}}",
+      "dialogTitle": "News Sources",
+      "dialogDescription": "Manage CNC / machine-tool news sources (all on by default). Turn off the whole set, per group, or per single source.",
+      "master": "Enable CNC / machine-tool news sources",
+      "activeCount": "{{count}} sources enabled"
+    }
   },
   "publicShare": {
     "queryAria": "Shared snapshot query",

@@ -1,0 +1,150 @@
+# Research news-source seed catalog (opt-in/out).
+#
+# SSOT for groups -> feed ids. Feed ids MUST already exist in config/config.yaml
+# rss.feeds (urls live there, never duplicated here). Overlay filters catalog ids only;
+# non-catalog feeds (hacker-news, ruanyifeng, mp-connector) keep config.yaml enabled only.
+#
+# Default-ON / opt-out: defaults.groups = full group list. Empty workspace overlay
+# (masterEnabled true) -> every group ON.
+version: v1
+
+groups:
+  - id: cnc-core
+    label: 工业母机/工艺
+    feeds:
+      - gnews-cnc-core-process
+      - gnews-gongyemuji
+      - bing-gongyemuji
+      - gnews-cnc-machine
+      - gnews-cnc-turning
+      - gnews-shukongxitong
+      - gnews-shukongzhuantai
+      - gnews-wuzhou-liandong
+      - gnews-longmenxi
+      - gnews-chexifuhe
+      - gnews-zuangong
+      - gnews-zouxinji
+      - bing-chexifuhe
+      - bing-shukong-chechuang
+      - bing-shukong-xichuang
+      - bing-chechuang
+      - bing-wuzhou
+
+  - id: components
+    label: 主轴/丝杠/刀库/伺服
+    feeds:
+      - gnews-zhuzhou-jichuang
+      - gnews-dianzhuzhou
+      - gnews-daoku
+      - gnews-sigang
+      - gnews-daogui-jichuang
+      - gnews-sifudianji
+      - gnews-jiansuji
+      - gnews-jiansuqi-jichuang
+      - gnews-shukong-daoju
+      - bing-jiansuji
+      - bing-sigang
+
+  - id: edm
+    label: 电火花/线切割
+    feeds:
+      - gnews-dianhuohua
+      - gnews-xianqiege
+      - gnews-manzousi
+      - bing-dianhuohua
+      - bing-xianqiege
+
+  - id: laser
+    label: 激光加工
+    feeds:
+      - gnews-jiguang-qiege
+      - gnews-jiguang-hanjie
+      - gnews-cnc-laser
+      - bing-jiguang-qiege
+
+  - id: wirecut
+    label: 线切割/走丝
+    feeds:
+      - gnews-cnc-wirecut
+
+  - id: market
+    label: 行情/行情与商机
+    feeds:
+      - gnews-jichuang-chukou
+      - gnews-jichuang-caigou
+      - gnews-jichuang-zhongbiao
+      - gnews-shukong-chukou
+      - gnews-cnc-market
+      - gnews-guochantidai
+      - gnews-cnc-machines-export
+      - bing-jichuang-caigou
+      - bing-jichuang-chukou
+      - bing-guochantidai
+
+  - id: automation
+    label: 智能制造/自动化
+    feeds:
+      - gnews-cnc-automation
+      - gnews-rouxingzhzao
+      - gnews-robot-cnc
+      - gnews-cnc-gantry
+      - bing-cnc-machine
+      - gnews-cnc-systems
+
+  - id: mould-diecast
+    label: 模具/压铸/注塑
+    feeds:
+      - gnews-muju-qiche
+      - gnews-chongya
+      - gnews-duanya
+      - gnews-cnc-mould
+      - gnews-diecast
+      - gnews-yazhuji
+      - gnews-zhusuji
+      - bing-muju
+      - bing-chongya
+      - bing-zhusuji
+
+  - id: hiring-sales
+    label: 招聘与商机
+    feeds:
+      - gnews-cnc-hiring
+      - gnews-fanuc-hire
+
+  - id: brands
+    label: 重点品牌
+    feeds:
+      - gnews-fanuc-cn
+      - gnews-fanuc-en
+      - gnews-mazak-cn
+      - gnews-makino-cn
+      - gnews-genesis
+      - gnews-qiaofeng
+      - gnews-haitianjinggong
+      - gnews-chuangshiji
+      - gnews-kede
+      - gnews-guosheng
+      - gnews-niupi
+      - gnews-huaizhong
+      - gnews-guangzhou
+      - gnews-shenyang
+      - gnews-qinchuan
+      - gnews-rifa
+      - gnews-jinan
+      - gnews-xinghuo
+      - gnews-baoji
+      - gnews-cnc-brand-more
+      - bing-haitian
+
+defaults:
+  groups:
+    - cnc-core
+    - components
+    - edm
+    - laser
+    - wirecut
+    - market
+    - automation
+    - mould-diecast
+    - hiring-sales
+    - brands

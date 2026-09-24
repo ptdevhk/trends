@@ -476,4 +476,60 @@ describe('buildLivePack', () => {
       expect(s.title).not.toMatch(/FANUC CNC|machine tool index/i)
     }
   })
+
+  it('buckets rows into the report day by publishedAt (real publish day), not capturedAt', () => {
+    // All three rows share one ingest capturedAt=report day, but their REAL
+    // publish dates are 09-21, 09-22, and 09-23. Only the 09-23 row counts
+    // toward the 09-23 report; the older ones are window (sparkline) hits.
+    const report = Date.UTC(2026, 8, 23, 8, 0, 0)   // 2026-09-23 report day
+    const ingestToday = Date.UTC(2026, 8, 23, 6, 0, 0)
+    const rows = [
+      row({ title: '今日数控机床投产', platform: 'weibo', url: 'https://a/t1', capturedAt: ingestToday, publishedAt: Date.UTC(2026, 8, 23, 10, 0, 0) }),
+      row({ title: '昨日机床扩产', platform: 'weibo', url: 'https://a/t2', capturedAt: ingestToday, publishedAt: Date.UTC(2026, 8, 22, 10, 0, 0) }),
+      row({ title: '前日五轴数控出口', platform: 'weibo', url: 'https://a/t3', capturedAt: ingestToday, publishedAt: Date.UTC(2026, 8, 21, 10, 0, 0) }),
+    ]
+    const res = buildLivePack(rows, { date: '2026-09-23', generatedAt: 'x', keywords: ['数控', '机床'] })
+    // report day = only the publishedAt-09-23 row
+    expect(res.counts.matched).toBe(1)
+    // matched titles all inside the 7d window
+    expect(res.counts.windowMatched).toBe(3)
+    // hero shows report-day count (honest), not the collapsed ingest-day total
+    expect(res.pack.hero.value).toBe('1')
+    // surfacing respects publish day: the 09-22/09-21 rows keep their own started day
+    // (they are ranked as window items, not report-day) — every surfaced item has a
+    // started no later than its real publish day, and the two older ones are NOT 09-23.
+    const startedDays = res.pack.opportunities.map((o) => o.started)
+    expect(startedDays).toContain('2026-09-23') // the report-day row is surfaced
+    expect(startedDays.some((d) => d === '2026-09-21' || d === '2026-09-22')).toBe(true)
+    // no surfaced item is stamped after the window head
+    for (const sd of startedDays) {
+      expect(sd <= '2026-09-23').toBe(true)
+    }
+  })
+
+  it('sparkline spreads rows by publishedAt across Day1..Day7 (no single-day spike)', () => {
+    const report = Date.UTC(2026, 8, 23, 8, 0, 0)
+    const ingestToday = Date.UTC(2026, 8, 23, 6, 0, 0)
+    const titles = ['数控A', '数控B', '数控C', '数控D', '数控E', '数控F', '数控G']
+    const rows = titles.map((t, i) =>
+      row({
+        title: t,
+        platform: 'weibo',
+        url: `https://a/${i}`,
+        capturedAt: ingestToday, // all ingested same day (single ingest run)
+        publishedAt: Date.UTC(2026, 8, 23 - (6 - (i % 7)), 10, 0, 0), // spread over 7 publish days
+      }),
+    )
+    const res = buildLivePack(rows, { date: '2026-09-23', generatedAt: 'x', keywords: ['数控'] })
+    // sparkline = per-publish-day count over 7 days; each Day1..Day7 has >=1 (7 distinct publish days)
+    const spark = res.pack.hero.sparkline
+    expect(spark).toHaveLength(7)
+    for (const v of spark) {
+      expect(v).toBeGreaterThan(0)
+    }
+    // and NOT a single-day spike (the old capturedAt collapse would put all 7 on Day7)
+    const max = Math.max(...spark)
+    const min = Math.min(...spark)
+    expect(max - min).toBeLessThanOrEqual(1)
+  })
 })
