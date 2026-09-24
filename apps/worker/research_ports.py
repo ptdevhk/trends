@@ -377,6 +377,9 @@ class HttpRssPort:
     # (RESEARCH_GNEWS_SOCKS_PROXY, e.g. socks5h://127.0.0.1:1081). Enables the
     # gnews-* feeds through a ptcloud ssh -D tunnel whose egress Google allows.
     socks_proxy: Optional[str] = None
+    # Optional publish-age gate (days): drops RSS items whose real publishedAt is
+    # older than this many days (evergreen SEO 深度报告 guard). None = no gate.
+    max_age_days: Optional[int] = None
 
     def fetch(self, feed_id: str, feed_url: str, captured_at: int) -> List[NormalizedNewsItem]:
         body = self._get_with_retries(feed_url)
@@ -387,10 +390,26 @@ class HttpRssPort:
             body,
             captured_at,
             max_items=self.max_items_per_feed,
+            max_age_days=self.max_age_days,
         )
 
-    def _opener(self):
-        if self.socks_proxy:
+    def _normalized_items_with_proxy(self, feed_id: str, feed_url: str, captured_at: int) -> List[NormalizedNewsItem]:
+        """Like fetch, but with this port's socks_proxy applied per-call (used by
+        the ingest for the gnews-* feeds whose egress must clear Google's 503)."""
+        body = self._get_with_retries(feed_url, force_socks=True)
+        if not body:
+            return []
+        return parse_rss_xml(
+            feed_id,
+            body,
+            captured_at,
+            max_items=self.max_items_per_feed,
+            max_age_days=self.max_age_days,
+        )
+
+    def _opener(self, force_socks: bool = False):
+        use_socks = force_socks or bool(self.socks_proxy)
+        if use_socks:
             try:
                 import socks  # PySocks
 
@@ -404,20 +423,23 @@ class HttpRssPort:
                 return build_opener()
         return build_opener()
 
-    def _get_with_retries(self, url: str) -> Optional[str]:
+    def _get_with_retries(self, url: str, force_socks: bool = False) -> Optional[str]:
         last_error: Optional[Exception] = None
-        opener = self._opener()
-        for attempt in range(self.max_retries + 1):
-            try:
-                request = Request(
-                    url,
-                    headers={"Accept": "application/rss+xml, application/xml, text/xml", "User-Agent": "trends-research-ingest/1.0"},
-                )
-                with opener.open(request, timeout=self.timeout_seconds) as response:
-                    return response.read().decode("utf-8", errors="replace")
-            except (HTTPError, URLError, TimeoutError, OSError) as error:
-                last_error = error
-                logger.warning("RSS fetch attempt %s failed for %s: %s", attempt + 1, url, error)
+        # Try the socks egress first (best-effort), then fall back to the direct
+        # opener so a flaky/unreachable tunnel never hard-fails the feed.
+        for use_socks in ([True] if force_socks or self.socks_proxy else [False]):
+            opener = self._opener(force_socks=use_socks)
+            for attempt in range(self.max_retries + 1):
+                try:
+                    request = Request(
+                        url,
+                        headers={"Accept": "application/rss+xml, application/xml, text/xml", "User-Agent": "trends-research-ingest/1.0"},
+                    )
+                    with opener.open(request, timeout=self.timeout_seconds) as response:
+                        return response.read().decode("utf-8", errors="replace")
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    last_error = error
+                    logger.warning("RSS fetch attempt %s failed for %s: %s", attempt + 1, url, error)
         if last_error:
             logger.error("RSS fetch exhausted retries for %s: %s", url, last_error)
         return None
@@ -450,11 +472,14 @@ def parse_rss_xml(
     xml_text: str,
     captured_at: int,
     max_items: Optional[int] = DEFAULT_RSS_MAX_ITEMS_PER_FEED,
+    max_age_days: Optional[int] = None,
 ) -> List[NormalizedNewsItem]:
     """Minimal RSS 2.0 item parser for thin-port ingest.
 
     max_items caps how many channel items we keep (feed order). None = no cap.
     Default keeps brand gnews packs from flooding Convex upserts / listRecent.
+    max_age_days (optional per-feed) drops items whose real publishedAt is older
+    than that many days from `captured_at` (guards evergreen SEO rows).
     """
     try:
         root = ET.fromstring(xml_text)
@@ -483,6 +508,14 @@ def parse_rss_xml(
         # is the real article publish time; the daily report buckets Day1..Day7 by
         # it (not capturedAt/ingest time) so a 7-day window spreads news by day.
         published_ms = _parse_published_ms(node)
+        # Ingest-side publish-age gate: drop evergreen SEO 深度报告/市场分析
+        # rows whose real publish date is older than max_age_days from now
+        # (预见2023/2024… leak). `captured_at` is always recent; a row whose real
+        # publishedAt is older than the gate is stale and would otherwise flood a
+        # thin daily-report day's surfaced slots.
+        if max_age_days is not None and published_ms is not None:
+            if published_ms < captured_at - max_age_days * 86_400_000:
+                continue
         content_hash = stable_content_hash(
             platform=f"rss:{feed_id}",
             title=title,

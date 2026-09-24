@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button'
 
 const STATIC_DAILY_BASE = '/daily'
 const WINDOW_DAYS = 7
+/** Max time an in-app rebuild may take before the SPA stops waiting (worker build is slow). */
+const REBUILD_TIMEOUT_MS = 6 * 60 * 1000
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'include' })
@@ -50,6 +52,29 @@ async function fetchPack(date: string): Promise<DailyReportPack> {
   }
 }
 
+/**
+ * Re-trigger the daily-report build for `date` (force) so a mid-day re-run
+ * reflects fetch-time Convex — surfaces items that landed after the last build
+ * (esp. when a thin 沿用 day was frozen on an earlier Google-503 pass).
+ * BFF proxies this to the worker's `POST /worker/research/daily-report {date,force}`.
+ */
+async function triggerDailyReportRebuild(date: string): Promise<void> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), REBUILD_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${STATIC_DAILY_BASE}/rebuild`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, force: true }),
+      signal: ctrl.signal,
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status} for daily rebuild`)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Trigger a browser download of the self-contained daily HTML blob. */
 export function downloadDailyReportBundle(html: string, date: string): void {
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
@@ -72,6 +97,8 @@ export default function ResearchDailyPage() {
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [titleDate, setTitleDate] = useState<string | null>(null)
+  const [rebuilding, setRebuilding] = useState(false)
+  const [rebuilt, setRebuilt] = useState(false)
   const hubHref = `/${slug || 'hr'}/research`
   const shanghaiToday = useMemo(() => shanghaiTodayYmd(), [])
 
@@ -98,6 +125,27 @@ export default function ResearchDailyPage() {
     }
   }, [date, shanghaiToday, t])
 
+  // Rebuild the report at fetch-time (force) so a mid-day re-run surfaces items
+  // that landed after the last build (thin 沿用 day). Then refetch the pack+HTML.
+  const onRebuild = useCallback(async () => {
+    const target = date || shanghaiToday
+    setRebuilding(true)
+    setRebuilt(false)
+    try {
+      await triggerDailyReportRebuild(target)
+      const fetched = await fetchPack(target)
+      const shareable = await fetchText(`${STATIC_DAILY_BASE}/${fetched.date}.html`)
+      setPack(fetched)
+      setTitleDate(fetched.date)
+      setHtml(shareable)
+      setRebuilt(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRebuilding(false)
+    }
+  }, [date, shanghaiToday])
+
   const dayDates = useMemo<string[]>(() => {
     if (pack?.hero?.dayDates && pack.hero.dayDates.length > 0) {
       return pack.hero.dayDates
@@ -117,19 +165,44 @@ export default function ResearchDailyPage() {
         <Link to={hubHref} className="underline" data-testid="research-daily-back">
           {t('research.daily.back', { defaultValue: '← 返回市场动态' })}
         </Link>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!html}
-          onClick={onDownload}
-          data-testid="research-daily-download"
-          title={t('research.daily.downloadBundleHint', {
-            defaultValue: '单文件可转发（真实封面已嵌进 SVG）',
-          })}
-        >
-          {t('research.daily.downloadBundle', { defaultValue: '下载完整 HTML' })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={rebuilding}
+            onClick={onRebuild}
+            data-testid="research-daily-rebuild"
+            title={t('research.daily.rebuildHint', {
+              defaultValue: '以當前實時數據重新生成今日報告（可在一天內多次觸發）',
+            })}
+          >
+            {rebuilding
+              ? t('research.daily.rebuilding', { defaultValue: '生成中…' })
+              : t('research.daily.rebuild', { defaultValue: '重新生成今日' })}
+          </Button>
+          {rebuilt && (
+            <span
+              className="text-xs text-emerald-600"
+              data-testid="research-daily-rebuilt"
+            >
+              {t('research.daily.rebuilt', { defaultValue: '已重新生成' })}
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!html}
+            onClick={onDownload}
+            data-testid="research-daily-download"
+            title={t('research.daily.downloadBundleHint', {
+              defaultValue: '單檔案可轉發（真實封面已嵌進 SVG）',
+            })}
+          >
+            {t('research.daily.downloadBundle', { defaultValue: '下載完整 HTML' })}
+          </Button>
+        </div>
       </div>
       <DayNav
         dates={dayDates}

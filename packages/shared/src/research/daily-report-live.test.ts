@@ -266,6 +266,36 @@ describe('buildLivePack', () => {
     expect(paired.pack.opportunities[0].chips).toContain('数控')
   })
 
+  it('drops rows with a publish-day older than the rolling window (evergreen 深度报告 leak)', () => {
+    // capturedAt = NOW (ingested today); publishedAt = 2023 — the row is old
+    // "预见2023/2024 全景图谱" SEO content and must NOT surface on a 2026 report.
+    const old = buildLivePack(
+      [
+        row({
+          title: '预见2023:2023年中国数控机床市场供需及发展前景',
+          platform: 'rss:bing-guochantidai',
+          url: 'https://old.example/1',
+          publishedAt: Date.parse('2023-06-08T00:00:00Z'),
+        }),
+        // a fresh in-window row must still surface
+        row({
+          title: '国产数控机床订单创新高',
+          platform: 'weibo',
+          url: 'https://fresh.example/1',
+        }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    // only the fresh row is in-window → matched=1, no 预见 surfaced
+    expect(old.counts.matched).toBe(1)
+    const surfaced = [
+      ...old.pack.opportunities.map((o) => o.label),
+      ...old.pack.stories.map((s) => s.title),
+    ].join(' ')
+    expect(surfaced).not.toContain('预见2023')
+    expect(surfaced).toContain('订单创新高')
+  })
+
   it('emits a 7-point sparkline per item', () => {
     expect(result.pack.opportunities[0].sparkline).toHaveLength(7)
     expect(result.pack.hero.sparkline).toHaveLength(7)
@@ -407,11 +437,11 @@ describe('buildLivePack', () => {
     expect(many.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
   })
 
-  it('window-fallback fills the table when the report day alone is thin', () => {
+  it('window-fallback does NOT pad the surfaced sections on a thin report day (no prior-day echo)', () => {
     const prior = Date.UTC(2026, 8, 20, 8, 0, 0) // 2026-09-20
     const windowed = buildLivePack(
       [
-        // only ONE report-day match, but 5 prior-window matches on distinct titles
+        // only ONE report-day match, plus 4 prior-window matches (different days)
         row({ title: '今日数控机床成交', platform: 'weibo', url: 'https://a/today' }),
         row({ title: '昨日机床扩产', platform: 'weibo', url: 'https://a/p1', capturedAt: prior }),
         row({ title: '前日五轴数控出口', platform: 'weibo', url: 'https://a/p2', capturedAt: prior }),
@@ -423,11 +453,14 @@ describe('buildLivePack', () => {
     // hero stays report-day-only (honest)
     expect(windowed.pack.hero.value).toBe('1')
     expect(windowed.counts.matched).toBe(1)
-    // 1 report-day + 4 prior-window distinct matches
+    // 5 distinct matches across the window, but the report day contributes just 1
     expect(windowed.counts.windowMatched).toBe(5)
-    // but the table fills from the window so the page isn't a single echo
-    expect(windowed.counts.items).toBeGreaterThanOrEqual(HYBRID_MIN_ITEMS)
-    expect(windowed.pack.opportunities.length).toBeGreaterThanOrEqual(4)
+    // surfaced sections come from the report day ONLY — no prior-day echo into today
+    expect(windowed.pack.opportunities.length).toBe(1)
+    for (const o of windowed.pack.opportunities) {
+      expect(o.label).toContain('今日')
+    }
+    expect(windowed.pack.stories.length).toBe(0)
   })
 
   it('marks source live (real data)', () => {
@@ -495,12 +528,12 @@ describe('buildLivePack', () => {
     expect(res.counts.windowMatched).toBe(3)
     // hero shows report-day count (honest), not the collapsed ingest-day total
     expect(res.pack.hero.value).toBe('1')
-    // surfacing respects publish day: the 09-22/09-21 rows keep their own started day
-    // (they are ranked as window items, not report-day) — every surfaced item has a
-    // started no later than its real publish day, and the two older ones are NOT 09-23.
+    // surfacing respects publish day: only the 09-23 report-day row is surfaced;
+    // the 09-21/09-22 rows are window-sparkline hits only, NOT surfaced (so today's
+    // report never echoes prior-day news).
     const startedDays = res.pack.opportunities.map((o) => o.started)
-    expect(startedDays).toContain('2026-09-23') // the report-day row is surfaced
-    expect(startedDays.some((d) => d === '2026-09-21' || d === '2026-09-22')).toBe(true)
+    expect(startedDays).toEqual(['2026-09-23'])
+    expect(res.pack.stories.length).toBe(0)
     // no surfaced item is stamped after the window head
     for (const sd of startedDays) {
       expect(sd <= '2026-09-23').toBe(true)

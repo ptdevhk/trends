@@ -280,9 +280,18 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   // Annotate the full 7d window (caller should pass since=day−6).
   // day-scoping uses publish day (publishedAt) so a 7d window spreads rows by
   // their actual publish day, not by a single ingest capturedAt day.
+  // Eligibility = publish day within [Day1, reportDate] (lower bound). Old
+  // evergreen 深度报告/市场分析 rows (publishedAt 2023/2024/2025) are ingested
+  // at `capturedAt` now but belong to years ago; without a lower bound they
+  // flood a thin report day's surfaced slots (预见2023/2024… leak). Fall back
+  // to capturedAt (always recent) when the row carried no publish date.
+  const windowDay1 = sparklineDayDates(reportDate)[0];
   const windowAnnotated = cnOnlyRows
     .filter((row) => hasRealNewsUrl(row))
-    .filter((row) => rowDay(row) <= reportDate)
+    .filter((row) => {
+      const day = rowDay(row);
+      return day >= windowDay1 && day <= reportDate;
+    })
     .map((row) => {
       const rawHits = matchKeywords(row, opts.keywords);
       const hits = meaningfulHits(rawHits);
@@ -331,7 +340,17 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   const maxStories = opts.maxStories ?? 6; // 热闻 stories (raised 3 → 6)
   const oppCount = Math.min(maxOpp + maxRows, ranked.length);
 
-  // Growth = this platform's matched-title count on the report day.
+  // SURFACE ELIGIBILITY (Option A — honest sparse thin day): when the report day
+  // itself has no matched items, do NOT pad the surfaced 商机/热闻 sections from
+  // earlier window days. A thin/empty day should surface only its OWN same-day
+  // items (even if that's 0) so today's report never re-renders yesterday's news
+  // as if it were today's. (The evergreen publish-age cutoff in windowAnnotated
+  // already removed 2023/2024 SEO rows; this removes the 09-20…09-23 window fill.)
+  const daySurfacePool =
+    dayAnnotated.length > 0
+      ? ranked.filter((x) => rowDay(x.row) === reportDate)
+      : [];
+
   const platformCount = (platform: string): number =>
     dayAnnotated.filter((a) => a.row.platform === platform).length;
 
@@ -348,39 +367,54 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     const kind = kindForPlatform(row.platform);
     const chips = hits.slice(0, 3);
     const href = row.url!.trim();
-    return {
-      kind,
-      label: shortLabel(row.title),
-      heat: heatFor(row, hits),
-      growth: String(platformCount(row.platform)),
-      started: rowDay(row),
-      // 7-point series from the full window (Day1…Day7).
-      sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
-      chips,
-      href,
-      imageUrl: buildDailyReportThumbDataUri({ title: row.title, kind, chips }),
-      ...(row.rawSnippet ? { snippet: row.rawSnippet.slice(0, 120) } : {}),
-    };
+    return toOpportunityWith({ row, hits, kind, chips, href });
   };
 
-  // 商机 opportunities pool = top distinct items up to maxOpp+maxRows. The
-  // renderer splits this into cards (first maxOpp) + trend rows (the rest) so
-  // even when a day is thin the window fills the table, and stories are carved
-  // from the REMAINING distinct items (never a repeat of a card or a row).
-  const opportunities = ranked.slice(0, oppCount).map(toOpportunity);
-
-  const stories: DailyStory[] = ranked.slice(oppCount, oppCount + maxStories).map((x) => {
-    const chips = x.hits.slice(0, 2);
-    return {
-      title: shortLabel(x.row.title),
-      href: x.row.url!.trim(),
-      imageUrl: buildDailyReportThumbDataUri({
-        title: x.row.title,
-        kind: 'story',
-        chips,
-      }),
-    };
+  const toOpportunityWith = ({
+    row,
+    hits,
+    kind,
+    chips,
+    href,
+  }: {
+    row: LiveNewsRow
+    hits: string[]
+    kind: OpportunityKind
+    chips: string[]
+    href: string
+  }): DailyOpportunity => ({
+    kind,
+    label: shortLabel(row.title),
+    heat: heatFor(row, hits),
+    growth: String(platformCount(row.platform)),
+    started: rowDay(row),
+    // 7-point series from the full window (Day1…Day7).
+    sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
+    chips,
+    href,
+    imageUrl: buildDailyReportThumbDataUri({ title: row.title, kind, chips }),
+    ...(row.rawSnippet ? { snippet: row.rawSnippet.slice(0, 120) } : {}),
   });
+
+  // Carve 商机 opportunities (cards + trend rows) and 热闻 stories from the
+  // report-day surface pool (daySurfacePool) — always disjoint, and never
+  // window-padding a thin report day (empty pool when no same-day match).
+  const opportunities = daySurfacePool.slice(0, oppCount).map(toOpportunity);
+
+  const stories: DailyStory[] = daySurfacePool
+    .slice(oppCount, oppCount + maxStories)
+    .map((x) => {
+      const chips = x.hits.slice(0, 2);
+      return {
+        title: shortLabel(x.row.title),
+        href: x.row.url!.trim(),
+        imageUrl: buildDailyReportThumbDataUri({
+          title: x.row.title,
+          kind: 'story',
+          chips,
+        }),
+      };
+    });
 
   const matchedCount = dayAnnotated.length;
   const windowMatched = windowAnnotated.length;

@@ -165,7 +165,11 @@ def load_rss_feeds(
         feed_id = source.get("id")
         url = source.get("url")
         if feed_id and url:
-            feeds.append({"id": str(feed_id), "url": str(url)})
+            entry: Dict[str, Any] = {"id": str(feed_id), "url": str(url)}
+            mad = source.get("max_age_days")
+            if isinstance(mad, (int, float)) and mad:
+                entry["max_age_days"] = int(mad)
+            feeds.append(entry)
 
     # Opt-in mp connector feeds merge AFTER config.yaml rss.feeds. The shipped
     # catalog has every plugin disabled (and every url empty), so the default
@@ -298,7 +302,34 @@ class ResearchIngestJob:
 
             for feed in self.rss_feeds:
                 try:
-                    items = self.rss_port.fetch(feed["id"], feed["url"], started_at)
+                    # Per-feed publish-age gate (max_age_days from config rss.feeds):
+                    # dropped at Fetch so evergreen SEO rows never reach Convex.
+                    feed_max_age = feed.get("max_age_days")
+                    feed_max_age_int = (
+                        int(feed_max_age) if isinstance(feed_max_age, (int, float)) and feed_max_age else None
+                    )
+                    # Route gnews-* feeds through the socks tunnel so Google's
+                    # 503-region block doesn't drop today's real items at ingest.
+                    feed_id = feed["id"]
+                    use_socks = str(feed_id).startswith("gnews-")
+                    items = self.rss_port.fetch(
+                        feed_id,
+                        feed["url"],
+                        started_at,
+                    ) if not use_socks else self.rss_port._normalized_items_with_proxy(
+                        feed_id,
+                        feed["url"],
+                        started_at,
+                    )
+                    if feed_max_age_int is not None:
+                        items = [
+                            it
+                            for it in items
+                            if not (
+                                it.published_at is not None
+                                and it.published_at < started_at - feed_max_age_int * 86_400_000
+                            )
+                        ]
                     collected.extend(items)
                 except Exception as error:  # noqa: BLE001 — soft-fail per feed
                     logger.warning(

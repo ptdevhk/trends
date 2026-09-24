@@ -126,4 +126,37 @@ app.get("/daily/:file", async (c) => {
   });
 });
 
+/**
+ * POST /daily/rebuild — re-trigger the daily-report build for a date (force)
+ * so a mid-day re-run reflects fetch-time Convex. Proxies to the worker's
+ * `POST /worker/research/daily-report {date, force}` (the SPA 重新生成今日 button).
+ * Returns the worker's trigger response, or 502 if the worker is unreachable.
+ */
+app.post("/daily/rebuild", async (c) => {
+  const { date } = (await c.req.json().catch(() => ({}))) as { date?: string };
+  if (!date || !DATE_RE.test(date)) {
+    return c.json({ success: false as const, error: "date (YYYY-MM-DD) required" }, 400);
+  }
+
+  const workerUrl = (process.env.WORKER_BASE_URL || "").replace(/\/$/, "");
+  if (!workerUrl) {
+    return c.json({ success: false as const, error: "WORKER_BASE_URL not configured" }, 500);
+  }
+
+  try {
+    const res = await fetch(`${workerUrl}/worker/research/daily-report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, force: true }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as unknown;
+    if (!res.ok) {
+      return c.json({ success: false as const, error: "worker rebuild failed" }, 502);
+    }
+    return c.json({ success: true as const, ...(payload as object) });
+  } catch {
+    return c.json({ success: false as const, error: "worker unreachable" }, 502);
+  }
+});
+
 export default app;

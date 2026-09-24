@@ -242,3 +242,21 @@ def test_newsnow_port_uses_proxy_handler_when_proxy_url_set(monkeypatch):
     assert any(isinstance(h, ProxyHandler) for h in seen["handlers"])
     assert "id=weibo" in seen["opened_url"]
     assert seen["opened_url"].startswith("https://alt.example/api/s")
+
+
+def test_parse_rss_max_age_drops_old_published():
+    """Evergreen rows with a real publishedAt older than max_age_days are dropped."""
+    from apps.worker.research_ports import parse_rss_xml
+    xml = """<?xml version="1.0"?><rss version="2.0"><channel>
+      <item><title>预见2023数控机床市场报告</title><link>https://x/1</link>
+        <pubDate>Tue, 08 Jun 2023 00:00:00 GMT</pubDate>
+        <description>old evergreen</description></item>
+      <item><title>2026数控机床订单创新高</title><link>https://x/2</link>
+        <pubDate>Tue, 22 Sep 2026 00:00:00 GMT</pubDate>
+        <description>fresh</description></item>
+    </channel></rss>"""
+    captured_at = int(__import__("time").time() * 1000)
+    items = parse_rss_xml("bing-guochantidai", xml, captured_at=captured_at, max_age_days=7)
+    titles = [i.title for i in items]
+    assert "2023数控机床市场报告" not in "".join(titles)
+    assert "2026数控机床订单创新高" in "".join(titles)
