@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>销售日报 · UI 改版 Demo（精密仪表方向）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23161d26%22%2F%3E%3Cpath%20d%3D%22M8%2022%20L16%208%20L24%2022%22%20stroke%3D%22%23e8a33d%22%20stroke-width%3D%223%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%228%22%20r%3D%222%22%20fill%3D%22%23e8a33d%22%2F%3E%3C%2Fsvg%3E">
+<style>
+  /* ============ 设计令牌 Design tokens ============ */
+  :root{
+    --bg:#0e141b;
+    --panel:#161d26;
+    --panel2:#1b2430;
+    --panel3:#202b38;
+    --line:#26313e;
+    --line2:#35424f;
+    --ink:#e7edf4;
+    --ink2:#9aa8b6;
+    --ink3:#687583;
+    --amber:#e8a33d;
+    --amber-soft:rgba(232,163,61,.13);
+    --amber-line:rgba(232,163,61,.42);
+    --pos:#47c07c;
+    --neg:#e0655a;
+    --sans:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Consolas,"Cascadia Mono","Liberation Mono",Menlo,monospace;
+    --maxw:1040px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 520px at 18% -8%, rgba(232,163,61,.07), transparent 62%),
+      repeating-linear-gradient(0deg, rgba(122,142,162,.035) 0 1px, transparent 1px 48px),
+      repeating-linear-gradient(90deg, rgba(122,142,162,.035) 0 1px, transparent 1px 48px),
+      var(--bg);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(232,163,61,.35);}
+  .app{max-width:var(--maxw);margin:0 auto;padding:0 20px 60px;}
+  button{font-family:inherit;cursor:pointer;}
+
+  /* ============ 顶栏 Top bar ============ */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:18px;
+    padding:12px 0;margin-bottom:28px;
+    background:linear-gradient(var(--bg), rgba(14,20,27,.88));
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;}
+  .logo{
+    width:36px;height:36px;flex:none;display:grid;place-items:center;
+    border:1px solid var(--line2);border-radius:8px;
+    background:linear-gradient(160deg,var(--panel3),var(--panel));
+  }
+  .brand .t1{font-size:17px;font-weight:700;letter-spacing:.1em;line-height:1;}
+  .brand .t2{font-size:11px;color:var(--ink3);letter-spacing:.04em;margin-top:3px;}
+  .search{flex:1;max-width:330px;margin-left:auto;position:relative;}
+  .search svg{position:absolute;left:11px;top:50%;translate:0 -50%;pointer-events:none;opacity:.65;}
+  .search input{
+    width:100%;background:var(--panel);border:1px solid var(--line);border-radius:7px;
+    color:var(--ink);padding:8px 12px 8px 34px;font-size:13px;font-family:var(--sans);outline:none;
+    transition:border-color .15s;
+  }
+  .search input::placeholder{color:var(--ink3);}
+  .search input:focus{border-color:var(--amber-line);}
+  .langtoggle{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;}
+  .langtoggle button{background:transparent;border:0;color:var(--ink3);font-size:12px;padding:6px 12px;}
+  .langtoggle button.on{background:var(--panel3);color:var(--amber);font-weight:600;}
+  .iconbtn{
+    display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink2);font-size:12.5px;padding:7px 13px;border-radius:7px;transition:.15s;
+  }
+  .iconbtn:hover{border-color:var(--line2);color:var(--ink);}
+
+  /* ============ Hero 读数面板 ============ */
+  .hero{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    box-shadow:0 22px 44px -24px rgba(0,0,0,.55);}
+  .hero .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 20px;border-bottom:1px solid var(--line);}
+  .hd .k{font-size:11px;letter-spacing:.2em;color:var(--ink3);}
+  .hd .live{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--pos);}
+  .live .dot{width:6px;height:6px;border-radius:50%;background:var(--pos);animation:pulse 2.2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(71,192,124,.45)}70%{box-shadow:0 0 0 7px rgba(71,192,124,0)}100%{box-shadow:0 0 0 0 rgba(71,192,124,0)}}
+  .hero .main{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;padding:24px 20px 10px;align-items:end;}
+  .readout .lbl{font-size:12.5px;color:var(--ink2);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .readout .lbl .en{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--ink3);}
+  .readout .num{
+    font-family:var(--mono);font-size:72px;font-weight:650;line-height:.92;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:14px;
+  }
+  .readout .num .unit{font-size:14px;color:var(--ink3);letter-spacing:.1em;}
+  .delta{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);
+    font-size:14px;font-weight:600;color:var(--neg);background:rgba(224,101,90,.1);
+    border:1px solid rgba(224,101,90,.4);padding:4px 9px;border-radius:6px;margin-top:12px;
+  }
+  .delta svg{width:11px;height:11px;}
+  .chart{position:relative;min-height:132px;}
+  .chart svg{display:block;width:100%;height:132px;}
+  .chart .gl{stroke:rgba(122,142,162,.14);stroke-width:1;shape-rendering:crispEdges;}
+  .chart .trace{fill:none;stroke:var(--amber);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:620;stroke-dashoffset:620;animation:draw 1.3s ease-out forwards;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  .chart .area{fill:url(#gHeat);opacity:.85;}
+  .chart .pt{fill:var(--amber);stroke:var(--bg);stroke-width:2;}
+  .chart .tag{font-family:var(--mono);font-size:11px;fill:var(--amber);}
+  .chart .note{font-size:11px;fill:var(--ink3);}
+  .hero .meta{padding:8px 20px 16px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink3);}
+  .hero .meta b{font-family:var(--mono);color:var(--ink2);font-weight:600;}
+  .daystrip{display:flex;border-top:1px solid var(--line);}
+  .daylink{flex:1;text-align:center;padding:11px 4px 10px;cursor:pointer;user-select:none;
+    border-right:1px solid var(--line);color:var(--ink3);position:relative;transition:background .15s,color .15s;}
+  .daylink:last-child{border-right:0;}
+  .daylink .dd{font-family:var(--mono);font-size:13px;color:var(--ink2);display:block;font-variant-numeric:tabular-nums;}
+  .daylink .dw{font-size:11px;display:block;margin-top:2px;}
+  .daylink:hover{background:rgba(122,142,162,.07);color:var(--ink);}
+  .daylink.cur{background:var(--amber-soft);color:var(--amber);}
+  .daylink.cur::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--amber);}
+  .daylink.cur .dd{color:var(--amber);font-weight:700;}
+  .daylink .tag-cur{display:inline-block;margin-top:3px;font-size:9.5px;letter-spacing:.14em;color:var(--amber);
+    border:1px solid var(--amber-line);border-radius:3px;padding:1px 5px;}
+
+  /* ============ 区块 Section ============ */
+  .section{margin-top:38px;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;}
+  .sec-head .idx{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.12em;}
+  .sec-head h2{font-size:19px;font-weight:700;letter-spacing:.02em;}
+  .sec-head .en{font-family:var(--mono);font-size:11px;color:var(--ink3);letter-spacing:.16em;}
+  .sec-head .aside{margin-left:auto;font-size:12px;color:var(--ink3);}
+  .filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .chip-btn{padding:5px 13px;font-size:12px;border:1px solid var(--line);border-radius:99px;
+    color:var(--ink2);background:transparent;transition:.15s;}
+  .chip-btn:hover{border-color:var(--line2);color:var(--ink);}
+  .chip-btn.on{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft);font-weight:600;}
+
+  /* ============ 商机卡片 ============ */
+  .tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .tile{
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    transition:border-color .16s,transform .16s;
+  }
+  .tile:hover{border-color:var(--line2);transform:translateY(-2px);}
+  .tile .cover{height:118px;position:relative;border-bottom:1px solid var(--line);}
+  .tile .cover svg.art{position:absolute;inset:0;width:100%;height:100%;}
+  .tile .stats{position:absolute;right:10px;bottom:10px;display:flex;gap:6px;}
+  .badge{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid;background:rgba(10,14,19,.78);backdrop-filter:blur(2px);}
+  .badge.hot{color:var(--amber);border-color:rgba(232,163,61,.5);}
+  .badge.grow{color:var(--pos);border-color:rgba(71,192,124,.5);}
+  .tile .body{padding:13px 14px 14px;}
+  .tile .name{font-size:14px;font-weight:600;line-height:1.5;min-height:42px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+  .chip{font-size:11px;color:var(--ink2);border:1px solid var(--line);padding:2px 8px;border-radius:4px;background:rgba(122,142,162,.05);}
+  .spark-mini{margin-top:13px;height:20px;}
+  .spark-mini svg{display:block;width:100%;height:20px;}
+
+  /* ============ 精选（抖音式双栏卡片） ============ */
+  .feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  .feat{
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    transition:border-color .16s,transform .16s;
+  }
+  .feat:hover{border-color:var(--amber-line);transform:translateY(-2px);}
+  .feat .cover{height:132px;position:relative;border-bottom:1px solid var(--line);}
+  .feat .cover svg.art{position:absolute;inset:0;width:100%;height:100%;}
+  .feat .feat-tag{position:absolute;left:10px;top:10px;z-index:1;font-size:10px;letter-spacing:.14em;font-weight:700;
+    color:#1c1308;background:var(--amber);border-radius:4px;padding:2px 8px;}
+  .feat .stats{position:absolute;right:10px;bottom:10px;display:flex;gap:6px;}
+  .feat .body{padding:12px 14px 14px;}
+  .feat .name{font-size:14px;font-weight:600;line-height:1.5;min-height:42px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .feat .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:11.5px;color:var(--ink2);}
+  .feat .chan{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .feat .chan::before{content:"";width:5px;height:5px;border-radius:2px;background:var(--amber);flex:none;}
+  .feat .stat{font-family:var(--mono);font-size:11.5px;color:var(--pos);flex:none;font-variant-numeric:tabular-nums;}
+
+  /* ============ 趋势列表 ============ */
+  .row-list{border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));}
+  .tr{border-bottom:1px solid var(--line);padding:12px 14px;
+    display:grid;grid-template-columns:36px minmax(0,1fr) auto 84px;gap:14px;align-items:center;cursor:pointer;
+    transition:background .14s;}
+  .tr:last-child{border-bottom:0;}
+  .tr:hover{background:rgba(122,142,162,.07);}
+  .tr .rank{font-family:var(--mono);font-size:14px;color:var(--ink3);text-align:center;font-variant-numeric:tabular-nums;}
+  .tr.top3 .rank{color:var(--amber);font-weight:700;}
+  .tr .kind{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.1em;color:var(--ink2);
+    border:1px solid var(--line);border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px;}
+  .tr .kind::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--amber);}
+  .tr .title{font-size:13.5px;line-height:1.5;color:var(--ink);transition:color .14s;}
+  .tr:hover .title{color:var(--amber);}
+  .tr .sub{margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;}
+  .tr .figs{display:flex;gap:12px;justify-content:flex-end;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;}
+  .tr .figs .hot{color:var(--amber);}
+  .tr .figs .grow{color:var(--pos);}
+  .tr .figs small{color:var(--ink3);font-size:10px;margin-right:2px;}
+  .tr .spark{width:80px;justify-self:end;}
+  .tr .spark svg{display:block;width:80px;height:22px;}
+  .tr .go{font-size:11px;color:var(--amber);opacity:0;transition:opacity .14s;font-family:var(--mono);}
+  .tr:hover .go{opacity:1;}
+
+  /* ============ 热闻 ============ */
+  .story-list{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  .story{display:flex;gap:12px;align-items:baseline;border:1px solid var(--line);border-radius:8px;
+    padding:13px 15px;cursor:pointer;background:var(--panel);transition:border-color .14s,background .14s;}
+  .story:hover{border-color:var(--line2);background:var(--panel2);}
+  .story .no{font-family:var(--mono);font-size:11.5px;color:var(--ink3);flex:none;font-variant-numeric:tabular-nums;}
+  .story:hover .no{color:var(--amber);}
+  .story .txt{font-size:13.5px;line-height:1.55;}
+
+  /* ============ 页脚 ============ */
+  .foot{margin-top:46px;border-top:1px solid var(--line);padding:20px 2px 6px;
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--ink3);}
+  .foot .share{color:var(--amber);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .foot .share svg{width:13px;height:13px;}
+  .empty{display:none;text-align:center;color:var(--ink3);font-size:13px;padding:34px 0;border:1px dashed var(--line);border-radius:10px;}
+  .empty.show{display:block;}
+
+  /* ============ 设计规范抽屉 SPEC drawer ============ */
+  .scrim{position:fixed;inset:0;background:rgba(5,9,13,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .26s;}
+  .scrim.show{opacity:1;pointer-events:auto;}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;width:min(430px,94vw);z-index:95;
+    background:#121922;border-left:1px solid var(--line2);overflow-y:auto;padding:28px 26px 40px;
+    transform:translateX(105%);transition:transform .28s cubic-bezier(.3,.7,.3,1);
+  }
+  .drawer.open{transform:none;}
+  .drawer h3{font-size:16px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;}
+  .drawer .sub{font-size:12px;color:var(--ink3);margin-bottom:26px;line-height:1.6;}
+  .tok{margin-bottom:26px;}
+  .tok h4{font-size:11px;letter-spacing:.14em;color:var(--ink3);margin-bottom:11px;}
+  .swatches{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;}
+  .sw{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink2);}
+  .sw i{width:26px;height:26px;border-radius:6px;border:1px solid var(--line2);flex:none;}
+  .typetable{width:100%;border-collapse:collapse;font-size:12px;}
+  .typetable td{padding:7px 0;border-bottom:1px solid var(--line);color:var(--ink2);}
+  .typetable td:first-child{font-family:var(--mono);color:var(--ink);width:88px;}
+  .typetable tr:last-child td{border-bottom:0;}
+  .comp-list{list-style:none;}
+  .comp-list li{font-size:12.5px;color:var(--ink2);padding:8px 0;border-bottom:1px solid var(--line);line-height:1.5;}
+  .comp-list li b{color:var(--ink);font-weight:600;}
+  .comp-list li:last-child{border-bottom:0;}
+  .warn{border:1px solid rgba(232,163,61,.35);background:var(--amber-soft);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--ink2);line-height:1.7;}
+  .drawer-close{position:absolute;top:16px;right:16px;background:var(--panel3);border:1px solid var(--line);color:var(--ink2);
+    width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-size:14px;}
+
+  /* ============ Toast ============ */
+  .toast-wrap{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:120;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+  .toast{background:var(--panel3);border:1px solid var(--line2);color:var(--ink);font-size:13px;padding:9px 17px;border-radius:8px;
+    box-shadow:0 14px 34px -14px rgba(0,0,0,.6);animation:tin .18s ease-out;max-width:86vw;}
+  @keyframes tin{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    .chart .trace{animation:none;stroke-dashoffset:0;}
+    .live .dot{animation:none;}
+  }
+  @media (max-width:960px){
+    .tile-grid{grid-template-columns:1fr;}
+    .story-list{grid-template-columns:1fr;}
+  }
+  @media (max-width:860px){
+    .hero .main{grid-template-columns:1fr;gap:14px;}
+    .chart{min-height:110px;}
+    .chart svg{height:110px;}
+  }
+  @media (max-width:720px){
+    .topbar{gap:10px;flex-wrap:wrap;}
+    .search{order:3;max-width:none;flex-basis:100%;margin-left:0;}
+    .brand .t2{display:none;}
+  }
+  @media (max-width:620px){
+    .tr{grid-template-columns:32px minmax(0,1fr) auto;gap:10px;}
+    .tr .spark{display:none;}
+    .readout .num{font-size:56px;}
+    .app{padding:0 14px 50px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 顶栏 Top bar ===== -->
+  <header class="topbar">
+    <div class="brand" id="brandBtn" role="button" tabindex="0" aria-label="回到顶部">
+      <span class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M4 17 L12 6 L20 17" stroke="#e8a33d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 17 L12 12 L16 17" stroke="#9aa8b6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span>
+        <span class="t1" data-i18n="brand">销售日报</span>
+        <span class="t2" data-i18n="brandSub">工业情报 · 每日 07:30</span>
+      </span>
+    </div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#9aa8b6" stroke-width="2"/><path d="M20 20 L16 16" stroke="#9aa8b6" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="searchBox" type="search" data-i18n-ph="searchPh" placeholder="搜索标题 / 标签…" autocomplete="off" aria-label="搜索">
+    </div>
+    <div class="langtoggle" role="group" aria-label="语言">
+      <button type="button" id="btnZh" class="on">中文</button>
+      <button type="button" id="btnEn">EN</button>
+    </div>
+    <button class="iconbtn" id="specBtn" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2"/><path d="M3 9 H21 M9 3 V9" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span data-i18n="spec">设计规范</span>
+    </button>
+  </header>
+
+  <!-- ===== Hero 读数面板 ===== -->
+  <section class="hero" id="hero">
+    <div class="hd">
+      <span class="k" data-i18n="heroK">TODAY · 今日行业热度</span>
+      <span class="live"><span class="dot" aria-hidden="true"></span><span data-i18n="heroLive">数据更新 07:30 · 演示</span></span>
+    </div>
+    <div class="main">
+      <div class="readout">
+        <div class="lbl"><span data-i18n="heroK2">今日行业热度</span><span class="en">INDUSTRY HEAT</span></div>
+        <div class="num">81<span class="unit" data-i18n="heatUnit">/ 100</span></div>
+        <div class="delta" aria-label="较昨日 -64%">
+          <svg viewBox="0 0 12 12" fill="none"><path d="M6 10 L1.5 4 H10.5 Z" fill="#e0655a"/></svg>
+          <span data-i18n="deltaTxt">较昨日</span>&nbsp;-64%
+        </div>
+      </div>
+      <div class="chart" aria-label="近7日热度走势（演示数据）">
+        <svg viewBox="0 0 520 132" preserveAspectRatio="none" role="img">
+          <defs>
+            <linearGradient id="gHeat" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#e8a33d" stop-opacity=".32"/>
+              <stop offset="1" stop-color="#e8a33d" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line class="gl" x1="0" y1="16"  x2="520" y2="16"/>
+          <line class="gl" x1="0" y1="48"  x2="520" y2="48"/>
+          <line class="gl" x1="0" y1="80"  x2="520" y2="80"/>
+          <line class="gl" x1="0" y1="112" x2="520" y2="112"/>
+          <path class="area" d="M0,105.6 L86.7,96.7 L173.3,84.4 L260,58.3 L346.7,43.3 L433.3,12.8 L520,92.8 L520,132 L0,132 Z"/>
+          <polyline class="trace" points="0,105.6 86.7,96.7 173.3,84.4 260,58.3 346.7,43.3 433.3,12.8 520,92.8"/>
+          <circle class="pt" cx="520" cy="92.8" r="4"/>
+          <text class="tag" x="520" y="84" text-anchor="end">81</text>
+          <text class="note" x="0" y="126" text-anchor="start">09-18</text>
+          <text class="note" x="520" y="126" text-anchor="end">09-24</text>
+        </svg>
+      </div>
+    </div>
+    <div class="meta">
+      <span><span data-i18n="src">来源</span>&nbsp;<b>32</b></span>
+      <span><span data-i18n="hit">热榜命中</span>&nbsp;<b>0</b></span>
+      <span><span data-i18n="cycle">统计周期</span>&nbsp;<b>2026-09-18 – 2026-09-24</b></span>
+      <span data-i18n="demoNote">* 数值与走势为演示数据，非实时逻辑</span>
+    </div>
+    <nav class="daystrip" aria-label="7天日报切换">
+      <a class="daylink" role="button" tabindex="0" data-day="09-18"><span class="dd">09-18</span><span class="dw">星期五</span></a>
+      <a class="daylink" role="button" tabindex="0" data-day="09-19"><span class="dd">09-19</span><span class="dw">星期六</span></a>
+      <a class="daylink" role="button" tabindex="0" data-day="09-20"><span class="dd">09-20</span><span class="dw">星期日</span></a>
+      <a class="daylink" role="button" tabindex="0" data-day="09-21"><span class="dd">09-21</span><span class="dw">星期一</span></a>
+      <a class="daylink" role="button" tabindex="0" data-day="09-22"><span class="dd">09-22</span><span class="dw">星期二</span></a>
+      <a class="daylink cur" role="button" tabindex="0" data-day="09-23" aria-current="true"><span class="dd">09-23</span><span class="dw">星期三</span><span class="tag-cur">TODAY</span></a>
+      <a class="daylink" role="button" tabindex="0" data-day="09-24"><span class="dd">09-24</span><span class="dw">星期四</span></a>
+    </nav>
+  </section>
+
+  <!-- ===== 今日商机 ===== -->
+  <section class="section" id="sec-opp">
+    <div class="sec-head">
+      <span class="idx">01</span>
+      <h2 data-i18n="sec1">今日商机</h2>
+      <span class="en" data-i18n="sec1en">TOP OPPORTUNITIES</span>
+      <span class="aside" data-i18n="sec1Meta">按热度排序 · 前 3</span>
+    </div>
+    <div class="filters" role="group" aria-label="商机筛选">
+      <button class="chip-btn on" type="button" data-filter="all" data-i18n="fAll">全部</button>
+      <button class="chip-btn" type="button" data-filter="hot" data-i18n="fHot">高热度（≥6）</button>
+      <button class="chip-btn" type="button" data-filter="new" data-i18n="fNew">新增</button>
+    </div>
+    <div class="tile-grid" id="oppGrid">
+
+      <article class="tile" data-hot="6" data-title="数控车床被远程锁住能自己解开吗" data-tags="数控 机床 数控车床">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 118" preserveAspectRatio="xMidYMid slice" role="img" aria-label="数控车床示意图（占位）">
+            <rect width="320" height="118" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="30" x2="320" y2="30"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="90" x2="320" y2="90"/>
+            </g>
+            <path d="M40 78 H118 V96 H40 Z" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M118 84 H150 V96 H118 Z" fill="none" stroke="#e8a33d" stroke-width="1.6"/>
+            <circle cx="150" cy="90" r="6" fill="none" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M150 90 H238" stroke="#9aa8b6" stroke-width="1.4"/>
+            <rect x="238" y="78" width="52" height="24" rx="3" fill="#232e3c" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M256 82 h14 v16 h-14 z" fill="none" stroke="#e8a33d" stroke-width="1.4"/>
+            <line x1="214" y1="40" x2="214" y2="70" stroke="#e8a33d" stroke-width="1.6" opacity=".8"/>
+            <rect x="206" y="34" width="16" height="6" rx="2" fill="#e8a33d" opacity=".85"/>
+            <path d="M40 40 h60 l10 14 h-70 z" fill="none" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+          </svg>
+          <span class="stats">
+            <span class="badge grow">↑<span data-i18n="grow">涨</span> 4</span>
+            <span class="badge hot"><span data-i18n="hot">热</span> 6</span>
+          </span>
+        </div>
+        <div class="body">
+          <div class="name">数控车床被远程锁住能自己解开吗</div>
+          <div class="chips"><span class="chip">数控</span><span class="chip">机床</span><span class="chip">数控车床</span></div>
+          <div class="spark-mini"><svg viewBox="0 0 72 20" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,17 12,17 24,14 36,9 48,11 60,4 72,2" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+      </article>
+
+      <article class="tile" data-hot="5" data-new="1" data-title="曾经被人人嫌弃的国产数控机床，如今正在反向抢占海外市场" data-tags="数控 机床 数控机床">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 118" preserveAspectRatio="xMidYMid slice" role="img" aria-label="机床出海示意图（占位）">
+            <rect width="320" height="118" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="30" x2="320" y2="30"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="90" x2="320" y2="90"/>
+            </g>
+            <rect x="34" y="52" width="120" height="34" rx="4" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M60 62 h72 M60 72 h72" stroke="#e8a33d" stroke-width="1.6"/>
+            <path d="M190 78 Q224 20 268 60" fill="none" stroke="#9aa8b6" stroke-width="1.6" stroke-dasharray="6 4"/>
+            <path d="M258 48 l12 12 -16 4 z" fill="#e8a33d"/>
+            <circle cx="190" cy="80" r="4" fill="#9aa8b6"/>
+            <path d="M92 34 h56 v14 h-56 z" fill="none" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+          </svg>
+          <span class="stats">
+            <span class="badge grow">↑<span data-i18n="grow">涨</span> 1</span>
+            <span class="badge hot"><span data-i18n="hot">热</span> 5</span>
+          </span>
+        </div>
+        <div class="body">
+          <div class="name">曾经被人人嫌弃的国产数控机床，如今正在反向抢占海外市场</div>
+          <div class="chips"><span class="chip">数控</span><span class="chip">机床</span><span class="chip">数控机床</span></div>
+          <div class="spark-mini"><svg viewBox="0 0 72 20" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,18 12,15 24,17 36,10 48,12 60,5 72,4" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+      </article>
+
+      <article class="tile" data-hot="3" data-new="1" data-title="美国工程师3D打印巨型两吨钢模具，以制造更轻的飞机舱门" data-tags="模具 冲压 增材制造">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 118" preserveAspectRatio="xMidYMid slice" role="img" aria-label="3D打印模具示意图（占位）">
+            <rect width="320" height="118" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="30" x2="320" y2="30"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="0" y1="90" x2="320" y2="90"/>
+            </g>
+            <path d="M46 40 h132 v64 h-132 z" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M46 40 l66 34 66 -34" fill="none" stroke="#e8a33d" stroke-width="1.4"/>
+            <path d="M112 74 v30 M178 74 v30" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M238 46 h40 v58 h-40 z" fill="#232e3c" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M258 56 v38" stroke="#e8a33d" stroke-width="1.6"/>
+            <path d="M258 94 q8 -10 14 -2" fill="none" stroke="#9aa8b6" stroke-width="1.2"/>
+            <circle cx="258" cy="50" r="3" fill="#e8a33d"/>
+          </svg>
+          <span class="stats">
+            <span class="badge grow">↑<span data-i18n="grow">涨</span> 7</span>
+            <span class="badge hot"><span data-i18n="hot">热</span> 3</span>
+          </span>
+        </div>
+        <div class="body">
+          <div class="name">美国工程师3D打印巨型两吨钢模具，以制造更轻的飞机舱门</div>
+          <div class="chips"><span class="chip">模具</span><span class="chip">冲压</span><span class="chip">增材制造</span></div>
+          <div class="spark-mini"><svg viewBox="0 0 72 20" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,18 12,16 24,19 36,11 48,13 60,6 72,7" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+      </article>
+
+    </div>
+    <div class="empty" id="oppEmpty"><span data-i18n="emptyTxt">没有匹配的商机，换个关键词试试</span></div>
+  </section>
+
+  <!-- ===== 精选（抖音式双栏） ===== -->
+  <section class="section" id="sec-feat">
+    <div class="sec-head">
+      <span class="idx">02</span>
+      <h2 data-i18n="secF">精选</h2>
+      <span class="en" data-i18n="secFen">FEATURED</span>
+      <span class="aside" data-i18n="secFMeta">人工精选 · 4 条</span>
+    </div>
+    <div class="feat-grid" id="featGrid">
+
+      <article class="feat" role="button" tabindex="0" data-hot="6" data-title="数控车床被远程锁住能自己解开吗" data-tags="数控 机床 数控车床">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 132" preserveAspectRatio="xMidYMid slice" role="img" aria-label="数控车床示意图（占位）">
+            <rect width="320" height="132" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="34" x2="320" y2="34"/><line x1="0" y1="68" x2="320" y2="68"/><line x1="0" y1="102" x2="320" y2="102"/>
+            </g>
+            <path d="M36 86 H130 V108 H36 Z" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M130 94 H166 V108 H130 Z" fill="none" stroke="#e8a33d" stroke-width="1.6"/>
+            <circle cx="166" cy="101" r="7" fill="none" stroke="#9aa8b6" stroke-width="1.4"/>
+            <path d="M166 101 H256" stroke="#9aa8b6" stroke-width="1.4"/>
+            <rect x="256" y="86" width="52" height="28" rx="3" fill="#232e3c" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M276 91 h14 v18 h-14 z" fill="none" stroke="#e8a33d" stroke-width="1.4"/>
+            <line x1="96" y1="46" x2="96" y2="82" stroke="#e8a33d" stroke-width="1.6" opacity=".8"/>
+            <rect x="86" y="40" width="20" height="7" rx="2" fill="#e8a33d" opacity=".85"/>
+            <path d="M36 46 h66 l12 16 h-78 z" fill="none" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+          </svg>
+          <span class="feat-tag" data-i18n="featTag">精选</span>
+          <span class="stats"><span class="badge hot"><span data-i18n="hot">热</span> 6</span></span>
+        </div>
+        <div class="body">
+          <div class="name">数控车床被远程锁住能自己解开吗</div>
+          <div class="meta"><span class="chan">数控 · 机床</span><span class="stat">↑ +4</span></div>
+        </div>
+      </article>
+
+      <article class="feat" role="button" tabindex="0" data-hot="5" data-title="曾经被人人嫌弃的国产数控机床，如今正在反向抢占海外市场" data-tags="数控 机床 数控机床">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 132" preserveAspectRatio="xMidYMid slice" role="img" aria-label="机床出海示意图（占位）">
+            <rect width="320" height="132" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="34" x2="320" y2="34"/><line x1="0" y1="68" x2="320" y2="68"/><line x1="0" y1="102" x2="320" y2="102"/>
+            </g>
+            <path d="M40 74 h96 l12 14 h-108 z" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <rect x="52" y="62" width="66" height="12" rx="2" fill="#232e3c" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M180 88 Q212 34 252 70" fill="none" stroke="#9aa8b6" stroke-width="1.6" stroke-dasharray="6 4"/>
+            <path d="M242 58 l12 13 -17 4 z" fill="#e8a33d"/>
+            <circle cx="180" cy="90" r="4" fill="#9aa8b6"/>
+            <path d="M96 44 h52 v13 h-52 z" fill="none" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+            <line x1="196" y1="46" x2="252" y2="46" stroke="#e8a33d" stroke-width="1.6" opacity=".7"/>
+          </svg>
+          <span class="feat-tag" data-i18n="featTag">精选</span>
+          <span class="stats"><span class="badge hot"><span data-i18n="hot">热</span> 5</span></span>
+        </div>
+        <div class="body">
+          <div class="name">曾经被人人嫌弃的国产数控机床，如今正在反向抢占海外市场</div>
+          <div class="meta"><span class="chan">数控 · 机床</span><span class="stat">↑ +1</span></div>
+        </div>
+      </article>
+
+      <article class="feat" role="button" tabindex="0" data-hot="2" data-title="给工业母机装上AI“大脑”，台州机床“越用越聪明”" data-tags="机床 工业母机 人工智能">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 132" preserveAspectRatio="xMidYMid slice" role="img" aria-label="工业母机AI示意图（占位）">
+            <rect width="320" height="132" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="34" x2="320" y2="34"/><line x1="0" y1="68" x2="320" y2="68"/><line x1="0" y1="102" x2="320" y2="102"/>
+            </g>
+            <path d="M52 96 v-34 h76 v34 z" fill="#202b38" stroke="#9aa8b6" stroke-width="1.4"/>
+            <circle cx="90" cy="62" r="10" fill="none" stroke="#e8a33d" stroke-width="1.6"/>
+            <path d="M90 72 v24 M76 84 h28" stroke="#9aa8b6" stroke-width="1.3"/>
+            <path d="M150 66 h84" stroke="#9aa8b6" stroke-width="1.4"/>
+            <rect x="150" y="54" width="20" height="24" rx="3" fill="#232e3c" stroke="#9aa8b6" stroke-width="1.2"/>
+            <path d="M176 62 l14 6 -14 8 z" fill="none" stroke="#e8a33d" stroke-width="1.4"/>
+            <circle cx="238" cy="70" r="12" fill="none" stroke="#e8a33d" stroke-width="1.5"/>
+            <circle cx="238" cy="70" r="4" fill="#e8a33d"/>
+            <path d="M238 58 v-12 M238 82 v10" stroke="#e8a33d" stroke-width="1.5" opacity=".7"/>
+            <path d="M52 46 h70 l10 14 h-80 z" fill="none" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+          </svg>
+          <span class="feat-tag" data-i18n="featTag">精选</span>
+          <span class="stats"><span class="badge hot"><span data-i18n="hot">热</span> 2</span></span>
+        </div>
+        <div class="body">
+          <div class="name">给工业母机装上AI“大脑”，台州机床“越用越聪明”</div>
+          <div class="meta"><span class="chan">机床 · 工业母机</span><span class="stat">↑ +7</span></div>
+        </div>
+      </article>
+
+      <article class="feat" role="button" tabindex="0" data-hot="2" data-title="丝杠板块强势 长华集团涨停" data-tags="丝杠 机床股 涨停">
+        <div class="cover">
+          <svg class="art" viewBox="0 0 320 132" preserveAspectRatio="xMidYMid slice" role="img" aria-label="丝杠板块示意图（占位）">
+            <rect width="320" height="132" fill="#182029"/>
+            <g stroke="#3a4a5a" stroke-width="1" opacity=".5" stroke-dasharray="4 4">
+              <line x1="0" y1="34" x2="320" y2="34"/><line x1="0" y1="68" x2="320" y2="68"/><line x1="0" y1="102" x2="320" y2="102"/>
+            </g>
+            <rect x="46" y="82" width="14" height="30" fill="#202b38" stroke="#9aa8b6" stroke-width="1.2"/>
+            <rect x="78" y="70" width="14" height="42" fill="#202b38" stroke="#9aa8b6" stroke-width="1.2"/>
+            <rect x="110" y="58" width="14" height="54" fill="#202b38" stroke="#9aa8b6" stroke-width="1.2"/>
+            <rect x="142" y="44" width="14" height="68" fill="#232e3c" stroke="#e8a33d" stroke-width="1.2"/>
+            <polyline points="46,80 78,68 110,56 142,42 174,50 206,36 238,24" fill="none" stroke="#e8a33d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M238 24 l14 2 -4 14 z" fill="#e8a33d"/>
+            <path d="M188 100 h70" stroke="#9aa8b6" stroke-width="1.2" opacity=".8"/>
+            <rect x="188" y="92" width="10" height="8" fill="#e8a33d" opacity=".7"/>
+            <rect x="206" y="92" width="10" height="8" fill="#e8a33d" opacity=".7"/>
+            <rect x="224" y="92" width="10" height="8" fill="#e8a33d" opacity=".7"/>
+            <rect x="242" y="92" width="10" height="8" fill="#e8a33d" opacity=".7"/>
+          </svg>
+          <span class="feat-tag" data-i18n="featTag">精选</span>
+          <span class="stats"><span class="badge hot"><span data-i18n="hot">热</span> 2</span></span>
+        </div>
+        <div class="body">
+          <div class="name">丝杠板块强势 长华集团涨停</div>
+          <div class="meta"><span class="chan">热闻 · 机床股</span><span class="stat">↑ +10%</span></div>
+        </div>
+      </article>
+
+    </div>
+    <div class="empty" id="featEmpty"><span data-i18n="emptyTxt">没有匹配的精选，换个关键词试试</span></div>
+  </section>
+
+  <!-- ===== 今日趋势 ===== -->
+  <section class="section" id="sec-trend">
+    <div class="sec-head">
+      <span class="idx">03</span>
+      <h2 data-i18n="sec2">今日趋势</h2>
+      <span class="en" data-i18n="sec2en">TRENDING</span>
+      <span class="aside" data-i18n="sec2Meta">热度 × 涨幅</span>
+    </div>
+    <div class="row-list" id="trendList">
+
+      <div class="tr top3" role="button" tabindex="0" data-title="2026年机械加工培训机构深度解析：从模具设计到数控编程，谁在引领">
+        <span class="rank">1</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>2026年机械加工培训机构深度解析：从模具设计到数控编程，谁在引领…</div>
+          <div class="sub"><span class="chip">数控</span><span class="chip">智能制造</span><span class="chip">模具</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>3</span><span class="grow"><small data-i18n="grow">涨</small>7</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,16 13,22 26,22 39,22 52,22 65,16 80,1" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr top3" role="button" tabindex="0" data-title="莱西临青片区太猛了！承接青岛外溢工厂集群，十年产业弯道超车">
+        <span class="rank">2</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>莱西临青片区太猛了！承接青岛外溢工厂集群，十年产业弯道超车</div>
+          <div class="sub"><span class="chip">模具</span><span class="chip">冲压</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>4</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,20 13,18 26,16 39,14 52,10 65,8 80,4" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr top3" role="button" tabindex="0" data-title="三季度机床配件市场观察：管制落地、交期拉长，国产替代是真相">
+        <span class="rank">3</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>三季度机床配件市场观察：管制落地、交期拉长，国产替代是真相…</div>
+          <div class="sub"><span class="chip">五轴</span><span class="chip">机床</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>3</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,19 13,21 26,17 39,18 52,14 65,8 80,10" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr" role="button" tabindex="0" data-title="零跑汽车携手腾讯WorkBuddy，40+核心业务场景AI提效90%">
+        <span class="rank">4</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>零跑汽车携手腾讯WorkBuddy，40+核心业务场景AI提效90%</div>
+          <div class="sub"><span class="chip">模具</span><span class="chip">冲压</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>4</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,21 13,15 26,19 39,12 52,14 65,9 80,11" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr" role="button" tabindex="0" data-title="给工业母机装上AI“大脑”，台州机床“越用越聪明”">
+        <span class="rank">5</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>给工业母机装上AI“大脑”，台州机床“越用越聪明”</div>
+          <div class="sub"><span class="chip">机床</span><span class="chip">工业母机</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>7</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,20 13,16 26,18 39,10 52,6 65,8 80,2" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr" role="button" tabindex="0" data-title="国产行星减速器第一股的闯关：纽氏达特IPO">
+        <span class="rank">6</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>国产行星减速器第一股的闯关：纽氏达特IPO</div>
+          <div class="sub"><span class="chip">减速器</span><span class="chip">行星减速器</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>5</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,18 13,14 26,16 39,19 52,11 65,13 80,5" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr" role="button" tabindex="0" data-title="拓竹发布消费级 CO2激光切割机R1">
+        <span class="rank">7</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>拓竹发布消费级 CO2激光切割机R1</div>
+          <div class="sub"><span class="chip">编码器</span><span class="chip">激光切割</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>12</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,19 13,21 26,12 39,15 52,8 65,3 80,6" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+      <div class="tr" role="button" tabindex="0" data-title="拓璞数控(07688.HK)：9月22日南向资金增持16.87万股">
+        <span class="rank">8</span>
+        <div>
+          <div class="title"><span class="kind" data-i18n="kindDyn">动态</span>拓璞数控(07688.HK)：9月22日南向资金增持16.87万股</div>
+          <div class="sub"><span class="chip">数控</span><span class="chip">拓璞数控</span></div>
+        </div>
+        <span class="figs"><span class="hot"><small data-i18n="hot">热</small>2</span><span class="grow"><small data-i18n="grow">涨</small>7</span></span>
+        <span class="spark"><svg viewBox="0 0 80 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,21 13,17 26,20 39,13 52,15 65,7 80,9" fill="none" stroke="#47c07c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+
+    </div>
+    <div class="empty" id="trendEmpty"><span data-i18n="emptyTxt">没有匹配的趋势，换个关键词试试</span></div>
+  </section>
+
+  <!-- ===== 热闻 ===== -->
+  <section class="section" id="sec-news">
+    <div class="sec-head">
+      <span class="idx">04</span>
+      <h2 data-i18n="sec3">热闻</h2>
+      <span class="en" data-i18n="sec3en">HOT STORIES</span>
+      <span class="aside" data-i18n="sec3Meta">共 6 条</span>
+    </div>
+    <div class="story-list" id="newsList">
+      <div class="story" role="button" tabindex="0" data-title="给工业母机装上AI“大脑”"><span class="no">01</span><span class="txt">给工业母机装上AI“大脑”</span></div>
+      <div class="story" role="button" tabindex="0" data-title="海尔融资租赁赋能精密制造企业扩产，助力半导体零部件国产替代提速"><span class="no">02</span><span class="txt">海尔融资租赁赋能精密制造企业扩产，助力半导体零部件国产替代提速</span></div>
+      <div class="story" role="button" tabindex="0" data-title="机床制造机器 这里制造机床"><span class="no">03</span><span class="txt">机床制造机器 这里制造机床</span></div>
+      <div class="story" role="button" tabindex="0" data-title="丝杠板块强势 长华集团涨停"><span class="no">04</span><span class="txt">丝杠板块强势 长华集团涨停</span></div>
+      <div class="story" role="button" tabindex="0" data-title="天汽模(002510)：发行股份及支付现金购买资产并募集配套资金…"><span class="no">05</span><span class="txt">天汽模(002510)：发行股份及支付现金购买资产并募集配套资金…</span></div>
+      <div class="story" role="button" tabindex="0" data-title="2026年潍坊市金融赋能智能制造装备产业链发展活动走进潍城"><span class="no">06</span><span class="txt">2026年潍坊市金融赋能智能制造装备产业链发展活动走进潍城</span></div>
+    </div>
+    <div class="empty" id="newsEmpty"><span data-i18n="emptyTxt">没有匹配的热闻，换个关键词试试</span></div>
+  </section>
+
+  <!-- ===== 页脚 ===== -->
+  <footer class="foot">
+    <span><span data-i18n="footBrand">Trends · 销售日报</span> · <span data-i18n="footNote">UI 改版 Demo（视觉原型，无趋势逻辑）</span></span>
+    <span class="share" id="shareBtn" role="button" tabindex="0" aria-label="分享">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 12 v7 a1 1 0 0 0 1 1 h14 a1 1 0 0 0 1 -1 v-7" stroke="currentColor" stroke-width="1.8"/><path d="M12 15 V4 M7.5 8 L12 3.5 L16.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span data-i18n="shareTxt">分享链接</span>
+    </span>
+  </footer>
+</div>
+
+<!-- ===== 设计规范抽屉 SPEC drawer ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="设计规范" role="dialog" aria-modal="true">
+  <button class="drawer-close" id="drawerClose" type="button" aria-label="关闭">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 5 L19 19 M19 5 L5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <h3 data-i18n="drawerTitle">设计规范 · 供参考</h3>
+  <p class="sub" data-i18n="drawerSub">本 Demo 的视觉令牌与组件清单，供实现端 Agent 对齐参考。</p>
+
+  <div class="tok">
+    <h4 data-i18n="tokColors">色板 Tokens</h4>
+    <div class="swatches">
+      <span class="sw"><i style="background:#0e141b"></i>--bg #0e141b</span>
+      <span class="sw"><i style="background:#161d26"></i>--panel #161d26</span>
+      <span class="sw"><i style="background:#1b2430"></i>--panel2 #1b2430</span>
+      <span class="sw"><i style="background:#202b38"></i>--panel3 #202b38</span>
+      <span class="sw"><i style="background:#26313e"></i>--line #26313e</span>
+      <span class="sw"><i style="background:#35424f"></i>--line2 #35424f</span>
+      <span class="sw"><i style="background:#e7edf4"></i>--ink #e7edf4</span>
+      <span class="sw"><i style="background:#9aa8b6"></i>--ink2 #9aa8b6</span>
+      <span class="sw"><i style="background:#687583"></i>--ink3 #687583</span>
+      <span class="sw"><i style="background:#e8a33d"></i>--amber #e8a33d</span>
+      <span class="sw"><i style="background:#47c07c"></i>--pos #47c07c</span>
+      <span class="sw"><i style="background:#e0655a"></i>--neg #e0655a</span>
+    </div>
+  </div>
+
+  <div class="tok">
+    <h4 data-i18n="tokType">字号与角色</h4>
+    <table class="typetable">
+      <tr><td>72</td><td>Hero 主读数（等宽）</td></tr>
+      <tr><td>19</td><td>区块标题 h2</td></tr>
+      <tr><td>17</td><td>品牌标题</td></tr>
+      <tr><td>14</td><td>卡片标题 / 排名</td></tr>
+      <tr><td>13.5</td><td>正文、列表标题</td></tr>
+      <tr><td>12</td><td>辅助信息、按钮</td></tr>
+      <tr><td>11</td><td>标签、眉标、徽章</td></tr>
+      <tr><td>10</td><td>极小注释（英文引导）</td></tr>
+    </table>
+  </div>
+
+  <div class="tok">
+    <h4 data-i18n="tokSpace">间距 / 圆角 / 栅格</h4>
+    <table class="typetable">
+      <tr><td>4 / 8 / 12</td><td>微间距</td></tr>
+      <tr><td>14 / 16 / 20</td><td>卡片内边距与间距</td></tr>
+      <tr><td>28 / 38</td><td>区块间距</td></tr>
+      <tr><td>4 / 6 / 8</td><td>chip / 徽章 / 按钮圆角</td></tr>
+      <tr><td>10 / 12</td><td>卡片 / Hero 圆角</td></tr>
+      <tr><td>1040px</td><td>最大内容宽度（12 栅格）</td></tr>
+    </table>
+  </div>
+
+  <div class="tok">
+    <h4 data-i18n="tokComp">组件清单</h4>
+    <ul class="comp-list">
+      <li><b>TopBar</b> — 吸顶，品牌 + 实时搜索 + 中英切换 + 规范入口</li>
+      <li><b>HeroReadout</b> — 仪表式读数：大数字 + 涨跌徽章 + 光栅走势图</li>
+      <li><b>DayStrip</b> — 7 天日报切换，当前日琥珀高亮</li>
+      <li><b>SectionHeader</b> — 序号 + 主标题 + 英文副标 + 说明</li>
+      <li><b>FilterChips</b> — 胶囊筛选（全部 / 高热度 / 新增）</li>
+      <li><b>OpportunityCard</b> — 封面占位 + 热/涨徽章 + 标题 + 标签 + 迷你走势</li>
+      <li><b>FeaturedCard（精选）</b> — 抖音式双栏卡片：封面 + 精选角标 + 热度角标 + 标题 + 来源/涨幅 meta</li>
+      <li><b>TrendingRow</b> — 排名 + 类型徽章 + 标题 + 标签 + 热/涨数值</li>
+      <li><b>StoryItem</b> — 序号 + 标题，双列栅格</li>
+      <li><b>Badge / Chip / Sparkline</b> — 通用原子组件</li>
+      <li><b>Toast / SpecDrawer</b> — 反馈与规范面板</li>
+    </ul>
+  </div>
+
+  <div class="warn" data-i18n="drawerWarn">数据与走势为演示占位（未接入趋势逻辑）；卡片封面为线稿占位，接入真实新闻图时按 16:9 裁切、主体避让右上徽章区。</div>
+</aside>
+
+<div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(s){ return document.querySelector(s); };
+  var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+
+  /* ---------- Toast ---------- */
+  function toast(msg){
+    var w = $("#toasts");
+    var t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = msg;
+    w.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 2400);
+  }
+
+  /* ---------- 通用点击：演示跳转 ---------- */
+  document.addEventListener("click", function(e){
+    var card = e.target.closest(".tile, .tr, .story, .feat");
+    if(card && !e.target.closest(".chip-btn, .search, .langtoggle, .iconbtn, .daylink, .brand")){
+      var title = card.getAttribute("data-title") || "条目";
+      toast("演示：打开详情「" + title + "」");
+    }
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key !== "Enter" && e.key !== " ") return;
+    var card = e.target.closest && e.target.closest(".tile, .tr, .story, .feat");
+    if(card){ e.preventDefault(); card.click(); }
+  });
+
+  /* ---------- 日期切换 ---------- */
+  $$(".daylink").forEach(function(d){
+    d.addEventListener("click", function(){
+      var day = d.getAttribute("data-day");
+      if(d.classList.contains("cur")){ toast("当前为 09-23 日报"); return; }
+      toast("演示：切换至 " + day + " 日报");
+    });
+    d.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); d.click(); }
+    });
+  });
+
+  /* ---------- 品牌回顶 ---------- */
+  function toTop(){ window.scrollTo({top:0, behavior: (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth")}); }
+  $("#brandBtn").addEventListener("click", toTop);
+  $("#brandBtn").addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();toTop();} });
+
+  /* ---------- 商机筛选 ---------- */
+  var tiles = $$("#oppGrid .tile");
+  var oppEmpty = $("#oppEmpty");
+  $$(".chip-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      $$(".chip-btn").forEach(function(b){ b.classList.remove("on"); });
+      btn.classList.add("on");
+      var f = btn.getAttribute("data-filter");
+      var visible = 0;
+      tiles.forEach(function(t){
+        var hot = parseInt(t.getAttribute("data-hot"), 10) || 0;
+        var show = (f === "all") || (f === "hot" && hot >= 6) || (f === "new" && t.hasAttribute("data-new"));
+        t.style.display = show ? "" : "none";
+        if(show){ visible++; }
+      });
+      oppEmpty.classList.toggle("show", visible === 0);
+    });
+  });
+
+  /* ---------- 搜索（标题 / 标签） ---------- */
+  var searchBox = $("#searchBox");
+  function applySearch(){
+    var q = searchBox.value.trim().toLowerCase();
+    var anyVisible = false;
+
+    tiles.forEach(function(t){
+      var hay = (t.getAttribute("data-title") + " " + t.getAttribute("data-tags")).toLowerCase();
+      var show = !q || hay.indexOf(q) > -1;
+      t.style.display = show ? "" : "none";
+      if(show){ anyVisible = true; }
+    });
+    oppEmpty.classList.toggle("show", !anyVisible);
+
+    var rows = $$("#trendList .tr");
+    var anyRows = false;
+    rows.forEach(function(r){
+      var hay = (r.getAttribute("data-title") + " " + r.textContent).toLowerCase();
+      var show = !q || hay.indexOf(q) > -1;
+      r.style.display = show ? "" : "none";
+      if(show){ anyRows = true; }
+    });
+    $("#trendEmpty").classList.toggle("show", !anyRows);
+
+    var stories = $$("#newsList .story");
+    var anyNews = false;
+    stories.forEach(function(s){
+      var show = !q || s.getAttribute("data-title").toLowerCase().indexOf(q) > -1;
+      s.style.display = show ? "" : "none";
+      if(show){ anyNews = true; }
+    });
+    $("#newsEmpty").classList.toggle("show", !anyNews);
+
+    var feats = $$("#featGrid .feat");
+    var anyFeat = false;
+    feats.forEach(function(f){
+      var hay = (f.getAttribute("data-title") + " " + f.getAttribute("data-tags")).toLowerCase();
+      var show = !q || hay.indexOf(q) > -1;
+      f.style.display = show ? "" : "none";
+      if(show){ anyFeat = true; }
+    });
+    $("#featEmpty").classList.toggle("show", !anyFeat);
+  }
+  searchBox.addEventListener("input", applySearch);
+  /* 搜索与筛选互斥：筛选重置为全部时清空搜索 */
+  $("#searchBox").addEventListener("keydown", function(e){
+    if(e.key === "Escape"){ searchBox.value = ""; applySearch(); }
+  });
+
+  /* ---------- 分享 ---------- */
+  $("#shareBtn").addEventListener("click", function(){ toast("演示：已复制分享链接"); });
+  $("#shareBtn").addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();$("#shareBtn").click();} });
+
+  /* ---------- 设计规范抽屉 ---------- */
+  var drawer = $("#drawer"), scrim = $("#scrim");
+  function openDrawer(){ drawer.classList.add("open"); scrim.classList.add("show"); }
+  function closeDrawer(){ drawer.classList.remove("open"); scrim.classList.remove("show"); }
+  $("#specBtn").addEventListener("click", openDrawer);
+  $("#drawerClose").addEventListener("click", closeDrawer);
+  scrim.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape"){ closeDrawer(); } });
+
+  /* ---------- 中英切换 ---------- */
+  var I18N = {
+    zh: {
+      brand:"销售日报", brandSub:"工业情报 · 每日 07:30", searchPh:"搜索标题 / 标签…",
+      spec:"设计规范", heroK:"TODAY · 今日行业热度", heroLive:"数据更新 07:30 · 演示",
+      heroK2:"今日行业热度", heatUnit:"/ 100", deltaTxt:"较昨日",
+      src:"来源", hit:"热榜命中", cycle:"统计周期", demoNote:"* 数值与走势为演示数据，非实时逻辑",
+      sec1:"今日商机", sec1en:"TOP OPPORTUNITIES", sec1Meta:"按热度排序 · 前 3",
+      fAll:"全部", fHot:"高热度（≥6）", fNew:"新增", hot:"热", grow:"涨",
+      secF:"精选", secFen:"FEATURED", secFMeta:"人工精选 · 4 条", featTag:"精选",
+      emptyTxt:"没有匹配的结果，换个关键词试试",
+      sec2:"今日趋势", sec2en:"TRENDING", sec2Meta:"热度 × 涨幅", kindDyn:"动态",
+      sec3:"热闻", sec3en:"HOT STORIES", sec3Meta:"共 6 条",
+      footBrand:"Trends · 销售日报", footNote:"UI 改版 Demo（视觉原型，无趋势逻辑）", shareTxt:"分享链接",
+      drawerTitle:"设计规范 · 供参考", drawerSub:"本 Demo 的视觉令牌与组件清单，供实现端 Agent 对齐参考。",
+      tokColors:"色板 Tokens", tokType:"字号与角色", tokSpace:"间距 / 圆角 / 栅格", tokComp:"组件清单",
+      drawerWarn:"数据与走势为演示占位（未接入趋势逻辑）；卡片封面为线稿占位，接入真实新闻图时按 16:9 裁切、主体避让右上徽章区。"
+    },
+    en: {
+      brand:"Sales Daily", brandSub:"Industrial Intel · Daily 07:30", searchPh:"Search title / tags…",
+      spec:"Spec", heroK:"TODAY · INDUSTRY HEAT", heroLive:"Updated 07:30 · Demo",
+      heroK2:"Industry heat today", heatUnit:"/ 100", deltaTxt:"vs yesterday",
+      src:"Sources", hit:"Hotlist hits", cycle:"Cycle", demoNote:"* Demo figures, not live logic",
+      sec1:"Top Opportunities", sec1en:"TOP OPPORTUNITIES", sec1Meta:"By heat · Top 3",
+      fAll:"All", fHot:"Hot (≥6)", fNew:"New", hot:"Heat", grow:"Grow",
+      secF:"Featured", secFen:"FEATURED", secFMeta:"Curated · 4 items", featTag:"FEATURED",
+      emptyTxt:"No match — try another keyword",
+      sec2:"Trending", sec2en:"TRENDING", sec2Meta:"Heat × Grow", kindDyn:"News",
+      sec3:"Hot Stories", sec3en:"HOT STORIES", sec3Meta:"6 items",
+      footBrand:"Trends · Sales Daily", footNote:"UI reform demo (visual prototype)", shareTxt:"Share link",
+      drawerTitle:"Design Spec · Reference", drawerSub:"Visual tokens & component inventory for implementation agents.",
+      tokColors:"Color tokens", tokType:"Type scale", tokSpace:"Spacing / Radius / Grid", tokComp:"Component inventory",
+      drawerWarn:"Figures & trends are demo placeholders (no live logic). Covers are line-art placeholders; replace with real news images at 16:9, keeping subjects clear of the top-right badges."
+    }
+  };
+  var lang = "zh";
+  function applyLang(){
+    var dict = I18N[lang];
+    $$("[data-i18n]").forEach(function(el){
+      var k = el.getAttribute("data-i18n");
+      if(dict[k] !== undefined){ el.textContent = dict[k]; }
+    });
+    $$("[data-i18n-ph]").forEach(function(el){
+      var k = el.getAttribute("data-i18n-ph");
+      if(dict[k] !== undefined){ el.setAttribute("placeholder", dict[k]); }
+    });
+    $("#btnZh").classList.toggle("on", lang === "zh");
+    $("#btnEn").classList.toggle("on", lang === "en");
+  }
+  $("#btnZh").addEventListener("click", function(){ lang = "zh"; applyLang(); });
+  $("#btnEn").addEventListener("click", function(){ lang = "en"; applyLang(); });
+})();
+</script>
+</body>
+</html>
