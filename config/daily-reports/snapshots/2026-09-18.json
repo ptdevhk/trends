@@ -2,11 +2,11 @@
   "date": "2026-09-18",
   "localeDefault": "zh-Hans",
   "source": "live",
-  "generatedAt": "2026-09-24T06:33:39.829Z",
+  "generatedAt": "2026-09-24T12:45:17.244Z",
   "hero": {
     "headline": "今日行业热度",
-    "value": "5",
-    "delta": "-74%",
+    "value": "43",
+    "delta": "-38%",
     "meta": "5 来源 · 0 热榜命中 · 2026-09-18–2026-09-24",
     "sparkline": [
       5,
@@ -15,7 +15,7 @@
       0,
       5,
       8,
-      5
+      43
     ],
     "dayLabels": [
       "Day1",
@@ -41,8 +41,11 @@
       "kind": "动态",
       "label": "精密减速器全系列技术成核心看点:2027北京具身智能与机器人博览会",
       "heat": "2",
-      "growth": "1",
+      "growth": "9",
       "started": "2026-09-18",
+      "rowDay": "2026-09-18",
+      "rowAsOf": 1789706880000,
+      "rowPlatform": "rss:bing-jiansuji",
       "sparkline": [
         0,
         0,
@@ -50,13 +53,13 @@
         0,
         2,
         1,
-        1
+        9
       ],
       "chips": [
         "减速器",
         "精密减速器"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa8f8014ce2a56d50581e958243&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077715372_122606574&c=468911810070095629&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4fa02869442b89c2ad85bd762d91e&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077715372_122606574&c=468911810070095629&mkt=zh-hk",
       "imageUrl": "https://q9.itc.cn/images01/20260918/7f3fafb0990b48f7b75fc1ffa41f17b7.jpeg",
       "snippet": "2027年3月29日-31日，2027北京国际具身智能与机器人产业博览会（InterRobot Expo 2027京机会）将在北京国家会议中心（二期）盛大举办。作为具身智能与机器人领域的年度行业盛会，本届展会将以精密减速器全系列产品与技术为"
     },
@@ -64,8 +67,11 @@
       "kind": "动态",
       "label": "2025年中国机床出口129亿美元、均价大涨40%",
       "heat": "2",
-      "growth": "1",
+      "growth": "2",
       "started": "2026-09-18",
+      "rowDay": "2026-09-18",
+      "rowAsOf": 1789701300000,
+      "rowPlatform": "rss:bing-jichuang-chukou",
       "sparkline": [
         0,
         0,
@@ -73,13 +79,13 @@
         0,
         0,
         1,
-        1
+        2
       ],
       "chips": [
         "机床",
         "机床出口"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aab8c2b49189e2763ff00480b09&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077657882_120567388&c=15623771082921979562&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4fa07c80c4e1f9fdd5302cf29a647&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077657882_120567388&c=15623771082921979562&mkt=zh-hk",
       "imageUrl": "https://q2.itc.cn/images01/20260918/040cbd67f4bc4a0695289deba49fcf7f.jpeg",
       "snippet": "非洲正在修建新的工业区，第一台机床进场，往往是制造业起步的信号。 2025年，中国机床出口额达到129.1亿美元，同比增长14.6%；更关键的是，出口均价同比增长40.19%。 德国机床制造商协会VDW的统计数据显示，2025年中国机床出口"
     },
@@ -87,8 +93,11 @@
       "kind": "动态",
       "label": "2026 注塑装备供应商分析:奥为、统一两家代表企业的产品与案例拆解",
       "heat": "2",
-      "growth": "1",
+      "growth": "11",
       "started": "2026-09-18",
+      "rowDay": "2026-09-18",
+      "rowAsOf": 1789718160000,
+      "rowPlatform": "rss:bing-zhusuji",
       "sparkline": [
         0,
         0,
@@ -96,13 +105,13 @@
         0,
         0,
         0,
-        1
+        11
       ],
       "chips": [
         "注塑机",
         "采购"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa7e4194d03a55d98df4a81195e&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A06SL500&c=13297417497157780341&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4fa00469c4eaba336bfd1ee323fad&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A06SL500&c=13297417497157780341&mkt=zh-hk",
       "imageUrl": "https://inews.gtimg.com/om_ls/O4yXZQluShF2WOkWB_y_Qy2KTE437TvlM9TqBTPRgyIFwAA_640330/0",
       "snippet": "在注塑装备与配套领域，单机辅机与整厂规划代表两条技术演进路径：前者围绕注塑机把粉碎、温控、冷却、供料等单机环节集成到一起；后者把机械手、温控、供料、看板等组合成一个项目整体推进。本文以杭州奥为智能装备有限公司与广东统一机器人智能股份有限公司"
     },
@@ -110,8 +119,11 @@
       "kind": "动态",
       "label": "森峰激光闯注册关,7成收入靠海外,背负对赌的李峰西夫妇背水一战",
       "heat": "1",
-      "growth": "1",
+      "growth": "10",
       "started": "2026-09-18",
+      "rowDay": "2026-09-18",
+      "rowAsOf": 1789697160000,
+      "rowPlatform": "rss:bing-jiguang-qiege",
       "sparkline": [
         0,
         0,
@@ -119,12 +131,12 @@
         0,
         0,
         0,
-        1
+        10
       ],
       "chips": [
         "激光切割"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aaaff9149d9b1ea113d32dcb518&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A02ZOY00&c=13538283000361689918&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4f49d77114eecb0590abafc49aa61&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A02ZOY00&c=13538283000361689918&mkt=zh-hk",
       "imageUrl": "https://inews.gtimg.com/om_ls/OpwDVVIVRa8VhBAs0Z_9KS-_-MKywiSDu4dXxq5Rlg590AA_640330/0",
       "snippet": "激光加工装备是高端制造的“工业手术刀”，大族激光、华工科技等龙头牢牢占据国内产业高地，一批区域型中小激光设备厂商则另辟蹊径，把海外市场当成增长主战场。 济南森峰激光科技股份有限公司（简称“森峰激光”）就是其中一员。公司2007年成立，深耕激"
     },
@@ -132,8 +144,11 @@
       "kind": "动态",
       "label": "世赛项目连连看:数控铣、管道与制暖、烘焙、工业设计技术",
       "heat": "1",
-      "growth": "1",
+      "growth": "11",
       "started": "2026-09-18",
+      "rowDay": "2026-09-18",
+      "rowAsOf": 1789695120000,
+      "rowPlatform": "rss:bing-shukong-xichuang",
       "sparkline": [
         0,
         0,
@@ -141,15 +156,55 @@
         0,
         0,
         0,
-        1
+        11
       ],
       "chips": [
         "数控"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa6b1734a25877e9ea796a5ded2&url=https%3a%2f%2ffinance.sina.com.cn%2fjjxw%2f2026-09-18%2fdoc-inisftxe8490718.shtml&c=16535262642811012650&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4f9fedcbd4bc9b4f85298d496ccaa&url=https%3a%2f%2ffinance.sina.com.cn%2fjjxw%2f2026-09-18%2fdoc-inisftxe8490718.shtml&c=16535262642811012650&mkt=zh-hk",
       "imageUrl": "https://n.sinaimg.cn/front20260918ac/300/w720h380/20260918/4b6c-529cb671dd9bec0d6e4fdb044de1a6cf.jpg",
       "snippet": "第48届世界技能大赛将于2026年9月22日至27日在上海举办。本届世赛以“技能改变世界 技能照亮前程”为主题，共设64个比赛项目。世赛比什么？有哪些竞赛项目？选手需要掌握哪方面技能……即日起，我们推出全新短视频栏目《秒懂世赛·项目百科》，"
     }
   ],
-  "stories": []
+  "stories": [],
+  "headline": {
+    "title": "精密减速器全系列技术成核心看点:2027北京具身智能与机器人博览会",
+    "tag": "动态",
+    "source": "bing-jiansuji",
+    "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab4fa02869442b89c2ad85bd762d91e&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077715372_122606574&c=468911810070095629&mkt=zh-hk"
+  },
+  "downstream": [
+    {
+      "title": "误差小于0.01毫米!柳州这些“小模具”闯出了大市场",
+      "tag": "模具",
+      "source": "模具网",
+      "day": "2026-09-17",
+      "publishedAt": 1789614540000,
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa776714854b684f00810906aa7&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260917A04KYW00&c=17429269687817392842&mkt=zh-hk"
+    },
+    {
+      "title": "南皮汽车五金冲压件加工厂推荐哪些,选型注意三点",
+      "tag": "五金",
+      "source": "压铸网",
+      "day": "2026-09-16",
+      "publishedAt": 1789503300000,
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa7207b47d5bbaf891f0833685f&url=https%3a%2f%2fnews.sohu.com%2fa%2f1076557766_122941272&c=15734652340275597416&mkt=zh-hk"
+    },
+    {
+      "title": "算力赋能制造 激活黄岩模具产业新质生产力",
+      "tag": "模具",
+      "source": "模具网",
+      "day": "2026-09-16",
+      "publishedAt": 1789491600000,
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa776714854b684f00810906aa7&url=https%3a%2f%2fapp.xinhuanet.com%2fnews%2farticle.html%3farticleId%3d20260916be9b997b9cf7437ea5cc4872bcda6379&c=10317208569798739573&mkt=zh-hk"
+    },
+    {
+      "title": "告别一次性火箭!美企研发空射冲压飞行器,高马赫测试成本大降",
+      "tag": "冲压",
+      "source": "压铸网",
+      "day": "2026-09-12",
+      "publishedAt": 1789189980000,
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa7207b47d5bbaf891f0833685f&url=https%3a%2f%2fwww.sohu.com%2fa%2f1075146172_121618074&c=6564079417550752324&mkt=zh-hk"
+    }
+  ]
 }

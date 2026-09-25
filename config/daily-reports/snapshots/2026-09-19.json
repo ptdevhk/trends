@@ -1,21 +1,21 @@
 {
   "date": "2026-09-19",
   "localeDefault": "zh-Hans",
-  "source": "frozen",
-  "generatedAt": "2026-09-24T06:33:39.829Z",
+  "source": "live",
+  "generatedAt": "2026-09-24T23:52:18.770Z",
   "hero": {
     "headline": "今日行业热度",
-    "value": "5",
-    "delta": "-74%",
-    "meta": "5 来源 · 0 热榜命中 · 2026-09-18–2026-09-24",
+    "value": "6",
+    "delta": "-95%",
+    "meta": "5 来源 · 0 热榜命中 · 2026-09-19–2026-09-25",
     "sparkline": [
-      0,
-      3,
-      0,
-      5,
-      8,
-      5,
-      0
+      7,
+      36,
+      33,
+      48,
+      64,
+      103,
+      6
     ],
     "dayLabels": [
       "Day1",
@@ -27,131 +27,217 @@
       "Day7"
     ],
     "dayDates": [
-      "2026-09-18",
       "2026-09-19",
       "2026-09-20",
       "2026-09-21",
       "2026-09-22",
       "2026-09-23",
-      "2026-09-24"
+      "2026-09-24",
+      "2026-09-25"
     ]
   },
   "opportunities": [
     {
       "kind": "动态",
-      "label": "精密减速器全系列技术成核心看点:2027北京具身智能与机器人博览会",
-      "heat": "2",
+      "label": "海天精工:9月18日获融资买入1164.03万元,融资余额8009.16万元占流通…",
+      "heat": "3",
       "growth": "1",
-      "started": "2026-09-18",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789776720000,
+      "rowPlatform": "rss:gnews-haitianjinggong",
+      "sparkline": [
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "chips": [
+        "海天精工",
+        "融资买入",
+        "融资余额"
+      ],
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%22106%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22146%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3E%E6%B5%B7%E5%A4%A9%E7%B2%BE%E5%B7%A5%3A%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%B5%B7%E5%A4%A9%E7%B2%BE%E5%B7%A5%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E8%9E%8D%E8%B5%84%E4%B9%B0%E5%85%A5%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "海天精工：9月18日获融资买入1164.03万元，融资余额8009.16万元占流通市值比例0.67%，低于近一年10%分位水平 新浪财经"
+    },
+    {
+      "kind": "动态",
+      "label": "行业数据彰显细分市场巨大潜力,乔锋智能新品走心机,立足企业真实生产需求",
+      "heat": "3",
+      "growth": "1",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789765226000,
+      "rowPlatform": "rss:gnews-zouxinji",
+      "sparkline": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "chips": [
+        "走心机",
+        "乔锋",
+        "乔锋智能"
+      ],
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2276%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22116%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3E%E8%A1%8C%E4%B8%9A%E6%95%B0%E6%8D%AE%E5%BD%B0%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E8%B5%B0%E5%BF%83%E6%9C%BA%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E4%B9%94%E9%94%8B%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "行业数据彰显细分市场巨大潜力，乔锋智能新品走心机，立足企业真实生产需求 网易新闻客户端"
+    },
+    {
+      "kind": "动态",
+      "label": "航发动力招标结果:电火花小孔自动加工单元中标公告",
+      "heat": "3",
+      "growth": "1",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789798113000,
+      "rowPlatform": "rss:gnews-dianhuohua",
       "sparkline": [
         0,
         0,
         0,
         0,
-        2,
-        1,
+        0,
+        0,
         1
+      ],
+      "chips": [
+        "电火花",
+        "电火花小孔",
+        "中标"
+      ],
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2266%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22106%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3E%E8%88%AA%E5%8F%91%E5%8A%A8%E5%8A%9B%E6%8B%9B%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E7%94%B5%E7%81%AB%E8%8A%B1%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E7%94%B5%E7%81%AB%E8%8A%B1%E2%80%A6%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "航发动力招标结果：电火花小孔自动加工单元中标公告 搜狐网"
+    },
+    {
+      "kind": "动态",
+      "label": "XWED85摆线减速机XWED85-391-5.5kw底脚孔的解释",
+      "heat": "2",
+      "growth": "2",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789814275000,
+      "rowPlatform": "rss:gnews-jiansuji",
+      "sparkline": [
+        0,
+        3,
+        4,
+        6,
+        7,
+        2,
+        2
+      ],
+      "chips": [
+        "减速机",
+        "摆线减速机"
+      ],
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3EXWED8%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E5%87%8F%E9%80%9F%E6%9C%BA%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%91%86%E7%BA%BF%E5%87%8F%E2%80%A6%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "XWED85摆线减速机XWED85-391-5.5kw底脚孔的解释 搜狐网"
+    },
+    {
+      "kind": "动态",
+      "label": "2026国产需求旺盛,人形机器人打开市场空间:精密减速器 - eet-china.…",
+      "heat": "2",
+      "growth": "2",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789784880000,
+      "rowPlatform": "rss:gnews-jiansuji",
+      "sparkline": [
+        0,
+        3,
+        4,
+        6,
+        7,
+        2,
+        2
       ],
       "chips": [
         "减速器",
         "精密减速器"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa8f8014ce2a56d50581e958243&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077715372_122606574&c=468911810070095629&mkt=zh-hk",
-      "imageUrl": "https://q9.itc.cn/images01/20260918/7f3fafb0990b48f7b75fc1ffa41f17b7.jpeg",
-      "snippet": "2027年3月29日-31日，2027北京国际具身智能与机器人产业博览会（InterRobot Expo 2027京机会）将在北京国家会议中心（二期）盛大举办。作为具身智能与机器人领域的年度行业盛会，本届展会将以精密减速器全系列产品与技术为"
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3E2026%E5%9B%BD%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E5%87%8F%E9%80%9F%E5%99%A8%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E7%B2%BE%E5%AF%86%E5%87%8F%E2%80%A6%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "2026国产需求旺盛，人形机器人打开市场空间：精密减速器 eet-china.com"
     },
     {
-      "kind": "动态",
-      "label": "2025年中国机床出口129亿美元、均价大涨40%",
-      "heat": "2",
+      "kind": "转机",
+      "label": "秋招会上看需求热点:岗位带工字月薪破万很常见,学历门槛更弹性",
+      "heat": "1",
       "growth": "1",
-      "started": "2026-09-18",
+      "started": "2026-09-19",
+      "rowDay": "2026-09-19",
+      "rowAsOf": 1789821974000,
+      "rowPlatform": "rss:gnews-cnc-hiring",
       "sparkline": [
-        0,
-        0,
+        1,
         0,
         0,
         0,
         1,
-        1
-      ],
-      "chips": [
-        "机床",
-        "机床出口"
-      ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aab8c2b49189e2763ff00480b09&url=https%3a%2f%2fwww.sohu.com%2fa%2f1077657882_120567388&c=15623771082921979562&mkt=zh-hk",
-      "imageUrl": "https://q2.itc.cn/images01/20260918/040cbd67f4bc4a0695289deba49fcf7f.jpeg",
-      "snippet": "非洲正在修建新的工业区，第一台机床进场，往往是制造业起步的信号。 2025年，中国机床出口额达到129.1亿美元，同比增长14.6%；更关键的是，出口均价同比增长40.19%。 德国机床制造商协会VDW的统计数据显示，2025年中国机床出口"
-    },
-    {
-      "kind": "动态",
-      "label": "2026 注塑装备供应商分析:奥为、统一两家代表企业的产品与案例拆解",
-      "heat": "2",
-      "growth": "1",
-      "started": "2026-09-18",
-      "sparkline": [
-        0,
-        0,
-        0,
-        0,
-        0,
         0,
         1
       ],
       "chips": [
-        "注塑机",
-        "采购"
+        "工字"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa7e4194d03a55d98df4a81195e&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A06SL500&c=13297417497157780341&mkt=zh-hk",
-      "imageUrl": "https://inews.gtimg.com/om_ls/O4yXZQluShF2WOkWB_y_Qy2KTE437TvlM9TqBTPRgyIFwAA_640330/0",
-      "snippet": "在注塑装备与配套领域，单机辅机与整厂规划代表两条技术演进路径：前者围绕注塑机把粉碎、温控、冷却、供料等单机环节集成到一起；后者把机械手、温控、供料、看板等组合成一个项目整体推进。本文以杭州奥为智能装备有限公司与广东统一机器人智能股份有限公司"
-    },
-    {
-      "kind": "动态",
-      "label": "森峰激光闯注册关,7成收入靠海外,背负对赌的李峰西夫妇背水一战",
-      "heat": "1",
-      "growth": "1",
-      "started": "2026-09-18",
-      "sparkline": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1
-      ],
-      "chips": [
-        "激光切割"
-      ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aaaff9149d9b1ea113d32dcb518&url=https%3a%2f%2fnews.qq.com%2frain%2fa%2f20260918A02ZOY00&c=13538283000361689918&mkt=zh-hk",
-      "imageUrl": "https://inews.gtimg.com/om_ls/OpwDVVIVRa8VhBAs0Z_9KS-_-MKywiSDu4dXxq5Rlg590AA_640330/0",
-      "snippet": "激光加工装备是高端制造的“工业手术刀”，大族激光、华工科技等龙头牢牢占据国内产业高地，一批区域型中小激光设备厂商则另辟蹊径，把海外市场当成增长主战场。 济南森峰激光科技股份有限公司（简称“森峰激光”）就是其中一员。公司2007年成立，深耕激"
-    },
-    {
-      "kind": "动态",
-      "label": "世赛项目连连看:数控铣、管道与制暖、烘焙、工业设计技术",
-      "heat": "1",
-      "growth": "1",
-      "started": "2026-09-18",
-      "sparkline": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1
-      ],
-      "chips": [
-        "数控"
-      ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab43aa6b1734a25877e9ea796a5ded2&url=https%3a%2f%2ffinance.sina.com.cn%2fjjxw%2f2026-09-18%2fdoc-inisftxe8490718.shtml&c=16535262642811012650&mkt=zh-hk",
-      "imageUrl": "https://n.sinaimg.cn/front20260918ac/300/w720h380/20260918/4b6c-529cb671dd9bec0d6e4fdb044de1a6cf.jpg",
-      "snippet": "第48届世界技能大赛将于2026年9月22日至27日在上海举办。本届世赛以“技能改变世界 技能照亮前程”为主题，共设64个比赛项目。世赛比什么？有哪些竞赛项目？选手需要掌握哪方面技能……即日起，我们推出全新短视频栏目《秒懂世赛·项目百科》，"
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E8%BD%AC%E6%9C%BA%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23e8f2eb%22%2F%3E%3Crect%20x%3D%2289%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%231a8f5a%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22129%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%231a8f5a%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%231a8f5a%22%3E%E8%BD%AC%E6%9C%BA%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%231a8f5a%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%231a8f5a%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%231a2a20%22%3E%E7%A7%8B%E6%8B%9B%E4%BC%9A%E4%B8%8A%E7%9C%8B%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23d0e5d8%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%232a3d30%22%3E%E5%B7%A5%E5%AD%97%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "秋招会上看需求热点：岗位带工字月薪破万很常见，学历门槛更弹性 搜狐网"
     }
   ],
   "stories": [],
-  "fallbackFromDate": "2026-09-18",
-  "banner": "沿用最近完整日（2026-09-18）· 2026-09-19 实时命中不足 4 条"
+  "headline": {
+    "title": "海天精工:9月18日获融资买入1164.03万元,融资余额8009.16万元占流通市值比例0.67%,低于近一年10%…",
+    "tag": "动态",
+    "source": "gnews-haitianjinggong"
+  },
+  "downstream": [
+    {
+      "title": "带你涨知识之低压压铸制造原理",
+      "tag": "压铸",
+      "source": "压铸网",
+      "day": "2026-09-18",
+      "publishedAt": 1789727280000
+    },
+    {
+      "title": "总投资3亿元,张家港一新能源汽车模具项目开工",
+      "tag": "模具",
+      "source": "模具网",
+      "day": "2026-09-18",
+      "publishedAt": 1789719970000
+    },
+    {
+      "title": "天水锻压集团六十华诞庆典活动即将启幕(图)",
+      "tag": "锻压",
+      "source": "gnews-duanya",
+      "day": "2026-09-18",
+      "publishedAt": 1789718771000
+    },
+    {
+      "title": "阿莱德:拟支付现金收购惠州市源宝精密五金压铸有限公司不低于51%股权,尽调持续推进",
+      "tag": "五金",
+      "source": "压铸网",
+      "day": "2026-09-18",
+      "publishedAt": 1789718340000
+    },
+    {
+      "title": "电竞圈平台_其他攻略_【百日挑战96】锻造神秘的矿石&锻压工坊解密&开启藏书室",
+      "tag": "锻压",
+      "source": "gnews-duanya",
+      "day": "2026-09-18",
+      "publishedAt": 1789711977000
+    },
+    {
+      "title": "【视频】专业解读,理性选车-一体化压铸车身的隐性安全优势 - chejiahao.…",
+      "tag": "压铸",
+      "source": "压铸网",
+      "day": "2026-09-17",
+      "publishedAt": 1789628259000
+    }
+  ]
 }

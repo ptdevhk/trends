@@ -16,6 +16,7 @@ import {
   NewsSourcesDialog,
   type NewsSourcesDialogState,
 } from '@/components/research/NewsSourcesDialog'
+import { ResearchSettingsPanel } from '@/components/research/ResearchSettingsPanel'
 import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
 import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
@@ -841,6 +842,18 @@ export function ResearchIndexPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <ResearchSettingsPanel
+        realtimeItems={pulseItems}
+        realtimeLoading={pulseLoading}
+        keywords={keywordsState}
+        platforms={platformsState}
+        newsSources={newsSourcesState}
+        onSaveKeywords={handleSaveKeywords}
+        onSavePlatforms={handleSavePlatforms}
+        onSaveNewsSources={handleSaveNewsSources}
+        onRestoreDefaults={() => setKeywordsDialogOpen(true)}
+      />
 
       {/* Primary HR path first: find a company, then scan pulse — before dense showcase/catalog. */}
       <section data-testid="research-section-search">

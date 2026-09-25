@@ -3162,7 +3162,11 @@
       "dayNav": "報告日",
       "todayLabel": "今日",
       "downloadBundle": "下載完整 HTML",
-      "downloadBundleHint": "單檔可轉發（真實封面已嵌進 SVG）"
+      "downloadBundleHint": "單檔可轉發（真實封面已嵌進 SVG）",
+      "rebuild": "重新生成今日",
+      "rebuildHint": "以當前實時數據重新生成今日報告（可在一天內多次觸發）",
+      "rebuilding": "生成中…",
+      "rebuilt": "已重新生成"
     },
     "sectionResumeDesk": "數控品牌臺（展示）",
     "sectionSearch": "搜索企業",
@@ -3194,6 +3198,25 @@
       "dialogDescription": "管理 CNC/機床新聞數據源（預設全部開啟）。可按主開關、按組或按單一來源關閉。",
       "master": "啟用 CNC/機床新聞數據源",
       "activeCount": "已啟用 {{count}} 個數據源"
+    },
+    "settings": {
+      "title": "行業研究 / 監控設置",
+      "description": "精密機械 · 數控機床 · HR 簡歷臺",
+      "realtimeTitle": "實時新聞",
+      "realtimeDefault": "下游 默認",
+      "realtimeHint": "僅列當前關鍵詞過濾命中的新聞 · 單條輸出",
+      "realtimeEmpty": "暫無當前下游關鍵詞命中的新聞。",
+      "cncRoot": "（領域根 · 非可選項）",
+      "cncRootHint": "全部關鍵詞隸屬於 CNC；下游組 = 實時新聞/日報 的默認過濾",
+      "defaultEnabled": "默認啟用",
+      "newsSources": "數據源 ({{count}})",
+      "newsSourcesHint": "CNC/機床新聞源",
+      "enableSources": "啟用 CNC/機床新聞數據源",
+      "enOff": "EN 默認關",
+      "platforms": "熱榜平台 ({{count}})",
+      "platformsHint": "NewsNow 平台",
+      "save": "保存配置",
+      "restore": "恢復默認"
     }
   },
   "publicShare": {

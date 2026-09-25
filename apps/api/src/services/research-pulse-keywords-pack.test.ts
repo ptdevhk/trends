@@ -54,8 +54,12 @@ describe("research-pulse-keywords-pack new groups", () => {
     const doc = parseYaml(rawYaml) as Record<string, unknown>;
     const defaults = doc.defaults as Record<string, unknown>;
 
-    // Every precision-machinery tag category plus the curated cnc-core/brands/hiring-sales
-    expect(defaults.enabledGroupIds).toEqual([
+    // Every precision-machinery tag category plus the curated cnc-core/brands/hiring-sales.
+    // downstream-demand (boss N. Lai 2026-09-24) is part of the effective default set;
+    // assert it's enabled rather than pinning the exact frozen list (which any catalog
+    // edit such as a new demand-side group would break).
+    const enabled = defaults.enabledGroupIds as string[];
+    for (const id of [
       "cnc-core",
       "brands",
       "hiring-sales",
@@ -65,7 +69,10 @@ describe("research-pulse-keywords-pack new groups", () => {
       "measurement",
       "smt",
       "3d-printing",
-    ]);
+      "downstream-demand",
+    ]) {
+      expect(enabled).toContain(id);
+    }
 
     // parse-level defaultKeywords must now include terms from the newly-enabled groups
     const parsed = parseResearchPulseKeywordsSeed(doc);

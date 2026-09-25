@@ -35,10 +35,60 @@ export type DailyOpportunity = {
   /** Optional one-line evidence snippet from the source row (no PII). */
   snippet?: string;
   href?: string;
+  /** Calendar day (Asia/Shanghai YYYY-MM-DD) the source row belongs to — set by
+   *  buildLivePack for per-day (TODAY) scoping in the 定稿C layout. */
+  rowDay?: string;
+  /** Unix-ms as-of (publish day when set) for the row — drives `X 小时前` age. */
+  rowAsOf?: number;
+  /** Source platform id (e.g. `rss:gnews-diecast`) for the source label. */
+  rowPlatform?: string;
 };
 
 export type DailyStory = {
   title: string;
+  imageUrl?: string;
+  href?: string;
+  /** Calendar day (Asia/Shanghai YYYY-MM-DD) the source row belongs to (定稿C per-day TODAY scoping). */
+  rowDay?: string;
+  /** Unix-ms as-of (publish day when set) — drives `X 小时前` age. */
+  rowAsOf?: number;
+};
+
+/**
+ * 定稿C single masked headline (backend-supplied; renderer falls back to the
+ * top same-day opportunity when `title` is absent). NO publish date, NOT pinned.
+ */
+export type DailyHeadline = {
+  title: string;
+  tag?: string;
+  source?: string;
+  href?: string;
+};
+
+/**
+ * 定稿C DOWNSTREAM row (下游工业用户需求): keyword chip + title + source + age.
+ * Backend pre-filters downstream keywords (压铸/压铸厂/die-casting/模具/五金);
+ * the renderer does no keyword filtering.
+ */
+export type DailyDownstreamRow = {
+  title: string;
+  tag?: string;
+  source?: string;
+  /** Calendar day (YYYY-MM-DD) the row belongs to (for age bucketing). */
+  day?: string;
+  /** Real publish time ms (for `X 小时前` age). */
+  publishedAt?: number;
+  href?: string;
+  imageUrl?: string;
+  /** Raw downstream hit keyword (display chip when `tag` absent). */
+  keyword?: string;
+};
+
+/** One FEATURED card (video/gallery) — type + length only, no dates. */
+export type DailyFeatured = {
+  title: string;
+  type?: 'video' | 'gallery' | string;
+  length?: string;
   imageUrl?: string;
   href?: string;
 };
@@ -61,6 +111,12 @@ export type DailyReportPack = {
   };
   opportunities: DailyOpportunity[];
   stories: DailyStory[];
+  /** 定稿C single masked headline. Absent → renderer falls back to top same-day item. */
+  headline?: DailyHeadline;
+  /** 定稿C TODAY DOWNSTREAM rows (keyword chip + title + source + age). */
+  downstream?: DailyDownstreamRow[];
+  /** 定稿C FEATURED blue band (VIDEO / GALLERY, no dates). Omit → section hidden. */
+  featured?: { video: DailyFeatured[]; gallery: DailyFeatured[] };
   fallbackFromDate?: string;
   /** Honest hybrid notice shown as a banner (沿用最近完整日). */
   banner?: string;
@@ -100,14 +156,73 @@ export function isDailyOpportunity(v: unknown): v is DailyOpportunity {
     isNumArr(o.sparkline) &&
     (o.chips === undefined || isStrArr(o.chips)) &&
     (o.snippet === undefined || typeof o.snippet === 'string') &&
-    (o.href === undefined || isStr(o.href))
+    (o.href === undefined || isStr(o.href)) &&
+    (o.rowDay === undefined || isStr(o.rowDay)) &&
+    (o.rowAsOf === undefined || typeof o.rowAsOf === 'number') &&
+    (o.rowPlatform === undefined || isStr(o.rowPlatform))
   );
 }
 
 export function isDailyStory(v: unknown): v is DailyStory {
   if (typeof v !== 'object' || v === null) return false;
   const s = v as Record<string, unknown>;
-  return isStr(s.title) && (s.imageUrl === undefined || isStr(s.imageUrl)) && isOptStr(s.href);
+  return (
+    isStr(s.title) &&
+    (s.imageUrl === undefined || isStr(s.imageUrl)) &&
+    isOptStr(s.href) &&
+    (s.rowDay === undefined || isStr(s.rowDay)) &&
+    (s.rowAsOf === undefined || typeof s.rowAsOf === 'number')
+  );
+}
+
+function isDailyHeadline(v: unknown): boolean {
+  if (typeof v !== 'object' || v === null) return false;
+  const h = v as Record<string, unknown>;
+  return (
+    isStr(h.title) &&
+    (h.tag === undefined || isStr(h.tag)) &&
+    (h.source === undefined || isStr(h.source)) &&
+    (h.href === undefined || isStr(h.href))
+  );
+}
+
+function isDailyDownstreamRow(v: unknown): boolean {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return (
+    isStr(r.title) &&
+    (r.tag === undefined || isStr(r.tag)) &&
+    (r.source === undefined || isStr(r.source)) &&
+    (r.day === undefined || isStr(r.day)) &&
+    (r.publishedAt === undefined || typeof r.publishedAt === 'number') &&
+    (r.href === undefined || isStr(r.href)) &&
+    (r.imageUrl === undefined || isStr(r.imageUrl)) &&
+    (r.keyword === undefined || isStr(r.keyword))
+  );
+}
+
+function isDailyFeatured(v: unknown): boolean {
+  if (typeof v !== 'object' || v === null) return false;
+  const f = v as Record<string, unknown>;
+  return (
+    isStr(f.title) &&
+    (f.type === undefined || isStr(f.type)) &&
+    (f.length === undefined || isStr(f.length)) &&
+    (f.imageUrl === undefined || isStr(f.imageUrl)) &&
+    (f.href === undefined || isStr(f.href))
+  );
+}
+
+/** A `featured` block is valid only when both buckets are arrays (may be empty). */
+function isDailyFeaturedBlock(v: unknown): boolean {
+  if (typeof v !== 'object' || v === null) return false;
+  const f = v as Record<string, unknown>;
+  return (
+    Array.isArray(f.video) &&
+    f.video.every(isDailyFeatured) &&
+    Array.isArray(f.gallery) &&
+    f.gallery.every(isDailyFeatured)
+  );
 }
 
 export function isDailyReportPack(v: unknown): v is DailyReportPack {
@@ -137,6 +252,10 @@ export function isDailyReportPack(v: unknown): v is DailyReportPack {
     p.opportunities.every((o) => isDailyOpportunity(o)) &&
     Array.isArray(p.stories) &&
     p.stories.every((s) => isDailyStory(s)) &&
+    (p.headline === undefined || isDailyHeadline(p.headline)) &&
+    (p.downstream === undefined ||
+      (Array.isArray(p.downstream) && p.downstream.every(isDailyDownstreamRow))) &&
+    (p.featured === undefined || isDailyFeaturedBlock(p.featured)) &&
     (p.fallbackFromDate === undefined || isStr(p.fallbackFromDate)) &&
     (p.banner === undefined || typeof p.banner === 'string')
   );

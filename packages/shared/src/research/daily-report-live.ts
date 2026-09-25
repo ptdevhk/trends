@@ -17,6 +17,7 @@
  */
 
 import type {
+  DailyHeadline,
   DailyOpportunity,
   DailyReportPack,
   DailyStory,
@@ -127,6 +128,28 @@ export function hasRealNewsUrl(row: LiveNewsRow): boolean {
   if (!/^https?:\/\//i.test(u)) return false;
   if (isGoogleNewsArticleUrl(u)) return false;
   return true;
+}
+
+/**
+ * Surfaceability of a row, relaxing the strict real-publisher-URL rule for CN
+ * news feeds specifically.
+ *
+ * The kicker (2026-09-25): the bulk of the daily corpus is `rss:gnews-*` /
+ * `rss:bing-*` feeds whose Google wrapper URLs often fail to decode to a
+ * publisher URL from this egress (region-blocked batchexecute → null). Those
+ * rows would otherwise be dropped at the `hasRealNewsUrl` gate, collapsing a
+ * day's distinct CNC count far below what was actually published (observed
+ * 09-20→4, 09-21→8 vs 40+ wrapper titles that day).
+ *
+ * A CN-feed row is therefore surfaceable by title + paste + publish day alone —
+ * the renderer emits it as a non-clickable row (no broken Google wrapper link
+ * is shipped). Non-feed / hotlist platforms still require a real publisher URL.
+ */
+export function isSurfaceableNewsRow(row: LiveNewsRow): boolean {
+  if (hasRealNewsUrl(row)) return true;
+  const p = row.platform;
+  if (!p.startsWith('rss:gnews-') && !p.startsWith('rss:bing-')) return false;
+  return typeof row.title === 'string' && row.title.trim().length > 0;
 }
 
 /** CJK code-point count (rough; surrogate pairs handled via spread). */
@@ -287,7 +310,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   // to capturedAt (always recent) when the row carried no publish date.
   const windowDay1 = sparklineDayDates(reportDate)[0];
   const windowAnnotated = cnOnlyRows
-    .filter((row) => hasRealNewsUrl(row))
+    .filter((row) => isSurfaceableNewsRow(row))
     .filter((row) => {
       const day = rowDay(row);
       return day >= windowDay1 && day <= reportDate;
@@ -366,7 +389,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     const { row, hits } = x;
     const kind = kindForPlatform(row.platform);
     const chips = hits.slice(0, 3);
-    const href = row.url!.trim();
+    const href = row.url && row.url.trim() ? row.url.trim() : '';
     return toOpportunityWith({ row, hits, kind, chips, href });
   };
 
@@ -388,10 +411,16 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     heat: heatFor(row, hits),
     growth: String(platformCount(row.platform)),
     started: rowDay(row),
+    rowDay: rowDay(row),
+    rowAsOf: rowAsOf(row),
+    rowPlatform: row.platform,
     // 7-point series from the full window (Day1…Day7).
     sparkline: platformDailySeries(windowAnnotated, row.platform, windowEndMs, reportDate),
     chips,
-    href,
+    // Omit `href` entirely when the row has no usable publisher URL (CN-feed row
+    // whose Google wrapper didn't decode). An empty string fails the strict pack
+    // validator isStr (requires length>0) and must not be emitted.
+    ...(href ? { href } : {}),
     imageUrl: buildDailyReportThumbDataUri({ title: row.title, kind, chips }),
     ...(row.rawSnippet ? { snippet: row.rawSnippet.slice(0, 120) } : {}),
   });
@@ -399,15 +428,21 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   // Carve 商机 opportunities (cards + trend rows) and 热闻 stories from the
   // report-day surface pool (daySurfacePool) — always disjoint, and never
   // window-padding a thin report day (empty pool when no same-day match).
+  // 定稿C TODAY = DOWNSTREAM rows first, then 商机/新闻: the renderer merges
+  // `opportunities` + `stories` (both report-day-scoped) into one 商机/新闻
+  // group, so the boss's news-first report shows the full same-day corpus.
   const opportunities = daySurfacePool.slice(0, oppCount).map(toOpportunity);
 
   const stories: DailyStory[] = daySurfacePool
     .slice(oppCount, oppCount + maxStories)
     .map((x) => {
       const chips = x.hits.slice(0, 2);
+      const href = x.row.url && x.row.url.trim() ? x.row.url.trim() : '';
       return {
         title: shortLabel(x.row.title),
-        href: x.row.url!.trim(),
+        ...(href ? { href } : {}),
+        rowDay: rowDay(x.row),
+        rowAsOf: rowAsOf(x.row),
         imageUrl: buildDailyReportThumbDataUri({
           title: x.row.title,
           kind: 'story',
@@ -435,6 +470,49 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   const dayDates = sparklineDayDates(navAnchor, SPARKLINE_DAYS);
   // Distinct items surfaced across all three sections (card + row + story).
   const items = opportunities.length + stories.length;
+
+  // ── 定稿C: single masked headline = top same-day matched item (no invented
+  //    content). Backend-supplied `pack.headline` overrides this if present.
+  const topSameDay = daySurfacePool[0];
+  const headline: DailyHeadline = topSameDay
+    ? {
+        title: shortLabel(topSameDay.row.title, 60),
+        tag: kindForPlatform(topSameDay.row.platform),
+        source: platformLabelFor(topSameDay.row.platform),
+        href: topSameDay.row.url,
+      }
+    : { title: '' };
+
+  // ── 定稿C: DOWNSTREAM rows (下游工业用户需求) from the report-day pool —
+  //    backend pre-filters downstream keyword hits (压铸/压铸厂/die-casting/
+  //    模具/五金 etc). Chip = first downstream hit. When empty and the report
+  //    day is thin, also scan the rolling window so a sparse day still surfaces
+  //    downstream demand (hybrid-safe; boss wants downstream-first).
+  let downstream = daySurfacePool
+    .filter((x) => isDownstreamHit(x.hits))
+    .slice(0, 12)
+    .map((x) => ({
+      title: shortLabel(x.row.title),
+      tag: downstreamChip(x.hits),
+      source: platformLabelFor(x.row.platform),
+      day: rowDay(x.row),
+      publishedAt: typeof x.row.publishedAt === 'number' ? x.row.publishedAt : undefined,
+      href: x.row.url,
+    }));
+  if (downstream.length === 0) {
+    downstream = windowAnnotated
+      .filter((x) => isDownstreamHit(x.hits))
+      .slice(0, 6)
+      .map((x) => ({
+        title: shortLabel(x.row.title),
+        tag: downstreamChip(x.hits),
+        source: platformLabelFor(x.row.platform),
+        day: rowDay(x.row),
+        publishedAt: typeof x.row.publishedAt === 'number' ? x.row.publishedAt : undefined,
+        href: x.row.url,
+      }));
+  }
+
   const pack: DailyReportPack = {
     date: opts.date,
     localeDefault: 'zh-Hans',
@@ -451,6 +529,8 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     },
     opportunities,
     stories,
+    headline,
+    downstream,
   };
 
   return {
@@ -473,6 +553,49 @@ export function shortLabel(title: string, max = 42): string {
   t = t.replace(/\s+[-|–—]\s+[^-|–—]{1,24}$/u, '').trim();
   if (t.length > max) t = `${t.slice(0, max - 1)}…`;
   return t;
+}
+
+/** 定稿C: normalized lowercase keyword for downstream membership checks. */
+function normKw(k: string): string {
+  return k.trim().normalize('NFKC').replace(/[A-Za-z]+/g, (m) => m.toLowerCase());
+}
+
+/**
+ * 定稿C downstream keyword set (下游工业用户需求), matching boss N. Lai's ask
+ * (压铸厂 / die-casting / 模具 / 五金 / 下游应用行业). Substring (OR) match.
+ */
+export const DOWNSTREAM_KEYWORDS: ReadonlySet<string> = new Set([
+  '压铸', '压铸厂', '压铸机', 'die-casting', 'die casting', '模具', '五金',
+  '铸件', '铸造', '注塑', '冲压', '锻造', '锻压', '钣金', '塑胶', '零件加工',
+  '机加工', '下游', '工业用户', '采购需求',
+].map(normKw));
+
+/** True when any downstream-flagged hit is present. */
+export function isDownstreamHit(hits: string[]): boolean {
+  return hits.some((h) => DOWNSTREAM_KEYWORDS.has(normKw(h)));
+}
+
+/** First downstream hit to use as the row's keyword chip. */
+export function downstreamChip(hits: string[]): string {
+  const kw = hits.find((h) => DOWNSTREAM_KEYWORDS.has(normKw(h)));
+  return kw || '下游';
+}
+
+/** Human source label for a platform id (机械行业/工业网-facing). */
+export function platformLabelFor(platform: string): string {
+  const id = (platform || '').replace(/^rss:/, '');
+  const known: Record<string, string> = {
+    'gnews-diecast': '压铸网',
+    'bing-cnc-machine': '工业网',
+    'bing-gongyemuji': '工业网',
+    'bing-muju': '模具网',
+    'bing-chongya': '压铸网',
+    'gnews-cnc-machine': '数控机床要闻',
+    'gnews-gongyemuji': '工业母机要闻',
+    'gnews-muju-qiche': '模具网',
+    'gnews-chongya': '冲压网',
+  };
+  return known[id] || id;
 }
 
 /**

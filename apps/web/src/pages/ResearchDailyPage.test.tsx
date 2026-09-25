@@ -78,7 +78,7 @@ describe('ResearchDailyPage (in-app twin)', () => {
     expect(screen.getByTestId('research-daily-back')).toHaveAttribute('href', '/hr/research')
     const download = screen.getByTestId('research-daily-download')
     expect(download).toBeEnabled()
-    expect(download).toHaveTextContent(/下载完整 HTML|Download complete HTML/)
+    expect(download).toHaveTextContent(/下载完整 HTML|下載完整 HTML|Download complete HTML/)
   })
 
   it('download button triggers a blob save of the BFF HTML', async () => {

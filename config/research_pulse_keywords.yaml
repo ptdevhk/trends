@@ -1,106 +1,308 @@
 version: v1
 groups:
-  - id: cnc-core
-    label: 数控机床
-    keywords: [数控, 加工中心, 五轴, 机床, 工业母机, 数控系统, 数控机床, 数控转台, 数控车床, 数控铣床]
-  - id: cnc-components
-    label: 机床核心部件
-    keywords: [主轴, 刀库, 刀塔, 刀塔机, 丝杠, 导轨, 滚珠丝杠, 直线导轨, 伺服电机, 伺服驱动, 减速机, 减速器, 编码器, 数控系统, 电主轴, 光栅尺, 加工核心, 转台]
-  - id: process
-    label: 加工工艺类
-    keywords: [铣削, 车削, 磨削, 钻攻中心, 攻牙, 走心机, 走刀机, 车铣复合, 龙门铣, 高速钻攻, 立加, 卧加, 排刀车床, 硬轨车床, 深孔钻, 螺纹铣]
-  - id: brands
-    label: 重点品牌
-    keywords: [发那科, 马扎克, 牧野, 创世纪, 乔锋, 宝力机械, 宝惠, 海天精工, 科德数控, 国盛智科, 纽威数控, 华中数控, 广州数控, 沈阳机床, 秦川机床, 日发精机, 拓璞数控, 星火机床, 精雕, 台群]
-  - id: market-triggers
-    label: 行业行情与商机
-    keywords: [机床出口, 机床行情, 机床采购, 机床中标, 机床扩产, 机床订单, 机床市场, 机床行业, 机床国产化, 高端装备, 智能制造, 工业母机政策]
-  - id: hiring-sales
-    label: 招聘与商机
-    keywords: [招聘, 扩产, 中标, 采购, 订单, 签约]
-  - id: machining
-    label: 加工中心类
-    keywords: [加工中心, cnc, 4轴, 5轴, 四轴, 五轴, 模具, 注塑机, 机床, 数控, 铣床, 卧加, 立加, 钻攻, 数控设备, 机电设备, 数控机床, 机加工设备, 电火花, 钻攻中心, 工业母机, 金属加工, 激光切割, 激光焊接, 冲压, 锻压, 铸造, 车铣复合, 智造, 智能制造, 精密制造, 装备制造, 机械装备]
-  - id: cnc-brush-0919
-    label: 09-19扫尾词
-    keywords: [摆线减速机, 行星减速器, 精密减速器, 减速器, 燃气轮机, 工字, 伊之密, 温岭, 产业集群, 融资买入, 融资余额, 净买入]
-  - id: brand-cn-stocks
-    label: 品牌股价/融资类
-    keywords: [海天精工, 纽威数控, 拓璞数控, 力劲科技, 融资买入, 融资余额]
-
-  - id: lathe
-    label: 车床类
-    keywords: [数控走心机, 走刀机, 自动棒料送料机, 车铣复合机床, 高速钻攻机, 排刀车床, 刀架转塔, 双刀塔, 车削中心, 转塔机床, 走刀, 斜刀, 斜床, 硬轨车床, 走心机, 刀塔机, 车床, 磨床, 慢走丝, 车铣复合, 龙门, 线切割]
-  - id: edm
-    label: 电火花类
-    keywords: [火花机, 电火花, 慢走丝, 中走丝, 快走丝, 线切割, 电火花小孔, 小孔加工, 燃气轮机]
-  - id: brand-cn-stocks
-    label: 品牌股价/融资类
-    keywords: [海天精工, 纽威数控, 拓璞数控, 力劲科技, 融资买入, 融资余额]
-  - id: measurement
-    label: 测量类
-    keywords: [三坐标, 探测系统, 影像测量仪, 测量机, 影像仪, 蓝光设备, 蓝光扫描设备, 坐标测量系统, Smarttech metrascan, 三次元, 3D扫描仪, 激光扫描仪, 三维测量, 扫描仪, 三维成像, 3D量测, 扫描系统, CMM, OMM, OGP]
-  - id: smt
-    label: SMT类
-    keywords: [SMT, 贴片机, 回流焊, 点胶涂覆机, 分板机, AOI, 激光打标机, 自动接料机]
-  - id: 3d-printing
-    label: 3D打印类
-    keywords: [3D打印设备, 增材制造]
-# All six precision-machinery tag categories are enabled by default so the
-# research 市场动态 / NewsNow pulse watches the full industry catalog (machining,
-# lathe, edm, measurement, smt, 3d-printing) plus cnc-core + brands + hiring-sales.
-# Brand surfaces and company names from config/industry-data are appended at load
-# time by research-pulse-keywords-pack (do not hand-copy them here).
-#
-# defaults.excludedKeywords = owner decision 2026-09-19 "exclude_conglomerates_keep_cnc".
-# Pulse matching is substring (OR) on title/snippet, so famous-conglomerate / generic
-# short tokens flood 市场动态 with unrelated business news. These are dropped from the
-# DEFAULT keyword set ONLY — exact-token match, never a substring filter. The surfaces
-# that actually contain a drop token but survive are 山善（深圳）贸易有限公司 and
-# 日东（上海）机械技术中心有限公司 (distinct company records, not the dropped short names).
-# The full catalog is untouched: brands.json / keyword-tags.json keep every entity, and
-# the runtime `industry-catalog` group still exposes each dropped surface.
-# KEEP: all keyword-tags categories, hiring-sales overlay, and the CNC brands already
-# on today's desk (创世纪 台群 思瑞 精雕 台正 汉川 友佳).
-#
-# English/alias forms are listed only where brands.json attaches them to the SAME dropped
-# entity record. 芝浦's alias "Toshiba Machine" is deliberately NOT dropped: it belongs to
-# brand id 82 (芝浦 / SHIBAURA), a machine-tool builder that is not on the drop list — it is
-# the one default surface that still carries an excluded entity's English word.
+- id: cnc-core
+  label: 数控机床
+  keywords:
+  - 数控
+  - 加工中心
+  - 五轴
+  - 机床
+  - 工业母机
+  - 数控系统
+  - 数控机床
+  - 数控转台
+  - 数控车床
+  - 数控铣床
+- id: cnc-components
+  label: 机床核心部件
+  keywords:
+  - 主轴
+  - 刀库
+  - 刀塔
+  - 刀塔机
+  - 丝杠
+  - 导轨
+  - 滚珠丝杠
+  - 直线导轨
+  - 伺服电机
+  - 伺服驱动
+  - 减速机
+  - 减速器
+  - 编码器
+  - 数控系统
+  - 电主轴
+  - 光栅尺
+  - 加工核心
+  - 转台
+- id: process
+  label: 加工工艺类
+  keywords:
+  - 铣削
+  - 车削
+  - 磨削
+  - 钻攻中心
+  - 攻牙
+  - 走心机
+  - 走刀机
+  - 车铣复合
+  - 龙门铣
+  - 高速钻攻
+  - 立加
+  - 卧加
+  - 排刀车床
+  - 硬轨车床
+  - 深孔钻
+  - 螺纹铣
+- id: brands
+  label: 重点品牌
+  keywords:
+  - 发那科
+  - 马扎克
+  - 牧野
+  - 创世纪
+  - 乔锋
+  - 宝力机械
+  - 宝惠
+  - 海天精工
+  - 科德数控
+  - 国盛智科
+  - 纽威数控
+  - 华中数控
+  - 广州数控
+  - 沈阳机床
+  - 秦川机床
+  - 日发精机
+  - 拓璞数控
+  - 星火机床
+  - 精雕
+  - 台群
+- id: market-triggers
+  label: 行业行情与商机
+  keywords:
+  - 机床出口
+  - 机床行情
+  - 机床采购
+  - 机床中标
+  - 机床扩产
+  - 机床订单
+  - 机床市场
+  - 机床行业
+  - 机床国产化
+  - 高端装备
+  - 智能制造
+  - 工业母机政策
+- id: downstream-demand
+  label: 下游工业需求
+  keywords:
+  - 3D打印
+  - die casting
+  - die-casting
+  - 下游
+  - 中走丝
+  - 五金
+  - 冲压
+  - 制造
+  - 压铸
+  - 压铸厂
+  - 压铸机
+  - 塑胶件
+  - 增材制造
+  - 小孔加工
+  - 工业母机
+  - 工业用户
+  - 快走丝
+  - 慢走丝
+  - 智能制造
+  - 机加工
+  - 机械制造
+  - 机械行业
+  - 机械装备
+  - 模具
+  - 注塑机
+  - 激光
+  - 激光切割
+  - 激光焊接
+  - 火花机
+  - 燃气轮机
+  - 电火花
+  - 电火花小孔
+  - 精密制造
+  - 线切割
+  - 装备制造
+  - 车铣复合
+  - 采购需求
+  - 金属加工
+  - 金属加工厂
+  - 钣金
+  - 铸件
+  - 铸造
+  - 锻压
+  - 零件加工
+  - 高端装备
+- id: hiring-sales
+  label: 招聘与商机
+  keywords:
+  - 招聘
+  - 扩产
+  - 中标
+  - 采购
+  - 订单
+  - 签约
+- id: machining
+  label: 加工中心类
+  keywords:
+  - 加工中心
+  - cnc
+  - 4轴
+  - 5轴
+  - 四轴
+  - 五轴
+  - 模具
+  - 注塑机
+  - 机床
+  - 数控
+  - 铣床
+  - 卧加
+  - 立加
+  - 钻攻
+  - 数控设备
+  - 机电设备
+  - 数控机床
+  - 机加工设备
+  - 电火花
+  - 钻攻中心
+- id: cnc-brush-0919
+  label: 09-19扫尾词
+  keywords:
+  - 摆线减速机
+  - 行星减速器
+  - 精密减速器
+  - 减速器
+  - 燃气轮机
+  - 工字
+  - 伊之密
+  - 温岭
+  - 产业集群
+  - 融资买入
+  - 融资余额
+  - 净买入
+- id: brand-cn-stocks
+  label: 品牌股价/融资类
+  keywords:
+  - 海天精工
+  - 纽威数控
+  - 拓璞数控
+  - 力劲科技
+  - 融资买入
+  - 融资余额
+- id: lathe
+  label: 车床类
+  keywords:
+  - 数控走心机
+  - 走刀机
+  - 自动棒料送料机
+  - 车铣复合机床
+  - 高速钻攻机
+  - 排刀车床
+  - 刀架转塔
+  - 双刀塔
+  - 车削中心
+  - 转塔机床
+  - 走刀
+  - 斜刀
+  - 斜床
+  - 硬轨车床
+  - 走心机
+  - 刀塔机
+  - 车床
+  - 磨床
+  - 慢走丝
+  - 车铣复合
+  - 龙门
+  - 线切割
+- id: edm
+  label: 电火花类
+  keywords:
+  - 火花机
+  - 电火花
+  - 慢走丝
+  - 中走丝
+  - 快走丝
+  - 线切割
+- id: measurement
+  label: 测量类
+  keywords:
+  - 三坐标
+  - 探测系统
+  - 影像测量仪
+  - 测量机
+  - 影像仪
+  - 蓝光设备
+  - 蓝光扫描设备
+  - 坐标测量系统
+  - Smarttech metrascan
+  - 三次元
+  - 3D扫描仪
+  - 激光扫描仪
+  - 三维测量
+  - 扫描仪
+  - 三维成像
+  - 3D量测
+  - 扫描系统
+  - CMM
+  - OMM
+  - OGP
+- id: smt
+  label: SMT类
+  keywords:
+  - SMT
+  - 贴片机
+  - 回流焊
+  - 点胶涂覆机
+  - 分板机
+  - AOI
+  - 激光打标机
+  - 自动接料机
+- id: 3d-printing
+  label: 3D打印类
+  keywords:
+  - 3D打印设备
+  - 增材制造
 defaults:
   enabledGroupIds:
-    - cnc-core
-    - brands
-    - hiring-sales
-    - machining
-    - lathe
-    - edm
-    - measurement
-    - smt
-    - 3d-printing
-    - cnc-brush-0919
-    - brand-cn-stocks
+  - cnc-core
+  - brands
+  - hiring-sales
+  - machining
+  - lathe
+  - edm
+  - measurement
+  - smt
+  - 3d-printing
+  - cnc-brush-0919
+  - brand-cn-stocks
+  - downstream-demand
   excludedKeywords:
-    - 三菱
-    - MITSUBISHI
-    - 松下
-    - PANASONIC
-    - 西门子
-    - SIEMENS
-    - 东芝
-    - TOSHIBA
-    - 雅马哈
-    - YAMAHA
-    - 富士
-    - FUJI
-    - 西部
-    - SEIBU
-    - 兄弟
-    - BROTHER
-    - Brother Industries
-    - 山善
-    - 海能达
-    - 智赢
-    - 日东
-    - 领方
-    - 丰创
+  - 三菱
+  - MITSUBISHI
+  - 松下
+  - PANASONIC
+  - 西门子
+  - SIEMENS
+  - 东芝
+  - TOSHIBA
+  - 雅马哈
+  - YAMAHA
+  - 富士
+  - FUJI
+  - 西部
+  - SEIBU
+  - 兄弟
+  - BROTHER
+  - Brother Industries
+  - 山善
+  - 海能达
+  - 智赢
+  - 日东
+  - 领方
+  - 丰创

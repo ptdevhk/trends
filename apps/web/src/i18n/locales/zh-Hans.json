@@ -3189,7 +3189,11 @@
       "dayNav": "报告日",
       "todayLabel": "今日",
       "downloadBundle": "下载完整 HTML",
-      "downloadBundleHint": "单文件可转发（真实封面已嵌进 SVG）"
+      "downloadBundleHint": "单文件可转发（真实封面已嵌进 SVG）",
+      "rebuild": "重新生成今日",
+      "rebuildHint": "以當前實時數據重新生成今日報告（可在一天內多次觸發）",
+      "rebuilding": "生成中…",
+      "rebuilt": "已重新生成"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",
@@ -3221,6 +3225,25 @@
       "dialogDescription": "管理 CNC/机床新闻数据源（默认全部开启）。可按主开关、按组或按单个源关闭。",
       "master": "启用 CNC/机床新闻数据源",
       "activeCount": "已启用 {{count}} 个数据源"
+    },
+    "settings": {
+      "cncRoot": "（领域根 · 非可选项）",
+      "save": "保存配置",
+      "newsSources": "数据源 ({{count}})",
+      "realtimeDefault": "下游 默认",
+      "realtimeEmpty": "暂无当前下游关键词命中的新闻。",
+      "title": "行业研究 / 监控设置",
+      "platformsHint": "NewsNow 平台",
+      "enableSources": "启用 CNC/机床新闻数据源",
+      "platforms": "热榜平台 ({{count}})",
+      "restore": "恢复默认",
+      "description": "精密机械 · 数控机床 · HR 简历台",
+      "realtimeTitle": "实时新闻",
+      "newsSourcesHint": "CNC/机床新闻源",
+      "defaultEnabled": "默认启用",
+      "enOff": "EN 默认关",
+      "cncRootHint": "全部关键词隶属于 CNC；下游组 = 实时新闻/日报 的默认过滤",
+      "realtimeHint": "仅列当前关键词过滤命中的新闻 · 单条输出"
     }
   },
   "publicShare": {

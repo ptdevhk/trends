@@ -419,6 +419,11 @@ async function main(): Promise<void> {
     'rss:bing-jichuang-caigou',
     'rss:bing-jichuang-chukou',
     'rss:bing-guochantidai',
+    // 2026-09-25: enable 3 config-defined-but-orphaned CNC feeds (电火花/线切割
+    // Bing + 发那科-招聘 gnews) so their rows reach the daily-report corpus.
+    'rss:bing-dianhuohua',
+    'rss:bing-xianqiege',
+    'rss:gnews-fanuc-hire',
   ]) {
     if (!isNewsFeedActive(plat)) {
       // opted-out catalog feed: skip fetching (respect shared effective set)
@@ -533,6 +538,9 @@ async function main(): Promise<void> {
     'rss:bing-jichuang-caigou',
     'rss:bing-jichuang-chukou',
     'rss:bing-guochantidai',
+    'rss:bing-dianhuohua',
+    'rss:bing-xianqiege',
+    'rss:gnews-fanuc-hire',
   ]) {
     for (const r of cnFeedRows.filter((x) => x.platform === plat)) pushRow(r)
   }

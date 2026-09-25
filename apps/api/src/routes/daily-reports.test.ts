@@ -155,7 +155,9 @@ describe("daily reports routes", () => {
     // Must come from renderDailyReportHtml(pack), not the frozen "<html>pre-rendered</html>" blob.
     expect(body).toContain("<!DOCTYPE html>");
     expect(body).toContain("2026-09-23");
-    expect(body).toMatch(/\.story \.cover\{[^}]*aspect-ratio:\s*4\/3/);
+    // 定稿C layout: TODAY rows + 商机/新闻 (the renderer no longer uses a .story
+    // 4:3 crop box — rows are text-first; FEATURED cards use .fcard cover).
+    expect(body).toMatch(/当日内容|商机 \/ 新闻|头条|精选/);
     expect(body).not.toBe("<html>pre-rendered</html>");
     expect(mockedEmbed).toHaveBeenCalled();
   });

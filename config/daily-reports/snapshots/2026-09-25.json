@@ -1,7 +1,7 @@
 {
-  "date": "2026-09-24",
+  "date": "2026-09-25",
   "localeDefault": "zh-Hans",
-  "source": "live",
+  "source": "frozen",
   "generatedAt": "2026-09-24T23:52:18.770Z",
   "hero": {
     "headline": "今日行业热度",
@@ -9,13 +9,13 @@
     "delta": "+0%",
     "meta": "21 来源 · 0 热榜命中 · 2026-09-19–2026-09-25",
     "sparkline": [
-      103,
       6,
       96,
       169,
       191,
       196,
-      110
+      110,
+      1
     ],
     "dayLabels": [
       "Day1",
@@ -427,5 +427,7 @@
       "publishedAt": 1790194800000,
       "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab578fc30d64f45a9357bab67dfafa0&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080172093_122725758&c=12499958287106470171&mkt=zh-hk"
     }
-  ]
+  ],
+  "fallbackFromDate": "2026-09-24",
+  "banner": "沿用最近完整日（2026-09-24）· 2026-09-25 实时命中不足 4 条"
 }

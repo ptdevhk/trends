@@ -3158,11 +3158,15 @@
     "dailyReportOpenToday": "Open today's report · {{date}}",
     "dailyReportPublicLink": "Public share page",
     "daily": {
-      "back": "← Back to research hub",
+      "back": "← Back to Market",
       "dayNav": "Report day",
       "todayLabel": "Today",
-      "downloadBundle": "Download complete HTML",
-      "downloadBundleHint": "Single transferable file (real covers nested in SVG)"
+      "downloadBundle": "Download full HTML",
+      "downloadBundleHint": "Single-file shareable (real covers embedded as SVG)",
+      "rebuild": "Rebuild today",
+      "rebuildHint": "Regenerate today report from current live data (can be triggered multiple times/day)",
+      "rebuilding": "Generating…",
+      "rebuilt": "Rebuilt"
     },
     "sectionResumeDesk": "数控品牌台（展示）",
     "sectionSearch": "搜索企业",
@@ -3194,6 +3198,25 @@
       "dialogDescription": "Manage CNC / machine-tool news sources (all on by default). Turn off the whole set, per group, or per single source.",
       "master": "Enable CNC / machine-tool news sources",
       "activeCount": "{{count}} sources enabled"
+    },
+    "settings": {
+      "cncRoot": "(Domain root · not selectable)",
+      "save": "Save config",
+      "newsSources": "News sources ({{count}})",
+      "realtimeDefault": "Downstream · default",
+      "realtimeEmpty": "No news matches the current downstream keywords.",
+      "title": "Industry Research / Monitoring",
+      "platformsHint": "NewsNow platforms",
+      "enableSources": "Enable CNC / machine-tool news sources",
+      "platforms": "Hotlist platforms ({{count}})",
+      "restore": "Restore defaults",
+      "description": "Precision machinery · CNC machine tools · HR Resume Desk",
+      "realtimeTitle": "Live News",
+      "newsSourcesHint": "CNC / machine-tool news",
+      "defaultEnabled": "Default on",
+      "enOff": "EN · off by default",
+      "cncRootHint": "All keywords belong to CNC; the Downstream group is the default filter for Live News / daily report",
+      "realtimeHint": "Only current keyword-filter-matched news · single output"
     }
   },
   "publicShare": {
