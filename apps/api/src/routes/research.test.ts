@@ -1280,7 +1280,12 @@ describe("research routes", () => {
       expect(body.result.needsTopic).toBe(false);
     });
 
-    it("identifies an mp link as manual-supplement (no auto-fetch)", async () => {
+    it("identifies an mp link as manual-supplement when detection is blocked (fallback)", async () => {
+      // detectMpArticleMeta GETs the article page; on any failure (bot-challenge /
+      // blocked / deleted) it returns no meta and we fall back to the manual stub.
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("<html>oh-path/environment error</html>", { status: 200 }),
+      );
       const response = await postIdentify(MP);
       expect(response.status).toBe(200);
       const body = await parseJsonBody<{
@@ -1291,6 +1296,32 @@ describe("research routes", () => {
       expect(body.result.kind).toBe("mp");
       expect(body.result.name).toBeNull();
       expect(body.result.needsTopic).toBe(true);
+    });
+
+    it("identifies an mp link's 公众号 author from the fetched page og/js_name (no manual entry)", async () => {
+      const html =
+        '<meta property="og:title" content="压铸早报丨广东鸿图、美利信等公布半年业绩"/><meta property="og:article:author" content="压铸周刊"/>' +
+        '<div id="js_name">压铸周刊</div>';
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(html, { status: 200 }));
+      const response = await postIdentify(MP);
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        success: boolean;
+        result: {
+          kind: string;
+          name: string | null;
+          needsTopic: boolean;
+          articleId?: string;
+          caption?: string;
+        };
+      }>(response);
+      expect(body.success).toBe(true);
+      expect(body.result.kind).toBe("mp");
+      expect(body.result.name).toBe("压铸周刊");
+      expect(body.result.needsTopic).toBe(false);
+      expect(body.result.articleId).toBe("AbC123xyz_89");
+      // the watch name is sourced from the account banner, not the article headline
+      expect(body.result.caption).toContain("压铸早报");
     });
 
     it("adds + lists + removes a watchlist entry (workspace-local)", async () => {

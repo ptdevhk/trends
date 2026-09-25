@@ -200,6 +200,55 @@ export async function removeCustomerWatchEntry(
   return next;
 }
 
+const MP_BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+const MP_FETCH_TIMEOUT_MS = 12000;
+
+type MpDetectedMeta = { name?: string; author?: string; caption?: string };
+
+/**
+ * Best-effort 公众号 detection from a public mp article page.
+ *
+ * WeChat mp pages are JS-heavy + anti-bot, but public share pages expose the
+ * account display name (`id="js_name"` banner) and the article title (`og:title`)
+ * as raw HTML that a plain GET can read — no in-BFF WeChat "scrape" product,
+ * just reading the article's own open-graph meta the browser already has.
+ *
+ * Prefer `js_name` (the account the boss pastes from) as the watch name, then
+ * `og:article:author` (editorial attribution). Any failure — bot-challenge,
+ * deleted/blocked, timeout, non-200 — returns {} so the caller falls back to
+ * manual entry (never blocks the flow).
+ */
+async function detectMpArticleMeta(url: string): Promise<MpDetectedMeta> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MP_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": MP_BROWSER_UA, "Accept-Language": "zh-CN,zh;q=0.9" },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    if (!res.ok) return {};
+    const html = await res.text();
+    const jsName = /id="js_name"[^>]*>([^<]{1,60})</.exec(html)?.[1]?.trim() ?? "";
+    const ogAuthor =
+      /<meta[^>]+property="og:article:author"[^>]+content="([^"]*)"/.exec(html)?.[1]?.trim() ?? "";
+    const ogTitle =
+      /<meta[^>]+property="og:title"[^>]+content="([^"]*)"/.exec(html)?.[1]?.trim() ?? "";
+    const name = (jsName || ogAuthor).trim();
+    return {
+      ...(name ? { name } : {}),
+      ...(ogAuthor ? { author: ogAuthor } : {}),
+      ...(ogTitle ? { caption: ogTitle } : {}),
+    };
+  } catch {
+    // blocked / bot-challenge / timeout / deleted → no metadata (manual entry)
+    return {};
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type IdentifyResult = {
   kind: "videoChannel" | "mp" | "manual";
   name: string | null;
@@ -260,6 +309,20 @@ export async function identifyFromLink(urlStr: string): Promise<IdentifyResult> 
   if (hostname === "mp.weixin.qq.com") {
     try {
       const parsed = classifyMpArticleUrl(url);
+      // Best-effort account/topic detection from the article page's own meta.
+      // Fall back to a manual-supplement stub on any fetch/parse/bot-block failure.
+      const meta = await detectMpArticleMeta(parsed.url);
+      if (meta.name) {
+        return {
+          kind: "mp",
+          name: meta.name,
+          ...(meta.author ? { author: meta.author } : {}),
+          ...(meta.caption ? { caption: meta.caption } : {}),
+          url: parsed.url,
+          ...(parsed.articleId ? { articleId: parsed.articleId } : {}),
+          needsTopic: false,
+        };
+      }
       return {
         kind: "mp",
         name: null,
