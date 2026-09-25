@@ -3255,7 +3255,10 @@
       "countDownstream": "Downstream {{count}}",
       "countOpportunity": "Opportunities {{count}}",
       "countStory": "Stories {{count}}",
-      "rebuilding": "Rebuilding…"
+      "rebuilding": "Rebuilding…",
+      "harvestHint": "Paste boss WeChat links, identify the customer, add to watchlist.",
+      "poolHint": "Browse live news + customer-spread material; keyword-filter / push to report.",
+      "todayHint": "View / regenerate today's daily-sales report (定稿C layout)."
     },
     "watch": {
       "title": "Customer watch",

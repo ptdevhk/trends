@@ -3255,7 +3255,10 @@
       "countDownstream": "下游 {{count}}",
       "countOpportunity": "商機 {{count}}",
       "countStory": "熱聞 {{count}}",
-      "rebuilding": "重建中…"
+      "rebuilding": "重建中…",
+      "harvestHint": "粘貼 boss 的微信連結，識別客戶並加入監控清單。",
+      "poolHint": "瀏覽即時資訊與客戶監控擴散的素材，可關鍵字篩選 / 推入日報。",
+      "todayHint": "查看 / 重新產生今天的銷售日報（定稿C 版式）。"
     },
     "watch": {
       "title": "客户监控",

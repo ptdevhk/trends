@@ -3282,7 +3282,10 @@
       "countDownstream": "下游 {{count}}",
       "countOpportunity": "商机 {{count}}",
       "countStory": "热闻 {{count}}",
-      "rebuilding": "重建中…"
+      "rebuilding": "重建中…",
+      "harvestHint": "粘贴 boss 的微信链接，识别客户并加入监控清单。",
+      "poolHint": "浏览实时资讯与客户监控扩散的素材，可关键词筛选 / 推入日报。",
+      "todayHint": "查看 / 重新生成今天的销售日报（定稿C 版式）。"
     },
     "watch": {
       "title": "客户监控",
