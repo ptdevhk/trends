@@ -28,7 +28,7 @@ CUSTOMER_WATCHLIST_CONFIG_KEY = "research.customerWatchlist"
 
 # Mirror of shared CUSTOMER_BRANCH_TERMS (keep in sync with daily-report-live.ts).
 CUSTOMER_BRANCH_TERMS: Dict[str, List[str]] = {
-    "压铸": ["压铸", "压铸机", "压铸厂", "die-casting", "铸件"],
+    "压铸": ["压铸", "压铸机", "压铸厂", "一体化压铸", "die-casting", "铸件"],
     "模具": ["模具", "注塑", "冲压模"],
     "五金": ["五金", "冲压", "钣金"],
     "冲压": ["冲压", "冲压件", "五金"],
@@ -120,9 +120,19 @@ def load_customer_watchlist(ctx_url: Optional[str], workspace_slug: str) -> List
 def spread_feed_url(terms: List[str], *, engine: str = "bing") -> str:
     """Zero-key RSS search URL for a customer term set (CN audience).
 
-    bing: `https://www.bing.com/news/search?q=...&format=rss&setlang=zh-hans`
-    google: `https://news.google.com/rss/search?q=...&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`
+    Bing News RSS (`format=rss&setlang=zh-hans`) commonly returns a channel but
+    ZERO `<item>` entries when the query is too specific/rare (e.g. an obscure
+    small-to-mid factory name like 铩硕精密). To get real dated content, we use
+    **two queries** and merge:
+      1) the full customer term set (name + aliases + branch);
+      2) the downstream-branch term(s) alone (压铸/模具/…), which are broad
+         enough to return actual industry news.
+    The builder splits into two feeds per customer: `watch-<key>`
+    (specific, may be empty) and `watch-<key>-<branch>` (broad branch terms).
     Terms joined with `+`, URL-encoded.
+
+    google: `https://news.google.com/rss/search?q=...&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`
+    bing:   `https://www.bing.com/news/search?q=...&format=rss&setlang=zh-hans`
     """
     q = quote_plus(" ".join(terms))
     if engine == "google":
@@ -152,18 +162,42 @@ def build_customer_feeds(
         if not terms:
             logger.info("[CustomerSpread] %s has no spread terms; skipping", company_key)
             continue
+
+        # Specific customer feed (name + aliases + branch). May return zero items
+        # for an obscure factory name — that's expected; the branch feed below
+        # still supplies real downstream news.
         feed_id = f"watch-{company_key}"
-        if feed_id in seen_ids:
-            continue
-        seen_ids.add(feed_id)
-        feeds.append(
-            {
-                "id": feed_id,
-                "url": spread_feed_url(terms, engine=engine),
-                "engine": engine,
-                "max_age_days": SPREAD_MAX_AGE_DAYS,
-                "max_items": int(max_items),
-                "customerKey": company_key,
-            }
-        )
+        if feed_id not in seen_ids:
+            seen_ids.add(feed_id)
+            feeds.append(
+                {
+                    "id": feed_id,
+                    "url": spread_feed_url(terms, engine=engine),
+                    "engine": engine,
+                    "max_age_days": SPREAD_MAX_AGE_DAYS,
+                    "max_items": int(max_items),
+                    "customerKey": company_key,
+                }
+            )
+
+        # Broad branch feed: use the FIRST downstream-branch term as a single
+        # keyword (压铸 → '压铸', 模具 → '模具'). A multi-term branch query
+        # (压铸+压铸机+压铸厂+一体化压铸+…) returns 0 items from Bing; a single
+        # broad term returns real, recent industry news (压铸 → Sep 2026 items).
+        branch_terms = customer_branch_terms(str(entry.get("downstreamBranch") or ""))
+        if branch_terms:
+            branch_kw = branch_terms[0]
+            branch_feed_id = f"watch-{company_key}-{branch_kw[:8]}"
+            if branch_feed_id not in seen_ids:
+                seen_ids.add(branch_feed_id)
+                feeds.append(
+                    {
+                        "id": branch_feed_id,
+                        "url": spread_feed_url([branch_kw], engine=engine),
+                        "engine": engine,
+                        "max_age_days": SPREAD_MAX_AGE_DAYS,
+                        "max_items": int(max_items),
+                        "customerKey": company_key,
+                    }
+                )
     return feeds

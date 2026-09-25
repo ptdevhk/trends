@@ -127,17 +127,26 @@ def test_load_customer_watchlist_active_only_uses_right_config_key(monkeypatch):
     assert calls[0][1]["configKey"] == "research.customerWatchlist"
 
 
-def test_build_customer_feeds_one_per_active_customer():
+def test_build_customer_feeds_specific_plus_branch_feed_per_customer():
     entries = [
         {"companyKey": "shuashuo", "name": "铩硕精密", "aliases": ["SASO"], "downstreamBranch": "压铸"},
         {"companyKey": "customer-b", "name": "某客户", "aliases": [], "downstreamBranch": "其他"},
     ]
     feeds = build_customer_feeds(entries, engine="bing")
     ids = [f["id"] for f in feeds]
-    assert ids == ["watch-shuashuo", "watch-customer-b"]
-    assert feeds[0]["max_age_days"] == 7
-    assert feeds[0]["engine"] == "bing"
-    assert "setlang=zh-hans" in feeds[0]["url"]
+    # 压铸 customer → specific feed + first-branch-term feed (压铸)
+    assert "watch-shuashuo" in ids
+    assert any(i.startswith("watch-shuashuo-") for i in ids)
+    # 其他 customer → specific feed only (no branch feed)
+    assert "watch-customer-b" in ids
+    assert not any(i.startswith("watch-customer-b-") for i in ids)
+    specific = next(f for f in feeds if f["id"] == "watch-shuashuo")
+    branch = next(f for f in feeds if f["id"].startswith("watch-shuashuo-"))
+    assert specific["max_age_days"] == 7
+    assert specific["engine"] == "bing"
+    assert "setlang=zh-hans" in specific["url"]
+    # branch feed query is the FIRST branch term alone (broad → dated news)
+    assert "q=%E5%8E%8B%E9%93%B8&" in branch["url"]  # 压铸 single term
 
 
 def test_research_ingest_job_iterates_customer_feeds_upserts_rss_watch():

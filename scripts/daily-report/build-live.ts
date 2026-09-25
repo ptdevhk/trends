@@ -304,8 +304,10 @@ async function main(): Promise<void> {
   const watchlistKeywords: string[] = []
   const customerPlatformLabels: Record<string, string> = {}
   try {
+    // workspace_config:get does NOT accept writeSecret (validator rejects it) —
+    // only workspaceSlug + configKey. Same pattern as the worker's news-sources
+    // read; the BFF seeded /hr and build-live reads the same key.
     const row = (await convexQuery(env, 'workspace_config:get', {
-      writeSecret: env.CONVEX_WRITE_SECRET,
       workspaceSlug: (env.WORKSPACE_SLUG || 'hr').trim() || 'hr',
       configKey: 'research.customerWatchlist',
     })) as { configValue?: unknown } | undefined

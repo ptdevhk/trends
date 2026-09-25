@@ -591,7 +591,7 @@ export function downstreamChip(hits: string[]): string {
  * a generic-branch customer spreads on name + aliases alone.
  */
 export const CUSTOMER_BRANCH_TERMS: Record<string, string[]> = {
-  压铸: ['压铸', '压铸机', '压铸厂', 'die-casting', '铸件'],
+  压铸: ['压铸', '压铸机', '压铸厂', '一体化压铸', 'die-casting', '铸件'],
   模具: ['模具', '注塑', '冲压模'],
   五金: ['五金', '冲压', '钣金'],
   冲压: ['冲压', '冲压件', '五金'],
