@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../middleware/maintenance.js", () => ({
   maintenanceGuard: async (_c: unknown, next: () => Promise<void>) => {
@@ -22,6 +22,29 @@ const pulseMocks = vi.hoisted(() => ({
 const platformMocks = vi.hoisted(() => ({
   getHotlistPlatformsState: vi.fn(),
   putHotlistPlatforms: vi.fn(),
+}));
+
+// Hermetic workspace-config mock for the customer-watchlist route tests: the
+// watchlist lives in `workspace_config` (research.customerWatchlist), and the
+// real service hits Convex — which in a dev checkout may already contain a
+// seeded entry (e.g. the 铩硕精密 demo seed), so the tests MUST NOT read the
+// live DB. Mock it in-memory per workspace.
+const watchlistStore = vi.hoisted(() => {
+  const byKey = new Map<string, unknown>();
+  return {
+    getWorkspaceConfigValue: vi.fn(async (_ws: string, key: string) => byKey.get(key)),
+    setWorkspaceConfigValue: vi.fn(async (_ws: string, key: string, value: unknown) => {
+      byKey.set(key, value);
+    }),
+    __reset: () => byKey.clear(),
+  };
+});
+
+vi.mock("../services/workspace-config-service.js", () => ({
+  workspaceConfigService: {
+    getWorkspaceConfigValue: watchlistStore.getWorkspaceConfigValue,
+    setWorkspaceConfigValue: watchlistStore.setWorkspaceConfigValue,
+  },
 }));
 
 vi.mock("../services/research-showcase-service.js", () => ({
@@ -1212,6 +1235,7 @@ describe("research routes", () => {
   });
 
   describe("customer watchlist (客户监控) routes", () => {
+    beforeEach(() => watchlistStore.__reset());
     const SPH = "https://weixin.qq.com/sph/ALr3ch0zp9";
     const MP = "https://mp.weixin.qq.com/s/AbC123xyz_89";
 
