@@ -35,6 +35,7 @@ import {
   mergeNewsSources,
   parseNewsSourcesWorkspace,
   customerWatchlistSpreadTerms,
+  customerBranchKeywords,
   type DailyReportPack,
   type LiveNewsRow,
 } from '@trends/shared'
@@ -325,7 +326,18 @@ async function main(): Promise<void> {
       })) {
         watchlistKeywords.push(term)
       }
+      // The worker emits TWO feeds per active customer (research_customer_spread.py):
+      //   `watch-<companyKey>`   (specific: name + aliases + branch)
+      //   `watch-<companyKey>-<branch_kw[:8]>`  (broad: FIRST branch term alone)
+      // Register the customer name as the source label for BOTH feed ids, so the
+      // daily report credits the customer as the source regardless of which feed
+      // carried the article (not the raw platform string).
       customerPlatformLabels[`watch-${companyKey}`] = name
+      const branch = typeof e.downstreamBranch === 'string' ? e.downstreamBranch : '其他'
+      const branchFirst = customerBranchKeywords(branch)[0]
+      if (branchFirst) {
+        customerPlatformLabels[`watch-${companyKey}-${branchFirst.slice(0, 8)}`] = name
+      }
     }
     keywords = [...keywords, ...watchlistKeywords]
     console.log(`watchlist: active=${entries.length} terms=${watchlistKeywords.length}`)

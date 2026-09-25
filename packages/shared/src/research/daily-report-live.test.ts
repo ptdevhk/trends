@@ -12,6 +12,7 @@ import {
   platformLabelFor,
   customerBranchKeywords,
   customerWatchlistSpreadTerms,
+  isWatchPlatform,
   type LiveNewsRow,
 } from './daily-report-live'
 import { isDailyReportPack } from './daily-report-pack'
@@ -611,5 +612,45 @@ describe('customerWatchlistSpreadTerms', () => {
     expect(customerWatchlistSpreadTerms({ name: '某客户', downstreamBranch: '其他' })).toEqual([
       '某客户',
     ])
+  })
+})
+
+describe('isWatchPlatform + watch-over-generic dedupe', () => {
+  it('flags rss:watch-* platforms', () => {
+    expect(isWatchPlatform('rss:watch-铩硕精密-压铸')).toBe(true)
+    expect(isWatchPlatform('rss:gnews-diecast')).toBe(false)
+    expect(isWatchPlatform('weibo')).toBe(false)
+  })
+
+  it('prefers the customer (rss:watch-*) row when the same article is also a gnews feed row', () => {
+    const gen = row({
+      title: '从小五金到制造革命：一体化压铸为何在珠三角落地生根？',
+      platform: 'rss:gnews-diecast',
+      url: 'https://gnews.example/1',
+      publishedAt: Date.UTC(2026, 8, 25, 2, 0, 0),
+    })
+    const watch = row({
+      title: '从小五金到制造革命：一体化压铸为何在珠三角落地生根？',
+      platform: 'rss:watch-铩硕精密-压铸',
+      url: 'https://bing.example/watch',
+      publishedAt: Date.UTC(2026, 8, 25, 3, 0, 0),
+    })
+    const res = buildLivePack([gen, watch], {
+      date: '2026-09-25',
+      generatedAt: 'x',
+      keywords: ['压铸', '铩硕精密'],
+      platformLabels: { 'watch-铩硕精密-压铸': '铩硕精密' },
+    })
+    const all = [
+      ...(res.pack.downstream ?? []),
+      ...res.pack.opportunities,
+      ...res.pack.stories,
+    ]
+    expect(all.length).toBeGreaterThan(0)
+    for (const it of all as Array<{ title?: string; source?: string }>) {
+      if (it.title?.includes('从小五金')) {
+        expect(it.source).toBe('铩硕精密')
+      }
+    }
   })
 })

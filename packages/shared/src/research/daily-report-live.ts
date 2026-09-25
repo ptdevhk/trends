@@ -118,6 +118,18 @@ export function isHotlistPlatform(platform: string): boolean {
 }
 
 /**
+ * True for a customer-watchlist spread platform (`rss:watch-*`). These represent
+ * an operator's explicit target (customer/research topic), so when the same
+ * article is ALSO ingested by a generic feed (e.g. `rss:gnews-diecast`) we want
+ * the WATCH row to win the title-dedupe — surfacing the customer's name as the
+ * source instead of the generic 压铸网.
+ */
+export function isWatchPlatform(platform: string): boolean {
+  const p = platform.trim().toLowerCase();
+  return p.startsWith('rss:watch-');
+}
+
+/**
  * True when the row carries a usable http(s) publisher news URL.
  * Google News wrapper URLs are rejected — resolve them upstream
  * (`resolveOriginalArticleUrl`) before calling `buildLivePack`.
@@ -335,13 +347,38 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
   // De-dupe across the FULL 7d window so the sections can fill with distinct
   // items instead of echoing a thin report day (a single ingest run stamps
   // every row on one day; without window fallback the page would show 3).
+  // When the SAME article exists under both a generic feed and a customer-watch
+  // (`rss:watch-*`) platform, PREFER the watch row so the source label surfaces
+  // the customer name (not the generic 压铸网). Watch rows arrive AFTER the feeds
+  // in cnOnlyRows order, so a greedy keep-frist would keep the generic one; to
+  // invert this we keep a map of any-title → watch row and replay it last.
+  const watchByTitle = new Map<string, (typeof windowAnnotated)[number]>();
   const seen = new Set<string>();
-  const windowUnique = windowAnnotated.filter((x) => {
+  const nonWatchUnique: (typeof windowAnnotated)[number][] = [];
+  for (const x of windowAnnotated) {
     const key = normalizePulseKeyword(shortLabel(x.row.title));
-    if (seen.has(key)) return false;
+    if (isWatchPlatform(x.row.platform)) {
+      if (!watchByTitle.has(key)) watchByTitle.set(key, x);
+      continue; // keep watch rows separate; replay after generic dedupe
+    }
+    if (seen.has(key)) continue;
     seen.add(key);
-    return true;
-  });
+    nonWatchUnique.push(x);
+  }
+  // Start from the deduped generic rows, then REPLAY watch rows last. A watch
+  // row whose title already appeared under a generic feed REPLACES that generic
+  // row in place (so the customer name wins the source label without echoing
+  // the same article twice). Built explicitly — mutating the source while it is
+  // being spread would silently keep the generic duplicate.
+  const windowUnique = [...nonWatchUnique];
+  for (const w of watchByTitle.values()) {
+    const key = normalizePulseKeyword(shortLabel(w.row.title));
+    const gi = windowUnique.findIndex(
+      (x) => normalizePulseKeyword(shortLabel(x.row.title)) === key,
+    );
+    if (gi >= 0) windowUnique.splice(gi, 1);
+    windowUnique.push(w);
+  }
 
   // Rank: report-day first (cards feel fresh), then hotlist, strong-hit count,
   // total hits, then recency (as-of time = publish day when set).
