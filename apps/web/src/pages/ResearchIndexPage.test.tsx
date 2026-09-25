@@ -404,16 +404,13 @@ describe('ResearchIndexPage hub', () => {
     expect(headerLink).toHaveAttribute('href', '/hr/research/daily')
     expect(headerLink).toHaveTextContent(/销售日报|2026-09-22|打开今日/)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('research-daily-report-link-pulse')).toBeInTheDocument()
-    })
-    expect(screen.getByTestId('research-daily-report-link-pulse')).toHaveAttribute(
-      'href',
-      '/hr/research/daily',
-    )
     expect(screen.getByTestId('research-daily-report-link-toolbar')).toHaveAttribute(
       'href',
       '/hr/research/daily',
+    )
+    expect(screen.getByTestId('research-pipeline-settings-link')).toHaveAttribute(
+      'href',
+      '/hr/settings/research',
     )
   })
 
@@ -552,7 +549,7 @@ describe('ResearchIndexPage hub', () => {
     )
   })
 
-  it('places search and pulse above industry catalog for HR scan path', async () => {
+  it('places workflow pool above catalog search for daily-sales path', async () => {
     render(
       <MemoryRouter>
         <ResearchIndexPage />
@@ -562,19 +559,23 @@ describe('ResearchIndexPage hub', () => {
     await waitFor(() => {
       expect(screen.getByTestId('research-section-search')).toBeInTheDocument()
       expect(screen.getByTestId('research-section-industry')).toBeInTheDocument()
+      expect(screen.getByTestId('research-workflow-board')).toBeInTheDocument()
     })
 
     const page = screen.getByTestId('research-index-page')
     const order = Array.from(
       page.querySelectorAll(
-        '[data-testid="research-section-search"], [data-testid="research-section-pulse"], [data-testid="research-section-golden"], [data-testid="research-section-industry"]',
+        '[data-testid="research-workflow-board"], [data-testid="research-section-search"], [data-testid="research-section-pulse"], [data-testid="research-section-golden"], [data-testid="research-section-industry"]',
       ),
     ).map((el) => el.getAttribute('data-testid'))
 
-    expect(order.indexOf('research-section-search')).toBeLessThan(
-      order.indexOf('research-section-pulse'),
+    expect(order.indexOf('research-workflow-board')).toBeLessThan(
+      order.indexOf('research-section-search'),
     )
     expect(order.indexOf('research-section-pulse')).toBeLessThan(
+      order.indexOf('research-section-search'),
+    )
+    expect(order.indexOf('research-section-search')).toBeLessThan(
       order.indexOf('research-section-golden'),
     )
     expect(order.indexOf('research-section-golden')).toBeLessThan(

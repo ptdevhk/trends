@@ -316,6 +316,13 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/settings/keywords"],
   },
   {
+    id: "research",
+    titleKey: "settings.research.nav",
+    defaultTitle: "Research monitoring",
+    hrefSuffix: "/settings/research",
+    matchesSuffixes: ["/settings/research"],
+  },
+  {
     id: "policies",
     titleKey: "settings.policies.nav",
     defaultTitle: "Policies",

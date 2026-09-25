@@ -835,11 +835,7 @@ function App() {
               />
               <Route
                 path="research/settings"
-                element={(
-                  <RouteSuspense>
-                    <LazyResearchSettingsPage />
-                  </RouteSuspense>
-                )}
+                element={<Navigate to={`../settings/research`} replace />}
               />
               <Route
                 path="research/:companyKey"
@@ -883,6 +879,14 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazySettingsKeywordsPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="research"
+                element={(
+                  <RouteSuspense>
+                    <LazyResearchSettingsPage />
                   </RouteSuspense>
                 )}
               />

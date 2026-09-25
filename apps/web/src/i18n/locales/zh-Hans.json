@@ -2230,6 +2230,9 @@
       "changeFailed": "更改密码失败",
       "showPassword": "显示密码",
       "hidePassword": "隐藏密码"
+    },
+    "research": {
+      "nav": "研究监控"
     }
   },
   "searchAnalytics": {
@@ -3247,7 +3250,8 @@
       "tabConfig": "⚙ 监控设置",
       "pageTitle": "行业研究 / 监控设置",
       "back": "‹ 返回主页",
-      "tabHarvest": "🎙 采收"
+      "tabHarvest": "🎙 采收",
+      "backToWorkflow": "‹ 返回每日销售工作流"
     },
     "pipeline": {
       "nav": "每日销售工作流",
@@ -3265,7 +3269,20 @@
       "toPool": "查看/打 tag →",
       "outputTitle": "今日日报 · 输出",
       "buildToday": "生成 / 重建今日日报",
-      "harvestTitle": "采收 · 视频号 / 公众号"
+      "harvestTitle": "采收 · 视频号 / 公众号",
+      "poolTitleHotlist": "今日素材池 · 综合热榜",
+      "watchPoolHint": " · 客户扩散 {{count}}",
+      "sourceWatch": "客户扩散",
+      "tagAction": "打 tag",
+      "promoteTagged": "入日报（重建）",
+      "promoteHint": "标签为台面分拣；重建走 build-live → 定稿C",
+      "outputMissing": "今日日报尚未生成",
+      "rebuildFailed": "重建失败，请稍后重试",
+      "headlineLabel": "头条",
+      "countDownstream": "下游 {{count}}",
+      "countOpportunity": "商机 {{count}}",
+      "countStory": "热闻 {{count}}",
+      "rebuilding": "重建中…"
     },
     "watch": {
       "title": "客户监控",

@@ -207,12 +207,14 @@ describe("validateAIConfig", () => {
   });
 
   async function importWithEnv() {
+    vi.resetModules();
     const mod = await import("../ai-config.js");
     return mod;
   }
 
   it("returns invalid when AI is disabled", async () => {
-    delete process.env.AI_ANALYSIS_ENABLED;
+    // Bun may re-bind .env on dynamic import; set false explicitly (do not rely on delete).
+    process.env.AI_ANALYSIS_ENABLED = "false";
     delete process.env.AI_API_KEY;
     delete process.env.AI_MODEL;
     const { validateAIConfig } = await importWithEnv();
@@ -288,6 +290,7 @@ describe("validateResumeAIConfig", () => {
   });
 
   async function importWithEnv() {
+    vi.resetModules();
     const mod = await import("../ai-config.js");
     return mod;
   }

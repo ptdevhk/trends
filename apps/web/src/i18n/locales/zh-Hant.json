@@ -1222,6 +1222,9 @@
       "restore": "還原",
       "showArchived": "顯示已封存",
       "archivedBadge": "已封存"
+    },
+    "research": {
+      "nav": "研究監控"
     }
   },
   "debug": {
@@ -3220,7 +3223,8 @@
       "back": "‹ 返回主頁",
       "tabConfig": "⚙ 監控設置",
       "tabHarvest": "🎙 采收",
-      "pageTitle": "行業研究 / 監控設置"
+      "pageTitle": "行業研究 / 監控設置",
+      "backToWorkflow": "‹ 返回每日銷售工作流"
     },
     "pipeline": {
       "nav": "每日銷售工作流",
@@ -3238,7 +3242,20 @@
       "toPool": "查看/打 tag →",
       "outputTitle": "今日日報 · 輸出",
       "buildToday": "生成 / 重建今日日報",
-      "harvestTitle": "采收 · 視頻號 / 公眾號"
+      "harvestTitle": "采收 · 視頻號 / 公眾號",
+      "poolTitleHotlist": "今日素材池 · 綜合熱榜",
+      "watchPoolHint": " · 客戶擴散 {{count}}",
+      "sourceWatch": "客戶擴散",
+      "tagAction": "打 tag",
+      "promoteTagged": "入日報（重建）",
+      "promoteHint": "標籤為檯面分揀；重建走 build-live → 定稿C",
+      "outputMissing": "今日日報尚未生成",
+      "rebuildFailed": "重建失敗，請稍後重試",
+      "headlineLabel": "頭條",
+      "countDownstream": "下游 {{count}}",
+      "countOpportunity": "商機 {{count}}",
+      "countStory": "熱聞 {{count}}",
+      "rebuilding": "重建中…"
     },
     "watch": {
       "title": "客户监控",

@@ -14,11 +14,9 @@ type HotlistPlatformsResponse = HotlistPlatformsDialogState & { success: boolean
 type NewsSourcesResponse = NewsSourcesDialogState & { success: boolean }
 
 /**
- * V1 · 独立配置页 — /hr/research/settings.
- * Mounts the same ResearchSettingsPanel the hub used to inline, but as a full
- * page with its own state loaders (keywords / platforms / news-sources) so it
- * can be reached via the right-top ⚙ 配置 tab and from anywhere, independent
- * of the hub's pulse fetch. ‹ 返回主页 links back to /hr/research.
+ * Research monitoring settings — `/hr/settings/research`.
+ * Legacy `/hr/research/settings` redirects here. Reuses ResearchSettingsPanel
+ * (CNC keyword tree + platforms + news sources) independent of the hub pulse fetch.
  */
 export function ResearchSettingsPage() {
   const { t } = useTranslation()
@@ -141,32 +139,34 @@ export function ResearchSettingsPage() {
   )
 
   const restoreDefaults = useCallback(() => {
-    // Re-seed the panel's local state from the seed defaults by reloading.
     void loadKeywords()
     void loadPlatforms()
     void loadNewsSources()
   }, [loadKeywords, loadPlatforms, loadNewsSources])
 
   return (
-    <div className="space-y-6 p-3 sm:p-4" data-testid="research-settings-page">
-      <nav
-        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
-        data-testid="research-settings-tabs"
-      >
-        <Link
-          to={`/${teamSlug}/research`}
-          className="rounded-md border border-slate-200 px-3 py-1 text-sm text-gray-600 hover:border-blue-300"
-          data-testid="research-settings-back"
-        >
-          {t('research.settings.back', { defaultValue: '‹ 返回主页' })}
-        </Link>
-        <span className="ml-2 rounded-md bg-blue-600 px-3 py-1 text-sm font-semibold text-white" data-testid="research-settings-tab-config">
+    <div className="space-y-6" data-testid="research-settings-page">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-semibold">
+            {t('research.settings.pageTitle', { defaultValue: '行业研究 / 监控设置' })}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t('settings.research.nav', { defaultValue: '研究监控' })}
+            {saving ? ' · …' : ''}
+          </p>
+        </div>
+        <Button asChild type="button" variant="outline" size="sm">
+          <Link to={`/${teamSlug}/research`} data-testid="research-settings-back">
+            {t('research.settings.backToWorkflow', { defaultValue: '‹ 返回每日销售工作流' })}
+          </Link>
+        </Button>
+      </div>
+
+      <nav className="sr-only" data-testid="research-settings-tabs">
+        <span data-testid="research-settings-tab-config">
           {t('research.settings.tabConfig', { defaultValue: '⚙ 监控设置' })}
         </span>
-        <span className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600">
-          {t('research.settings.tabHarvest', { defaultValue: '🎙 采收' })}
-        </span>
-        <span className="ml-auto text-sm text-muted-foreground">{saving ? '⏳' : ''}</span>
       </nav>
 
       <ResearchSettingsPanel
@@ -180,10 +180,6 @@ export function ResearchSettingsPage() {
         onSaveNewsSources={handleSaveNewsSources}
         onRestoreDefaults={restoreDefaults}
       />
-
-      <Button asChild type="button" variant="outline" size="sm">
-        <Link to={`/${teamSlug}/research`}>{t('research.settings.back', { defaultValue: '‹ 返回主页' })}</Link>
-      </Button>
     </div>
   )
 }

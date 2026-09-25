@@ -55,9 +55,9 @@ describe('ResearchSettingsPage', () => {
     putMock.mockResolvedValue({ data: { ...keywords, success: true } })
   })
 
-  it('mounts at /hr/research/settings with back link and settings panel', () => {
+  it('mounts at /hr/settings/research with back link and settings panel', () => {
     render(
-      <MemoryRouter initialEntries={['/hr/research/settings']}>
+      <MemoryRouter initialEntries={['/hr/settings/research']}>
         <ResearchSettingsPage />
       </MemoryRouter>,
     )

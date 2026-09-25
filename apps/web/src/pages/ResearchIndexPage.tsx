@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { formatDistanceToNow } from 'date-fns/formatDistanceToNow'
-import { zhCN } from 'date-fns/locale/zh-CN'
 import { PageHeader } from '@/components/PageHeader'
 import {
   PulseKeywordsDialog,
@@ -16,10 +14,11 @@ import {
   NewsSourcesDialog,
   type NewsSourcesDialogState,
 } from '@/components/research/NewsSourcesDialog'
-import { CustomerWatchBlock } from '@/components/research/CustomerWatchBlock'
-import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
-import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
+import { ResearchHarvestColumn } from '@/components/research/ResearchHarvestColumn'
+import { ResearchMaterialPool } from '@/components/research/ResearchMaterialPool'
+import { ResearchDailyOutputColumn } from '@/components/research/ResearchDailyOutputColumn'
+import { ResearchWorkflowBoard } from '@/components/research/ResearchWorkflowBoard'
 import { researchSignalKindLabel } from '@/components/research/research-signal-kind-label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -147,21 +146,6 @@ function primaryLabel(nameCn?: string, displayName?: string, nameEn?: string): s
   return nameEn?.trim() || ''
 }
 
-function formatPulseRelativeTime(capturedAt: number): string {
-  if (!Number.isFinite(capturedAt) || capturedAt <= 0) {
-    return ''
-  }
-  const date = new Date(capturedAt)
-  if (Number.isNaN(date.getTime())) {
-    return ''
-  }
-  try {
-    return formatDistanceToNow(date, { addSuffix: true, locale: zhCN })
-  } catch {
-    return ''
-  }
-}
-
 function CompanyCardGrid({
   cards,
   emptyLabel,
@@ -244,10 +228,12 @@ export function ResearchIndexPage() {
   const [pulseError, setPulseError] = useState<string | null>(null)
   const [pulseShowAll, setPulseShowAll] = useState(false)
   const [pulseRssFallbackItems, setPulseRssFallbackItems] = useState<PulseNewsItem[]>([])
+  const [watchPoolItems, setWatchPoolItems] = useState<PulseNewsItem[]>([])
   const [pulseFocusKeyword, setPulseFocusKeyword] = useState<string | null>(pulseParam)
   const [pulseChipsExpanded, setPulseChipsExpanded] = useState(false)
   const [pulseHelperExpanded, setPulseHelperExpanded] = useState(false)
   const [industryExpanded, setIndustryExpanded] = useState(false)
+  const [outputRefreshKey, setOutputRefreshKey] = useState(0)
 
   const [keywordsState, setKeywordsState] = useState<PulseKeywordsDialogState | null>(null)
   const [keywordsDialogOpen, setKeywordsDialogOpen] = useState(false)
@@ -427,14 +413,34 @@ export function ResearchIndexPage() {
     })
   }, [])
 
+  /** Customer-watch spread rows (`rss:watch-*`) for the material pool. */
+  const loadWatchPool = useCallback(async () => {
+    const { data } = await rawApiClient.GET<PulseResponse>('/api/research/pulse', {
+      params: {
+        query: {
+          limit: 24,
+          hotlistOnly: 0,
+        },
+      },
+    })
+    if (data?.success && Array.isArray(data.items)) {
+      setWatchPoolItems(
+        data.items.filter((item) => String(item.platform ?? '').startsWith('rss:watch-')),
+      )
+    } else {
+      setWatchPoolItems([])
+    }
+  }, [])
+
   useEffect(() => {
     void loadShowcase()
     void loadIndustry()
     void loadPulse()
+    void loadWatchPool()
     void loadKeywords()
     void loadPlatforms()
     void loadNewsSources()
-  }, [loadShowcase, loadIndustry, loadPulse, loadKeywords, loadPlatforms, loadNewsSources])
+  }, [loadShowcase, loadIndustry, loadPulse, loadWatchPool, loadKeywords, loadPlatforms, loadNewsSources])
 
   useEffect(() => {
     if (pulseParam) {
@@ -456,11 +462,16 @@ export function ResearchIndexPage() {
     setIngesting(true)
     try {
       await rawApiClient.POST('/api/research/ingest/run', { body: {} })
-      await Promise.all([loadShowcase(), loadPulse()])
+      await Promise.all([loadShowcase(), loadPulse(), loadWatchPool()])
+      setOutputRefreshKey((k) => k + 1)
     } finally {
       setIngesting(false)
     }
-  }, [loadShowcase, loadPulse])
+  }, [loadShowcase, loadPulse, loadWatchPool])
+
+  const promotePoolToReport = useCallback(() => {
+    setOutputRefreshKey((k) => k + 1)
+  }, [])
 
   const handleShowAllPulse = useCallback(() => {
     setPulseShowAll(true)
@@ -705,119 +716,228 @@ export function ResearchIndexPage() {
         })}
       />
 
-      {/* V1: 每日销售工作流 pipeline — 今日日报 / 素材池 / 采收 / 配置 (独立配置页). */}
-      <nav
-        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
-        data-testid="research-pipeline-tabs"
-      >
-        <span className="text-sm font-bold text-slate-900">
-          {t('research.pipeline.nav', { defaultValue: '每日销售工作流' })}
-        </span>
-        <span className="ml-2 rounded-md bg-blue-600 px-3 py-1 text-sm font-semibold text-white" data-testid="research-pipeline-tab-today">
-          {t('research.pipeline.today', { defaultValue: '📰 今日日报' })}
-        </span>
-        <a href="#research-section-pulse" className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:border-blue-300">
-          {t('research.pipeline.pool', { defaultValue: '🗂 素材池' })}
-        </a>
-        <a href="#research-section-harvest" className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:border-blue-300">
-          {t('research.pipeline.harvest', { defaultValue: '⚡ 采收' })}
-        </a>
-        <Link
-          to={`/${slug}/research/settings`}
-          className="ml-auto rounded-md border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700"
-          data-testid="research-pipeline-tab-settings"
-        >
-          {t('research.pipeline.config', { defaultValue: '⚙ 配置' })}
-        </Link>
-      </nav>
-
-      {/* 今日日报 + 采收流水线 (V1 screen 1). */}
-      <Card data-testid="research-daily-report-hero">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {t('research.dailyReportLink', { defaultValue: '销售日报' })}
-          </CardTitle>
-          <CardDescription>
-            {t('research.dailyReportHeroBody', {
-              defaultValue:
-                '按日历日看今日商机 / 趋势 / 热闻（不是下方综合热榜的近期列表）。可切换近 7 个报告日。',
-              date: shanghaiToday,
-            })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          <Button asChild type="button" size="sm">
-            <Link to={dailyHref} data-testid="research-daily-report-link">
-              {t('research.dailyReportOpenToday', {
-                defaultValue: '打开今日日报 · {{date}}',
-                date: shanghaiToday,
-              })}
-            </Link>
-          </Button>
-          <Button asChild type="button" size="sm" variant="outline">
-            <a href={`/daily/${shanghaiToday}.html`} target="_blank" rel="noreferrer">
-              {t('research.dailyReportPublicLink', { defaultValue: '公开分享页' })}
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* 采收流水线 strip: 输入 → 素材池 → 今日日报输出 (V1). */}
-      <div
-        className="grid gap-3 md:grid-cols-3"
-        data-testid="research-harvest-pipeline"
-      >
-        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-input">
-          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.inputTitle', { defaultValue: '采收 · 输入' })}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {t('research.pipeline.inputHint', { defaultValue: '视频号 / 公众号 / 新闻 / 热榜' })}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <a href="#research-section-harvest" className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
-              {t('research.pipeline.videoHarvest', { defaultValue: '视频号' })}
-            </a>
-            <a href="#research-section-harvest" className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
-              {t('research.pipeline.mpHarvest', { defaultValue: '公众号' })}
-            </a>
-            <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
-              {t('research.pipeline.autoHarvest', { defaultValue: '新闻/热榜 · 自动' })}
-            </span>
-          </div>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-pool">
-          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.poolTitle', { defaultValue: '今日素材池' })}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {t('research.pipeline.poolStatus', {
-              defaultValue: 'Pulse 命中 {{count}} 条 · 打 tag 后可入日报',
-              count: pulseMeta?.matchedCount ?? pulseItems.length ?? 0,
-            })}
-          </div>
-          <div className="mt-2">
-            <a href="#research-section-pulse" className="text-xs font-medium text-blue-600 hover:underline">
-              {t('research.pipeline.toPool', { defaultValue: '查看/打 tag →' })}
-            </a>
-          </div>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-output">
-          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.outputTitle', { defaultValue: '今日日报 · 输出' })}</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <Button asChild type="button" size="sm" variant="default">
-              <Link to={dailyHref}>{t('research.pipeline.buildToday', { defaultValue: '生成 / 重建今日日报' })}</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <section id="research-section-harvest" data-testid="research-section-harvest">
-        <h2 className="mb-2 text-sm font-semibold">
-          {t('research.pipeline.harvestTitle', { defaultValue: '采收 · 视频号 / 公众号' })}
-        </h2>
-        <CustomerWatchBlock />
-        <div className="mt-4" />
-        <ChannelsBriefingPanel />
-        <div className="mt-4" />
-        <MpBriefingPanel />
-      </section>
+      <ResearchWorkflowBoard
+        teamSlug={teamSlug}
+        harvest={
+          <ResearchHarvestColumn ingesting={ingesting} onRunIngest={() => void runIngest()} />
+        }
+        pool={
+          <ResearchMaterialPool
+            teamSlug={teamSlug}
+            items={displayPulseItems}
+            watchItems={watchPoolItems}
+            loading={pulseLoading}
+            error={pulseError}
+            matchedCount={pulseMeta?.matchedCount ?? pulseItems.length}
+            onPromoteToReport={() => {
+              promotePoolToReport()
+              void (async () => {
+                try {
+                  await fetch('/daily/rebuild', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: shanghaiToday, force: true }),
+                  })
+                } catch {
+                  /* output column will surface miss on refresh */
+                }
+                setOutputRefreshKey((k) => k + 1)
+              })()
+            }}
+            headerSlot={(
+              <>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setKeywordsDialogOpen(true)}
+                    data-testid="research-manage-keywords"
+                  >
+                    {t('research.pulseKeywords.manage', { defaultValue: '管理关键词' })}
+                  </Button>
+                </div>
+                {effectiveKeywords.length > 0 ? (
+                  <div
+                    className="mb-2 flex flex-wrap items-center gap-1.5"
+                    data-testid="research-pulse-chips"
+                  >
+                    {visibleChips.map((kw) => {
+                      const active = pulseFocusKeyword === kw
+                      const entry = keywordHitMap.get(kw)
+                      const hotlistHits = entry?.hotlistHitCount ?? entry?.hitCount ?? 0
+                      const rssHits = entry?.rssHitCount ?? 0
+                      const showDual =
+                        entry?.hotlistHitCount != null &&
+                        entry?.rssHitCount != null &&
+                        ((pulseMeta?.rssMatchedCount ?? 0) > 0 || rssHits > 0)
+                      const chipCountLabel = showDual
+                        ? t('research.pulseKeywords.chipDualCount', {
+                            defaultValue: `热榜 {{hotlist}} · 订阅 {{rss}}`,
+                            hotlist: hotlistHits,
+                            rss: rssHits,
+                          })
+                        : String(hotlistHits)
+                      return (
+                        <button
+                          key={kw}
+                          type="button"
+                          data-testid="research-pulse-chip"
+                          data-keyword={kw}
+                          data-active={active ? 'true' : 'false'}
+                          aria-label={`${kw} (${chipCountLabel})`}
+                          onClick={() => handlePulseChipClick(kw)}
+                          className={
+                            active
+                              ? 'rounded-full border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs text-blue-700'
+                              : 'rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-blue-300'
+                          }
+                        >
+                          <span>{kw}</span>
+                          <span
+                            className={
+                              active
+                                ? 'ml-1 rounded-full bg-blue-100 px-1 tabular-nums text-[10px] text-blue-700'
+                                : 'ml-1 rounded-full bg-slate-100 px-1 tabular-nums text-[10px] text-slate-600'
+                            }
+                            data-testid={`research-pulse-chip-count-${kw === '发那科' ? 'fanuc' : kw}`}
+                            aria-hidden="true"
+                          >
+                            ({chipCountLabel})
+                          </span>
+                        </button>
+                      )
+                    })}
+                    {moreChipCount > 0 ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                        data-testid="research-pulse-chips-more"
+                        aria-expanded={pulseChipsExpanded}
+                        onClick={() => setPulseChipsExpanded((prev) => !prev)}
+                      >
+                        {pulseChipsExpanded
+                          ? t('research.pulseKeywords.collapseChips', { defaultValue: '收起' })
+                          : `+${moreChipCount}`}
+                      </button>
+                    ) : null}
+                    {pulseFocusKeyword ? (
+                      <button
+                        type="button"
+                        className="text-xs text-blue-600 hover:underline"
+                        data-testid="research-pulse-clear-focus"
+                        onClick={handleClearPulseFocus}
+                      >
+                        {t('research.pulseKeywords.clearFocus', { defaultValue: '清除筛选' })}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {pulseHelperSummary ? (
+                  <div
+                    className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                    data-testid="research-pulse-keyword-helper"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-slate-700" data-testid="research-pulse-helper-summary">
+                        {pulseHelperSummary}
+                      </p>
+                      {keywordHits.length > 0 ? (
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline"
+                          data-testid="research-pulse-helper-toggle"
+                          aria-expanded={pulseHelperExpanded}
+                          onClick={() => setPulseHelperExpanded((prev) => !prev)}
+                        >
+                          {pulseHelperExpanded
+                            ? t('research.pulseKeywords.helperCollapse', {
+                                defaultValue: '收起关键词助手',
+                              })
+                            : t('research.pulseKeywords.helperExpand', {
+                                defaultValue: '查看关键词命中',
+                              })}
+                        </button>
+                      ) : null}
+                    </div>
+                    {pulseHelperExpanded && keywordHits.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs" data-testid="research-pulse-helper-list">
+                        {keywordHits.map((entry) => (
+                          <li
+                            key={entry.keyword}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1"
+                            data-testid={`research-pulse-helper-item-${entry.keyword}`}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-slate-900">{entry.keyword}</span>
+                              <Badge variant="outline" className="text-[10px] font-normal">
+                                {t('research.pulseKeywords.helperHitCount', {
+                                  defaultValue: `命中 ${entry.hitCount} 条`,
+                                  hitCount: entry.hitCount,
+                                })}
+                              </Badge>
+                              {entry.hitCount === 0 ? (
+                                <span className="text-muted-foreground">
+                                  {t('research.pulseKeywords.helperZero', {
+                                    defaultValue: '近期 0 条',
+                                  })}
+                                </span>
+                              ) : null}
+                            </div>
+                            {entry.sampleTitles.length > 0 ? (
+                              <p className="mt-1 text-muted-foreground">
+                                {entry.sampleTitles.join('；')}
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            )}
+            softEmptySlot={
+              softEmpty ? (
+                <div
+                  className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
+                  data-testid="research-pulse-soft-empty"
+                >
+                  <p className="text-amber-900">
+                    {showingRssFallback
+                      ? t('research.pulseKeywords.softEmptyRss', {
+                          defaultValue:
+                            '热榜关键词未命中。已显示行业订阅（Google News / 公众号 RSS）。',
+                        })
+                      : t('research.pulseKeywords.softEmpty', {
+                          defaultValue: '当前关键词未命中近期资讯，可显示全部或调整关键词。',
+                        })}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={handleShowAllPulse}
+                    data-testid="research-pulse-show-all"
+                  >
+                    {t('research.pulseKeywords.showAll', { defaultValue: '查看未过滤热榜' })}
+                  </Button>
+                </div>
+              ) : null
+            }
+          />
+        }
+        output={
+          <ResearchDailyOutputColumn
+            teamSlug={teamSlug}
+            shanghaiToday={shanghaiToday}
+            dailyHref={dailyHref}
+            refreshKey={outputRefreshKey}
+          />
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -836,18 +956,6 @@ export function ResearchIndexPage() {
           <Link to={dailyHref} data-testid="research-daily-report-link-toolbar">
             {t('research.dailyReportLink', { defaultValue: '销售日报' })}
           </Link>
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={ingesting}
-          onClick={() => void runIngest()}
-          data-testid="research-run-ingest"
-        >
-          {ingesting
-            ? t('research.ingesting', { defaultValue: '正在抓取…' })
-            : t('research.runIngest', { defaultValue: '运行实时抓取' })}
         </Button>
         <Button
           type="button"
@@ -923,7 +1031,6 @@ export function ResearchIndexPage() {
         </Card>
       ) : null}
 
-      {/* Primary HR path first: find a company, then scan pulse — before dense showcase/catalog. */}
       <section data-testid="research-section-search">
         <h2 className="mb-2 text-sm font-semibold">
           {t('research.sectionSearch', { defaultValue: '搜索企业' })}
@@ -977,315 +1084,6 @@ export function ResearchIndexPage() {
             </li>
           ))}
         </ul>
-      </section>
-
-      <section data-testid="research-section-pulse" data-surface="hotlist">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold" data-testid="research-section-hotlist-title">
-            {t('research.sectionPulse', { defaultValue: '综合热榜' })}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild type="button" size="sm" variant="ghost">
-              <Link
-                to={`/${slug}/research/daily`}
-                data-testid="research-daily-report-link-pulse"
-              >
-                {t('research.dailyReportLink', { defaultValue: '销售日报' })}
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setKeywordsDialogOpen(true)}
-              data-testid="research-manage-keywords"
-            >
-              {t('research.pulseKeywords.manage', { defaultValue: '管理关键词' })}
-            </Button>
-          </div>
-        </div>
-
-        {effectiveKeywords.length > 0 ? (
-          <div
-            className="mb-2 flex flex-wrap items-center gap-1.5"
-            data-testid="research-pulse-chips"
-          >
-            {visibleChips.map((kw) => {
-              const active = pulseFocusKeyword === kw
-              const entry = keywordHitMap.get(kw)
-              const hotlistHits = entry?.hotlistHitCount ?? entry?.hitCount ?? 0
-              const rssHits = entry?.rssHitCount ?? 0
-              const showDual =
-                entry?.hotlistHitCount != null &&
-                entry?.rssHitCount != null &&
-                ((pulseMeta?.rssMatchedCount ?? 0) > 0 || rssHits > 0)
-              const chipCountLabel = showDual
-                ? t('research.pulseKeywords.chipDualCount', {
-                    defaultValue: `热榜 {{hotlist}} · 订阅 {{rss}}`,
-                    hotlist: hotlistHits,
-                    rss: rssHits,
-                  })
-                : String(hotlistHits)
-              return (
-                <button
-                  key={kw}
-                  type="button"
-                  data-testid="research-pulse-chip"
-                  data-keyword={kw}
-                  data-active={active ? 'true' : 'false'}
-                  aria-label={`${kw} (${chipCountLabel})`}
-                  onClick={() => handlePulseChipClick(kw)}
-                  className={
-                    active
-                      ? 'rounded-full border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs text-blue-700'
-                      : 'rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 hover:border-blue-300'
-                  }
-                >
-                  <span>{kw}</span>
-                  <span
-                    className={
-                      active
-                        ? 'ml-1 rounded-full bg-blue-100 px-1 tabular-nums text-[10px] text-blue-700'
-                        : 'ml-1 rounded-full bg-slate-100 px-1 tabular-nums text-[10px] text-slate-600'
-                    }
-                    data-testid={`research-pulse-chip-count-${kw === '发那科' ? 'fanuc' : kw}`}
-                    aria-hidden="true"
-                  >
-                    ({chipCountLabel})
-                  </span>
-                </button>
-              )
-            })}
-            {moreChipCount > 0 ? (
-              <button
-                type="button"
-                className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600 hover:border-blue-300 hover:text-blue-700"
-                data-testid="research-pulse-chips-more"
-                aria-expanded={pulseChipsExpanded}
-                onClick={() => setPulseChipsExpanded((prev) => !prev)}
-              >
-                {pulseChipsExpanded
-                  ? t('research.pulseKeywords.collapseChips', { defaultValue: '收起' })
-                  : `+${moreChipCount}`}
-              </button>
-            ) : null}
-            {pulseFocusKeyword ? (
-              <button
-                type="button"
-                className="text-xs text-blue-600 hover:underline"
-                data-testid="research-pulse-clear-focus"
-                onClick={handleClearPulseFocus}
-              >
-                {t('research.pulseKeywords.clearFocus', { defaultValue: '清除筛选' })}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {pulseHelperSummary ? (
-          <div
-            className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-            data-testid="research-pulse-keyword-helper"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-700" data-testid="research-pulse-helper-summary">
-                {pulseHelperSummary}
-              </p>
-              {keywordHits.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-xs text-blue-600 hover:underline"
-                  data-testid="research-pulse-helper-toggle"
-                  aria-expanded={pulseHelperExpanded}
-                  onClick={() => setPulseHelperExpanded((prev) => !prev)}
-                >
-                  {pulseHelperExpanded
-                    ? t('research.pulseKeywords.helperCollapse', {
-                        defaultValue: '收起关键词助手',
-                      })
-                    : t('research.pulseKeywords.helperExpand', {
-                        defaultValue: '查看关键词命中',
-                      })}
-                </button>
-              ) : null}
-            </div>
-
-            {pulseHelperExpanded && keywordHits.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-xs" data-testid="research-pulse-helper-list">
-                {keywordHits.map((entry) => (
-                  <li
-                    key={entry.keyword}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-1"
-                    data-testid={`research-pulse-helper-item-${entry.keyword}`}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-slate-900">{entry.keyword}</span>
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        {t('research.pulseKeywords.helperHitCount', {
-                          defaultValue: `命中 ${entry.hitCount} 条`,
-                          hitCount: entry.hitCount,
-                        })}
-                      </Badge>
-                      {entry.hitCount === 0 ? (
-                        <span className="text-muted-foreground">
-                          {t('research.pulseKeywords.helperZero', {
-                            defaultValue: '近期 0 条',
-                          })}
-                        </span>
-                      ) : null}
-                    </div>
-                    {entry.sampleTitles.length > 0 ? (
-                      <p className="mt-1 text-muted-foreground">
-                        {entry.sampleTitles.join('；')}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-
-        {pulseError ? (
-          <p className="text-sm text-red-600" data-testid="research-pulse-error">
-            {pulseError}
-          </p>
-        ) : null}
-
-        {softEmpty ? (
-          <div
-            className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm"
-            data-testid="research-pulse-soft-empty"
-          >
-            <p className="text-amber-900">
-              {showingRssFallback
-                ? t('research.pulseKeywords.softEmptyRss', {
-                    defaultValue:
-                      '热榜关键词未命中。已显示行业订阅（Google News / 公众号 RSS）。',
-                  })
-                : t('research.pulseKeywords.softEmpty', {
-                    defaultValue: '当前关键词未命中近期资讯，可显示全部或调整关键词。',
-                  })}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="mt-2"
-              onClick={handleShowAllPulse}
-              data-testid="research-pulse-show-all"
-            >
-              {t('research.pulseKeywords.showAll', { defaultValue: '查看未过滤热榜' })}
-            </Button>
-          </div>
-        ) : null}
-
-        {pulseLoading ? (
-          <p className="text-sm text-muted-foreground">{t('resumes.loading', { defaultValue: 'Loading...' })}</p>
-        ) : displayPulseItems.length === 0 && !softEmpty ? (
-          <p className="text-sm text-muted-foreground" data-testid="research-pulse-empty">
-            {t('research.pulseEmpty', { defaultValue: '暂无近期资讯。' })}
-          </p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {displayPulseItems.map((item, index) => {
-              const relative = formatPulseRelativeTime(item.capturedAt)
-              const resolvedCompanies = item.resolvedCompanies ?? []
-              const primaryCompany = resolvedCompanies[0]
-              const researchHref = primaryCompany
-                ? `/${teamSlug}/research/${encodeURIComponent(primaryCompany.companyKey)}?persona=hr`
-                : null
-              const isRss = String(item.platform ?? '').startsWith('rss:')
-              const platformLabel = isRss
-                ? t('research.pulseKeywords.sourceRss', { defaultValue: 'RSS' })
-                : item.platform
-              return (
-                <li
-                  key={`${item.title}-${index}`}
-                  data-testid="research-pulse-item"
-                  data-source={isRss ? 'rss' : 'hotlist'}
-                  className="flex flex-wrap items-baseline gap-x-2 gap-y-1"
-                >
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-normal"
-                    data-testid="research-pulse-platform"
-                  >
-                    {platformLabel}
-                  </Badge>
-                  {relative ? (
-                    <span
-                      className="text-xs text-muted-foreground"
-                      data-testid="research-pulse-time"
-                    >
-                      {relative}
-                    </span>
-                  ) : null}
-                  {researchHref ? (
-                    <Link
-                      to={researchHref}
-                      className="font-medium text-blue-600 hover:underline"
-                      data-testid="research-pulse-title-link"
-                      data-company-key={primaryCompany!.companyKey}
-                    >
-                      {item.title}
-                    </Link>
-                  ) : item.url ? (
-                    <a
-                      href={item.url}
-                      className="text-blue-600 hover:underline"
-                      target="_blank"
-                      rel="noreferrer"
-                      data-testid="research-pulse-title-external"
-                    >
-                      {item.title}
-                    </a>
-                  ) : (
-                    <span data-testid="research-pulse-title-text">{item.title}</span>
-                  )}
-                  {researchHref && item.url ? (
-                    <a
-                      href={item.url}
-                      className="text-xs text-muted-foreground hover:underline"
-                      target="_blank"
-                      rel="noreferrer"
-                      data-testid="research-pulse-source-link"
-                      aria-label={t('research.pulseSourceLink', {
-                        defaultValue: '查看原文',
-                      })}
-                    >
-                      {t('research.pulseSourceLink', { defaultValue: '原文' })}
-                    </a>
-                  ) : null}
-                  {(item.matchedKeywords ?? []).slice(0, 3).map((mk) => (
-                    <Badge
-                      key={mk}
-                      variant="secondary"
-                      className="text-[10px] font-normal"
-                      data-testid="research-pulse-matched-kw"
-                    >
-                      {mk}
-                    </Badge>
-                  ))}
-                  {resolvedCompanies.slice(0, 2).map((company) => (
-                    <Link
-                      key={company.companyKey}
-                      to={`/${teamSlug}/research/${encodeURIComponent(company.companyKey)}?persona=hr`}
-                      className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700 hover:bg-blue-100"
-                      data-testid="research-pulse-company-link"
-                      data-company-key={company.companyKey}
-                    >
-                      {t('research.pulseResolvedCompany', {
-                        defaultValue: `企业研究 · ${company.nameCn}`,
-                        companyName: company.nameCn,
-                      })}
-                    </Link>
-                  ))}
-                </li>
-              )
-            })}
-          </ul>
-        )}
       </section>
 
       <PulseKeywordsDialog

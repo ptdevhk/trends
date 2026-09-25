@@ -5,7 +5,7 @@ import {
   type SurfaceNavDefinition,
 } from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
-import { Factory, Home, Key, Puzzle, Scale, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Factory, Home, Key, Newspaper, Puzzle, Scale, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
@@ -26,6 +26,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   home: Home,
   setup: Puzzle,
   keywords: Search,
+  research: Newspaper,
   policies: Scale,
   profiles: Search,
   'export-fields': SlidersHorizontal,

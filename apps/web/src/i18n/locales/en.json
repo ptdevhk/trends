@@ -1222,6 +1222,9 @@
       "changeFailed": "Failed to change password",
       "showPassword": "Show password",
       "hidePassword": "Hide password"
+    },
+    "research": {
+      "nav": "Research monitoring"
     }
   },
   "debug": {
@@ -3220,7 +3223,8 @@
       "tabConfig": "⚙ Settings",
       "pageTitle": "Industry Research / Monitoring",
       "back": "‹ Back to main",
-      "tabHarvest": "🎙 Harvest"
+      "tabHarvest": "🎙 Harvest",
+      "backToWorkflow": "‹ Back to daily sales workflow"
     },
     "pipeline": {
       "nav": "Daily sales workflow",
@@ -3238,7 +3242,20 @@
       "toPool": "View / tag →",
       "outputTitle": "Today's report · Output",
       "buildToday": "Build / rebuild today's report",
-      "harvestTitle": "Harvest · Video channel / Official account"
+      "harvestTitle": "Harvest · Video channel / Official account",
+      "poolTitleHotlist": "Material pool · Hotlist",
+      "watchPoolHint": " · customer spread {{count}}",
+      "sourceWatch": "Customer spread",
+      "tagAction": "Tag",
+      "promoteTagged": "Send to daily (rebuild)",
+      "promoteHint": "Tags are desk triage; rebuild uses build-live → 定稿C",
+      "outputMissing": "Today’s daily report is not ready yet",
+      "rebuildFailed": "Rebuild failed — try again",
+      "headlineLabel": "Headline",
+      "countDownstream": "Downstream {{count}}",
+      "countOpportunity": "Opportunities {{count}}",
+      "countStory": "Stories {{count}}",
+      "rebuilding": "Rebuilding…"
     },
     "watch": {
       "title": "Customer watch",

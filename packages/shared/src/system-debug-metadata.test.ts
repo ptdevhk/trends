@@ -94,11 +94,12 @@ describe('SYSTEM_NAV_ITEMS', () => {
 })
 
 describe('SETTINGS_NAV_ITEMS', () => {
-  it('includes home, setup, search setup, profiles, policies, and export fields entries', () => {
+  it('includes home, setup, search setup, research, profiles, policies, and export fields entries', () => {
     const ids = SETTINGS_NAV_ITEMS.map((item) => item.id)
     expect(ids).toContain('home')
     expect(ids).toContain('setup')
     expect(ids).toContain('keywords')
+    expect(ids).toContain('research')
     expect(ids).toContain('profiles')
     expect(ids).toContain('policies')
     expect(ids).toContain('export-fields')
@@ -107,9 +108,11 @@ describe('SETTINGS_NAV_ITEMS', () => {
   it('routes setup and search setup through the workspace settings surface', () => {
     const setup = SETTINGS_NAV_ITEMS.find((item) => item.id === 'setup')
     const searchSetup = SETTINGS_NAV_ITEMS.find((item) => item.id === 'keywords')
+    const research = SETTINGS_NAV_ITEMS.find((item) => item.id === 'research')
 
     expect(setup?.hrefSuffix).toBe('/settings/setup')
     expect(searchSetup?.hrefSuffix).toBe('/settings/keywords')
+    expect(research?.hrefSuffix).toBe('/settings/research')
   })
 
   it('routes policies to the unified settings surface and still matches legacy blocks', () => {
