@@ -16,7 +16,6 @@ import {
   NewsSourcesDialog,
   type NewsSourcesDialogState,
 } from '@/components/research/NewsSourcesDialog'
-import { ResearchSettingsPanel } from '@/components/research/ResearchSettingsPanel'
 import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
 import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
@@ -705,6 +704,33 @@ export function ResearchIndexPage() {
         })}
       />
 
+      {/* V1: 每日销售工作流 pipeline — 今日日报 / 素材池 / 采收 / 配置 (独立配置页). */}
+      <nav
+        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+        data-testid="research-pipeline-tabs"
+      >
+        <span className="text-sm font-bold text-slate-900">
+          {t('research.pipeline.nav', { defaultValue: '每日销售工作流' })}
+        </span>
+        <span className="ml-2 rounded-md bg-blue-600 px-3 py-1 text-sm font-semibold text-white" data-testid="research-pipeline-tab-today">
+          {t('research.pipeline.today', { defaultValue: '📰 今日日报' })}
+        </span>
+        <a href="#research-section-pulse" className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:border-blue-300">
+          {t('research.pipeline.pool', { defaultValue: '🗂 素材池' })}
+        </a>
+        <a href="#research-section-harvest" className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 hover:border-blue-300">
+          {t('research.pipeline.harvest', { defaultValue: '⚡ 采收' })}
+        </a>
+        <Link
+          to={`/${slug}/research/settings`}
+          className="ml-auto rounded-md border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700"
+          data-testid="research-pipeline-tab-settings"
+        >
+          {t('research.pipeline.config', { defaultValue: '⚙ 配置' })}
+        </Link>
+      </nav>
+
+      {/* 今日日报 + 采收流水线 (V1 screen 1). */}
       <Card data-testid="research-daily-report-hero">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
@@ -735,9 +761,60 @@ export function ResearchIndexPage() {
         </CardContent>
       </Card>
 
-      <ChannelsBriefingPanel />
+      {/* 采收流水线 strip: 输入 → 素材池 → 今日日报输出 (V1). */}
+      <div
+        className="grid gap-3 md:grid-cols-3"
+        data-testid="research-harvest-pipeline"
+      >
+        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-input">
+          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.inputTitle', { defaultValue: '采收 · 输入' })}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {t('research.pipeline.inputHint', { defaultValue: '视频号 / 公众号 / 新闻 / 热榜' })}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <a href="#research-section-harvest" className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
+              {t('research.pipeline.videoHarvest', { defaultValue: '视频号' })}
+            </a>
+            <a href="#research-section-harvest" className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
+              {t('research.pipeline.mpHarvest', { defaultValue: '公众号' })}
+            </a>
+            <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
+              {t('research.pipeline.autoHarvest', { defaultValue: '新闻/热榜 · 自动' })}
+            </span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-pool">
+          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.poolTitle', { defaultValue: '今日素材池' })}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {t('research.pipeline.poolStatus', {
+              defaultValue: 'Pulse 命中 {{count}} 条 · 打 tag 后可入日报',
+              count: pulseMeta?.matchedCount ?? pulseItems.length ?? 0,
+            })}
+          </div>
+          <div className="mt-2">
+            <a href="#research-section-pulse" className="text-xs font-medium text-blue-600 hover:underline">
+              {t('research.pipeline.toPool', { defaultValue: '查看/打 tag →' })}
+            </a>
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-3" data-testid="research-pipeline-output">
+          <div className="text-xs font-bold text-slate-700">{t('research.pipeline.outputTitle', { defaultValue: '今日日报 · 输出' })}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button asChild type="button" size="sm" variant="default">
+              <Link to={dailyHref}>{t('research.pipeline.buildToday', { defaultValue: '生成 / 重建今日日报' })}</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
 
-      <MpBriefingPanel />
+      <section id="research-section-harvest" data-testid="research-section-harvest">
+        <h2 className="mb-2 text-sm font-semibold">
+          {t('research.pipeline.harvestTitle', { defaultValue: '采收 · 视频号 / 公众号' })}
+        </h2>
+        <ChannelsBriefingPanel />
+        <div className="mt-4" />
+        <MpBriefingPanel />
+      </section>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -842,18 +919,6 @@ export function ResearchIndexPage() {
           </CardContent>
         </Card>
       ) : null}
-
-      <ResearchSettingsPanel
-        realtimeItems={pulseItems}
-        realtimeLoading={pulseLoading}
-        keywords={keywordsState}
-        platforms={platformsState}
-        newsSources={newsSourcesState}
-        onSaveKeywords={handleSaveKeywords}
-        onSavePlatforms={handleSavePlatforms}
-        onSaveNewsSources={handleSaveNewsSources}
-        onRestoreDefaults={() => setKeywordsDialogOpen(true)}
-      />
 
       {/* Primary HR path first: find a company, then scan pulse — before dense showcase/catalog. */}
       <section data-testid="research-section-search">

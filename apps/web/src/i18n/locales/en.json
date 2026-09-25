@@ -3216,7 +3216,29 @@
       "defaultEnabled": "Default on",
       "enOff": "EN · off by default",
       "cncRootHint": "All keywords belong to CNC; the Downstream group is the default filter for Live News / daily report",
-      "realtimeHint": "Only current keyword-filter-matched news · single output"
+      "realtimeHint": "Only current keyword-filter-matched news · single output",
+      "tabConfig": "⚙ Settings",
+      "pageTitle": "Industry Research / Monitoring",
+      "back": "‹ Back to main",
+      "tabHarvest": "🎙 Harvest"
+    },
+    "pipeline": {
+      "nav": "Daily sales workflow",
+      "today": "📰 Today's report",
+      "pool": "🗂 Pool",
+      "harvest": "⚡ Harvest",
+      "config": "⚙ Config",
+      "inputTitle": "Harvest · Input",
+      "inputHint": "Video channel / Official account / News / Hotlist",
+      "videoHarvest": "Video channel",
+      "mpHarvest": "Official account",
+      "autoHarvest": "News/Hotlist · auto",
+      "poolTitle": "Today pool",
+      "poolStatus": "Pulse matched {{count}} · tag to add to report",
+      "toPool": "View / tag →",
+      "outputTitle": "Today's report · Output",
+      "buildToday": "Build / rebuild today's report",
+      "harvestTitle": "Harvest · Video channel / Official account"
     }
   },
   "publicShare": {

@@ -3243,7 +3243,29 @@
       "defaultEnabled": "默认启用",
       "enOff": "EN 默认关",
       "cncRootHint": "全部关键词隶属于 CNC；下游组 = 实时新闻/日报 的默认过滤",
-      "realtimeHint": "仅列当前关键词过滤命中的新闻 · 单条输出"
+      "realtimeHint": "仅列当前关键词过滤命中的新闻 · 单条输出",
+      "tabConfig": "⚙ 监控设置",
+      "pageTitle": "行业研究 / 监控设置",
+      "back": "‹ 返回主页",
+      "tabHarvest": "🎙 采收"
+    },
+    "pipeline": {
+      "nav": "每日销售工作流",
+      "today": "📰 今日日报",
+      "pool": "🗂 素材池",
+      "harvest": "⚡ 采收",
+      "config": "⚙ 配置",
+      "inputTitle": "采收 · 输入",
+      "inputHint": "视频号 / 公众号 / 新闻 / 热榜",
+      "videoHarvest": "视频号",
+      "mpHarvest": "公众号",
+      "autoHarvest": "新闻/热榜 · 自动",
+      "poolTitle": "今日素材池",
+      "poolStatus": "Pulse 命中 {{count}} 条 · 打 tag 后可入日报",
+      "toPool": "查看/打 tag →",
+      "outputTitle": "今日日报 · 输出",
+      "buildToday": "生成 / 重建今日日报",
+      "harvestTitle": "采收 · 视频号 / 公众号"
     }
   },
   "publicShare": {

@@ -3216,7 +3216,29 @@
       "platforms": "熱榜平台 ({{count}})",
       "platformsHint": "NewsNow 平台",
       "save": "保存配置",
-      "restore": "恢復默認"
+      "restore": "恢復默認",
+      "back": "‹ 返回主頁",
+      "tabConfig": "⚙ 監控設置",
+      "tabHarvest": "🎙 采收",
+      "pageTitle": "行業研究 / 監控設置"
+    },
+    "pipeline": {
+      "nav": "每日銷售工作流",
+      "today": "📰 今日日報",
+      "pool": "🗂 素材池",
+      "harvest": "⚡ 采收",
+      "config": "⚙ 配置",
+      "inputTitle": "采收 · 輸入",
+      "inputHint": "視頻號 / 公眾號 / 新聞 / 熱榜",
+      "videoHarvest": "視頻號",
+      "mpHarvest": "公眾號",
+      "autoHarvest": "新聞/熱榜 · 自動",
+      "poolTitle": "今日素材池",
+      "poolStatus": "Pulse 命中 {{count}} 條 · 打 tag 後可入日報",
+      "toPool": "查看/打 tag →",
+      "outputTitle": "今日日報 · 輸出",
+      "buildToday": "生成 / 重建今日日報",
+      "harvestTitle": "采收 · 視頻號 / 公眾號"
     }
   },
   "publicShare": {

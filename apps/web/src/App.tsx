@@ -68,6 +68,11 @@ const LazyResearchIndexPage = lazy(async () => {
   return { default: module.ResearchIndexPage }
 })
 
+const LazyResearchSettingsPage = lazy(async () => {
+  const module = await import('@/pages/ResearchSettingsPage')
+  return { default: module.ResearchSettingsPage }
+})
+
 const LazyResearchDailyPage = lazy(async () => {
   const module = await import('@/pages/ResearchDailyPage')
   return { default: module.default }
@@ -825,6 +830,14 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazyResearchIndexPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="research/settings"
+                element={(
+                  <RouteSuspense>
+                    <LazyResearchSettingsPage />
                   </RouteSuspense>
                 )}
               />
