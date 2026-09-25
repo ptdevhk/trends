@@ -1087,4 +1087,223 @@ app.openapi(mpBriefingRoute, async (c) => {
   }
 });
 
+// ── Customer watchlist (客户监控): boss-pasted WeChat → identify → add → spread ──
+import {
+  addCustomerWatchEntry,
+  getCustomerWatchlist,
+  identifyFromLink,
+  removeCustomerWatchEntry,
+  CustomerWatchlistValidationError,
+  DOWNSTREAM_BRANCHES,
+  type DownstreamBranch as CustomerDownstreamBranch,
+  type WatchlistSourceKind as CustomerSourceKind,
+} from "../services/research-customer-watchlist-service.js";
+type CustomerStatus = "active" | "needsTopic";
+
+const watchlistEntrySchema = z.object({
+  id: z.string(),
+  companyKey: z.string(),
+  name: z.string(),
+  aliases: z.array(z.string()).optional(),
+  downstreamBranch: z.string(),
+  sourceKind: z.string(),
+  sourceUrls: z.array(z.string()).optional(),
+  sourceAuthor: z.string().optional(),
+  caption: z.string().optional(),
+  status: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+const watchlistGetRoute = createRoute({
+  method: "get",
+  path: "/api/research/watchlist",
+  tags: ["research"],
+  summary: "List the workspace customer watchlist",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), entries: z.array(watchlistEntrySchema) }),
+        },
+      },
+      description: "Workspace-local customer watchlist",
+    },
+  },
+});
+
+app.openapi(watchlistGetRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const entries = await getCustomerWatchlist(workspaceSlug);
+  return c.json({ success: true as const, entries }, 200);
+});
+
+const watchlistIdentifyRoute = createRoute({
+  method: "post",
+  path: "/api/research/watchlist/identify",
+  tags: ["research"],
+  summary: "Identify the underlying customer/topic from a pasted WeChat link (Channels/mp)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ url: z.string() }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            result: z.object({
+              kind: z.string(),
+              name: z.string().nullable(),
+              author: z.string().optional(),
+              caption: z.string().optional(),
+              url: z.string(),
+              needsTopic: z.boolean(),
+              shareId: z.string().optional(),
+              articleId: z.string().optional(),
+            }),
+          }),
+        },
+      },
+      description: "Identified customer (Channels author) or manual-supplement stub",
+    },
+    400: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "Invalid URL",
+    },
+  },
+});
+
+app.openapi(watchlistIdentifyRoute, async (c) => {
+  const body = c.req.valid("json");
+  try {
+    const result = await identifyFromLink(body.url);
+    return c.json({ success: true as const, result }, 200);
+  } catch (error) {
+    if (error instanceof CustomerWatchlistValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
+const watchlistAddRoute = createRoute({
+  method: "post",
+  path: "/api/research/watchlist",
+  tags: ["research"],
+  summary: "Add a customer to the workspace watchlist (auto-extracted or manual)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            name: z.string(),
+            aliases: z.array(z.string()).optional(),
+            downstreamBranch: z.string().optional(),
+            sourceKind: z.string().optional(),
+            sourceUrls: z.array(z.string()).optional(),
+            sourceAuthor: z.string().optional(),
+            caption: z.string().optional(),
+            status: z.string().optional(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), entries: z.array(watchlistEntrySchema) }),
+        },
+      },
+      description: "Updated watchlist",
+    },
+    400: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "Invalid input",
+    },
+  },
+});
+
+app.openapi(watchlistAddRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const body = c.req.valid("json");
+  try {
+    const normalized = {
+      name: body.name,
+      ...(body.aliases ? { aliases: body.aliases } : {}),
+      ...(body.downstreamBranch && (DOWNSTREAM_BRANCHES as readonly string[]).includes(body.downstreamBranch)
+        ? { downstreamBranch: body.downstreamBranch as CustomerDownstreamBranch }
+        : {}),
+      ...(body.sourceKind ? { sourceKind: body.sourceKind as CustomerSourceKind } : {}),
+      ...(body.sourceUrls ? { sourceUrls: body.sourceUrls } : {}),
+      ...(body.sourceAuthor ? { sourceAuthor: body.sourceAuthor } : {}),
+      ...(body.caption ? { caption: body.caption } : {}),
+      ...(body.status ? { status: body.status as CustomerStatus } : {}),
+    };
+    const entries = await addCustomerWatchEntry(workspaceSlug, normalized);
+    return c.json({ success: true as const, entries }, 200);
+  } catch (error) {
+    if (error instanceof CustomerWatchlistValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
+const watchlistDeleteSchema = z.object({
+  id: z.string(),
+});
+
+const watchlistDeleteRoute = createRoute({
+  method: "post",
+  path: "/api/research/watchlist/remove",
+  tags: ["research"],
+  summary: "Remove a customer from the workspace watchlist",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: watchlistDeleteSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true), entries: z.array(watchlistEntrySchema) }),
+        },
+      },
+      description: "Updated watchlist",
+    },
+    400: {
+      content: { "application/json": { schema: channelsBriefingErrorSchema } },
+      description: "Customer not found",
+    },
+  },
+});
+
+app.openapi(watchlistDeleteRoute, async (c) => {
+  const workspaceSlug = resolveResearchWorkspaceSlug(c);
+  const body = c.req.valid("json");
+  try {
+    const entries = await removeCustomerWatchEntry(workspaceSlug, body.id);
+    return c.json({ success: true as const, entries }, 200);
+  } catch (error) {
+    if (error instanceof CustomerWatchlistValidationError) {
+      return c.json({ success: false as const, error: error.message }, 400);
+    }
+    throw error;
+  }
+});
+
 export default app;

@@ -1210,4 +1210,108 @@ describe("research routes", () => {
       expect(body.success).toBe(false);
     });
   });
+
+  describe("customer watchlist (客户监控) routes", () => {
+    const SPH = "https://weixin.qq.com/sph/ALr3ch0zp9";
+    const MP = "https://mp.weixin.qq.com/s/AbC123xyz_89";
+
+    function postIdentify(url: unknown) {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const app = createApp();
+      return app.request("/api/research/watchlist/identify", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+    }
+
+    it("identifies an sph link (auto-fetch) → author name + caption", async () => {
+      // Channels preview returns 铨硕精密 author metadata via the transport mock.
+      setChannelsPreviewTransportForTests({
+        post: async () => ({
+          status: 200,
+          json: {
+            data: {
+              object: {
+                nickname: "铨硕精密",
+                description: "一体化压铸在珠三角落地",
+                coverUrl: "https://finder.video.qq.com/1/2/stodownload?picformat=1",
+                like_count: "10",
+              },
+            },
+          },
+        }),
+      });
+      const response = await postIdentify(SPH);
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        success: boolean;
+        result: { kind: string; name: string | null; author?: string; needsTopic: boolean; caption?: string };
+      }>(response);
+      expect(body.success).toBe(true);
+      expect(body.result.kind).toBe("videoChannel");
+      expect(body.result.name).toBe("铨硕精密");
+      expect(body.result.author).toBe("铨硕精密");
+      expect(body.result.caption).toBe("一体化压铸在珠三角落地");
+      expect(body.result.needsTopic).toBe(false);
+    });
+
+    it("identifies an mp link as manual-supplement (no auto-fetch)", async () => {
+      const response = await postIdentify(MP);
+      expect(response.status).toBe(200);
+      const body = await parseJsonBody<{
+        success: boolean;
+        result: { kind: string; name: string | null; needsTopic: boolean };
+      }>(response);
+      expect(body.success).toBe(true);
+      expect(body.result.kind).toBe("mp");
+      expect(body.result.name).toBeNull();
+      expect(body.result.needsTopic).toBe(true);
+    });
+
+    it("adds + lists + removes a watchlist entry (workspace-local)", async () => {
+      const auth = createAuthHeaders({ workspaceSlug: "hr", role: "user" });
+      const app = createApp();
+
+      const addResp = await app.request("/api/research/watchlist", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "铨硕精密",
+          downstreamBranch: "压铸",
+          sourceKind: "videoChannel",
+          sourceUrls: [SPH],
+          sourceAuthor: "铨硕精密",
+          caption: "一体化压铸在珠三角落地",
+        }),
+      });
+      expect(addResp.status).toBe(200);
+      const addBody = await parseJsonBody<{
+        success: boolean;
+        entries: Array<{ id: string; name: string; downstreamBranch: string; sourceKind: string }>;
+      }>(addResp);
+      expect(addBody.success).toBe(true);
+      expect(addBody.entries.length).toBe(1);
+      expect(addBody.entries[0]?.name).toBe("铨硕精密");
+      expect(addBody.entries[0]?.downstreamBranch).toBe("压铸");
+      expect(addBody.entries[0]?.sourceKind).toBe("videoChannel");
+      const id = addBody.entries[0]!.id;
+
+      const listResp = await app.request("/api/research/watchlist", { headers: auth.headers });
+      expect(listResp.status).toBe(200);
+      const listBody = await parseJsonBody<{ success: boolean; entries: Array<{ id: string }> }>(listResp);
+      expect(listBody.success).toBe(true);
+      expect(listBody.entries.length).toBe(1);
+
+      const delResp = await app.request("/api/research/watchlist/remove", {
+        method: "POST",
+        headers: { ...auth.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      expect(delResp.status).toBe(200);
+      const delBody = await parseJsonBody<{ success: boolean; entries: Array<{ id: string }> }>(delResp);
+      expect(delBody.success).toBe(true);
+      expect(delBody.entries.length).toBe(0);
+    });
+  });
 });

@@ -3266,6 +3266,25 @@
       "outputTitle": "今日日报 · 输出",
       "buildToday": "生成 / 重建今日日报",
       "harvestTitle": "采收 · 视频号 / 公众号"
+    },
+    "watch": {
+      "title": "客户监控",
+      "desc": "粘贴 boss 发来的微信链接 → 自动识别企业 → 加进今日关键词 & 跟踪相关新闻",
+      "pastePlaceholder": "粘贴 视频号 sph / 公众号 mp 链接（每行一条）",
+      "identify": "识别企业",
+      "downstream": "下游",
+      "confirmPlaceholder": "公众号无法自动识别，手动输入企业/主题",
+      "add": "＋ 加入客户监控清单",
+      "added": "已加入客户监控：{{name}}",
+      "listTitle": "客户监控清单",
+      "listCount": "{{count}} 位",
+      "empty": "还没有监控客户。粘贴链接识别后加入。",
+      "srcVideo": "视频号",
+      "srcMp": "公众号",
+      "srcManual": "手动",
+      "needsTopic": "待补主题",
+      "active": "已监控 ✓",
+      "remove": "移除"
     }
   },
   "publicShare": {

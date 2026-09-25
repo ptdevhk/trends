@@ -3239,6 +3239,25 @@
       "outputTitle": "Today's report · Output",
       "buildToday": "Build / rebuild today's report",
       "harvestTitle": "Harvest · Video channel / Official account"
+    },
+    "watch": {
+      "title": "Customer watch",
+      "desc": "Paste the boss's WeChat link → auto-identify the company → add to today's keywords & track related news",
+      "pastePlaceholder": "Paste Channels (sph) / Official-account (mp) links, one per line",
+      "identify": "Identify company",
+      "downstream": "Downstream",
+      "confirmPlaceholder": "Cannot auto-read Official-account; type the company/topic",
+      "add": "＋ Add to customer watchlist",
+      "added": "Added to watchlist: {{name}}",
+      "listTitle": "Customer watchlist",
+      "listCount": "{{count}}",
+      "empty": "No customers monitored yet. Paste a link to add.",
+      "srcVideo": "Video channel",
+      "srcMp": "Official account",
+      "srcManual": "Manual",
+      "needsTopic": "Need topic",
+      "active": "Monitoring ✓",
+      "remove": "Remove"
     }
   },
   "publicShare": {

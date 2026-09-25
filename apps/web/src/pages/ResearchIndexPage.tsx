@@ -16,6 +16,7 @@ import {
   NewsSourcesDialog,
   type NewsSourcesDialogState,
 } from '@/components/research/NewsSourcesDialog'
+import { CustomerWatchBlock } from '@/components/research/CustomerWatchBlock'
 import { ChannelsBriefingPanel } from '@/components/research/ChannelsBriefingPanel'
 import { MpBriefingPanel } from '@/components/research/MpBriefingPanel'
 import { ResearchCompanyPredictInput } from '@/components/research/ResearchCompanyPredictInput'
@@ -811,6 +812,8 @@ export function ResearchIndexPage() {
         <h2 className="mb-2 text-sm font-semibold">
           {t('research.pipeline.harvestTitle', { defaultValue: '采收 · 视频号 / 公众号' })}
         </h2>
+        <CustomerWatchBlock />
+        <div className="mt-4" />
         <ChannelsBriefingPanel />
         <div className="mt-4" />
         <MpBriefingPanel />

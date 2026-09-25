@@ -13635,6 +13635,262 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/watchlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace customer watchlist */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workspace-local customer watchlist */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            entries: {
+                                id: string;
+                                companyKey: string;
+                                name: string;
+                                aliases?: string[];
+                                downstreamBranch: string;
+                                sourceKind: string;
+                                sourceUrls?: string[];
+                                sourceAuthor?: string;
+                                caption?: string;
+                                status: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Add a customer to the workspace watchlist (auto-extracted or manual) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        aliases?: string[];
+                        downstreamBranch?: string;
+                        sourceKind?: string;
+                        sourceUrls?: string[];
+                        sourceAuthor?: string;
+                        caption?: string;
+                        status?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated watchlist */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            entries: {
+                                id: string;
+                                companyKey: string;
+                                name: string;
+                                aliases?: string[];
+                                downstreamBranch: string;
+                                sourceKind: string;
+                                sourceUrls?: string[];
+                                sourceAuthor?: string;
+                                caption?: string;
+                                status: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid input */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/watchlist/identify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Identify the underlying customer/topic from a pasted WeChat link (Channels/mp) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        url: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Identified customer (Channels author) or manual-supplement stub */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            result: {
+                                kind: string;
+                                name: string | null;
+                                author?: string;
+                                caption?: string;
+                                url: string;
+                                needsTopic: boolean;
+                                shareId?: string;
+                                articleId?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid URL */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/watchlist/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove a customer from the workspace watchlist */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated watchlist */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            entries: {
+                                id: string;
+                                companyKey: string;
+                                name: string;
+                                aliases?: string[];
+                                downstreamBranch: string;
+                                sourceKind: string;
+                                sourceUrls?: string[];
+                                sourceAuthor?: string;
+                                caption?: string;
+                                status: string;
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Customer not found */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/candidate-status": {
         parameters: {
             query?: never;
