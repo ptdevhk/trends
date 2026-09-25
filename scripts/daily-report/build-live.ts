@@ -34,6 +34,7 @@ import {
   fetchThumbsForUrls,
   mergeNewsSources,
   parseNewsSourcesWorkspace,
+  customerWatchlistSpreadTerms,
   type DailyReportPack,
   type LiveNewsRow,
 } from '@trends/shared'
@@ -291,10 +292,46 @@ async function main(): Promise<void> {
   const date = process.argv[2] || new Date().toISOString().slice(0, 10)
   const env = loadEnv()
   const seedKeywords = loadKeywordSeed()
-  const keywords = await mergeWorkspaceKeywords(env, seedKeywords)
+  let keywords = await mergeWorkspaceKeywords(env, seedKeywords)
   const seedHotlist = loadHotlistPlatforms()
   const hotlistPlatforms = await mergeWorkspaceHotlistPlatforms(env, seedHotlist)
-  console.log(`keywords: seed=${seedKeywords.length} effective=${keywords.length}`)
+
+  // Customer-watchlist spread keyword merge: each active watchlist entry's
+  // name + aliases + downstream-branch terms join the effective keyword set so
+  // its `rss:watch-*` rows actually match & surface (buildLivePack only surfaces
+  // rows whose title/snippet substring-match a keyword). Mirrors the worker's
+  // spread feed build (apps/worker/research_customer_spread.py).
+  const watchlistKeywords: string[] = []
+  const customerPlatformLabels: Record<string, string> = {}
+  try {
+    const row = (await convexQuery(env, 'workspace_config:get', {
+      writeSecret: env.CONVEX_WRITE_SECRET,
+      workspaceSlug: (env.WORKSPACE_SLUG || 'hr').trim() || 'hr',
+      configKey: 'research.customerWatchlist',
+    })) as { configValue?: unknown } | undefined
+    const raw = Array.isArray(row?.configValue) ? row.configValue : []
+    const entries = raw
+      .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e))
+      .filter((e) => e.status !== 'needsTopic' && typeof e.name === 'string' && !!e.name.trim())
+    for (const e of entries) {
+      const name = e.name as string
+      const companyKey = typeof e.companyKey === 'string' && e.companyKey ? e.companyKey : name
+      for (const term of customerWatchlistSpreadTerms({
+        name,
+        aliases: Array.isArray(e.aliases) ? e.aliases.filter((a): a is string => typeof a === 'string') : [],
+        downstreamBranch: typeof e.downstreamBranch === 'string' ? e.downstreamBranch : '其他',
+      })) {
+        watchlistKeywords.push(term)
+      }
+      customerPlatformLabels[`watch-${companyKey}`] = name
+    }
+    keywords = [...keywords, ...watchlistKeywords]
+    console.log(`watchlist: active=${entries.length} terms=${watchlistKeywords.length}`)
+  } catch {
+    // watchlist read fail-open — keyword merge skipped, no customer rows surface
+  }
+
+  console.log(`keywords: seed=${seedKeywords.length} effective=${keywords.length} +watch=${watchlistKeywords.length}`)
 
   const since = sparklineWindowSinceMs(date)
   console.log(`window: date=${date} since=${new Date(since).toISOString()} (Day1–Day7 Asia/Shanghai)`)
@@ -641,6 +678,7 @@ async function main(): Promise<void> {
       previous,
       hotlistRankTotals,
       excludePlatforms,
+      platformLabels: customerPlatformLabels,
     })
 
     // Patch real thumbnails onto the freshly-built pack before persisting — fetched

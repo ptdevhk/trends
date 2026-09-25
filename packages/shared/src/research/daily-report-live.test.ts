@@ -8,6 +8,10 @@ import {
   shortLabel,
   isHotlistPlatform,
   HYBRID_MIN_ITEMS,
+  isSurfaceableNewsRow,
+  platformLabelFor,
+  customerBranchKeywords,
+  customerWatchlistSpreadTerms,
   type LiveNewsRow,
 } from './daily-report-live'
 import { isDailyReportPack } from './daily-report-pack'
@@ -564,5 +568,48 @@ describe('buildLivePack', () => {
     const max = Math.max(...spark)
     const min = Math.min(...spark)
     expect(max - min).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('isSurfaceableNewsRow (rss:watch-*)', () => {
+  it('surfaces a customer-spread row by title alone (no publisher URL), like gnews/bing', () => {
+    expect(
+      isSurfaceableNewsRow(row({ title: '某下游客户扩产', platform: 'rss:watch-acme-cnc' })),
+    ).toBe(true)
+    expect(
+      isSurfaceableNewsRow(row({ title: '', platform: 'rss:watch-acme-cnc' })),
+    ).toBe(false)
+  })
+  it('still requires a real URL for non-feed platforms', () => {
+    expect(isSurfaceableNewsRow(row({ title: 'x', platform: 'weibo' }))).toBe(false)
+    expect(
+      isSurfaceableNewsRow(row({ title: 'x', platform: 'weibo', url: 'https://a.example.com/1' })),
+    ).toBe(true)
+  })
+  it('prefers the caller platformLabels map for customer platforms', () => {
+    expect(platformLabelFor('rss:watch-acme-cnc')).toBe('watch-acme-cnc')
+    expect(platformLabelFor('rss:watch-acme-cnc', { 'watch-acme-cnc': '铩硕精密' })).toBe('铩硕精密')
+  })
+})
+
+describe('customerWatchlistSpreadTerms', () => {
+  it('builds name + aliases + branch terms (deduped, normalized)', () => {
+    const terms = customerWatchlistSpreadTerms({
+      name: '铩硕精密',
+      aliases: ['SASO', '铩硕'],
+      downstreamBranch: '压铸',
+    })
+    expect(terms).toContain('铩硕精密')
+    expect(terms).toContain('SASO')
+    expect(terms).toContain('压铸')
+    expect(terms).toContain('die-casting')
+    // no duplicate raw names for a dup alias (same normalized term)
+    expect(terms.filter((t) => t === '铩硕精密').length).toBe(1)
+  })
+  it('generic 其他 branch spreads on name/aliases only (no branch terms)', () => {
+    expect(customerBranchKeywords('其他')).toEqual([])
+    expect(customerWatchlistSpreadTerms({ name: '某客户', downstreamBranch: '其他' })).toEqual([
+      '某客户',
+    ])
   })
 })

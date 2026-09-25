@@ -148,7 +148,10 @@ export function hasRealNewsUrl(row: LiveNewsRow): boolean {
 export function isSurfaceableNewsRow(row: LiveNewsRow): boolean {
   if (hasRealNewsUrl(row)) return true;
   const p = row.platform;
-  if (!p.startsWith('rss:gnews-') && !p.startsWith('rss:bing-')) return false;
+  // rss:watch-* = customer-watchlist spread rows (Bing/Google News RSS whose
+  // wrapper URLs frequently fail to decode from this egress, same kicker as the
+  // gnews/bing feeds). Surface by title + publish day alone — non-clickable row.
+  if (!p.startsWith('rss:gnews-') && !p.startsWith('rss:bing-') && !p.startsWith('rss:watch-')) return false;
   return typeof row.title === 'string' && row.title.trim().length > 0;
 }
 
@@ -478,7 +481,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     ? {
         title: shortLabel(topSameDay.row.title, 60),
         tag: kindForPlatform(topSameDay.row.platform),
-        source: platformLabelFor(topSameDay.row.platform),
+        source: platformLabelFor(topSameDay.row.platform, opts.platformLabels),
         href: topSameDay.row.url,
       }
     : { title: '' };
@@ -494,7 +497,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     .map((x) => ({
       title: shortLabel(x.row.title),
       tag: downstreamChip(x.hits),
-      source: platformLabelFor(x.row.platform),
+      source: platformLabelFor(x.row.platform, opts.platformLabels),
       day: rowDay(x.row),
       publishedAt: typeof x.row.publishedAt === 'number' ? x.row.publishedAt : undefined,
       href: x.row.url,
@@ -506,7 +509,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       .map((x) => ({
         title: shortLabel(x.row.title),
         tag: downstreamChip(x.hits),
-        source: platformLabelFor(x.row.platform),
+        source: platformLabelFor(x.row.platform, opts.platformLabels),
         day: rowDay(x.row),
         publishedAt: typeof x.row.publishedAt === 'number' ? x.row.publishedAt : undefined,
         href: x.row.url,
@@ -581,9 +584,65 @@ export function downstreamChip(hits: string[]): string {
   return kw || '下游';
 }
 
+/**
+ * Customer-watchlist spread: downstream-branch → query terms.
+ * Shared source of truth for the Python worker (spread query builder) and the
+ * daily-report builder (keyword merge). `其他` has no branch terms by design —
+ * a generic-branch customer spreads on name + aliases alone.
+ */
+export const CUSTOMER_BRANCH_TERMS: Record<string, string[]> = {
+  压铸: ['压铸', '压铸机', '压铸厂', 'die-casting', '铸件'],
+  模具: ['模具', '注塑', '冲压模'],
+  五金: ['五金', '冲压', '钣金'],
+  冲压: ['冲压', '冲压件', '五金'],
+  机加工: ['机加工', '加工', '零件加工', '机加'],
+  钣金: ['钣金', '折弯', '激光切割'],
+  其他: [],
+};
+
+export function customerBranchKeywords(branch: string): string[] {
+  return CUSTOMER_BRANCH_TERMS[branch] ?? [];
+}
+
+/**
+ * Spread terms for one watchlist entry: name + aliases + branch keywords.
+ * These feed (a) the worker's RSS search query and (b) the daily-report
+ * effective keyword set so the customer's spread rows actually match & surface.
+ */
+export function customerWatchlistSpreadTerms(entry: {
+  name: string;
+  aliases?: string[];
+  downstreamBranch?: string;
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (t: string | undefined) => {
+    const cleaned = (t ?? '').trim();
+    if (!cleaned || seen.has(normalizePulseKeyword(cleaned))) return;
+    seen.add(normalizePulseKeyword(cleaned));
+    out.push(cleaned);
+  };
+  push(entry.name);
+  for (const a of entry.aliases ?? []) push(a);
+  for (const term of customerBranchKeywords(entry.downstreamBranch ?? '')) {
+    const n = normalizePulseKeyword(term);
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(term);
+    }
+  }
+  return out;
+}
+
 /** Human source label for a platform id (机械行业/工业网-facing). */
-export function platformLabelFor(platform: string): string {
-  const id = (platform || '').replace(/^rss:/, '');
+export function platformLabelFor(platform: string, labels?: Record<string, string>): string {
+  const rawId = platform || '';
+  const stripped = rawId.replace(/^rss:/, '');
+  // Explicit label map wins (caller supplies customer-facing names for
+  // `rss:watch-*` spread platforms).
+  if (labels && typeof labels[stripped] === 'string' && labels[stripped]) {
+    return labels[stripped];
+  }
   const known: Record<string, string> = {
     'gnews-diecast': '压铸网',
     'bing-cnc-machine': '工业网',
@@ -595,7 +654,7 @@ export function platformLabelFor(platform: string): string {
     'gnews-muju-qiche': '模具网',
     'gnews-chongya': '冲压网',
   };
-  return known[id] || id;
+  return known[stripped] || stripped;
 }
 
 /**

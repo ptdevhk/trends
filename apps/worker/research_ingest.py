@@ -15,6 +15,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 import yaml
 
 from apps.worker.research_convex import ResearchConvexClient
+from apps.worker.research_customer_spread import (
+    build_customer_feeds,
+    load_customer_watchlist,
+)
 from apps.worker.research_industry_bridge import IndustryBridgeResolver
 from apps.worker.research_ports import (
     HttpHotlistPort,
@@ -37,6 +41,15 @@ def research_ingest_enabled(env: Optional[Dict[str, str]] = None) -> bool:
     source = env if env is not None else os.environ
     value = str(source.get("RESEARCH_INGEST_ENABLED", "")).strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def spread_engine(env: Optional[Dict[str, str]] = None) -> str:
+    """Customer-watchlist spread RSS engine. Default 'bing' (no socks tunnel needed);
+    'google' rides the RESEARCH_GNEWS_SOCKS_PROXY egress via the gnews-* routing.
+    Controlled by RESEARCH_CUSTOMER_SPREAD_ENGINE in {bing, google}."""
+    source = env if env is not None else os.environ
+    value = str(source.get("RESEARCH_CUSTOMER_SPREAD_ENGINE", "")).strip().lower()
+    return value if value in {"bing", "google"} else "bing"
 
 
 def legacy_trendradar_crawl_enabled(env: Optional[Dict[str, str]] = None) -> bool:
@@ -241,6 +254,7 @@ class ResearchIngestJob:
         rss_port: Optional[RssPort] = None,
         platforms: Optional[Sequence[str]] = None,
         rss_feeds: Optional[Sequence[Dict[str, str]]] = None,
+        customer_feeds: Optional[Sequence[Dict[str, Any]]] = None,
         now_ms: Optional[Callable[[], int]] = None,
     ):
         self.client = client or ResearchConvexClient()
@@ -263,6 +277,20 @@ class ResearchIngestJob:
         )
         self.platforms = list(platforms) if platforms is not None else load_enabled_platforms()
         self.rss_feeds = list(rss_feeds) if rss_feeds is not None else load_rss_feeds()
+        # Customer-watchlist spread feeds (客户监控 → 扩散). Chained after the
+        # static RSS feeds so the daily-report corpus also receives watchlist rows.
+        if customer_feeds is not None:
+            self.customer_feeds = [dict(f) for f in customer_feeds]
+        else:
+            self.customer_feeds = []
+            if self.client.convex_url:
+                try:
+                    ctx_url = self.client.convex_url
+                    workspace_slug = (os.environ.get("WORKSPACE_SLUG") or "hr").strip() or "hr"
+                    watch = load_customer_watchlist(ctx_url, workspace_slug)
+                    self.customer_feeds = build_customer_feeds(watch, engine=spread_engine())
+                except Exception as error:  # noqa: BLE001 — never break ingest on spread setup
+                    logger.warning("[ResearchIngest] customer spread feed build failed: %s", error)
         self.now_ms: Callable[[], int] = now_ms or (lambda: int(time.time() * 1000))
 
     def run(self, config_overrides: Optional[Dict[str, Any]] = None) -> bool:
@@ -273,7 +301,11 @@ class ResearchIngestJob:
         _ = config_overrides
         run_id = f"research-{uuid.uuid4().hex[:12]}"
         started_at = self.now_ms()
-        enabled = list(self.platforms) + [f"rss:{f['id']}" for f in self.rss_feeds]
+        enabled = (
+            list(self.platforms)
+            + [f"rss:{f['id']}" for f in self.rss_feeds]
+            + [f"rss:{f['id']}" for f in self.customer_feeds]
+        )
 
         try:
             self.client.start_ingest_run(run_id, started_at, enabled)
@@ -334,6 +366,47 @@ class ResearchIngestJob:
                 except Exception as error:  # noqa: BLE001 — soft-fail per feed
                     logger.warning(
                         "[ResearchIngest] rss %s failed: %s",
+                        feed.get("id"),
+                        error,
+                    )
+
+            # Customer-watchlist spread feeds (客户监控 → 扩散): same RSS loop, same
+            # soft-fail + publish-age + socks routing as the static feeds, so watchlist
+            # rows land in news_items under `rss:watch-<companyKey>` and reach the
+            # daily-report corpus. Default Bing engine needs no tunnel.
+            for feed in self.customer_feeds:
+                try:
+                    feed_max_age = feed.get("max_age_days")
+                    feed_max_age_int = (
+                        int(feed_max_age) if isinstance(feed_max_age, (int, float)) and feed_max_age else None
+                    )
+                    feed_id = feed["id"]
+                    use_socks = str(feed_id).startswith("watch-gnews-") or str(feed.get("engine")) == "google"
+                    items = self.rss_port.fetch(
+                        feed_id,
+                        feed["url"],
+                        started_at,
+                    ) if not use_socks else self.rss_port._normalized_items_with_proxy(
+                        feed_id,
+                        feed["url"],
+                        started_at,
+                    )
+                    per_cap = int(feed.get("max_items") or 0) or DEFAULT_RSS_MAX_ITEMS_PER_FEED
+                    if per_cap:
+                        items = items[:per_cap]
+                    if feed_max_age_int is not None:
+                        items = [
+                            it
+                            for it in items
+                            if not (
+                                it.published_at is not None
+                                and it.published_at < started_at - feed_max_age_int * 86_400_000
+                            )
+                        ]
+                    collected.extend(items)
+                except Exception as error:  # noqa: BLE001 — soft-fail per customer feed
+                    logger.warning(
+                        "[ResearchIngest] customer spread %s failed: %s",
                         feed.get("id"),
                         error,
                     )
