@@ -1,16 +1,3 @@
-### Launch guided interactive setup for a specific channel
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/channels.md
-
-Opens the guided setup wizard directly for the specified channel without first presenting the full channel picker. Passing no credential flags triggers interactive prompts.
-
-```bash
-openclaw channels add telegram
-openclaw channels add --channel telegram
-```
-
---------------------------------
-
 ### Run channels add guided setup
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/signal.md
@@ -23,14 +10,41 @@ openclaw channels add
 
 --------------------------------
 
-### Run OpenClaw installer with onboarding
+### Open setup log in Notepad
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/installer.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/platforms/windows.md
 
-Installs OpenClaw and immediately launches the onboarding setup flow upon completion.
+Opens the latest easy setup log from the local application data directory to inspect installation failures.
+
+```powershell
+notepad "$env:LOCALAPPDATA\OpenClawTray\Logs\Setup\easy-setup-latest.txt"
+```
+
+--------------------------------
+
+### Run onboarding with daemon install
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/xai.md
+
+Starts OpenClaw onboarding and installs the daemon. Select xAI/Grok OAuth at the model and authentication step.
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh | bash -s -- --onboard
+openclaw onboard --install-daemon
+```
+
+--------------------------------
+
+### Install and start node on node host
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/troubleshooting.md
+
+Installs the Google Meet plugin, enables browser support, and runs the node host pointing to the Gateway.
+
+```bash
+openclaw plugins install @openclaw/google-meet
+openclaw plugins enable browser
+OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1 \
+  openclaw node run --host <gateway-lan-ip> --port 18789 --display-name parallels-macos
 ```
 
 --------------------------------
@@ -49,15 +63,19 @@ openclaw gateway --force
 
 --------------------------------
 
-### Configure turn start parameters
+### Configure Turn Start Parameters
 
 Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
 
-Specifies execution parameters for starting a turn, including sender details, source delivery policies, and temporal context.
+Specifies turn execution settings, contextual metadata including sender info and delivery policies, working directory, and input prompts for starting a turn.
 
 ```json
 {
   "additionalContext": {
+    "openclaw_active_computer": {
+      "kind": "application",
+      "value": "Current active computer (latest physical input, not message origin): active_node=unknown"
+    },
     "openclaw_current_sender": {
       "kind": "untrusted",
       "value": "{\"sender\":{\"id\":\"1000001\",\"name\":\"Pash\",\"username\":\"pash\"}}"
@@ -102,11 +120,11 @@ Specifies execution parameters for starting a turn, including sender details, so
 
 --------------------------------
 
-### Set OpenClaw Thread Start Parameters
+### Thread Start Params
 
 Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
 
-Configures thread execution settings such as approval policies, feature flags, dynamic tool registrations, workspace directory, model selection, and sandbox security level.
+Specifies runtime parameters for starting a thread, including feature toggles, workspace path, dynamic tools, and model configuration.
 
 ```json
 {
@@ -158,18 +176,6 @@ Configures thread execution settings such as approval policies, feature flags, d
 
 --------------------------------
 
-### Run guided onboarding setup
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
-
-Launches the interactive onboarding wizard to configure the ClickClack server URL, bot token, and workspace. Failed validation checks do not discard saved configuration.
-
-```bash
-openclaw onboard
-```
-
---------------------------------
-
 ### Install OpenClaw using the official install script
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run/quick-start.md
@@ -178,6 +184,18 @@ Downloads and runs the OpenClaw installer script. The installer automatically st
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
+```
+
+--------------------------------
+
+### Run guided onboarding setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
+
+Launches the interactive onboarding wizard to configure the ClickClack server URL, bot token, and workspace. Failed validation checks do not discard saved configuration.
+
+```bash
+openclaw onboard
 ```
 
 --------------------------------
@@ -197,55 +215,54 @@ pnpm gateway:watch
 
 --------------------------------
 
-### Quick start build and run commands
+### Run interactive Matrix channel setup
 
-Source: https://github.com/openclaw/openclaw/blob/main/apps/swabble/README.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/matrix/setup.md
 
-Installs Swift tools, builds the project, creates default configuration, runs the daemon, tests hooks, and performs audio transcription.
+Starts the interactive setup wizard to configure the homeserver URL, authentication, optional device name, E2EE, and room access.
 
 ```bash
-# Install the repository-pinned Swift tools
-../../scripts/install-swift-tools.sh .build/swift-tools
-export PATH="$PWD/.build/swift-tools:$PATH"
-
-# Build
-swift build
-
-# Write default config (~/.config/swabble/config.json)
-swift run swabble setup
-
-# Run foreground daemon
-swift run swabble serve
-
-# Test your hook
-swift run swabble test-hook "hello world"
-
-# Transcribe a file to SRT
-swift run swabble transcribe /path/to/audio.m4a --format srt --output out.srt
+openclaw channels add
+openclaw configure --section channels
 ```
 
 --------------------------------
 
-### Install Fastlane via Homebrew
+### Install X11 prerequisites and start D-Bus session
 
-Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/nodes/computer-use.md
 
-Installs Fastlane for standard local setups.
+Installs required packages on a Linux Crabbox host and starts an isolated D-Bus nested shell session.
 
 ```bash
-brew install fastlane
+sudo apt-get update
+sudo apt-get install -y at-spi2-core dbus-x11 gir1.2-gtk-3.0 jq openbox python3-gi x11-utils xdotool xvfb
+
+dbus-run-session -- bash
 ```
 
 --------------------------------
 
-### Launch onboarding setup in Podman container
+### Run onboarding for Pay-as-you-go
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/providers/xiaomi.md
+
+Starts interactive onboarding for the Xiaomi pay-as-you-go authentication choice.
+
+```bash
+openclaw onboard --auth-choice xiaomi-api-key
+```
+
+--------------------------------
+
+### Configure Quadlet-managed setup with setup.sh
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/install/podman.md
 
-Starts the onboarding setup process inside the container. Complete authentication at http://127.0.0.1:18789/ using the gateway token stored in ~/.openclaw/.env.
+Run setup with the --quadlet flag for Quadlet-managed systemd user services on Linux.
 
 ```bash
-./scripts/run-openclaw-podman.sh launch setup
+./scripts/podman/setup.sh --quadlet
 ```
 
 --------------------------------
@@ -270,19 +287,6 @@ openclaw gateway status
 
 --------------------------------
 
-### Run interactive Matrix channel setup
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/matrix/setup.md
-
-Starts the interactive setup wizard to configure the homeserver URL, authentication, optional device name, E2EE, and room access.
-
-```bash
-openclaw channels add
-openclaw configure --section channels
-```
-
---------------------------------
-
 ### Install Google Meet plugin and run node host
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/transports.md
@@ -296,14 +300,14 @@ openclaw node run --host <gateway-host> --port 18789 --display-name parallels-ma
 
 --------------------------------
 
-### Recover broken npm installation using the installer
+### Install Fastlane via Homebrew
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/updating/update-methods.md
+Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
 
-Re-runs the installer targeting the npm install method to recover a partially updated npm package when triage cannot start.
+Install Fastlane locally for the standard local development setup.
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method npm
+brew install fastlane
 ```
 
 --------------------------------
@@ -328,46 +332,4 @@ Executes the PowerShell installation script with the `-NoOnboard` flag to instal
 
 ```powershell
 & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
-```
-
---------------------------------
-
-### Install OpenClaw on macOS, Linux, or WSL2
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/index.md
-
-Runs the OpenClaw automated installation script in bash. The script detects the operating system, installs Node if needed, installs OpenClaw, and starts onboarding.
-
-```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
-```
-
---------------------------------
-
-### Start QA Lab with fast UI iteration
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/concepts/qa-e2e-automation/operator-flow.md
-
-Builds the Docker image and QA Lab web bundle, runs the prebuilt image with `extensions/qa-lab/web/dist` bind-mounted into the container, and watches for changes.
-
-```bash
-pnpm openclaw qa docker-build-image
-pnpm qa:lab:build
-pnpm qa:lab:up:fast
-pnpm qa:lab:watch
-```
-
---------------------------------
-
-### Install and start node on node host
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/troubleshooting.md
-
-Installs the Google Meet plugin, enables browser support, and runs the node host pointing to the Gateway.
-
-```bash
-openclaw plugins install @openclaw/google-meet
-openclaw plugins enable browser
-OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1 \
-  openclaw node run --host <gateway-lan-ip> --port 18789 --display-name parallels-macos
 ```
