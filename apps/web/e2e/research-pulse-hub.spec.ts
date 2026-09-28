@@ -206,6 +206,11 @@ test.describe('Research desk hub e2e (locale-deterministic, membership-agnostic)
 
     await page.goto('/hr/research')
 
+    // The daily-sales workflow board starts on 今日日报 (output) and hides the
+    // 素材池 panel until its tab is clicked, so reveal the pool where the pulse
+    // feed + soft-empty live before asserting (regression from the tab-switch UI).
+    await page.getByTestId('research-pipeline-tab-pool').click()
+
     const softEmpty = page.getByTestId('research-pulse-soft-empty')
     await expect(softEmpty).toBeVisible()
     await expect(softEmpty).toContainText('热榜关键词未命中。已显示行业订阅')
@@ -237,6 +242,10 @@ test.describe('Research desk hub e2e (locale-deterministic, membership-agnostic)
     await mockResearchHubShell(page, 'en')
 
     await page.goto('/hr/research')
+
+    // Reveal the 素材池 panel where the pulse feed + soft-empty live (default
+    // workflow tab is 今日日报 output).
+    await page.getByTestId('research-pipeline-tab-pool').click()
 
     const softEmpty = page.getByTestId('research-pulse-soft-empty')
     await expect(softEmpty).toBeVisible()
