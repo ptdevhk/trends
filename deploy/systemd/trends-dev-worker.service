@@ -1,0 +1,24 @@
+[Unit]
+Description=Trends Dev Worker Scheduler (pvelxc leaf)
+# Survives container reboot (managed unit, Restart=always) — the APScheduler
+# daemon that runs research ingest -> daily-report build on the pvelxc dev host.
+# Deploying preview/prod on ptcloud does NOT touch this unit; it is local-only.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/workspace
+EnvironmentFile=/root/workspace/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/root/workspace/.venv/bin/python -m apps.worker --interval 360 --run-now
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-dev-worker
+
+[Install]
+WantedBy=multi-user.target
