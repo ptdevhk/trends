@@ -292,7 +292,7 @@ describe("auto-sync-runner", () => {
       );
     });
 
-    it("does not submit sparse seek talent-search resumes after enrichment", async () => {
+    it("submits sparse seek talent-search resumes (descriptions are NOT required)", async () => {
       const submittedBatches: unknown[][] = [];
       const deps = createMockDeps({
         getCurrentSourceKey: vi.fn(() => "seek"),
@@ -304,7 +304,9 @@ describe("auto-sync-runner", () => {
         ]),
         enrichSeekResumesWithDetail: vi.fn(async () => [
           { name: "Detailed", workHistory: [{ description: "Closed enterprise deals." }] },
-          { name: "Sparse", workHistory: [{ description: "RESPONSIBILITIES: ACCOMPLISHMENT:" }] },
+          // Description-less but still a real work-history row — SEEK talentsearch
+          // list rows carry withDescription:0, so these must NOT be dropped.
+          { name: "Sparse", workHistory: [{ title: "Service Engineer", description: "" }] },
         ]),
         syncCurrentPageToServer: vi.fn(async (resumes: unknown[]) => {
           submittedBatches.push(Array.isArray(resumes) ? resumes : []);
@@ -327,22 +329,25 @@ describe("auto-sync-runner", () => {
       await runner.runAutoSyncIfEnabled();
 
       expect(submittedBatches).toHaveLength(1);
+      expect(submittedBatches[0]).toHaveLength(2);
       expect(submittedBatches[0]).toEqual([
         { name: "Detailed", workHistory: [{ description: "Closed enterprise deals." }] },
+        { name: "Sparse", workHistory: [{ title: "Service Engineer", description: "" }] },
       ]);
-      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 1, 1);
+      expect(deps.setAutoSyncAttributes).toHaveBeenCalledWith("done", 2, 1);
     });
 
-    it("stops seek after consecutive pages without usable work history", async () => {
+    it("stops seek after consecutive pages with no extractable work history", async () => {
       let currentPage = 1;
       const deps = createMockDeps({
         getCurrentSourceKey: vi.fn(() => "seek"),
         getCurrentSeekMode: vi.fn(() => "talentsearch"),
         window: { location: { pathname: "/talentsearch/profiles/search" } },
         getCollectionLimits: vi.fn(() => Promise.resolve({ limit: 100, maxPages: 25 })),
-        extractResumes: vi.fn(() => [
-          { workHistory: [{ description: "" }] },
-        ]),
+        // Genuinely empty page: no work-history entries at all, so there is nothing
+        // to submit. Description-less rows with entries are KEPT (submitted), so
+        // only this no-entries case drives the consecutive-empty termination.
+        extractResumes: vi.fn(() => [{ name: "NoRecord", workHistory: [] }]),
         enrichSeekResumesWithDetail: vi.fn(async (resumes: unknown[]) => resumes),
         getPaginationInfo: vi.fn(() => ({
           currentPage,

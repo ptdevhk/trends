@@ -7607,27 +7607,21 @@
       return getCurrentSourceKey2() === SOURCE_KEYS2.SEEK && !isSeekProfileMode2() && getCurrentSeekMode2() === "talentsearch";
     }
     __name(isSeekTalentSearchListWorkflow, "isSeekTalentSearchListWorkflow");
-    function resumeHasWorkHistoryDescription(resume) {
+    function resumeHasWorkHistoryEntries(resume) {
       if (!resume || typeof resume !== "object") {
         return false;
       }
       const workHistory = Array.isArray(
         resume.workHistory
       ) ? resume.workHistory : [];
-      return workHistory.some((entry) => {
-        if (!entry || typeof entry !== "object") {
-          return false;
-        }
-        const description = entry.description;
-        return isMeaningfulSeekWorkHistoryDescription(description);
-      });
+      return workHistory.some((entry) => entry && typeof entry === "object");
     }
-    __name(resumeHasWorkHistoryDescription, "resumeHasWorkHistoryDescription");
+    __name(resumeHasWorkHistoryEntries, "resumeHasWorkHistoryEntries");
     function filterSparseSeekTalentSearchResumes(resumes) {
       if (!isSeekTalentSearchListWorkflow()) {
         return resumes;
       }
-      return resumes.filter((resume) => resumeHasWorkHistoryDescription(resume));
+      return resumes.filter((resume) => resumeHasWorkHistoryEntries(resume));
     }
     __name(filterSparseSeekTalentSearchResumes, "filterSparseSeekTalentSearchResumes");
     async function runAutoSyncIfEnabled2() {
