@@ -91,6 +91,7 @@ import {
 } from '@/lib/resume-scoring'
 import type { CollectionSource } from '@/lib/search-profile-sources'
 import { isReviewPacketsEnabled } from '@/lib/feature-flags'
+import { BULK_ACTION_CONCURRENCY, mapLimit, retryIdempotent } from '@/lib/bulk-concurrency'
 
 const CARD_ACTION_TO_STATUS: Partial<Record<CandidateActionType, 'shortlisted' | 'rejected'>> = {
   shortlist: 'shortlisted',
@@ -1624,24 +1625,46 @@ export function useResumeListState(loadSearchHistory = false) {
           })
         }
 
-        await Promise.all(
-          entriesForAction.map((entry) =>
-            saveAction({ resumeId: entry.key, actionType: action })
-          )
+        // Fanning out hundreds of POSTs at once used to trip the upstream rate
+        // limiter (429) and surface as a spurious logout/CSRF failure. Run the
+        // batch at a small, fixed concurrency with rate-limit backoff, and let
+        // partial failures surface as partial counts instead of a full wipe.
+        const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
+        const actionResults = await mapLimit(entriesForAction, BULK_ACTION_CONCURRENCY, (entry) =>
+          retryIdempotent(() => saveAction({ resumeId: entry.key, actionType: action }))
         )
 
-        // Sync candidate_status in Convex for shortlist/reject
+        // Sync candidate_status in Convex for shortlist/reject.
         if (action === 'shortlist' || action === 'reject') {
-          const targetStatus = action === 'shortlist' ? 'shortlisted' : 'rejected'
-          await Promise.all(
-            entriesForAction.map((entry) =>
-              updateCandidateStatus(entry.identityKey, targetStatus)
-            )
+          const statusResults = await mapLimit(entriesForAction, BULK_ACTION_CONCURRENCY, (entry) =>
+            retryIdempotent(() => updateCandidateStatus(entry.identityKey, targetStatus))
           )
+          actionResults.forEach((result, index) => {
+            if (result.value && !statusResults[index]?.value) {
+              // The action persisted but the status sync failed for this row —
+              // treat the whole row as not-done so a retry can complete it.
+              result.value = false
+            }
+          })
         }
 
+        const succeeded = actionResults.filter((result) => result.value).length
         const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected' }
-        toast.success(t('bulk.actionDone', { count: entriesForAction.length, action: actionLabels[action] || action, defaultValue: `${entriesForAction.length} resumes ${actionLabels[action] || action}` }))
+        const label = actionLabels[action] || action
+
+        if (succeeded === entriesForAction.length) {
+          toast.success(t('bulk.actionDone', { count: succeeded, action: label, defaultValue: `${succeeded} resumes ${label}` }))
+          setSelectedIds(new Set())
+        } else {
+          toast.warning(
+            t('bulk.actionPartial', {
+              succeeded,
+              total: entriesForAction.length,
+              action: label,
+              defaultValue: `${succeeded}/${entriesForAction.length} resumes ${label}. Some failed — selection kept for retry.`,
+            }),
+          )
+        }
       } catch (error) {
         console.error('Bulk action failed', error)
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
