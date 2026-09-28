@@ -116,6 +116,14 @@ async function mockResearchHubShell(page: Page, locale: 'zh-Hans' | 'en') {
     localStorage.setItem('i18nextLng', lng)
   }, locale)
 
+  // The daily output column fetches /daily/{day}.json on page load; with no
+  // backend in this harness that 500s and surfaces as a collected network/
+  // console problem. This spec tests the research-pulse pool, not daily, so
+  // short-circuit the daily report fetch to avoid a spurious `problems` entry.
+  await page.route('**/daily/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }),
+  )
+
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const { pathname } = new URL(request.url())
