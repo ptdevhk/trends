@@ -2635,7 +2635,8 @@
     "exportFailed": "匯出失敗：缺少樣本上下文。請刷新後重試。",
     "actionDone": "{{count}} 份簡歷 {{action}}",
     "blocked": "已封鎖 {{count}} 位候選人",
-    "exportStarted": "已開始匯出 {{count}} 份簡歷"
+    "exportStarted": "已開始匯出 {{count}} 份簡歷",
+    "actionPartial": "{{succeeded}}/{{total}} 份簡歷 {{action}}。部分失敗，已保留選擇以便重試。"
   },
   "feedback": {
     "failed": "保存反饋失敗",

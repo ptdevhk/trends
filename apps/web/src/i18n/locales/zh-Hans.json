@@ -2662,7 +2662,8 @@
     "exportFailed": "导出失败：缺少样本上下文。请刷新后重试。",
     "actionDone": "{{count}} 份简历 {{action}}",
     "blocked": "已屏蔽 {{count}} 位候选人",
-    "exportStarted": "已开始导出 {{count}} 份简历"
+    "exportStarted": "已开始导出 {{count}} 份简历",
+    "actionPartial": "{{succeeded}}/{{total}} 份简历 {{action}}。部分失败，已保留选择以便重试。"
   },
   "feedback": {
     "failed": "保存反馈失败",

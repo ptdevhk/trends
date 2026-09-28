@@ -23,6 +23,12 @@ const dispatchTaskMock = vi.hoisted(() => vi.fn(async () => ({
   reused: false,
 })))
 const useAnalysisTasksMock = vi.hoisted(() => vi.fn())
+const toastMock = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+}))
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
@@ -66,8 +72,8 @@ const mockState = vi.hoisted(() => ({
   reloadSamples: vi.fn(async () => {}),
   blockCandidates: vi.fn(async () => true),
   unblockCandidate: vi.fn(async () => true),
-  updateStatus: vi.fn(async () => {}),
-  saveAction: vi.fn(async () => {}),
+  updateStatus: vi.fn(async () => true),
+  saveAction: vi.fn(async () => true),
   syncToUrl: vi.fn(),
   urlParsedState: {
     shareSessionId: undefined as string | undefined,
@@ -241,11 +247,7 @@ vi.mock('@/lib/api-helpers', () => ({
 }))
 
 vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-  },
+  toast: toastMock,
 }))
 
 vi.mock('@/lib/feature-flags', () => ({
@@ -2220,9 +2222,9 @@ describe('handleCardAction Convex status sync (CN market list view)', () => {
       buildResume({ id: 'cn-resume-1', name: '李销售', roleSignals: [] }),
     ]
     mockState.saveAction.mockClear()
-    mockState.saveAction.mockResolvedValue(undefined)
+    mockState.saveAction.mockResolvedValue(true)
     mockState.updateStatus.mockClear()
-    mockState.updateStatus.mockResolvedValue(undefined)
+    mockState.updateStatus.mockResolvedValue(true)
     mockState.statusByIdentity = {}
   })
 
@@ -2316,5 +2318,74 @@ describe('handleCardAction Convex status sync (CN market list view)', () => {
       // entry.identityKey == 'cn-resume-1' in non-AI mode; status is shortlisted → toggle to new
       expect(mockState.updateStatus).toHaveBeenCalledWith('cn-resume-1', 'new')
     })
+  })
+})
+
+describe('handleBulkAction bounded-concurrency status sync (bulk reject/shortlist hotfix)', () => {
+  const IDS = ['bulk-1', 'bulk-2', 'bulk-3', 'bulk-4', 'bulk-5', 'bulk-6', 'bulk-7', 'bulk-8', 'bulk-9', 'bulk-10']
+
+  beforeEach(() => {
+    mockState.convexResumes = IDS.map((id) => buildResume({ id, name: `Bulk ${id}`, roleSignals: [] }))
+    mockState.saveAction.mockClear()
+    mockState.saveAction.mockResolvedValue(true)
+    mockState.updateStatus.mockClear()
+    mockState.updateStatus.mockResolvedValue(true)
+    mockState.statusByIdentity = {}
+    mockState.filters = {}
+  })
+
+  it('rejects a large selection in bounded concurrency, never opening more than BULK_ACTION_CONCURRENCY in-flight', async () => {
+    let inFlight = 0
+    let peakInFlight = 0
+    mockState.updateStatus.mockImplementation(async () => {
+      inFlight += 1
+      peakInFlight = Math.max(peakInFlight, inFlight)
+      // Yield a macrotask so other workers can advance, exercising the cap.
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      inFlight -= 1
+      return true
+    })
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      IDS.forEach((id) => result.current.handleToggleSelect(id))
+    })
+
+    await act(async () => {
+      await result.current.handleBulkAction('reject')
+    })
+
+    expect(peakInFlight).toBeLessThanOrEqual(5)
+    // Every row: saveAction + updateStatus.
+    expect(mockState.saveAction).toHaveBeenCalledTimes(IDS.length)
+    expect(mockState.updateStatus).toHaveBeenCalledTimes(IDS.length)
+    // All rows succeeded → full success toast + selection cleared.
+    expect(toastMock.success).toHaveBeenCalled()
+    expect(result.current.selectedIds.size).toBe(0)
+  })
+
+  it('keeps the selection and surfaces a partial count when some status writes fail', async () => {
+    // First two rows' status sync returns falsy (simulating a failed POST).
+    mockState.updateStatus.mockImplementation(async (identityKey: string) => {
+      return !['bulk-1', 'bulk-2'].includes(identityKey)
+    })
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      IDS.forEach((id) => result.current.handleToggleSelect(id))
+    })
+
+    await act(async () => {
+      await result.current.handleBulkAction('reject')
+    })
+
+    // 8 of 10 rows fully succeeded → selection is NOT cleared (kept for retry).
+    expect(result.current.selectedIds.size).toBeGreaterThan(0)
+    expect(toastMock.warning).toHaveBeenCalled()
+    // Every distinct key was attempted (failing rows retry internally).
+    const attempted = new Set(mockState.updateStatus.mock.calls.map((call) => call[0]))
+    expect(attempted).toEqual(new Set(IDS))
   })
 })
