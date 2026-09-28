@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import {
   __resetLoginRateLimiterForTests,
   checkLoginAttempt,
+  loginLockoutEnabled,
   recordLoginFailure,
   resetOnSuccess,
   LOGIN_LOCKOUT_MS,
@@ -28,10 +29,43 @@ describe("login-rate-limit", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    delete process.env.AUTH_LOGIN_LOCKOUT_ENABLED;
   });
 
   afterAll(() => {
     vi.unstubAllGlobals();
+  });
+
+  describe("AUTH_LOGIN_LOCKOUT_ENABLED master switch", () => {
+    it("defaults to enabled", () => {
+      delete process.env.AUTH_LOGIN_LOCKOUT_ENABLED;
+      expect(loginLockoutEnabled()).toBe(true);
+    });
+
+    it("is disabled when the env var is explicitly 'false'", () => {
+      process.env.AUTH_LOGIN_LOCKOUT_ENABLED = "false";
+      expect(loginLockoutEnabled()).toBe(false);
+    });
+
+    it("when disabled, check always allows with the full failure budget", () => {
+      process.env.AUTH_LOGIN_LOCKOUT_ENABLED = "false";
+      // even after exceeding the normal threshold, the key is never locked
+      for (let i = 0; i < LOGIN_MAX_FAILURES + 3; i++) recordLoginFailure("alice", "1.1.1.1");
+      expect(checkLoginAttempt("alice", "1.1.1.1")).toEqual({
+        allowed: true,
+        retryAfterSeconds: 0,
+        failuresRemaining: LOGIN_MAX_FAILURES,
+      });
+    });
+
+    it("when disabled, failures are not recorded (no state mutation)", () => {
+      process.env.AUTH_LOGIN_LOCKOUT_ENABLED = "false";
+      recordLoginFailure("alice", "1.1.1.1");
+      recordLoginFailure("alice", "1.1.1.1");
+      // Re-enable: the store must be empty, so the key still has a full budget
+      delete process.env.AUTH_LOGIN_LOCKOUT_ENABLED;
+      expect(checkLoginAttempt("alice", "1.1.1.1").failuresRemaining).toBe(LOGIN_MAX_FAILURES);
+    });
   });
 
   it("allows a fresh key with the full failure budget", () => {

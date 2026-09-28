@@ -22,6 +22,21 @@ export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 /** Lockout duration once the threshold is hit (15 minutes). */
 export const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 
+/**
+ * Master switch for the account lockout feature. Set
+ * `AUTH_LOGIN_LOCKOUT_ENABLED=false` to disable lockouts entirely (and stop
+ * recording failures) — a deploy-time escape hatch for environments where the
+ * security feature is not wanted (e.g. shared non-production previews where a
+ * fat-fingered password otherwise bricks the only admin for 15 minutes, or a
+ * locked account that must keep working during a deploy).
+ *
+ * Read at call time (not module load) so a restart/env change applies cleanly
+ * and tests can toggle it per case. Defaults to enabled.
+ */
+export function loginLockoutEnabled(): boolean {
+  return process.env.AUTH_LOGIN_LOCKOUT_ENABLED !== "false";
+}
+
 interface LoginAttemptEntry {
   /** Timestamps of failures within the current window. */
   failures: number[];
@@ -73,6 +88,9 @@ function pruneOldFailures(entry: LoginAttemptEntry, now: number): void {
  * to update the counter.
  */
 export function checkLoginAttempt(username: string, clientIp: string): LoginAttemptCheck {
+  if (!loginLockoutEnabled()) {
+    return { allowed: true, retryAfterSeconds: 0, failuresRemaining: LOGIN_MAX_FAILURES };
+  }
   const key = buildKey(username, clientIp);
   const now = Date.now();
   const entry = store.get(key);
@@ -99,6 +117,7 @@ export function checkLoginAttempt(username: string, clientIp: string): LoginAtte
  * the threshold, the key is locked for {@link LOGIN_LOCKOUT_MS}.
  */
 export function recordLoginFailure(username: string, clientIp: string): void {
+  if (!loginLockoutEnabled()) return;
   const key = buildKey(username, clientIp);
   const now = Date.now();
   let entry = store.get(key);
