@@ -9,7 +9,6 @@ import {
   JOB51_LIST_SUBMIT_MAX_ATTEMPTS,
   JOB51_LIST_SUBMIT_RETRY_DELAY_MS,
 } from "./job51-collection-config";
-import { isMeaningfulSeekWorkHistoryDescription } from "./seek-work-history-quality";
 
 // SEEK's pager can expose a moving window of numbered links after the useful
 // results have ended. Stop after a short run of post-enrichment empty pages so
@@ -185,7 +184,8 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     );
   }
 
-  function resumeHasWorkHistoryDescription(resume: unknown) {
+  /** True when a resume carries at least one work-history entry (any role). */
+  function resumeHasWorkHistoryEntries(resume: unknown) {
     if (!resume || typeof resume !== "object") {
       return false;
     }
@@ -194,20 +194,20 @@ export function createAutoSyncRunner(deps: AutoSyncRunnerDeps) {
     )
       ? ((resume as Record<string, unknown>).workHistory as unknown[])
       : [];
-    return workHistory.some((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return false;
-      }
-      const description = (entry as Record<string, unknown>).description;
-      return isMeaningfulSeekWorkHistoryDescription(description);
-    });
+    return workHistory.some((entry) => entry && typeof entry === "object");
   }
 
   function filterSparseSeekTalentSearchResumes(resumes: unknown[]) {
     if (!isSeekTalentSearchListWorkflow()) {
       return resumes;
     }
-    return resumes.filter((resume) => resumeHasWorkHistoryDescription(resume));
+    // Keep a resume as long as it has a work-history entry — we no longer
+    // require meaningful per-job DESCRIPTIONS here. SEEK's talentsearch list
+    // returns titles-without-descriptions (withDescription:0), so requiring a
+    // description dropped EVERY row and the sync deadlocked without ever
+    // submitting anything. Genuinely empty pages still terminate below via
+    // SEEK_MAX_CONSECUTIVE_PAGES_WITHOUT_USABLE_RESUMES.
+    return resumes.filter((resume) => resumeHasWorkHistoryEntries(resume));
   }
 
   async function runAutoSyncIfEnabled() {
