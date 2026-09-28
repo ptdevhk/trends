@@ -404,31 +404,19 @@ export const list = query({
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        // Paginate through all rows to avoid the silent 500-row cap that
-        // caused statuses beyond the first page to be invisible to the
-        // frontend reactive subscription (useCandidateStatus). The
-        // BFF already paginates via listPage; this query is the direct
-        // Convex subscription path used by the web client.
-        const results: Doc<"candidate_status">[] = [];
-        let cursor: string | null = null;
-        const MAX_PAGES = 200; // hard safety bound (200 * 1000 = 200k rows)
-        for (let page = 0; page < MAX_PAGES; page += 1) {
-            const batch = await ctx.db
-                .query("candidate_status")
-                .withIndex("by_workspace_status", (q) =>
-                    q.eq("workspaceSlug", workspaceSlug)
-                )
-                .paginate({
-                    cursor,
-                    numItems: 1000,
-                });
-            results.push(...batch.page);
-            if (batch.isDone) {
-                break;
-            }
-            cursor = batch.continueCursor;
-        }
-        return results;
+        // Single query only — Convex forbids multiple .paginate() calls in a
+        // single function, and hr now exceeds one 1000-row page (~1092 rows),
+        // so the old for-loop threw "ran multiple paginated queries" and
+        // hard-crashed /hr/resumes. Workspace candidate_status is O(1k) rows;
+        // the indexed .collect() returns all of them in one query (no cap >500
+        // like the old default .take() path). The BFF still paginates via
+        // listPage; this query is the direct Convex subscription path.
+        return await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_status", (q) =>
+                q.eq("workspaceSlug", workspaceSlug)
+            )
+            .collect();
     },
 });
 
