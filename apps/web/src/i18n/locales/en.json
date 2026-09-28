@@ -1507,7 +1507,8 @@
     "exportFailed": "Export failed: sample context is missing. Please refresh and try again.",
     "actionDone": "{{count}} resumes {{action}}",
     "blocked": "Blocked {{count}} candidates",
-    "exportStarted": "Started export for {{count}} resumes"
+    "exportStarted": "Started export for {{count}} resumes",
+    "actionPartial": "{{succeeded}}/{{total}} resumes {{action}}. Some failed — selection kept for retry."
   },
   "feedback": {
     "failed": "Failed to save feedback",
