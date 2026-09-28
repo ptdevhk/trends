@@ -28,7 +28,7 @@ trendradar-mcp = "mcp_server.server:run_server"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0,<10.0.0"
+    "pytest>=9.1.1,<10.0.0"
 ]
 
 [build-system]
