@@ -31,7 +31,7 @@
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@sentry/react": "^10.53.1",
-    "@tanstack/react-virtual": "^3.13.25",
+    "@tanstack/react-virtual": "^3.14.13",
     "@trends/shared": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
