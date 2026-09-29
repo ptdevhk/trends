@@ -66,16 +66,54 @@ function getSegmenter(): Segmenter | null {
 // word-position graph, which is exponential in the length of dense-overlap
 // runs (工程师工程师…: 60 chars ≈ 5 s). Prose is split at non-alphanumeric
 // boundaries first (chunk edges land on natural word boundaries), and only
-// pieces longer than SEGMENTIT_CHUNK_MAX get hard-sliced (~0.5 ms worst
-// measured per call); a word straddling a hard-slice edge is split into
-// parts, and callers keep the full-run and Intl tokens, so no recall
-// regression.
+// pieces longer than SEGMENTIT_CHUNK_MAX get hard-sliced; a word straddling a
+// hard-slice edge is split into parts, and callers keep the full-run and Intl
+// tokens, so no recall regression.
+//
+// The hard-slice is NOT sufficient on its own: a window of dense-overlap CJK
+// (e.g. a work-history line that is one long unbroken token) still costs ~1 s
+// in DictTokenizer.getChunks at 20 chars. In the digest rebuild that runs inside
+// `resumes_mutations:updateAnalysis` (1 s user-code budget), a handful of such
+// windows blows the budget and the whole analysis write fails — observed on
+// metal 2026-09-29 for two 3D扫描仪/销售 resumes.
+//
+// Fix: only dense-overlap pieces are sliced into small windows (6 chars, the
+// largest measured sub-millisecond on dense overlap). Normal prose keeps the
+// full 20-char window so multi-char words (数控编程, ISO9001) are not split
+// across a boundary. Recall is additionally covered by the full-run and Intl
+// tokens in segmentChineseRuns.
 const SEGMENTIT_CHUNK_MAX = 20;
+// Dense-overlap pieces get this much smaller window. Six chars is the largest
+// window measured to stay sub-millisecond on dense overlap while still
+// emitting the word tokens (工程师).
+const SEGMENTIT_DENSE_CHUNK_MAX = 6;
+// A piece is "dense overlap" when the same 2-char pair recurs — the graph
+// branches on every occurrence. Detect cheaply by counting distinct adjacent
+// 2-grams: normal prose has ~n-1 distinct pairs, while 工程师工程师… has 3.
+// Threshold 0.5 flags 工程师x4 (12 chars / 3 pairs) and longer.
+const SEGMENTIT_DENSE_2GRAM_RATIO = 0.5;
 
 // Jieba emits punctuation and single-char tokens that are noise in the
 // search index; keep only multi-code-point letter/digit tokens.
 function isSearchableToken(token: string): boolean {
     return /^[\p{L}\p{N}]+$/u.test(token) && Array.from(token).length >= 2;
+}
+
+/**
+ * Whether a piece is dense-overlap (pathological for DictTokenizer). Counts
+ * distinct adjacent 2-grams; a normal prose piece has ~n-1 distinct pairs,
+ * while 工程师工程师… has 3.
+ */
+function isDenseOverlapPiece(piece: string): boolean {
+    const chars = Array.from(piece);
+    if (chars.length < 7) {
+        return false;
+    }
+    const pairs = new Set<string>();
+    for (let i = 0; i + 1 < chars.length; i += 1) {
+        pairs.add(chars[i] + chars[i + 1]);
+    }
+    return pairs.size < chars.length * SEGMENTIT_DENSE_2GRAM_RATIO;
 }
 
 function doJiebaSegment(value: string): Array<{ w: string }> {
@@ -88,7 +126,10 @@ function doJiebaSegment(value: string): Array<{ w: string }> {
         if (piece.length === 0) {
             continue;
         }
-        const step = Math.min(piece.length, SEGMENTIT_CHUNK_MAX);
+        const chunkMax = isDenseOverlapPiece(piece)
+            ? SEGMENTIT_DENSE_CHUNK_MAX
+            : SEGMENTIT_CHUNK_MAX;
+        const step = Math.min(piece.length, chunkMax);
         for (let i = 0; i < piece.length; i += step) {
             for (const word of segmenter.doSegment(piece.slice(i, i + step))) {
                 out.push(word);
