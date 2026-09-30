@@ -53,3 +53,75 @@ def test_job5156_row_keeps_job5156_source_and_identity():
     row = {"profileUrl": "https://hr.job5156.com/resume/view/12345", "resumeId": "12345"}
     assert worker.resolve_submit_source(row) == "hr.job5156.com"
     assert worker.derive_external_id(row) == "hr.job5156.com/api/com/resume/12345"
+
+
+# ── process_task search-URL construction (Seek must not use job5156) ──
+
+SEEK_TH_JOB_URL = (
+    "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1"
+    "&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager"
+    "&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC"
+    "&matchAll=false&sortBy=RELEVANCE"
+)
+
+
+def test_seek_task_config_detected_from_source_token():
+    assert worker._is_seek_task_config({"source": "seek"}) is True
+    assert worker._is_seek_task_config({"sourceKey": "seek"}) is True
+
+
+def test_seek_task_config_detected_from_host():
+    assert worker._is_seek_task_config({"sourceHost": "hk.employer.seek.com"}) is True
+
+
+def test_seek_task_config_detected_from_market_code():
+    assert worker._is_seek_task_config({"market": "TH"}) is True
+    assert worker._is_seek_task_config({"market": "MY"}) is True
+
+
+def test_job5156_task_config_is_not_seek():
+    assert worker._is_seek_task_config(
+        {"keyword": "CNC", "location": "广东", "minAge": 20, "maxAge": 40}
+    ) is False
+
+
+def test_resolve_task_search_url_seek_uses_job_url_verbatim():
+    cfg = {"source": "seek", "keyword": "CNC", "market": "TH", "jobUrl": SEEK_TH_JOB_URL}
+    assert worker.resolve_task_search_url(cfg) == SEEK_TH_JOB_URL
+
+
+def test_resolve_task_search_url_seek_builds_talentsearch_for_market():
+    url = worker.resolve_task_search_url({"source": "seek", "keyword": "CNC", "market": "TH"})
+    assert url.startswith("https://hk.employer.seek.com/talentsearch?")
+    assert "market=TH" in url
+    assert "keywords=CNC" in url
+
+
+def test_resolve_task_search_url_seek_market_from_job_url():
+    cfg = {"source": "seek", "keyword": "CNC", "jobUrl": SEEK_TH_JOB_URL}
+    url = worker.resolve_task_search_url(cfg)
+    assert url == SEEK_TH_JOB_URL  # jobUrl preferred and returned verbatim
+    assert worker._resolve_seek_market(cfg) == "TH"
+
+
+def test_resolve_task_search_url_seek_defaults_market_my():
+    url = worker.resolve_task_search_url({"source": "seek", "keyword": "CNC"})
+    assert "market=MY" in url
+
+
+def test_resolve_task_search_url_job5156_uses_job5156_host():
+    url = worker.resolve_task_search_url({"keyword": "销售", "location": "广东"})
+    assert url.startswith("https://hr.job5156.com/search?")
+    assert "keyword=" in url
+
+
+def test_resolve_task_search_url_seek_never_returns_job5156_host():
+    for cfg in (
+        {"source": "seek", "keyword": "CNC", "market": "TH"},
+        {"source": "seek", "keyword": "CNC", "market": "MY"},
+        {"sourceKey": "seek", "keyword": "CNC", "market": "HK"},
+        {"jobUrl": SEEK_TH_JOB_URL},
+    ):
+        url = worker.resolve_task_search_url(cfg)
+        assert "hr.job5156.com" not in url, cfg
+        assert "hk.employer.seek.com/talentsearch" in url, cfg

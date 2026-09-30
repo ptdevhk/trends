@@ -26,6 +26,13 @@ export default defineSchema({
             maxSalary: v.optional(v.number()),
             autoAnalyze: v.optional(v.boolean()),
             analysisTopN: v.optional(v.number()),
+            // Collect source routing: a Seek task must build a Seek talentsearch
+            // URL, not the job5156 search URL. Absent => job5156 (legacy).
+            source: v.optional(v.string()),
+            sourceKey: v.optional(v.string()),
+            sourceHost: v.optional(v.string()),
+            market: v.optional(v.string()),
+            jobUrl: v.optional(v.string()),
         }),
         status: v.union(
             v.literal("pending"),
