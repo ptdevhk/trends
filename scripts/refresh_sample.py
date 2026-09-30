@@ -31,7 +31,7 @@ DEFAULT_KEYWORD = "销售"
 DEFAULT_SAMPLE = "sample-initial"
 DEFAULT_SOURCE = "job5156"
 DEFAULT_LIMIT = 50
-SEEK_HOST = "my.employer.seek.com"
+SEEK_HOST = "hk.employer.seek.com"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "resumes" / "samples"
 
 

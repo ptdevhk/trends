@@ -56,6 +56,12 @@ API_URL = f"{CONVEX_URL.rstrip('/')}/api"
 _LAST_HEARTBEAT_WARNING_AT = 0.0
 _LAST_CONNECTION_OPERATION_WARNING_AT = 0.0
 JOB5156_HOST = "hr.job5156.com"
+# Canonical Seek source token (matches packages/shared analysis-key.ts
+# SEEK_HOST_SUFFIX = ".employer.seek.com" and the extension's
+# `source: window.location.hostname`). Submit must not stamp Seek rows as
+# job5156 — that corrupts sourceKey/identity/diagnostics downstream.
+SEEK_SOURCE = "hk.employer.seek.com"
+SEEK_HOST_SUFFIX = ".employer.seek.com"
 CONVEX_RECOVERY_HINT = "Try `make dev-convex-status`, `make dev-convex-refresh`, or `make dev`."
 CONNECTION_WARNING_INTERVAL_SECONDS = 30.0
 
@@ -170,6 +176,17 @@ def _normalize_profile_url(value: str) -> Optional[str]:
     return fallback or None
 
 def derive_external_id(resume: dict[str, Any]) -> str:
+    # Prefer the collect-supplied externalId GUID. For Seek talentsearch the
+    # extension emits `hk.employer.seek.com:profile:<guid>` (see
+    # seek-extractor.ts); deriving from profileUrl instead would yield the
+    # name-search URL (…/talentsearch/profiles/search?searchquery=…), which is
+    # not a stable identity. Check externalId FIRST for Seek rows.
+    external_id = _read_str(resume.get("externalId")) or _read_str(resume.get("external_id"))
+    if external_id:
+        normalized_external_id = _normalize_token(external_id)
+        if normalized_external_id:
+            return normalized_external_id
+
     profile_url = (
         _read_str(resume.get("profileUrl"))
         or _read_str(resume.get("profile_url"))
@@ -193,13 +210,36 @@ def derive_external_id(resume: dict[str, Any]) -> str:
         if normalized_per_user_id:
             return normalized_per_user_id
 
-    external_id = _read_str(resume.get("externalId")) or _read_str(resume.get("external_id"))
-    if external_id:
-        normalized_external_id = _normalize_token(external_id)
-        if normalized_external_id:
-            return normalized_external_id
-
     return hashlib.md5(json.dumps(resume, sort_keys=True).encode()).hexdigest()
+
+
+def _is_seek_resume(resume: dict[str, Any]) -> bool:
+    """True when a collected resume came from Seek (not job5156).
+
+    Detection is on the collect payload itself — the extension sets
+    `source`/`sourceKey`/`sourceHost`, and Seek externalIds/profileUrls carry
+    the `.employer.seek.com` host — so the worker does not depend on the task
+    config carrying a market/source flag.
+    """
+    for key in ("source", "sourceKey", "sourceHost"):
+        value = _read_str(resume.get(key))
+        if value:
+            lowered = value.lower()
+            if lowered == "seek" or lowered.endswith(SEEK_HOST_SUFFIX):
+                return True
+    for key in ("externalId", "external_id", "profileUrl", "profile_url", "profileURL", "url"):
+        value = _read_str(resume.get(key))
+        if value and SEEK_HOST_SUFFIX in value.lower():
+            return True
+    return False
+
+
+def resolve_submit_source(resume: dict[str, Any]) -> str:
+    """Canonical `source` for submitResumes — never stamp Seek rows as job5156."""
+    if _is_seek_resume(resume):
+        return SEEK_SOURCE
+    explicit = _read_str(resume.get("source"))
+    return explicit or JOB5156_HOST
 
 async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
     url = f"{API_URL}/mutation"
@@ -398,7 +438,7 @@ async def process_task(task, client: httpx.AsyncClient):
                         "externalId": external_id,
                         "content": r,
                         "hash": hashlib.md5(json.dumps(r, sort_keys=True).encode()).hexdigest(),
-                        "source": "hr.job5156.com",
+                        "source": resolve_submit_source(r),
                         "tags": [] # Could add search profile ID here
                     })
 
