@@ -2,20 +2,20 @@
   "date": "2026-09-25",
   "localeDefault": "zh-Hans",
   "source": "live",
-  "generatedAt": "2026-09-28T02:27:04.693Z",
+  "generatedAt": "2026-09-30T20:23:49.204Z",
   "hero": {
     "headline": "今日行业热度",
-    "value": "68",
-    "delta": "+467%",
-    "meta": "16 来源 · 0 热榜命中 · 2026-09-22–2026-09-28",
+    "value": "111",
+    "delta": "+122%",
+    "meta": "17 来源 · 0 热榜命中 · 2026-09-25–2026-10-01",
     "sparkline": [
-      11,
-      141,
-      291,
-      343,
-      266,
-      221,
-      68
+      5,
+      49,
+      134,
+      188,
+      109,
+      186,
+      111
     ],
     "dayLabels": [
       "Day1",
@@ -27,13 +27,13 @@
       "Day7"
     ],
     "dayDates": [
-      "2026-09-22",
-      "2026-09-23",
-      "2026-09-24",
       "2026-09-25",
       "2026-09-26",
       "2026-09-27",
-      "2026-09-28"
+      "2026-09-28",
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01"
     ]
   },
   "opportunities": [
@@ -41,26 +41,26 @@
       "kind": "动态",
       "label": "卡中国脖子,日本限制高端数控机床出口,为何中国不担心",
       "heat": "7",
-      "growth": "13",
+      "growth": "23",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790311260000,
       "rowPlatform": "rss:bing-jichuang-chukou",
       "sparkline": [
         0,
-        23,
-        41,
+        11,
+        19,
         0,
-        6,
-        4,
-        13
+        0,
+        1,
+        23
       ],
       "chips": [
         "数控",
         "五轴",
         "机床"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab9c1e4684d40d8a9d18a9c30fbddc1&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080769813_121142234&c=7218741549819158343&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6abd1b96206d494d8d9302ca148551d6&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080769813_121142234&c=7218741549819158343&mkt=zh-hk",
       "imageUrl": "https://q6.itc.cn/images01/20260925/b2539f10adec4a0781a279088396b606.jpeg",
       "snippet": "**当工业母机的命运，牵动起一个时代的制造梦想** 近日，关于日本调整对华高端五轴数控机床出口政策的传闻甚嚣尘上，仿佛一场突如其来的风暴。但仔细梳理相关信息，你会发现事情远没有表面上那么简单。与其说是全面禁运，不如说是一种策略调整，一种在技"
     },
@@ -68,7 +68,7 @@
       "kind": "动态",
       "label": "日本机床行业想不通:中国工厂是怎么搞出自己的五轴机床的?",
       "heat": "5",
-      "growth": "13",
+      "growth": "18",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790341800000,
@@ -76,11 +76,11 @@
       "sparkline": [
         0,
         0,
-        48,
-        46,
-        6,
-        11,
-        13
+        20,
+        26,
+        0,
+        7,
+        18
       ],
       "chips": [
         "五轴",
@@ -95,19 +95,19 @@
       "kind": "动态",
       "label": "从小五金到制造革命:一体化压铸为何在珠三角落地生根?",
       "heat": "5",
-      "growth": "2",
+      "growth": "1",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790331492000,
       "rowPlatform": "rss:gnews-diecast",
       "sparkline": [
         0,
-        3,
-        3,
-        5,
         0,
-        2,
-        2
+        0,
+        1,
+        0,
+        3,
+        1
       ],
       "chips": [
         "五金",
@@ -131,8 +131,8 @@
         0,
         0,
         0,
-        53,
-        19,
+        33,
+        15,
         0,
         1
       ],
@@ -156,7 +156,7 @@
       "rowPlatform": "rss:gnews-niupi",
       "sparkline": [
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -203,7 +203,7 @@
       "kind": "动态",
       "label": "优质激光切割铁板供应商推荐,恒翔激光上榜",
       "heat": "3",
-      "growth": "13",
+      "growth": "23",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790279160000,
@@ -212,17 +212,17 @@
         0,
         0,
         0,
-        31,
-        78,
-        24,
-        13
+        16,
+        40,
+        37,
+        23
       ],
       "chips": [
         "制造",
         "激光",
         "激光切割"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab9c1e35aa14f68a66c15c06bd07af9&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080640503_122581929&c=7261311630121420963&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6abd1b95218b45f8bcfd94d5363a48b2&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080640503_122581929&c=7261311630121420963&mkt=zh-hk",
       "imageUrl": "https://q5.itc.cn/q_70/images03/20251204/7cf14aa994b941d0a8c633e06878f920.jpeg",
       "snippet": "在当今制造业不断追求高精度、高效率的时代，激光切割铁板技术的应用日益广泛。从机械设备制造到风力发电、锅炉、农业机械、钢结构、桥梁等众多领域，对高质量激光切割铁板的需求持续增长。而在众多供应商中，恒翔激光凭借其出色的表现脱颖而出，成为众多企业"
     },
@@ -230,7 +230,7 @@
       "kind": "动态",
       "label": "1100 家展商与 10 万名观众:2028 首尔机床展的参展价值拆解",
       "heat": "2",
-      "growth": "13",
+      "growth": "23",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790319660000,
@@ -238,25 +238,51 @@
       "sparkline": [
         0,
         0,
-        22,
+        14,
         1,
-        4,
+        0,
         2,
-        13
+        23
       ],
       "chips": [
         "机床",
         "制造"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab9c1e3fccc4d5b88adbba78db11759&url=https%3a%2f%2fwww.sohu.com%2fa%2f1079526535_122153670&c=10684813266894177854&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6abd1b96ed5e40e0b6649bb222c86495&url=https%3a%2f%2fwww.sohu.com%2fa%2f1079526535_122153670&c=10684813266894177854&mkt=zh-hk",
       "imageUrl": "https://q9.itc.cn/images01/20260922/93f8dd4c3aef4326983f2f6e53bd43cb.png",
       "snippet": "评估一场专业展，规模数据是起点，观众结构与平台功能更值得研究。2028 年 4 月 3 日至 7 日，韩国首尔国际机床展（SIMTOS）将在韩国国际会展中心举行。本届展会有约 1100 家参展企业、约 10 万名观众，展览面积约 54000"
     },
     {
       "kind": "动态",
-      "label": "“国产行星减速器第一股”要来了,智元、优必选都在用,年出货超 ...",
+      "label": "14999元起,拓竹想把激光加工变成下一个3D打印|消费级|打印机|设备|切割机|…",
       "heat": "2",
       "growth": "2",
+      "started": "2026-09-25",
+      "rowDay": "2026-09-25",
+      "rowAsOf": 1790319396000,
+      "rowPlatform": "rss:gnews-jiguang-qiege",
+      "sparkline": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        4,
+        2
+      ],
+      "chips": [
+        "3D打印",
+        "激光"
+      ],
+      "href": "https://finance.sina.cn/stock/jdts/2026-09-24/detail-inisxhpc4937535.d.html?oid=800&vt=4",
+      "imageUrl": "https://k.sinaimg.cn/n/spider20260924/489/w660h629/20260924/4ee5-eece5279fbe7f78f8e0e718a4f5a0310.jpg/w700d1q75cms.jpg?by=cms_fixed_width",
+      "snippet": "14999元起，拓竹想把激光加工变成下一个3D打印|消费级|打印机|设备|切割机|赛道_手机新浪网 finance.sina.com.cn"
+    },
+    {
+      "kind": "动态",
+      "label": "“国产行星减速器第一股”要来了,智元、优必选都在用,年出货超 ...",
+      "heat": "2",
+      "growth": "9",
       "started": "2026-09-25",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790319060000,
@@ -264,17 +290,17 @@
       "sparkline": [
         0,
         0,
-        5,
-        20,
-        10,
-        36,
-        2
+        2,
+        8,
+        0,
+        26,
+        9
       ],
       "chips": [
         "减速器",
         "行星减速器"
       ],
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab96d7e46c847988013fa38dd31375b&url=https%3a%2f%2ffinance.sina.cn%2fhkstock%2fgggd%2f2026-09-25%2fdetail-inisyywk9752011.d.html%3fvt%3d4&c=741180048875312613&mkt=zh-hk",
+      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6abcc739950441cca396a9552beb321f&url=https%3a%2f%2ffinance.sina.cn%2fhkstock%2fgggd%2f2026-09-25%2fdetail-inisyywk9752011.d.html%3fvt%3d4&c=741180048875312613&mkt=zh-hk",
       "imageUrl": "https://n.sinaimg.cn/spider20260925/200/w1080h720/20260925/dfbb-be54ff8051f8708a8317dc04b6fcb226.jpg",
       "snippet": "近日，纽氏达特行星传动系统技术(淄博)股份有限公司更新A股IPO招股书，审核状态为“已问询”。公司拟登陆深交所创业板，保荐机构为东方证券，拟募资8.23亿元。根据弗若斯特沙利文数据，按2025年销售额计，纽氏达特在国内精密行星减速器市场排名"
     },
@@ -290,10 +316,10 @@
       "sparkline": [
         1,
         1,
-        1,
-        1,
         0,
-        1,
+        0,
+        0,
+        0,
         1
       ],
       "chips": [
@@ -301,37 +327,18 @@
         "激光焊接"
       ],
       "href": "https://m.ttplus.cn/SmLwikij8L4f/",
-      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2274%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22114%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3Em6%E7%B1%B3%E4%B9%90%E6%89%80%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%BF%80%E5%85%89%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%BF%80%E5%85%89%E7%84%8A%E6%8E%A5%3C%2Ftext%3E%3C%2Fsvg%3E",
-      "snippet": "m6米乐所有官网网址：异种金属激光焊接工艺的难点突破与参数验证- 体坛网_体坛+ 体坛加"
-    },
-    {
-      "kind": "动态",
-      "label": "14999元起,拓竹想把激光加工变成下一个3D打印",
-      "heat": "2",
-      "growth": "1",
-      "started": "2026-09-25",
-      "rowDay": "2026-09-25",
-      "rowAsOf": 1790312155000,
-      "rowPlatform": "rss:gnews-jiguang-qiege",
-      "sparkline": [
-        0,
-        2,
-        3,
-        5,
-        6,
-        7,
-        1
-      ],
-      "chips": [
-        "3D打印",
-        "激光"
-      ],
-      "href": "https://finance.sina.cn/stock/jdts/2026-09-24/detail-inisxhpc4937535.d.html?oid=800&vt=4&cid=76993&node_id=76993",
-      "imageUrl": "https://k.sinaimg.cn/n/spider20260924/489/w660h629/20260924/4ee5-eece5279fbe7f78f8e0e718a4f5a0310.jpg/w700d1q75cms.jpg?by=cms_fixed_width",
-      "snippet": "14999元起，拓竹想把激光加工变成下一个3D打印 finance.sina.com.cn"
+      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E5%8A%A8%E6%80%81%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23f2ebe4%22%2F%3E%3Crect%20x%3D%2278%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22118%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%23c45c26%22%3E%E5%8A%A8%E6%80%81%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%23c45c26%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%23c45c26%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%232a2218%22%3Em6%E7%B1%B3%E4%B9%90%E6%89%80%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%BF%80%E5%85%89%3C%2Ftext%3E%3Crect%20x%3D%2294%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23e8ddd0%22%2F%3E%3Ctext%20x%3D%22129%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%234a3a28%22%3E%E6%BF%80%E5%85%89%E7%84%8A%E6%8E%A5%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "snippet": "m6米乐所有官网网址：异种金属激光焊接工艺的难点突破与参数验证- 体坛网_体坛+ 体坛"
     }
   ],
   "stories": [
+    {
+      "title": "14999元起,拓竹想把激光加工变成下一个3D打印",
+      "href": "https://finance.sina.cn/stock/jdts/2026-09-24/detail-inisxhpc4937535.d.html?oid=800&vt=4&cid=76993&node_id=76993",
+      "rowDay": "2026-09-25",
+      "rowAsOf": 1790312155000,
+      "imageUrl": "https://k.sinaimg.cn/n/spider20260924/489/w660h629/20260924/4ee5-eece5279fbe7f78f8e0e718a4f5a0310.jpg/w700d1q75cms.jpg?by=cms_fixed_width"
+    },
     {
       "title": "“国产行星减速器第一股”要来了,智元、优必选都在用,年出货超70万套国产品牌第一",
       "href": "https://finance.ifeng.com/c/8wiFC1v0Ai0",
@@ -358,21 +365,21 @@
       "href": "https://www.21jingji.com/article/20260925/herald/c7db24d3d0e507017cf6cf2cc3f651ef.html",
       "rowDay": "2026-09-25",
       "rowAsOf": 1790309580000,
-      "imageUrl": "https://ocmsmedia.sfccn.com/vod-4310da/image/default/1A3B1FABA0AF431EAC715C33A6900465-6-2.jpg"
+      "imageUrl": "https://img.21jingji.com/uploadfile/cover/20260922/202609221555209723_small.jpg"
     },
     {
-      "title": "本周盘点(9.21-9.24):海天精工周涨1.89%,主力资金合计净流出2716…",
-      "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab6ca775c5b4ca885ae4070e38ff044&url=https%3a%2f%2fwww.msn.cn%2fzh-cn%2fmoney%2f%25E7%2583%25AD%25E9%2597%25A8%25E8%2582%25A1%2f%25E6%259C%25AC%25E5%2591%25A8%25E7%259B%2598%25E7%2582%25B9-9-21-9-24-%25E6%25B5%25B7%25E5%25A4%25A9%25E7%25B2%25BE%25E5%25B7%25A5%25E5%2591%25A8%25E6%25B6%25A81-89-%25E4%25B8%25BB%25E5%258A%259B%25E8%25B5%2584%25E9%2587%2591%25E5%2590%2588%25E8%25AE%25A1%25E5%2587%2580%25E6%25B5%2581%25E5%2587%25BA2716-26%25E4%25B8%2587%25E5%2585%2583%2far-AA2cWHUp&c=7687394856543850634&mkt=zh-hk",
+      "title": "PCB概念股今早走强 芯碁微装大涨超18%大族数控涨超11%",
+      "href": "https://finance.sina.cn/hkstock/sckxjfx/2026-08-04/detail-inimchzv2262593.d.html?oid=%E5%BE%90%E5%B7%9E%E5%A4%96%E5%9B%B4%E7%BE%8E%E5%A5%B3%E6%8B%9B%E8%81%98%EF%BC%88%E9%AA%8C%E8%AF%81%E4%BF%9D%E7%9C%9F%EF%BC%89%E5%B7%8D%E8%8A%AF%E5%8A%A0%20%EF%BC%881177%E2%91%A7%E2%91%A493%EF%BC%89%E8%A7%81%E9%9D%A2%E4%BB%98%E6%AC%BE%E7%9C%9F%E4%BA%BA%E9%AA%8C%E8%AF%81%E5%AF%B9%E6%AF%94%E6%97%A0%E5%A5%97%E8%B7%AFWFpkcaPwVtDqHI9oOGi3QR0209&vt=4",
       "rowDay": "2026-09-25",
-      "rowAsOf": 1790299287000,
-      "imageUrl": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22320%22%20height%3D%22160%22%20viewBox%3D%220%200%20320%20160%22%20role%3D%22img%22%20aria-label%3D%22%E7%83%AD%E7%82%B9%22%3E%3Crect%20width%3D%22320%22%20height%3D%22160%22%20fill%3D%22%23e6ebf0%22%2F%3E%3Crect%20x%3D%22117%22%20y%3D%220%22%20width%3D%2228%22%20height%3D%22160%22%20fill%3D%22%235c6b7a%22%20opacity%3D%220.18%22%2F%3E%3Crect%20x%3D%22157%22%20y%3D%220%22%20width%3D%226%22%20height%3D%22160%22%20fill%3D%22%235c6b7a%22%20opacity%3D%220.35%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2236%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2213%22%20font-weight%3D%22600%22%20letter-spacing%3D%220.12em%22%20fill%3D%22%235c6b7a%22%3E%E7%83%AD%E7%82%B9%3C%2Ftext%3E%3Cline%20x1%3D%2216%22%20y1%3D%2248%22%20x2%3D%22120%22%20y2%3D%2248%22%20stroke%3D%22%235c6b7a%22%20stroke-width%3D%221%22%20opacity%3D%220.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%22118%22%20height%3D%2230%22%20rx%3D%224%22%20fill%3D%22%235c6b7a%22%20opacity%3D%220.12%22%2F%3E%3Ctext%20x%3D%2224%22%20y%3D%2290%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2215%22%20font-weight%3D%22600%22%20fill%3D%22%231a222c%22%3E%E6%9C%AC%E5%91%A8%E7%9B%98%E7%82%B9(%E2%80%A6%3C%2Ftext%3E%3Crect%20x%3D%2216%22%20y%3D%22118%22%20width%3D%2270%22%20height%3D%2222%22%20rx%3D%223%22%20fill%3D%22%23d5dde5%22%2F%3E%3Ctext%20x%3D%2251%22%20y%3D%22133%22%20text-anchor%3D%22middle%22%20font-family%3D%22ui-sans-serif%2Csystem-ui%2Csans-serif%22%20font-size%3D%2211%22%20fill%3D%22%233a4a5a%22%3E%E6%B5%B7%E5%A4%A9%E7%B2%BE%E5%B7%A5%3C%2Ftext%3E%3C%2Fsvg%3E"
+      "rowAsOf": 1790309489000,
+      "imageUrl": "https://n.sinaimg.cn/finance/transform/700/w400h300/20260804/2a80-a3d8081107e62300b80b2991c0b35822.jpg"
     }
   ],
   "headline": {
     "title": "卡中国脖子,日本限制高端数控机床出口,为何中国不担心",
     "tag": "动态",
     "source": "bing-jichuang-chukou",
-    "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6ab9c1e4684d40d8a9d18a9c30fbddc1&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080769813_121142234&c=7218741549819158343&mkt=zh-hk"
+    "href": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6abd1b96206d494d8d9302ca148551d6&url=https%3a%2f%2fwww.sohu.com%2fa%2f1080769813_121142234&c=7218741549819158343&mkt=zh-hk"
   },
   "downstream": [
     {
