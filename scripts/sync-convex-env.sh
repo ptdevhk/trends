@@ -64,6 +64,21 @@ if [ -z "$CONVEX_URL" ] || [ "$CONVEX_URL" = "null" ]; then
     exit 1
 fi
 
+# Load CONVEX_PUBLIC_URL from env files when unset (metal/LAN: browser cannot use 127.0.0.1).
+# Preference: process env → packages/convex/.env.local → root .env.local → root .env
+if [ -z "${CONVEX_PUBLIC_URL:-}" ]; then
+    for _public_env in "$CONVEX_ENV_PACKAGE" "$CONVEX_ENV_ROOT" "$PROJECT_ROOT/.env"; do
+        if [ -n "${_public_env}" ] && [ -f "${_public_env}" ]; then
+            _public_val="$(grep "^CONVEX_PUBLIC_URL=" "${_public_env}" | cut -d= -f2- || true)"
+            if [ -n "${_public_val}" ] && [ "${_public_val}" != "null" ]; then
+                CONVEX_PUBLIC_URL="${_public_val}"
+                break
+            fi
+        fi
+    done
+    unset _public_env _public_val
+fi
+
 # For the browser frontend, prefer CONVEX_PUBLIC_URL (public-facing URL through
 # a reverse proxy like Caddy) over the internal CONVEX_URL.  This matters for
 # self-hosted mode where CONVEX_URL is 127.0.0.1:3210 — unreachable from the
