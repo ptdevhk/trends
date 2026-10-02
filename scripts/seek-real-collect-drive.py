@@ -30,12 +30,23 @@ from browser_cdp import (  # noqa: E402
     wait_for,
 )
 
-# TH quick-start profile jobUrl (source of truth: packages/shared/src/seek-my-th-e2e-fixtures.ts)
-JOB_URL = (
-    "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1"
-    "&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor"
-    "&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
+# Quick-start profile jobUrl (source of truth: packages/shared/src/seek-my-th-e2e-fixtures.ts)
+# market is substituted per run (MY / TH) so one driver serializes both profiles.
+_ROLE_TITLES = (
+    "Services+Engineer%2CService+Technician%2CService+Manager%2C"
+    "Service+Coordinator%2CService+Supervisor"
 )
+
+
+def build_job_url(market: str) -> str:
+    return (
+        f"https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market={market}&pageNumber=1"
+        f"&roleTitles={_ROLE_TITLES}"
+        "&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE"
+    )
+
+
+JOB_URL = build_job_url("TH")
 
 STATUS_ATTRS = [
     "data-tr-auto-sync",
@@ -70,16 +81,17 @@ def terminal_auto_sync(value: str | None) -> bool:
     return value in ("done", "failed", "cancelled", "skipped")
 
 
-async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool) -> int:
+async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool, market: str) -> int:
+    job_url = build_job_url(market)
     targets = fetch_cdp_json(port, "/json")
     pages = [t for t in targets if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
-    target = select_cdp_target(pages, JOB_URL)
+    target = select_cdp_target(pages, job_url)
 
     if target is None:
         if not launch_new:
             print("No SEEK tab found; pass --launch-new to open one.", file=sys.stderr)
             return 2
-        target = create_target(port, JOB_URL)
+        target = create_target(port, job_url)
         if target is None:
             print("Failed to create CDP target.", file=sys.stderr)
             return 2
@@ -94,8 +106,8 @@ async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool) -> i
 
         # Force full reload with the auto-sync launch URL so the content script
         # captures tr_auto_sync=true at document_start (sessionStorage handshake).
-        launch_url = JOB_URL + ("&" if "?" in JOB_URL else "?") + "tr_auto_sync=true"
-        print("Launching:", launch_url[:160], "...")
+        launch_url = job_url + ("&" if "?" in job_url else "?") + "tr_auto_sync=true"
+        print(f"[{market}] Launching:", launch_url[:160], "...")
         await client.call("Page.navigate", {"url": launch_url})
         await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
 
@@ -184,9 +196,10 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=600.0, help="Max wall-clock seconds to watch")
     parser.add_argument("--poll", type=float, default=5.0, help="Status poll interval seconds")
     parser.add_argument("--launch-new", action="store_true", help="Open a new tab if no SEEK tab exists")
+    parser.add_argument("--market", default="TH", choices=["MY", "TH"], help="SEEK market (default TH)")
     args = parser.parse_args()
     try:
-        return asyncio.run(run(args.port, args.timeout, args.poll, args.launch_new))
+        return asyncio.run(run(args.port, args.timeout, args.poll, args.launch_new, args.market))
     except CDPError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

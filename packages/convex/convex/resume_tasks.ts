@@ -99,6 +99,14 @@ export const dispatch = mutation({
         autoAnalyze: v.optional(v.boolean()),
         analysisTopN: v.optional(v.number()),
         idempotencyKey: v.optional(v.string()),
+        // Collect source routing (see schema.collection_tasks.config). A Seek
+        // task carries a Seek host/market/jobUrl so the worker builds a Seek
+        // talentsearch URL instead of the job5156 search URL.
+        source: v.optional(v.string()),
+        sourceKey: v.optional(v.string()),
+        sourceHost: v.optional(v.string()),
+        market: v.optional(v.string()),
+        jobUrl: v.optional(v.string()),
     },
     handler: async (ctx, args): Promise<
         | { queued: true; taskId: Id<"collection_tasks"> }
@@ -155,6 +163,11 @@ export const dispatch = mutation({
                 maxSalary: args.maxSalary,
                 autoAnalyze: args.autoAnalyze,
                 analysisTopN: args.analysisTopN,
+                source: args.source,
+                sourceKey: args.sourceKey,
+                sourceHost: args.sourceHost,
+                market: args.market,
+                jobUrl: args.jobUrl,
             },
             status: "pending",
             idempotencyKey,

@@ -35,6 +35,8 @@ def _build_profile_dispatch_idempotency_key(
     max_salary: Optional[int],
     auto_analyze: bool,
     analysis_top_n: int,
+    source_key: str = "",
+    market: str = "",
 ) -> str:
     parts = [
         "profile",
@@ -44,6 +46,10 @@ def _build_profile_dispatch_idempotency_key(
         str(limit),
         str(max_pages),
     ]
+    if source_key:
+        parts.append(f"src-{_idempotency_part(source_key)}")
+    if market:
+        parts.append(f"mkt-{_idempotency_part(market)}")
     if min_age is not None or max_age is not None:
         parts.append(f"age-{min_age or 'none'}-{max_age or 'none'}")
     if max_salary is not None:
@@ -259,6 +265,29 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
         logger.error("[Task] Profile %s missing keywords; skipping dispatch", profile_id)
         return False
 
+    # Collect source routing: a Seek profile must dispatch a Seek task so the
+    # worker builds a Seek talentsearch URL, not the job5156 search URL. The
+    # profile's first enabled source carries the host/market/jobUrl.
+    source_args: Dict[str, Any] = {}
+    sources = profile.get("sources")
+    if isinstance(sources, list):
+        for source in sources:
+            if not isinstance(source, dict) or source.get("enabled") is False:
+                continue
+            source_type = str(source.get("type") or "").strip()
+            job_url = str(source.get("jobUrl") or "").strip()
+            if source_type:
+                source_args["sourceKey"] = source_type
+            if job_url:
+                source_args["jobUrl"] = job_url
+                host_match = re.search(r"https?://([^/]+)", job_url)
+                if host_match:
+                    source_args["sourceHost"] = host_match.group(1)
+                market_match = re.search(r"[?&]market=([A-Za-z]{2})", job_url)
+                if market_match:
+                    source_args["market"] = market_match.group(1).upper()
+            break
+
     if not location:
         logger.error("[Task] Profile %s missing location; skipping dispatch", profile_id)
         return False
@@ -279,6 +308,8 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
         max_salary=max_salary,
         auto_analyze=auto_analyze,
         analysis_top_n=analysis_top_n,
+        source_key=str(source_args.get("sourceKey") or ""),
+        market=str(source_args.get("market") or ""),
     )
 
     logger.info(
@@ -339,6 +370,7 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
             mutation_args["maxAge"] = max_age
         if max_salary is not None:
             mutation_args["maxSalary"] = max_salary
+        mutation_args.update(source_args)
 
         envelope = _convex_mutation(
             convex_url,

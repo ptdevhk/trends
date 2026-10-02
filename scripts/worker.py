@@ -29,6 +29,7 @@ from browser_cdp import (
 )
 from refresh_sample import (
     build_search_url,
+    build_seek_search_url,
     execute_scrape_job,
 )
 
@@ -56,6 +57,12 @@ API_URL = f"{CONVEX_URL.rstrip('/')}/api"
 _LAST_HEARTBEAT_WARNING_AT = 0.0
 _LAST_CONNECTION_OPERATION_WARNING_AT = 0.0
 JOB5156_HOST = "hr.job5156.com"
+# Canonical Seek source token (matches packages/shared analysis-key.ts
+# SEEK_HOST_SUFFIX = ".employer.seek.com" and the extension's
+# `source: window.location.hostname`). Submit must not stamp Seek rows as
+# job5156 — that corrupts sourceKey/identity/diagnostics downstream.
+SEEK_SOURCE = "hk.employer.seek.com"
+SEEK_HOST_SUFFIX = ".employer.seek.com"
 CONVEX_RECOVERY_HINT = "Try `make dev-convex-status`, `make dev-convex-refresh`, or `make dev`."
 CONNECTION_WARNING_INTERVAL_SECONDS = 30.0
 
@@ -170,6 +177,17 @@ def _normalize_profile_url(value: str) -> Optional[str]:
     return fallback or None
 
 def derive_external_id(resume: dict[str, Any]) -> str:
+    # Prefer the collect-supplied externalId GUID. For Seek talentsearch the
+    # extension emits `hk.employer.seek.com:profile:<guid>` (see
+    # seek-extractor.ts); deriving from profileUrl instead would yield the
+    # name-search URL (…/talentsearch/profiles/search?searchquery=…), which is
+    # not a stable identity. Check externalId FIRST for Seek rows.
+    external_id = _read_str(resume.get("externalId")) or _read_str(resume.get("external_id"))
+    if external_id:
+        normalized_external_id = _normalize_token(external_id)
+        if normalized_external_id:
+            return normalized_external_id
+
     profile_url = (
         _read_str(resume.get("profileUrl"))
         or _read_str(resume.get("profile_url"))
@@ -193,13 +211,106 @@ def derive_external_id(resume: dict[str, Any]) -> str:
         if normalized_per_user_id:
             return normalized_per_user_id
 
-    external_id = _read_str(resume.get("externalId")) or _read_str(resume.get("external_id"))
-    if external_id:
-        normalized_external_id = _normalize_token(external_id)
-        if normalized_external_id:
-            return normalized_external_id
-
     return hashlib.md5(json.dumps(resume, sort_keys=True).encode()).hexdigest()
+
+
+def _is_seek_resume(resume: dict[str, Any]) -> bool:
+    """True when a collected resume came from Seek (not job5156).
+
+    Detection is on the collect payload itself — the extension sets
+    `source`/`sourceKey`/`sourceHost`, and Seek externalIds/profileUrls carry
+    the `.employer.seek.com` host — so the worker does not depend on the task
+    config carrying a market/source flag.
+    """
+    for key in ("source", "sourceKey", "sourceHost"):
+        value = _read_str(resume.get(key))
+        if value:
+            lowered = value.lower()
+            if lowered == "seek" or lowered.endswith(SEEK_HOST_SUFFIX):
+                return True
+    for key in ("externalId", "external_id", "profileUrl", "profile_url", "profileURL", "url"):
+        value = _read_str(resume.get(key))
+        if value and SEEK_HOST_SUFFIX in value.lower():
+            return True
+    return False
+
+
+def resolve_submit_source(resume: dict[str, Any]) -> str:
+    """Canonical `source` for submitResumes — never stamp Seek rows as job5156."""
+    if _is_seek_resume(resume):
+        return SEEK_SOURCE
+    explicit = _read_str(resume.get("source"))
+    return explicit or JOB5156_HOST
+
+
+# Task-config keys that carry the collect source/host for a dispatched task.
+# A Seek task must build a Seek talentsearch URL, not the job5156 search URL.
+_SEEK_CONFIG_KEYS = ("source", "sourceKey", "sourceHost", "host", "market", "jobUrl")
+
+
+def _is_seek_task_config(config: dict[str, Any]) -> bool:
+    """True when a collection task config targets Seek (not job5156).
+
+    Detection is on the task config: an explicit `source`/`sourceKey` of
+    `seek`, a `.employer.seek.com` host, a `market` code, or a Seek `jobUrl`.
+    """
+    for key in _SEEK_CONFIG_KEYS:
+        value = _read_str(config.get(key))
+        if not value:
+            continue
+        lowered = value.lower()
+        if lowered == "seek" or lowered.endswith(SEEK_HOST_SUFFIX) or SEEK_HOST_SUFFIX in lowered:
+            return True
+    # A bare market code (MY/TH/HK/...) only means Seek when paired with a Seek
+    # marker elsewhere; a jobUrl/host/source check above already covers the
+    # explicit cases. Treat a standalone `market` as Seek only if it looks like
+    # a 2-letter market code AND no job5156 marker is present.
+    market = _read_str(config.get("market"))
+    if market and re.fullmatch(r"[A-Za-z]{2}", market):
+        return True
+    return False
+
+
+def _resolve_seek_market(config: dict[str, Any]) -> str:
+    """Resolve the Seek market code for a task (from `market`, else jobUrl, else MY)."""
+    market = _read_str(config.get("market"))
+    if market and re.fullmatch(r"[A-Za-z]{2}", market):
+        return market.upper()
+    job_url = _read_str(config.get("jobUrl"))
+    if job_url:
+        match = re.search(r"[?&]market=([A-Za-z]{2})", job_url)
+        if match:
+            return match.group(1).upper()
+    return "MY"
+
+
+def build_seek_task_search_url(config: dict[str, Any]) -> str:
+    """Build the Seek talentsearch URL for a dispatched Seek collect task.
+
+    Prefers the profile's explicit `jobUrl` (source of truth), otherwise builds
+    a talentsearch URL from keyword + market.
+    """
+    job_url = _read_str(config.get("jobUrl"))
+    if job_url and SEEK_HOST_SUFFIX in job_url.lower():
+        return job_url
+    keyword = _read_str(config.get("keyword")) or ""
+    market = _resolve_seek_market(config)
+    return build_seek_search_url(keyword, market=market)
+
+
+def resolve_task_search_url(config: dict[str, Any]) -> str:
+    """Build the collect search URL for a task, dispatching on source.
+
+    Seek tasks must NOT fall through to the job5156 `build_search_url`; that is
+    the process_task hardcode this guards against.
+    """
+    if _is_seek_task_config(config):
+        return build_seek_task_search_url(config)
+    keyword = str(config.get("keyword", "")).strip()
+    location = str(config.get("location", "")).strip()
+    min_age = _to_optional_positive_int(config.get("minAge"))
+    max_age = _to_optional_positive_int(config.get("maxAge"))
+    return build_search_url(keyword, location, min_age=min_age, max_age=max_age)
 
 async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
     url = f"{API_URL}/mutation"
@@ -281,8 +392,13 @@ async def process_task(task, client: httpx.AsyncClient):
     if min_age is not None and max_age is not None and min_age > max_age:
         raise RuntimeError(f"Invalid age range (minAge={min_age} maxAge={max_age})")
 
-    search_url = build_search_url(keyword, location, min_age=min_age, max_age=max_age)
-    logger.info("Search filters: keyword=%s location=%s minAge=%s maxAge=%s", keyword, location, min_age, max_age)
+    search_url = resolve_task_search_url(config)
+    logger.info(
+        "Search filters: keyword=%s location=%s minAge=%s maxAge=%s source=%s url=%s",
+        keyword, location, min_age, max_age,
+        "seek" if _is_seek_task_config(config) else "job5156",
+        search_url,
+    )
     
     async def on_progress(count, page):
         status_msg = f"Scraping page {page}..." if page > 0 else "Initializing..."
@@ -398,7 +514,7 @@ async def process_task(task, client: httpx.AsyncClient):
                         "externalId": external_id,
                         "content": r,
                         "hash": hashlib.md5(json.dumps(r, sort_keys=True).encode()).hexdigest(),
-                        "source": "hr.job5156.com",
+                        "source": resolve_submit_source(r),
                         "tags": [] # Could add search profile ID here
                     })
 
