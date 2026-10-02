@@ -794,6 +794,7 @@ env_only_upgrade_steps() {
     setup_convex
     restart_units
     wait_for_api_health
+    run_daily_report_setup_production
 }
 
 env_only_upgrade_flow() {
@@ -1887,6 +1888,8 @@ install_flow() {
     start_services
     wait_for_api_health
     seed_bootstrap_admins
+    run_research_ingest_one_shot_production
+    run_daily_report_setup_production
 
     echo ""
     log_info "Installation completed."
@@ -1895,6 +1898,7 @@ install_flow() {
     echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
     echo "  curl -s http://127.0.0.1:3000/health"
     echo "  curl -s https://trends.pt-mes.com/"
+    echo "  bash $INSTALL_DIR/deploy/daily-report-setup.sh --role production"
     echo ""
     echo "Caddy setup recommendation:"
     echo "  sudo nano /etc/caddy/Caddyfile"
@@ -1904,28 +1908,76 @@ install_flow() {
 
 ensure_research_ingest_env_production() {
     # Backfill research-ingest defaults (RESEARCH_INGEST_ENABLED / WORKER_URL /
-    # RESEARCH_HOTLIST_API_URL) in the live env BEFORE worker units restart, so
-    # the scheduler registers the research_ingest job on install/upgrade without
-    # a desk click. Missing helper on an old tree → warn, never abort.
+    # RESEARCH_HOTLIST_API_URL / DAILY_REPORT_BUILD_ENABLED) in the live env
+    # BEFORE worker units restart. Source helpers from INSTALL_DIR (post-align).
     local helper="$INSTALL_DIR/deploy/lib-research-ingest-defaults.sh"
+    local daily_helper="$INSTALL_DIR/deploy/lib-daily-report-setup.sh"
     if [[ ! -f "$helper" ]]; then
         log_warn "lib-research-ingest-defaults.sh missing at $helper — skip research-ingest env defaults"
         return 0
     fi
     # shellcheck disable=SC1090,SC1091
     source "$helper"
+    if [[ -f "$daily_helper" ]]; then
+        # shellcheck disable=SC1090,SC1091
+        source "$daily_helper"
+    fi
     [[ -f "$CONFIG_DIR/env" ]] || return 0
     local ensure_rc=0
-    set +e
-    ensure_research_ingest_env_lines "$CONFIG_DIR/env" production
-    ensure_rc=$?
-    set -e
+    ensure_research_ingest_env_lines "$CONFIG_DIR/env" production || ensure_rc=$?
     case "$ensure_rc" in
       0) log_info "research-ingest env defaults already present in $CONFIG_DIR/env" ;;
-      1) log_info "Added research-ingest defaults (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL) to $CONFIG_DIR/env" ;;
+      1) log_info "Added research-ingest/daily-report defaults to $CONFIG_DIR/env" ;;
       *) log_warn "research-ingest env ensure skipped ($CONFIG_DIR/env rc=$ensure_rc)" ;;
     esac
     chmod 600 "$CONFIG_DIR/env" 2>/dev/null || true
+}
+
+run_daily_report_setup_production() {
+    # Persistent worker is armed by ensure_*; this runs health + first-time/empty
+    # one-shot (backfill 7) or ensure-today. Setup/health fail closed; content
+    # soft-fails unless GATE_STRICT / PROD_DAILY_STRICT=1.
+    local daily_helper="$INSTALL_DIR/deploy/lib-daily-report-setup.sh"
+    if [[ ! -f "$daily_helper" ]]; then
+        log_warn "lib-daily-report-setup.sh missing — skip daily-report setup"
+        return 0
+    fi
+    # shellcheck disable=SC1090,SC1091
+    source "$daily_helper"
+    local helper="$INSTALL_DIR/deploy/lib-research-ingest-defaults.sh"
+    if [[ -f "$helper" ]]; then
+        # shellcheck disable=SC1090,SC1091
+        source "$helper"
+    fi
+    local bff_lib="$INSTALL_DIR/deploy/lib-bff-defaults.sh"
+    local bff_url="http://127.0.0.1:3000"
+    if [[ -f "$bff_lib" ]]; then
+        # shellcheck disable=SC1090,SC1091
+        source "$bff_lib"
+        if type default_bff_api_url_for_role >/dev/null 2>&1; then
+            bff_url="$(default_bff_api_url_for_role production)"
+        fi
+    fi
+    local worker_port="${RESEARCH_WORKER_PORT_PRODUCTION:-8000}"
+    local worker_url="http://127.0.0.1:${worker_port}"
+    log_info "Running production daily-report setup (health + one-shot)…"
+    local rc=0
+    GATE_STRICT="${PROD_DAILY_STRICT:-${GATE_STRICT:-0}}" \
+      run_daily_report_setup production "$bff_url" "$worker_url" "$CONFIG_DIR/env" || rc=$?
+    case "$rc" in
+      0) log_info "Daily-report setup OK" ;;
+      1)
+        log_error "Daily-report setup/health failed (worker or /daily/index.json)."
+        log_error "  bash $INSTALL_DIR/deploy/daily-report-setup.sh --role production"
+        return 1
+        ;;
+      2)
+        log_error "Daily-report content one-shot failed under GATE_STRICT."
+        return 1
+        ;;
+      *) log_warn "Daily-report setup exit=$rc" ;;
+    esac
+    return 0
 }
 
 run_research_ingest_one_shot_production() {
@@ -2048,6 +2100,16 @@ run_search_freshness_gate_production() {
 
 full_upgrade_steps() {
     clone_or_update_repo
+    # Hotfix→main gap: the running install.sh may predate daily-report setup.
+    # Re-exec once from the aligned tree so new helpers actually run.
+    if [[ "${TRENDS_INSTALL_REEXEC:-}" != "1" ]] && ! declare -F run_daily_report_setup_production >/dev/null 2>&1; then
+        local aligned_script="$INSTALL_DIR/scripts/install.sh"
+        if [[ -f "$aligned_script" ]]; then
+            log_info "Re-executing upgrade from aligned tree to pick up daily-report setup helpers…"
+            export TRENDS_INSTALL_REEXEC=1
+            exec bash "$aligned_script" "${INSTALL_MAIN_ARGS[@]}"
+        fi
+    fi
     sync_dependencies
     if [[ -n "$ENV_FILE" ]]; then
         validate_auth_env
@@ -2068,6 +2130,7 @@ full_upgrade_steps() {
     wait_for_api_health
     seed_bootstrap_admins
     run_research_ingest_one_shot_production
+    run_daily_report_setup_production
     run_search_freshness_gate_production
 }
 
@@ -2207,6 +2270,7 @@ print_usage() {
 }
 
 main() {
+    INSTALL_MAIN_ARGS=("$@")
     case "${1:-install}" in
         --help|-h)
             print_usage

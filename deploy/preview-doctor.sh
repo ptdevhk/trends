@@ -201,6 +201,25 @@ elif [ "$RESEARCH_FLAG" = "0" ]; then
 else
     ok "RESEARCH_INGEST_ENABLED=${RESEARCH_FLAG}"
 fi
+DAILY_FLAG="$(grep -E '^DAILY_REPORT_BUILD_ENABLED=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)"
+if [ -z "$DAILY_FLAG" ]; then
+    if [ -n "$RESEARCH_FLAG" ] && [ "$RESEARCH_FLAG" != "0" ]; then
+        ok "DAILY_REPORT_BUILD_ENABLED unset — follows RESEARCH_INGEST_ENABLED=$RESEARCH_FLAG"
+    else
+        warn "DAILY_REPORT_BUILD_ENABLED missing and RESEARCH_INGEST not on — daily_report_build may be unregistered"
+    fi
+elif [ "$DAILY_FLAG" = "0" ]; then
+    warn "DAILY_REPORT_BUILD_ENABLED=0 (kill-switch) — daily_report_build disabled"
+else
+    ok "DAILY_REPORT_BUILD_ENABLED=${DAILY_FLAG}"
+fi
+DAILY_INDEX="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:$API_PORT/daily/index.json" 2>/dev/null || echo 000)"
+if [ "$DAILY_INDEX" = "200" ]; then
+    ok "GET /daily/index.json → 200"
+else
+    warn "GET /daily/index.json → $DAILY_INDEX (sales daily UI will 404 until setup runs)"
+    info "  bash $PREVIEW_DIR/deploy/daily-report-setup.sh --role preview --env-file $ENV_FILE"
+fi
 RESEARCH_WORKER_URL="$(grep -E '^WORKER_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)"
 if [ -z "$RESEARCH_WORKER_URL" ]; then
     warn "WORKER_URL missing in $ENV_FILE — BFF research service may target default :8000"

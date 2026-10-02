@@ -11,6 +11,8 @@ echo "=== research-ingest-defaults structural ==="
 
 # shellcheck source=lib-research-ingest-defaults.sh
 source "$ROOT/deploy/lib-research-ingest-defaults.sh"
+# shellcheck source=lib-daily-report-setup.sh
+source "$ROOT/deploy/lib-daily-report-setup.sh"
 
 [[ -f "$ROOT/deploy/lib-research-ingest-defaults.sh" ]] && pass "lib-research-ingest-defaults.sh present" || fail "helper missing"
 grep -q 'ensure_research_ingest_env_lines()' "$ROOT/deploy/lib-research-ingest-defaults.sh" && pass "helper defines ensure_research_ingest_env_lines" || fail "helper missing function"
@@ -148,10 +150,14 @@ trap 'rm -f "$TMP_ENV" "$HARNESS_ENV"' EXIT
 # with the same flags + trap shape as preview-upgrade.sh. Prints TRAP_FIRED when
 # the ERR trap fires; prints "SURVIVED rc=<n>" when the capture held.
 run_err_harness() {
-  HARNESS_ENV="$HARNESS_ENV" HARNESS_STYLE="$1" HARNESS_HELPER="$ROOT/deploy/lib-research-ingest-defaults.sh" \
+  HARNESS_ENV="$HARNESS_ENV" HARNESS_STYLE="$1" \
+    HARNESS_HELPER="$ROOT/deploy/lib-research-ingest-defaults.sh" \
+    HARNESS_DAILY="$ROOT/deploy/lib-daily-report-setup.sh" \
     bash -c '
       set -Eeuo pipefail
       trap "echo TRAP_FIRED; exit 1" ERR
+      # shellcheck disable=SC1090
+      source "$HARNESS_DAILY"
       # shellcheck disable=SC1090
       source "$HARNESS_HELPER"
       if [[ "$HARNESS_STYLE" == "sandwich" ]]; then
@@ -195,6 +201,9 @@ grep -q '^WORKER_URL=http://127.0.0.1:8003$' "$HARNESS_ENV" \
 grep -q '^RESEARCH_HOTLIST_API_URL=https://newsnow.busiyi.world/api/s$' "$HARNESS_ENV" \
   && pass "changed-run still wrote RESEARCH_HOTLIST_API_URL" \
   || fail "changed-run did not write RESEARCH_HOTLIST_API_URL"
+grep -q '^DAILY_REPORT_BUILD_ENABLED=1$' "$HARNESS_ENV" \
+  && pass "changed-run wrote DAILY_REPORT_BUILD_ENABLED=1" \
+  || fail "changed-run did not write DAILY_REPORT_BUILD_ENABLED"
 
 # 3) Idempotent re-run through the same harness → rc=0 (unchanged), no trap.
 ORRC_OUT2="$(run_err_harness orrc)"

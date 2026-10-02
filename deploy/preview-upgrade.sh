@@ -255,9 +255,13 @@ systemctl restart "$PREVIEW_API_SERVICE"
 wait_for_http "$PREVIEW_API_URL/health" 120
 
 log_step "Research-ingest env defaults (before worker start)"
-# Backfill RESEARCH_INGEST_ENABLED / WORKER_URL / RESEARCH_HOTLIST_API_URL on the
-# live .env.preview so the preview scheduler registers research_ingest. Missing
-# helper on an old tree → warn, never abort.
+# Backfill RESEARCH_INGEST_ENABLED / WORKER_URL / RESEARCH_HOTLIST_API_URL /
+# DAILY_REPORT_BUILD_ENABLED on the live .env.preview so the preview scheduler
+# registers research_ingest + daily_report_build. Missing helper → warn, never abort.
+if [[ -f "$PREVIEW_DIR/deploy/lib-daily-report-setup.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$PREVIEW_DIR/deploy/lib-daily-report-setup.sh"
+fi
 if [[ -f "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh" ]]; then
     # shellcheck disable=SC1091
     source "$PREVIEW_DIR/deploy/lib-research-ingest-defaults.sh"
@@ -270,7 +274,7 @@ if type ensure_research_ingest_env_lines >/dev/null 2>&1; then
     ensure_research_ingest_env_lines "$PREVIEW_ENV_FILE" preview || RESEARCH_ENSURE_RC=$?
     case "$RESEARCH_ENSURE_RC" in
       0) log_info "research-ingest env defaults already present in $PREVIEW_ENV_FILE" ;;
-      1) log_info "Added research-ingest defaults (RESEARCH_INGEST_ENABLED/WORKER_URL/RESEARCH_HOTLIST_API_URL) to $PREVIEW_ENV_FILE" ;;
+      1) log_info "Added research-ingest/daily-report defaults to $PREVIEW_ENV_FILE" ;;
       *) log_warn "research-ingest env ensure skipped ($PREVIEW_ENV_FILE rc=$RESEARCH_ENSURE_RC)" ;;
     esac
     chmod 600 "$PREVIEW_ENV_FILE" 2>/dev/null || true
@@ -333,6 +337,28 @@ case "$RESEARCH_INGEST_FLAG" in
     log_info "Research ingest one-shot skipped (RESEARCH_INGEST_ENABLED=${RESEARCH_INGEST_FLAG:-unset}) — kill-switch"
     ;;
 esac
+
+log_step "Daily-report setup (health + first-time/empty one-shot)"
+if type run_daily_report_setup >/dev/null 2>&1; then
+    DAILY_RC=0
+    GATE_STRICT="${PREVIEW_DAILY_STRICT:-${GATE_STRICT:-0}}" \
+      run_daily_report_setup preview "$PREVIEW_API_URL" "http://127.0.0.1:8003" "$PREVIEW_ENV_FILE" || DAILY_RC=$?
+    case "$DAILY_RC" in
+      0) log_info "Daily-report setup OK" ;;
+      1)
+        log_error "Daily-report setup/health failed"
+        log_error "  bash $PREVIEW_DIR/deploy/daily-report-setup.sh --role preview --env-file $PREVIEW_ENV_FILE"
+        exit 1
+        ;;
+      2)
+        log_error "Daily-report content one-shot failed under GATE_STRICT"
+        exit 1
+        ;;
+      *) log_warn "Daily-report setup exit=$DAILY_RC" ;;
+    esac
+else
+    log_warn "run_daily_report_setup missing — skip daily-report setup"
+fi
 
 log_step "Seed canonical preview auth (admin@dev + hr-demo@hr)"
 if [[ -x "$SCRIPT_DIR/preview-seed-auth.sh" ]]; then

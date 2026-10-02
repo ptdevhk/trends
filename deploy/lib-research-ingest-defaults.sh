@@ -67,6 +67,9 @@ _research_worker_default_url() {
 # explicit RESEARCH_INGEST_ENABLED value; repairs only a wrong loopback-port
 # WORKER_URL (leaves non-loopback URLs alone); only appends the NewsNow URL
 # when RESEARCH_HOTLIST_API_URL is absent.
+#
+# When deploy/lib-daily-report-setup.sh is already sourced, also arms
+# DAILY_REPORT_BUILD_ENABLED=1 when absent (persistent sales-daily worker).
 # Return codes (for operator logging): 0=unchanged, 1=changed, 2=missing file.
 #
 # CALLER CONTRACT: capture rc with `|| rc=$?` (or `if ! helper; then`), never
@@ -131,6 +134,15 @@ ensure_research_ingest_env_lines() {
       echo "RESEARCH_HOTLIST_API_URL=${RESEARCH_INGEST_DEFAULT_NEWSNOW_URL}"
     } >> "$env_file"
     changed=1
+  fi
+
+  # 4) DAILY_REPORT_BUILD_ENABLED — when daily-report setup lib is loaded.
+  if type ensure_daily_report_build_env_lines >/dev/null 2>&1; then
+    local daily_rc=0
+    ensure_daily_report_build_env_lines "$env_file" || daily_rc=$?
+    if [[ "$daily_rc" -eq 1 ]]; then
+      changed=1
+    fi
   fi
 
   chmod 600 "$env_file" 2>/dev/null || true

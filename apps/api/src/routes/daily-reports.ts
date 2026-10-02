@@ -138,9 +138,16 @@ app.post("/daily/rebuild", async (c) => {
     return c.json({ success: false as const, error: "date (YYYY-MM-DD) required" }, 400);
   }
 
-  const workerUrl = (process.env.WORKER_BASE_URL || "").replace(/\/$/, "");
+  // Same WORKER_URL the rest of the BFF uses (research ingest, industry maintenance).
+  // Fall back to localhost:8000 so local/dev regenerate works without an explicit env.
+  const workerUrl = (
+    process.env.WORKER_URL ||
+    process.env.TRENDS_WORKER_URL ||
+    process.env.WORKER_BASE_URL ||
+    "http://localhost:8000"
+  ).replace(/\/$/, "");
   if (!workerUrl) {
-    return c.json({ success: false as const, error: "WORKER_BASE_URL not configured" }, 500);
+    return c.json({ success: false as const, error: "WORKER_URL not configured" }, 500);
   }
 
   try {

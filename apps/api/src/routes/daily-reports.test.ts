@@ -220,4 +220,44 @@ describe("daily reports routes", () => {
 
     expect(response.status).toBe(200);
   });
+
+  it("POST /daily/rebuild proxies to WORKER_URL daily-report endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ mode: "daily-report-build", message: "ok" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    process.env.WORKER_URL = "http://worker.test:8000";
+
+    const app = createTestApp();
+    const response = await app.request("/daily/rebuild", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: "2026-10-02" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://worker.test:8000/worker/research/daily-report",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ date: "2026-10-02", force: true }),
+      }),
+    );
+    const body = await parseJsonBody<{ success: boolean }>(response);
+    expect(body.success).toBe(true);
+
+    vi.unstubAllGlobals();
+    delete process.env.WORKER_URL;
+  });
+
+  it("POST /daily/rebuild returns 400 without a date", async () => {
+    const app = createTestApp();
+    const response = await app.request("/daily/rebuild", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(response.status).toBe(400);
+  });
 });
