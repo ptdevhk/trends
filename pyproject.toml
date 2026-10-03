@@ -14,7 +14,7 @@ dependencies = [
     "websockets>=16.1.1,<17.0",
     "feedparser>=6.0.14,<7.0.0",
     "boto3>=1.43.103,<2.0.0",
-    "litellm>=1.83.14,<2.0.0",
+    "litellm>=1.103.1,<2.0.0",
     "tenacity==9.1.4",
     "opencc-python-reimplemented>=0.1.7,<1.0.0",
     "fastapi>=0.136.1,<1.0.0",
