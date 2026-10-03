@@ -434,7 +434,8 @@ export async function fetchThumbsForUrls(
 
 /**
  * In-place: convert any remote http(s) `imageUrl` on opportunities/stories
- * into SVG-wrapped real-photo data-URIs (`<svg><image href="data:image/…"/>`).
+ * (and 定稿C FEATURED video/gallery cards) into SVG-wrapped real-photo
+ * data-URIs (`<svg><image href="data:image/…"/>`).
  * Leaves branded SVG plates and already-embedded data URIs untouched.
  * Used by the BFF HTML path so the downloadable file shows REAL covers while
  * Convex packJson stays small (remote URLs only).
@@ -443,11 +444,20 @@ export async function embedPackRemoteCovers(
   pack: {
     opportunities?: Array<{ imageUrl?: string; href?: string }>;
     stories?: Array<{ imageUrl?: string; href?: string }>;
+    featured?: {
+      video?: Array<{ imageUrl?: string; href?: string }>;
+      gallery?: Array<{ imageUrl?: string; href?: string }>;
+    };
   },
   concurrency = 4,
 ): Promise<{ converted: number; failed: number }> {
   type Item = { imageUrl?: string; href?: string };
-  const items: Item[] = [...(pack.opportunities ?? []), ...(pack.stories ?? [])];
+  const items: Item[] = [
+    ...(pack.opportunities ?? []),
+    ...(pack.stories ?? []),
+    ...(pack.featured?.video ?? []),
+    ...(pack.featured?.gallery ?? []),
+  ];
   const targets = items.filter((it) => typeof it.imageUrl === 'string' && /^https?:\/\//i.test(it.imageUrl));
   let converted = 0;
   let failed = 0;

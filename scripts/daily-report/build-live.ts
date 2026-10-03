@@ -665,9 +665,14 @@ async function main(): Promise<void> {
   // Convex docs are 1 MiB; the BFF wraps remotes into real-photo SVG data-URIs
   // when serving /daily/{date}.html (iframe + 下载完整 HTML).
   async function patchSurfacedThumbs(pack: DailyReportPack): Promise<void> {
+    const featuredItems = [
+      ...(pack.featured?.video ?? []),
+      ...(pack.featured?.gallery ?? []),
+    ]
     const surfacedHrefs = [
       ...(pack.opportunities.map((o) => o.href).filter((h): h is string => !!h)),
       ...(pack.stories.map((s) => s.href).filter((h): h is string => !!h)),
+      ...featuredItems.map((f) => f.href).filter((h): h is string => !!h),
     ]
     const unique = [...new Set(surfacedHrefs)].filter((u) => isGoogleNewsArticleUrl(u) === false)
     if (unique.length === 0) return
@@ -677,6 +682,9 @@ async function main(): Promise<void> {
     }
     for (const st of pack.stories) {
       if (st.href && thumbByUrl.has(st.href)) st.imageUrl = thumbByUrl.get(st.href)
+    }
+    for (const f of featuredItems) {
+      if (f.href && thumbByUrl.has(f.href)) f.imageUrl = thumbByUrl.get(f.href)
     }
     console.log(`thumbs[remote]: resolved=${thumbByUrl.size}/${unique.length}`)
   }

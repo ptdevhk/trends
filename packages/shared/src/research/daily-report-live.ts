@@ -17,6 +17,7 @@
  */
 
 import type {
+  DailyFeatured,
   DailyHeadline,
   DailyOpportunity,
   DailyReportPack,
@@ -127,6 +128,73 @@ export function isHotlistPlatform(platform: string): boolean {
 export function isWatchPlatform(platform: string): boolean {
   const p = platform.trim().toLowerCase();
   return p.startsWith('rss:watch-');
+}
+
+/** Caps for 定稿C FEATURED (VIDEO / GALLERY dual col). */
+export const MAX_FEATURED_VIDEO = 4;
+export const MAX_FEATURED_GALLERY = 4;
+
+/** Hotlist / ingest platform ids that are video, not articles. */
+const FEATURED_VIDEO_PLATFORMS: ReadonlySet<string> = new Set([
+  'douyin',
+  'bilibili-hot-search',
+  'bilibili',
+  'wechat-channels',
+]);
+
+/**
+ * Classify a matched row for FEATURED: VIDEO (抖音 / B站 / 视频号 sph) vs
+ * GALLERY (everything else, including 公众号 mp articles). Honest URL/host
+ * match only — no invented duration or photo counts.
+ */
+export function featuredKindFor(row: LiveNewsRow): 'video' | 'gallery' {
+  const platform = row.platform.replace(/^rss:/, '').trim().toLowerCase();
+  if (FEATURED_VIDEO_PLATFORMS.has(platform)) return 'video';
+  const url = (row.url ?? '').trim();
+  if (!url) return 'gallery';
+  let host = '';
+  let path = '';
+  try {
+    const u = new URL(url);
+    host = u.hostname.toLowerCase();
+    path = u.pathname;
+  } catch {
+    return 'gallery';
+  }
+  if (host === 'weixin.qq.com' && (path === '/sph' || path.startsWith('/sph/'))) return 'video';
+  if (host === 'channels.weixin.qq.com') return 'video';
+  if (host === 'mp.weixin.qq.com' || host.endsWith('.mp.weixin.qq.com')) return 'gallery';
+  if (isVideoHost(host)) return 'video';
+  return 'gallery';
+}
+
+function isVideoHost(host: string): boolean {
+  return (
+    host === 'douyin.com' ||
+    host.endsWith('.douyin.com') ||
+    host === 'iesdouyin.com' ||
+    host.endsWith('.iesdouyin.com') ||
+    host === 'bilibili.com' ||
+    host.endsWith('.bilibili.com') ||
+    host === 'b23.tv'
+  );
+}
+
+/** Prefer machinery / 工业网 / 模具 / 压铸 feeds when filling GALLERY. */
+function gallerySourceRank(platform: string): number {
+  const id = platform.replace(/^rss:/, '').toLowerCase();
+  if (
+    id.includes('gongyemuji') ||
+    id.includes('bing-cnc') ||
+    id.includes('muju') ||
+    id.includes('diecast') ||
+    id.includes('chongya') ||
+    id.includes('yazhuji')
+  ) {
+    return 2;
+  }
+  if (id.startsWith('gnews-') || id.startsWith('bing-')) return 1;
+  return 0;
 }
 
 /**
@@ -553,6 +621,61 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
       }));
   }
 
+  // ── 定稿C FEATURED: VIDEO / GALLERY dual col, a new set beyond TODAY.
+  //    Leftover window rows whose titles are not already in headline /
+  //    downstream / 商机/新闻. Prefer prior-window days (beyond the report
+  //    calendar day); leftover same-day ranked items that did not fit TODAY
+  //    still qualify. Omit the block when both buckets are empty.
+  const usedTitleKeys = new Set<string>();
+  const markUsed = (title: string | undefined) => {
+    const key = normalizePulseKeyword(shortLabel(title ?? ''));
+    if (key) usedTitleKeys.add(key);
+  };
+  markUsed(headline.title);
+  for (const o of opportunities) markUsed(o.label);
+  for (const s of stories) markUsed(s.title);
+  for (const d of downstream) markUsed(d.title);
+
+  const leftover = windowUnique.filter((x) => {
+    const key = normalizePulseKeyword(shortLabel(x.row.title));
+    return key.length > 0 && !usedTitleKeys.has(key);
+  });
+  leftover.sort((a, b) => {
+    const beyondA = rowDay(a.row) === reportDate ? 0 : 1;
+    const beyondB = rowDay(b.row) === reportDate ? 0 : 1;
+    if (beyondA !== beyondB) return beyondB - beyondA;
+    const kindA = featuredKindFor(a.row) === 'video' ? 1 : 0;
+    const kindB = featuredKindFor(b.row) === 'video' ? 1 : 0;
+    if (kindA !== kindB) return kindB - kindA;
+    const galA = gallerySourceRank(a.row.platform);
+    const galB = gallerySourceRank(b.row.platform);
+    if (galA !== galB) return galB - galA;
+    return rowAsOf(b.row) - rowAsOf(a.row);
+  });
+
+  const featuredVideo: DailyFeatured[] = [];
+  const featuredGallery: DailyFeatured[] = [];
+  for (const x of leftover) {
+    const kind = featuredKindFor(x.row);
+    if (kind === 'video') {
+      if (featuredVideo.length >= MAX_FEATURED_VIDEO) continue;
+      featuredVideo.push(toFeaturedCard(x, kind, opts.platformLabels));
+    } else {
+      if (featuredGallery.length >= MAX_FEATURED_GALLERY) continue;
+      featuredGallery.push(toFeaturedCard(x, kind, opts.platformLabels));
+    }
+    if (
+      featuredVideo.length >= MAX_FEATURED_VIDEO &&
+      featuredGallery.length >= MAX_FEATURED_GALLERY
+    ) {
+      break;
+    }
+  }
+  const featured =
+    featuredVideo.length > 0 || featuredGallery.length > 0
+      ? { video: featuredVideo, gallery: featuredGallery }
+      : undefined;
+
   const pack: DailyReportPack = {
     date: opts.date,
     localeDefault: 'zh-Hans',
@@ -571,6 +694,7 @@ export function buildLivePack(rows: LiveNewsRow[], opts: LivePackOptions): LiveP
     stories,
     headline,
     downstream,
+    ...(featured ? { featured } : {}),
   };
 
   return {
@@ -669,6 +793,27 @@ export function customerWatchlistSpreadTerms(entry: {
     }
   }
   return out;
+}
+
+function toFeaturedCard(
+  x: { row: LiveNewsRow; hits: string[] },
+  kind: 'video' | 'gallery',
+  labels?: Record<string, string>,
+): DailyFeatured {
+  const href = x.row.url && x.row.url.trim() ? x.row.url.trim() : '';
+  const source = platformLabelFor(x.row.platform, labels);
+  return {
+    title: shortLabel(x.row.title, 36),
+    type: kind,
+    // Honest source label — never invent a duration or photo count.
+    length: source,
+    ...(href ? { href } : {}),
+    imageUrl: buildDailyReportThumbDataUri({
+      title: x.row.title,
+      kind: kind === 'video' ? '动态' : 'story',
+      chips: x.hits.slice(0, 2),
+    }),
+  };
 }
 
 /** Human source label for a platform id (机械行业/工业网-facing). */

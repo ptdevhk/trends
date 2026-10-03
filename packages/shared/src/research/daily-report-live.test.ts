@@ -8,8 +8,11 @@ import {
   shortLabel,
   isHotlistPlatform,
   HYBRID_MIN_ITEMS,
+  MAX_FEATURED_VIDEO,
+  MAX_FEATURED_GALLERY,
   isSurfaceableNewsRow,
   platformLabelFor,
+  featuredKindFor,
   customerBranchKeywords,
   customerWatchlistSpreadTerms,
   isWatchPlatform,
@@ -569,6 +572,144 @@ describe('buildLivePack', () => {
     const max = Math.max(...spark)
     const min = Math.min(...spark)
     expect(max - min).toBeLessThanOrEqual(1)
+  })
+
+  it('omits FEATURED when every matched row already sits in TODAY', () => {
+    expect(result.pack.featured).toBeUndefined()
+  })
+
+  it('projects leftover window rows into FEATURED VIDEO/GALLERY beyond TODAY', () => {
+    const prior = Date.UTC(2026, 8, 20, 8, 0, 0)
+    const res = buildLivePack(
+      [
+        row({ title: '今日数控机床成交', platform: 'weibo', url: 'https://a/today' }),
+        row({
+          title: '数控加工中心开箱',
+          platform: 'douyin',
+          url: 'https://www.douyin.com/video/7123456789012345678',
+          capturedAt: prior,
+        }),
+        row({
+          title: '五轴数控联动演示',
+          platform: 'bilibili-hot-search',
+          url: 'https://www.bilibili.com/video/BV1xx411c7mD',
+          capturedAt: prior,
+        }),
+        row({
+          title: '视频号机床车间',
+          platform: 'wechat-channels',
+          url: 'https://weixin.qq.com/sph/AbCdEf123',
+          capturedAt: prior,
+        }),
+        row({
+          title: '公众号压铸厂扩产纪实',
+          platform: 'rss:gnews-diecast',
+          url: 'https://mp.weixin.qq.com/s/abc123',
+          capturedAt: prior,
+        }),
+        row({
+          title: '工业母机数控采购招标',
+          platform: 'rss:bing-gongyemuji',
+          url: 'https://www.gongye.com/machine/1',
+          capturedAt: prior,
+        }),
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: [...KEYWORDS, '压铸'] },
+    )
+    expect(isDailyReportPack(res.pack)).toBe(true)
+    expect(res.pack.featured).toBeDefined()
+    const videoTitles = (res.pack.featured?.video ?? []).map((f) => f.title)
+    const galleryTitles = (res.pack.featured?.gallery ?? []).map((f) => f.title)
+    expect(videoTitles.some((t) => t.includes('开箱'))).toBe(true)
+    expect(videoTitles.some((t) => t.includes('五轴'))).toBe(true)
+    expect(videoTitles.some((t) => t.includes('车间'))).toBe(true)
+    // 压铸 hits the TODAY downstream window-fallback (boss downstream-first),
+    // so that row is used in TODAY and must stay out of FEATURED.
+    expect((res.pack.downstream ?? []).some((d) => d.title.includes('压铸厂'))).toBe(true)
+    expect(galleryTitles.some((t) => t.includes('压铸厂'))).toBe(false)
+    expect(galleryTitles.some((t) => t.includes('工业母机数控'))).toBe(true)
+    // TODAY titles stay out of FEATURED
+    const todayLabels = [
+      ...res.pack.opportunities.map((o) => shortLabel(o.label)),
+      ...res.pack.stories.map((s) => shortLabel(s.title)),
+    ]
+    for (const t of [...videoTitles, ...galleryTitles]) {
+      expect(todayLabels).not.toContain(t)
+    }
+    // length is the honest source label, never a fake duration / 张 count
+    for (const f of [...(res.pack.featured?.video ?? []), ...(res.pack.featured?.gallery ?? [])]) {
+      expect(f.length).toBeTruthy()
+      expect(f.length).not.toMatch(/分钟|张/)
+      expect(f.type === 'video' || f.type === 'gallery').toBe(true)
+    }
+  })
+
+  it('caps FEATURED buckets and prefers 工业网 gallery leftovers', () => {
+    const prior = Date.UTC(2026, 8, 20, 8, 0, 0)
+    const videos = Array.from({ length: 6 }, (_, i) =>
+      row({
+        title: `数控开箱 ${i}`,
+        platform: 'douyin',
+        url: `https://www.douyin.com/video/${7123456789000000000 + i}`,
+        capturedAt: prior,
+      }),
+    )
+    const industrial = row({
+      title: '工业母机数控专项招标',
+      platform: 'rss:bing-gongyemuji',
+      url: 'https://www.gongye.com/tender/1',
+      capturedAt: prior,
+    })
+    const generic = row({
+      title: '微博数控杂讯',
+      platform: 'weibo',
+      url: 'https://weibo.com/ttarticle/p/show?id=1',
+      capturedAt: prior,
+    })
+    const res = buildLivePack(
+      [
+        row({ title: '今日数控机床成交', platform: 'weibo', url: 'https://a/today' }),
+        ...videos,
+        industrial,
+        generic,
+      ],
+      { date: '2026-09-22', generatedAt: 'x', keywords: KEYWORDS },
+    )
+    expect(res.pack.featured?.video.length).toBe(MAX_FEATURED_VIDEO)
+    expect(res.pack.featured?.gallery.length).toBeGreaterThan(0)
+    expect(res.pack.featured?.gallery.length).toBeLessThanOrEqual(MAX_FEATURED_GALLERY)
+    expect(res.pack.featured?.gallery[0]?.title).toContain('工业母机数控')
+  })
+})
+
+describe('featuredKindFor', () => {
+  it('classifies douyin / bilibili / sph as video', () => {
+    expect(
+      featuredKindFor(
+        row({ title: 'x', platform: 'douyin', url: 'https://www.douyin.com/video/1' }),
+      ),
+    ).toBe('video')
+    expect(
+      featuredKindFor(
+        row({ title: 'x', platform: 'zhihu', url: 'https://www.bilibili.com/video/BV1' }),
+      ),
+    ).toBe('video')
+    expect(
+      featuredKindFor(row({ title: 'x', platform: 'weibo', url: 'https://weixin.qq.com/sph/abc' })),
+    ).toBe('video')
+    expect(
+      featuredKindFor(
+        row({ title: 'x', platform: 'weibo', url: 'https://channels.weixin.qq.com/finder-preview/pages/sph?id=1' }),
+      ),
+    ).toBe('video')
+  })
+  it('classifies 公众号 mp as gallery and rejects attacker video hosts', () => {
+    expect(
+      featuredKindFor(row({ title: 'x', platform: 'rss:gnews-diecast', url: 'https://mp.weixin.qq.com/s/x' })),
+    ).toBe('gallery')
+    expect(
+      featuredKindFor(row({ title: 'x', platform: 'weibo', url: 'https://douyin.attacker.com/video/1' })),
+    ).toBe('gallery')
   })
 })
 

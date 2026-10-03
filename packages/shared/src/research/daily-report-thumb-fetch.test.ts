@@ -293,16 +293,22 @@ describe('embedPackRemoteCovers', () => {
     const pack = {
       opportunities: [{ imageUrl: 'https://cdn.example.com/cover.jpg', href: 'https://example.com/a' }],
       stories: [{ imageUrl: 'data:image/svg+xml;charset=utf-8,%3Csvg%3E', href: 'https://example.com/s' }],
+      featured: {
+        video: [{ imageUrl: 'https://cdn.example.com/video-cover.jpg', href: 'https://www.douyin.com/video/1' }],
+        gallery: [{ imageUrl: 'data:image/svg+xml;charset=utf-8,%3Csvg%3E', href: 'https://mp.weixin.qq.com/s/x' }],
+      },
     }
     const { converted, failed } = await embedPackRemoteCovers(pack)
-    expect(converted).toBe(1)
+    expect(converted).toBe(2)
     expect(failed).toBe(0)
     const uri = pack.opportunities[0].imageUrl!
     expect(uri).toMatch(/^data:image\/svg\+xml;charset=utf-8,/)
     const decoded = decodeURIComponent(uri.slice('data:image/svg+xml;charset=utf-8,'.length))
     expect(decoded).toContain('<image href="data:image/png;base64,')
-    // Already-embedded plate left alone
+    expect(pack.featured.video[0].imageUrl).toMatch(/^data:image\/svg\+xml;charset=utf-8,/)
+    // Already-embedded plates left alone
     expect(pack.stories[0].imageUrl).toMatch(/^data:image\/svg\+xml/)
+    expect(pack.featured.gallery[0].imageUrl).toMatch(/^data:image\/svg\+xml/)
   })
 })
 
