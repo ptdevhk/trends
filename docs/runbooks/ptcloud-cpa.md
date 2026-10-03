@@ -14,11 +14,11 @@ cliproxyapi-installer upgrade
 That is ubuntu, no `sudo`, no `HOME=/root`. The installer stops the **user**
 unit, swaps the binary, preserves `config.yaml`, and restarts the user unit.
 
-## Layout (2026-08-28)
+## Layout (2026-09-30)
 
 | Item | Value |
 |------|--------|
-| Version | `7.2.144` |
+| Version | `8.0.4` |
 | SSH user | `ubuntu` |
 | Install tree | `/home/ubuntu/cliproxyapi` |
 | Auth dir | `/home/ubuntu/.cli-proxy-api` |
