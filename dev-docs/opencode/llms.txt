@@ -2,7 +2,7 @@
 
 Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
 
-Installs project dependencies and starts the dev server from the repository root using Bun 1.3+.
+Requires Bun 1.3 or higher. Installs project dependencies and starts the local development server from the repository root.
 
 ```bash
 bun install
@@ -22,21 +22,6 @@ npm run dev
 
 # or start the server and open the app in a new browser tab
 npm run dev -- --open
-```
-
---------------------------------
-
-### Set up virtual framebuffer for headless Linux environments
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
-
-Installs xvfb, starts a virtual display, and sets the DISPLAY environment variable to enable clipboard support in headless environments.
-
-```bash
-apt install -y xvfb
-# and run:
-Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-export DISPLAY=:99.0
 ```
 
 --------------------------------
@@ -65,6 +50,18 @@ scoop install opencode
 
 --------------------------------
 
+### Install @opencode-ai/sdk via npm
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
+
+Installer OpenCode SDK-pakken fra npm.
+
+```bash
+npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
 ### Run custom setup and return extra data with init
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
@@ -80,18 +77,6 @@ await using tmp = await tmpdir<string>({
 })
 // Access extra data via tmp.extra
 console.log(tmp.extra) // "extra data"
-```
-
---------------------------------
-
-### Install @opencode-ai/sdk via npm
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
-
-Installer OpenCode SDK-pakken fra npm.
-
-```bash
-npm install @opencode-ai/sdk
 ```
 
 --------------------------------
@@ -132,6 +117,18 @@ mise use -g github:anomalyco/opencode
 
 --------------------------------
 
+### opencode github install
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/cli.mdx
+
+Sets up a GitHub Actions workflow and installs the GitHub agent into the current repository.
+
+```bash
+opencode github install
+```
+
+--------------------------------
+
 ### Install a plugin using the opencode plug alias
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
@@ -140,18 +137,6 @@ Install a plugin module using the shorthand alias plug command.
 
 ```bash
 opencode plug <module>
-```
-
---------------------------------
-
-### Install dependencies with Bun
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
-
-Installs project dependencies using the Bun CLI.
-
-```bash
-bun install
 ```
 
 --------------------------------
@@ -183,40 +168,15 @@ scoop bucket add extras; scoop install extras/opencode-desktop
 
 --------------------------------
 
-### Install OpenCode on Arch Linux
+### opencode import examples
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/bs/cli.mdx
 
-Install the stable version from the official repositories using pacman or the latest build from AUR using paru.
-
-```bash
-sudo pacman -S opencode           # Arch Linux (Stable)
-paru -S opencode-bin              # Arch Linux (Latest from AUR)
-```
-
---------------------------------
-
-### Install @opencode-ai/http-recorder and dependencies with Bun
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/http-recorder/README.md
-
-Installs the required Effect 4 beta and HttpRecorder development packages. Supports Node.js 22+ and Bun.
-
-```sh
-bun add effect@4.0.0-beta.74
-bun add -d @opencode-ai/http-recorder@beta @effect/vitest vitest
-```
-
---------------------------------
-
-### Install opencode GitHub Action via CLI
-
-Source: https://github.com/anomalyco/opencode/blob/dev/github/README.md
-
-Run this command from your local terminal within your repository to install the GitHub app, configure the workflow file, and set up secrets.
+Primjeri uvoza sesije iz lokalne JSON datoteke ili preko dijeljenog URL-a.
 
 ```bash
-opencode github install
+opencode import session.json
+opencode import https://opncd.ai/s/abc123
 ```
 
 --------------------------------
@@ -241,6 +201,33 @@ Example message displayed when Mintlify attempts to start on an unavailable port
 
 ```md
 Port 3000 is already in use. Trying 3001 instead.
+```
+
+--------------------------------
+
+### Start new session with /new
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
+
+เริ่มเซสชันใหม่ มีนามแฝงคือ /clear หรือใช้คีย์ลัด ctrl+x n
+
+```bash
+/new
+```
+
+--------------------------------
+
+### Configure Virtual Framebuffer for Headless Environments
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/bs/troubleshooting.mdx
+
+Installs and initializes Xvfb and sets the DISPLAY environment variable to support clipboard functionality in headless Linux setups.
+
+```bash
+apt install -y xvfb
+# and run:
+Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+export DISPLAY=:99.0
 ```
 
 --------------------------------
@@ -293,22 +280,14 @@ POST
 
 --------------------------------
 
-### Add a custom LSP server with command and extensions
+### Install Agents SDK
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/lsp.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/fixture/skills/agents-sdk/SKILL.md
 
-Define a new LSP entry by specifying the startup `command` array and the file `extensions` the server should handle.
+Installs the `agents` package using npm if it is not already installed.
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "lsp": {
-    "custom-lsp": {
-      "command": ["custom-lsp-server", "--stdio"],
-      "extensions": [".custom"]
-    }
-  }
-}
+```bash
+npm install agents
 ```
 
 --------------------------------
@@ -333,14 +312,26 @@ $ /connect
 
 --------------------------------
 
-### Install Agents SDK
+### Install OpenCode CLI via curl or package managers
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/fixture/skills/agents-sdk/SKILL.md
+Source: https://github.com/anomalyco/opencode/blob/dev/README.md
 
-Installs the `agents` package using npm if it is not already installed.
+Installs the OpenCode CLI using the install script or via various package managers across Linux, macOS, and Windows. Versions older than 0.1.x should be removed prior to installation.
 
 ```bash
-npm install agents
+# YOLO
+curl -fsSL https://opencode.ai/install | bash
+
+# Package managers
+npm i -g opencode-ai@latest        # or bun/pnpm/yarn
+scoop install opencode             # Windows
+choco install opencode             # Windows
+brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
+brew install opencode              # macOS and Linux (official brew formula, updated less)
+sudo pacman -S opencode            # Arch Linux (Stable)
+paru -S opencode-bin               # Arch Linux (Latest from AUR)
+mise use -g opencode               # Any OS
+nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
 ```
 
 --------------------------------
@@ -396,26 +387,14 @@ PluginBoot background fiber
 
 --------------------------------
 
-### Install OpenCode CLI via curl or package managers
+### Install dependencies with Bun
 
-Source: https://github.com/anomalyco/opencode/blob/dev/README.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
 
-Installs the OpenCode CLI using the install script or via various package managers across Linux, macOS, and Windows. Versions older than 0.1.x should be removed prior to installation.
+Installs project dependencies using the Bun CLI.
 
 ```bash
-# YOLO
-curl -fsSL https://opencode.ai/install | bash
-
-# Package managers
-npm i -g opencode-ai@latest        # or bun/pnpm/yarn
-scoop install opencode             # Windows
-choco install opencode             # Windows
-brew install anomalyco/tap/opencode # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-bin               # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev branch
+bun install
 ```
 
 --------------------------------
@@ -432,88 +411,14 @@ Analyzes the codebase and creates an AGENTS.md file in the root directory to gui
 
 --------------------------------
 
-### GET /session/:id/diff
+### Initialize AGENTS.md with /init
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/server.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
 
-Get the file diffs associated with a session.
-
-```APIDOC
-## GET /session/:id/diff
-
-### Description
-Get the diff for this session.
-
-### Method
-GET
-
-### Endpoint
-/session/:id/diff
-
-### Parameters
-#### Path Parameters
-- **id** (string) - Required - Session identifier
-
-#### Query Parameters
-- **messageID** (string) - Optional - Message identifier to diff against
-
-### Response
-#### Success Response (200)
-- **Returns** (FileDiff[]) - Array of FileDiff objects
-```
-
---------------------------------
-
-### Kør /connect for OpenCode Go
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/providers.mdx
-
-Start forbindelsesprocessen i OpenCode TUI og vælg OpenCode Go.
-
-```txt
-/connect
-```
-
---------------------------------
-
-### Navigate to Project Directory
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Change into the target project folder before launching OpenCode.
+สร้างหรืออัปเดตไฟล์ AGENTS.md หรือใช้คีย์ลัด ctrl+x i
 
 ```bash
-cd /path/to/project
-```
-
---------------------------------
-
-### Create a new SolidStart project
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/console/app/README.md
-
-Initialize a new SolidStart project in the current working directory or a specified folder using npm init.
-
-```bash
-# create a new project in the current directory
-npm init solid@latest
-
-# create a new project in my-app
-npm init solid@latest my-app
-```
-
---------------------------------
-
-### Create opencode client with createOpencode
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
-
-Initializes and starts both an opencode server instance and a client.
-
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
-
-const { client } = await createOpencode()
+/init
 ```
 
 --------------------------------
@@ -530,26 +435,26 @@ opencode plugin <module>
 
 --------------------------------
 
-### Configure and start createOpencode instance with custom options
+### Kør /connect for OpenCode Go
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/providers.mdx
 
-Tilpasser vertsnavn, port og konfigurasjonsmodell ved opprettelse av en OpenCode-forekomst, og lukker serveren etter bruk.
+Start forbindelsesprocessen i OpenCode TUI og vælg OpenCode Go.
 
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
+```txt
+/connect
+```
 
-const opencode = await createOpencode({
-  hostname: "127.0.0.1",
-  port: 4096,
-  config: {
-    model: "anthropic/claude-3-5-sonnet-20241022",
-  },
-})
+--------------------------------
 
-console.log(`Server running at ${opencode.server.url}`)
+### List available themes with /themes
 
-opencode.server.close()
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
+
+แสดงรายการธีมที่มีอยู่ หรือใช้คีย์ลัด ctrl+x t
+
+```bash
+/themes
 ```
 
 --------------------------------
@@ -584,6 +489,18 @@ GET
 
 --------------------------------
 
+### Navigate to Project Directory
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Change into the target project folder before launching OpenCode.
+
+```bash
+cd /path/to/project
+```
+
+--------------------------------
+
 ### Install dependencies
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/app/README.md
@@ -596,14 +513,31 @@ $ npm install # or pnpm install or yarn install
 
 --------------------------------
 
-### Create an agent with opencode agent create
+### Créer un thème spécifique au projet
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/agents.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/fr/themes.mdx
 
-Runs an interactive prompt to configure agent scope, description, system prompt, and permissions, saving the result to a markdown file.
+Crée le dossier .opencode/themes à la racine du projet et initialise un fichier de thème local.
 
 ```bash
-opencode agent create
+mkdir -p .opencode/themes
+vim .opencode/themes/my-theme.json
+```
+
+--------------------------------
+
+### Create a new SolidStart project
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/console/app/README.md
+
+Initialize a new SolidStart project in the current working directory or a specified folder using npm init.
+
+```bash
+# create a new project in the current directory
+npm init solid@latest
+
+# create a new project in my-app
+npm init solid@latest my-app
 ```
 
 --------------------------------
@@ -620,6 +554,20 @@ choco install opencode
 
 --------------------------------
 
+### Create opencode client with createOpencode
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Initializes and starts both an opencode server instance and a client.
+
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
+
+const { client } = await createOpencode()
+```
+
+--------------------------------
+
 ### Verify Agents SDK Installation
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/fixture/skills/agents-sdk/SKILL.md
@@ -632,14 +580,62 @@ npm ls agents  # Should show agents package
 
 --------------------------------
 
-### Install wl-clipboard for Wayland on Linux
+### Configure and start createOpencode instance with custom options
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/troubleshooting.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
 
-Installs wl-clipboard on Linux systems running Wayland to restore copy/paste functionality in OpenCode.
+Tilpasser vertsnavn, port og konfigurasjonsmodell ved opprettelse av en OpenCode-forekomst, og lukker serveren etter bruk.
+
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
+
+const opencode = await createOpencode({
+  hostname: "127.0.0.1",
+  port: 4096,
+  config: {
+    model: "anthropic/claude-3-5-sonnet-20241022",
+  },
+})
+
+console.log(`Server running at ${opencode.server.url}`)
+
+opencode.server.close()
+```
+
+--------------------------------
+
+### Install @opencode-ai/sdk via npm
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Install the opencode JS/TS SDK package from npm to use the client in your project.
 
 ```bash
-apt install -y wl-clipboard
+npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
+### Create an agent with opencode agent create
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/agents.mdx
+
+Runs an interactive prompt to configure agent scope, description, system prompt, and permissions, saving the result to a markdown file.
+
+```bash
+opencode agent create
+```
+
+--------------------------------
+
+### Start headless API server on default port
+
+Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+
+Starts the headless API server on the default port 4096.
+
+```bash
+bun dev serve
 ```
 
 --------------------------------
@@ -652,6 +648,32 @@ Install OpenCode on macOS and Linux using the official OpenCode tap for the most
 
 ```bash
 brew install anomalyco/tap/opencode
+```
+
+--------------------------------
+
+### Initialize opencode client with createOpencode
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/sdk.mdx
+
+Initializes both the opencode server and client instance using default settings.
+
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
+
+const { client } = await createOpencode()
+```
+
+--------------------------------
+
+### Install Clipboard Utility for Wayland on Linux
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/bs/troubleshooting.mdx
+
+Installs wl-clipboard on Wayland Linux systems to enable copy and paste operations.
+
+```bash
+apt install -y wl-clipboard
 ```
 
 --------------------------------
@@ -670,67 +692,12 @@ XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
 
 --------------------------------
 
-### Prompt to invoke mcp_everything tool
+### List and switch sessions with /sessions
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/mcp-servers.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
 
-Example prompt syntax for instructing OpenCode to use the mcp_everything tool.
-
-```txt
-use the mcp_everything tool to add the number 3 and 4
-```
-
---------------------------------
-
-### Start OpenCode with --auto
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/permissions.mdx
-
-Starts OpenCode in auto mode to automatically approve permission requests that are not explicitly denied.
+รายการและสลับระหว่างเซสชัน มีนามแฝงคือ /resume, /continue หรือใช้คีย์ลัด ctrl+x l
 
 ```bash
-opencode --auto
-```
-
---------------------------------
-
-### Start OpenCode TUI in current directory
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/es/tui.mdx
-
-Starts the interactive terminal user interface (TUI) for the current working directory.
-
-```bash
-opencode
-```
-
---------------------------------
-
-### Create a skill definition in SKILL.md
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/skills.mdx
-
-Example SKILL.md file placed in .opencode/skills/git-release/SKILL.md containing YAML frontmatter and instructional markdown.
-
-```markdown
----
-name: git-release
-description: Create consistent releases and changelogs
-license: MIT
-compatibility: opencode
-metadata:
-  audience: maintainers
-  workflow: github
----
-
-## What I do
-
-- Draft release notes from merged PRs
-- Propose a version bump
-- Provide a copy-pasteable `gh release create` command
-
-## When to use me
-
-Use this when you are preparing a tagged release.
-Ask clarifying questions if the target versioning scheme is unclear.
+/sessions
 ```

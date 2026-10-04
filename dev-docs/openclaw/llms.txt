@@ -1,3 +1,16 @@
+### Launch channel-specific guided setup
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/cli/channels.md
+
+Open interactive guided setup directly for a specific channel using positional syntax or the --channel flag when no credential flags are passed.
+
+```bash
+openclaw channels add telegram
+openclaw channels add --channel telegram
+```
+
+--------------------------------
+
 ### Run channels add guided setup
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/signal.md
@@ -10,14 +23,17 @@ openclaw channels add
 
 --------------------------------
 
-### Open setup log in Notepad
+### Start development Gateway with hot reload
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/platforms/windows.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/start/setup.md
 
-Opens the latest easy setup log from the local application data directory to inspect installation failures.
+Installs dependencies, performs initial setup if needed, and starts the Gateway in a tmux watch session with hot reload.
 
-```powershell
-notepad "$env:LOCALAPPDATA\OpenClawTray\Logs\Setup\easy-setup-latest.txt"
+```bash
+pnpm install
+# First run only (or after resetting local OpenClaw config/workspace)
+pnpm openclaw setup
+pnpm gateway:watch
 ```
 
 --------------------------------
@@ -30,6 +46,19 @@ Starts OpenClaw onboarding and installs the daemon. Select xAI/Grok OAuth at the
 
 ```bash
 openclaw onboard --install-daemon
+```
+
+--------------------------------
+
+### Install Google Meet plugin and run node host
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/transports.md
+
+Install the Google Meet plugin in the VM and start the node host pointing to the Gateway host.
+
+```bash
+openclaw plugins install @openclaw/google-meet
+openclaw node run --host <gateway-host> --port 18789 --display-name parallels-macos
 ```
 
 --------------------------------
@@ -63,68 +92,23 @@ openclaw gateway --force
 
 --------------------------------
 
-### Configure Turn Start Parameters
+### Install @openclaw/gateway-client and @openclaw/gateway-protocol
 
-Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
+Source: https://github.com/openclaw/openclaw/blob/main/packages/gateway-client/README.md
 
-Specifies turn execution settings, contextual metadata including sender info and delivery policies, working directory, and input prompts for starting a turn.
+Install the verified stable release using exact version pinning. Node.js version 22.19.0 or higher is required.
 
-```json
-{
-  "additionalContext": {
-    "openclaw_active_computer": {
-      "kind": "application",
-      "value": "Current active computer (latest physical input, not message origin): active_node=unknown"
-    },
-    "openclaw_current_sender": {
-      "kind": "untrusted",
-      "value": "{\"sender\":{\"id\":\"1000001\",\"name\":\"Pash\",\"username\":\"pash\"}}"
-    },
-    "openclaw_source_delivery": {
-      "kind": "application",
-      "value": "Current source-delivery policy for this turn (replaces earlier source-delivery guidance):\nVisible source replies are not automatically delivered for this run. Use `message(action=send)` for user-visible source-channel output. For progress, set `final=false`. Set `final=true`, or omit it, for the completed reply to the current source conversation; OpenClaw stops after confirming delivery. Do not repeat visible message content in your final answer.\n\n`send`: `message`; current source is default target. Set `target` only elsewhere."
-    },
-    "openclaw_temporal_context": {
-      "kind": "application",
-      "value": "## Temporal Context\nCurrent date: 2026-01-01\nTime zone: UTC\nFor the exact current time, use `session_status`."
-    }
-  },
-  "approvalPolicy": "never",
-  "approvalsReviewer": "user",
-  "collaborationMode": {
-    "mode": "default",
-    "settings": {
-      "developer_instructions": null,
-      "model": "gpt-5.5",
-      "reasoning_effort": "medium"
-    }
-  },
-  "cwd": "/tmp/openclaw-happy-path/workspace",
-  "effort": "medium",
-  "input": [
-    {
-      "text": "<see Reconstructed Model-Bound Prompt Layers>",
-      "text_elements": [],
-      "type": "text"
-    }
-  ],
-  "model": "gpt-5.5",
-  "personality": "none",
-  "sandboxPolicy": {
-    "type": "dangerFullAccess"
-  },
-  "threadId": "thread-telegram-direct-codex-message-tool",
-  "turnTrigger": "user"
-}
+```bash
+npm install --save-exact @openclaw/gateway-client@2026.8.1 @openclaw/gateway-protocol@2026.8.1
 ```
 
 --------------------------------
 
-### Thread Start Params
+### Specify Thread Start Parameters
 
 Source: https://github.com/openclaw/openclaw/blob/main/test/fixtures/agents/prompt-snapshots/codex-runtime-happy-path/telegram-direct-codex-message-tool.md
 
-Specifies runtime parameters for starting a thread, including feature toggles, workspace path, dynamic tools, and model configuration.
+Defines thread initialization options including feature flags, working directory, sandbox level, dynamic tools, and model configuration.
 
 ```json
 {
@@ -176,6 +160,57 @@ Specifies runtime parameters for starting a thread, including feature toggles, w
 
 --------------------------------
 
+### Connect to Gateway and request status in Node.js
+
+Source: https://github.com/openclaw/openclaw/blob/main/packages/gateway-client/README.md
+
+Initializes a GatewayClient instance, starts the connection, waits for the onHelloOk handshake callback, and sends a status request before stopping the client.
+
+```typescript
+import { GatewayClient } from "@openclaw/gateway-client";
+import { PROTOCOL_VERSION } from "@openclaw/gateway-protocol/version";
+
+const connected = Promise.withResolvers<void>();
+const client = new GatewayClient({
+  url: "ws://127.0.0.1:18789",
+  token: process.env.OPENCLAW_GATEWAY_TOKEN,
+  minProtocol: PROTOCOL_VERSION, // v4
+  maxProtocol: PROTOCOL_VERSION, // v4
+  onHelloOk: () => connected.resolve(),
+  onConnectError: (error) => connected.reject(error),
+  onEvent: (event) => {
+    console.log(event.event, event.payload);
+  },
+});
+
+client.start();
+await connected.promise;
+
+const status = await client.request("status", {});
+console.log(status);
+
+client.stop();
+```
+
+--------------------------------
+
+### Configure Native Conversation Surface Globals
+
+Source: https://github.com/openclaw/openclaw/blob/main/docs/web/control-ui/settings.md
+
+Inject these globals into the trusted main frame at document start to opt into a native conversation view. Omits the Back/title heading and agent selector while retaining the chat pane header, transcript, and composer.
+
+```javascript
+window.__OPENCLAW_NATIVE_EMBED__ = {
+  platform: "macos",
+  formFactor: "desktop",
+  surface: "conversation",
+};
+window.__OPENCLAW_NATIVE_CONVERSATION__ = { contract: 1 };
+```
+
+--------------------------------
+
 ### Install OpenClaw using the official install script
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/help/faq-first-run/quick-start.md
@@ -188,29 +223,27 @@ curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash
 
 --------------------------------
 
-### Run guided onboarding setup
+### Run interactive configuration and onboarding wizards
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration.md
 
-Launches the interactive onboarding wizard to configure the ClickClack server URL, bot token, and workspace. Failed validation checks do not discard saved configuration.
+Launch interactive setup wizards to configure settings or complete the full onboarding workflow.
 
 ```bash
-openclaw onboard
+openclaw onboard       # full onboarding flow
+openclaw configure     # config wizard
 ```
 
 --------------------------------
 
-### Start development Gateway with hot reload
+### Run guided onboarding
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/start/setup.md
+Source: https://github.com/openclaw/openclaw/blob/main/docs/channels/clickclack.md
 
-Installs dependencies, performs initial setup if needed, and starts the Gateway in a tmux watch session with hot reload.
+Launches the interactive onboarding wizard to configure the ClickClack server URL, bot token, and workspace.
 
 ```bash
-pnpm install
-# First run only (or after resetting local OpenClaw config/workspace)
-pnpm openclaw setup
-pnpm gateway:watch
+openclaw onboard
 ```
 
 --------------------------------
@@ -228,17 +261,43 @@ openclaw configure --section channels
 
 --------------------------------
 
-### Install X11 prerequisites and start D-Bus session
+### Get started with swabble CLI
 
-Source: https://github.com/openclaw/openclaw/blob/main/docs/nodes/computer-use.md
+Source: https://github.com/openclaw/openclaw/blob/main/apps/swabble/README.md
 
-Installs required packages on a Linux Crabbox host and starts an isolated D-Bus nested shell session.
+Installs pinned Swift tools, builds the project, generates default configuration, runs the daemon, tests hooks, and transcribes audio files.
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y at-spi2-core dbus-x11 gir1.2-gtk-3.0 jq openbox python3-gi x11-utils xdotool xvfb
+# Install the repository-pinned Swift tools
+../../scripts/install-swift-tools.sh .build/swift-tools
+export PATH="$PWD/.build/swift-tools:$PATH"
 
-dbus-run-session -- bash
+# Build
+swift build
+
+# Write default config (~/.config/swabble/config.json)
+swift run swabble setup
+
+# Run foreground daemon
+swift run swabble serve
+
+# Test your hook
+swift run swabble test-hook "hello world"
+
+# Transcribe a file to SRT
+swift run swabble transcribe /path/to/audio.m4a --format srt --output out.srt
+```
+
+--------------------------------
+
+### Install Fastlane with Homebrew
+
+Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
+
+Installs Fastlane for standard local setups.
+
+```bash
+brew install fastlane
 ```
 
 --------------------------------
@@ -255,63 +314,6 @@ openclaw onboard --auth-choice xiaomi-api-key
 
 --------------------------------
 
-### Configure Quadlet-managed setup with setup.sh
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/podman.md
-
-Run setup with the --quadlet flag for Quadlet-managed systemd user services on Linux.
-
-```bash
-./scripts/podman/setup.sh --quadlet
-```
-
---------------------------------
-
-### Install and start OpenClaw Gateway on ChromeOS
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/platforms/chromeos.md
-
-Quick installation path to run the installer script, onboard and install the systemd daemon, and verify Gateway service status.
-
-```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
-```
-
-```bash
-openclaw onboard --install-daemon
-```
-
-```bash
-openclaw gateway status
-```
-
---------------------------------
-
-### Install Google Meet plugin and run node host
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/google-meet/transports.md
-
-Install the Google Meet plugin in the VM and start the node host pointing to the Gateway host.
-
-```bash
-openclaw plugins install @openclaw/google-meet
-openclaw node run --host <gateway-host> --port 18789 --display-name parallels-macos
-```
-
---------------------------------
-
-### Install Fastlane via Homebrew
-
-Source: https://github.com/openclaw/openclaw/blob/main/apps/android/fastlane/SETUP.md
-
-Install Fastlane locally for the standard local development setup.
-
-```bash
-brew install fastlane
-```
-
---------------------------------
-
 ### Run interactive onboarding
 
 Source: https://github.com/openclaw/openclaw/blob/main/docs/plugins/apple-fm.md
@@ -320,16 +322,4 @@ Starts the interactive setup process and initiates local background discovery fo
 
 ```bash
 openclaw onboard
-```
-
---------------------------------
-
-### Install OpenClaw without onboarding on Windows PowerShell
-
-Source: https://github.com/openclaw/openclaw/blob/main/docs/install/index.md
-
-Executes the PowerShell installation script with the `-NoOnboard` flag to install OpenClaw without starting onboarding.
-
-```powershell
-& ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
 ```
