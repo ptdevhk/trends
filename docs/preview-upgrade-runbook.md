@@ -1,3 +1,15 @@
+> **⚠️ PREVIEW IS RETIRED (2026-10-05).**
+> The preview site (`preview.pt-mes.com`, `/home/ubuntu/trends-preview`) is **no
+> longer a live UAT target** and must not be walked as one. This runbook is
+> retained for **historical reference only** — it documents how the preview
+> environment *was* refreshed and upgraded. Do not treat any command here as the
+> current UAT or verification path.
+>
+> Current UAT targets are **dev (`make dev` → `http://localhost:5173`)** and
+> **prod (`https://trends.pt-mes.com`)**; see
+> `docs/runbooks/resume-search-uat.md`. Production deploys remain a **human
+> gate**.
+
 # Preview Site Upgrade CLI Runbook (`ptcloud`)
 
 Complete, operator-facing runbook for refreshing the **preview** site on `ptcloud` from production data, then upgrading preview application code to the latest Trends version.

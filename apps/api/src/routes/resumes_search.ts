@@ -26,7 +26,9 @@ import { resolveResumeId } from "../services/resume-id.js";
 import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from "../services/convex-utils.js";
 import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 import {
+  compareCurrentCncMachineSalesRank,
   formatKeywordQuery,
+  isCncLikeSalesSearch,
   normalizeSearchRoleFilterType,
   parseKeywordQuery,
   resolveSalesDutyFilters,
@@ -1334,7 +1336,16 @@ app.openapi(getResumesRoute, (c) => {
         });
       } else if (keyword) {
         // Default sort by relevance if keyword is present but no explicit sortBy
-        working = [...working].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+        const cncSalesQuery = isCncLikeSalesSearch(keyword, effectiveRoleFilterType);
+        working = [...working].sort((a, b) => {
+          if (cncSalesQuery) {
+            const rankDiff = compareCurrentCncMachineSalesRank(a.resume.workHistory, b.resume.workHistory);
+            if (rankDiff !== 0) {
+              return rankDiff;
+            }
+          }
+          return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+        });
       }
 
       const start = offset ?? 0;

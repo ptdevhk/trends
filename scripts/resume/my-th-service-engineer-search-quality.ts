@@ -465,7 +465,7 @@ async function loadPreviewResponses(baseUrl: string, envFile: string): Promise<F
     const location = market === "MY" ? "Malaysia" : "Thailand";
     const query = new URLSearchParams({
       source: "convex",
-      q: '"CNC" OR "Service Engineer"',
+      q: '"CNC" "Service Engineer"',
       locations: location,
       status: "all",
       minRoleYears: "1",

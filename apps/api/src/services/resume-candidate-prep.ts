@@ -12,6 +12,8 @@ import {
   resolveResumeAnalysisSourceKey,
   formatLocationHierarchySearchText,
   formatKeywordQuery,
+  isCncLikeSalesSearch,
+  compareCurrentCncMachineSalesRank,
   normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
   buildWorkHistoryEntryText,
@@ -906,10 +908,19 @@ export async function prepareConvexCandidates(params: {
       }
 
       const hasActiveFiltersForReturn = filters ? hasResumeListFilters(filters) : false;
+      const rankedResults = isCncLikeSalesSearch(canonicalKeywordQuery, filters?.roleFilterType)
+        ? [...allResults].sort((left, right) => {
+          const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory);
+          if (rankDiff !== 0) {
+            return rankDiff;
+          }
+          return (right.primaryRuleScore ?? 0) - (left.primaryRuleScore ?? 0);
+        })
+        : allResults;
       return {
-        prepared: allResults,
+        prepared: rankedResults,
         keywordExpansion,
-        total: allResults.length,
+        total: rankedResults.length,
         usedServerSideFilters: hasActiveFiltersForReturn,
       };
     }

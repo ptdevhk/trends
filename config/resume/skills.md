@@ -1,6 +1,6 @@
 ---
 version: 10
-updated_at: '2026-07-23'
+updated_at: '2026-10-05'
 description: >
   简历筛选技能知识库（zh-Hans 主文件）。
   用于背景计算代理的确定性匹配、同义词扩展与预评分。
@@ -39,7 +39,7 @@ description: >
 - 加工中心: machining center, machining-center, vertical machining center, horizontal machining center, 加工设备, machine tool, precision machining
 - 五轴: 5-axis, 五轴联动
 - 夹具: 治具, fixture
-- 数控: CNC, Computer Numerical Control, 数控加工, 机床, 机械设备, 加工设备, machine tools, cnc machine, cnc machines, precision machinery, 机械, 创世纪, 津上, tsugami, 冈本, okamoto
+- 数控: CNC, Computer Numerical Control, 数控加工, 机床, 机械设备, 加工设备, machine tools, cnc machine, cnc machines, 创世纪, 津上, tsugami, 冈本, okamoto
 - 销售: 业务, 商务, 销售员
 - 销售工程师: sales engineer, technical sales, technical sales engineer, 售前销售, 技术销售
 - 销售经理: sales manager, regional sales manager, territory sales manager
@@ -50,7 +50,7 @@ description: >
 - 应用工程师: application engineer, applications engineer
 - 机器人: robot, 工业机器人
 - 测量: 计量, measurement, metrology, quality inspection, dimensional inspection, 质量检测
-- 三维扫描: 3D扫描, 3d-scan, 3d scanning, 3d scanner, 三维测量
+- 三维扫描: 3D扫描, 3D扫描仪, 3d 扫描, 3d 扫描仪, 3d-scan, 3d scanning, 3d scanner, 三维测量, ATOS
 - CMM: 三坐标, 三坐标测量机, coordinate measuring machine
 - 软件: software, 程序, 应用
 

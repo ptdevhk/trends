@@ -263,6 +263,41 @@ describe('SnippetCard', () => {
     expect(onToggleExpanded).toHaveBeenCalled()
   })
 
+  it('prefers roleSignals years over the resume experience string', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        item={createResult(1, {
+          resume: createResume(1, {
+            experience: '6 years',
+            ingestData: {
+              industryTags: [],
+              synonymHits: [],
+              brandHits: [],
+              companyHits: [],
+              ruleScores: {},
+              experienceLevel: 'senior',
+              roleSignals: [{
+                type: 'sales',
+                matchedSignals: [],
+                signalCount: 0,
+                occurrences: 0,
+                years: 12,
+                roleRelevantYears: 3,
+                verifyIn: 'workHistory',
+              }],
+            },
+          }),
+        })}
+        itemKey="result-role-years"
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/3 years|3年/)).toBeInTheDocument()
+    expect(screen.queryByText(/6 years/)).not.toBeInTheDocument()
+  })
+
   it('hides rule scoring when AI score mode is enabled but analysis has not completed', () => {
     render(
       <SnippetCard

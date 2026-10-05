@@ -670,6 +670,25 @@ description: 测试技能知识文件
       }
     }
 
+    it("canonical skills.md 数控 expansion drops 机械 and precision machinery", () => {
+      const root = resolveRepoRoot();
+      const service = new SkillsKnowledgeService(root);
+      const expanded = service.expandQueryWithSynonyms(["数控"]);
+      expect(expanded).toContain("数控");
+      expect(expanded).toContain("cnc");
+      expect(expanded).toContain("机床");
+      expect(expanded).not.toContain("机械");
+      expect(expanded).not.toContain("precision machinery");
+    });
+
+    it("canonical skills.md 三维扫描 expansion includes 3D扫描仪 and ATOS", () => {
+      const root = resolveRepoRoot();
+      const service = new SkillsKnowledgeService(root);
+      const expanded = service.expandQueryWithSynonyms(["3D扫描仪"]);
+      expect(expanded).toContain("三维扫描");
+      expect(expanded).toContain("3d扫描仪");
+      expect(expanded).toContain("atos");
+    });
     it("canonical skills.md aliases 捷太格特/JTEKT under TOYODA", () => {
       const root = resolveRepoRoot();
       const skills = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");

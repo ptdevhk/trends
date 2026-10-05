@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { SkillsKnowledgeService } from "./skills-knowledge";
-import { UnifiedSearchService, type VerifiedEmployerCatalog } from "./unified-search-service";
+import { UnifiedSearchService, mergeMetrologyScannerKeywords, type VerifiedEmployerCatalog } from "./unified-search-service";
 
 import type { ResumeItem } from "../types/resume";
 import type { ResumeIndex } from "./resume-index";
@@ -561,6 +561,50 @@ describe("verified-employer keyword bridge", () => {
       expect(cncGroup?.variants).not.toContain("mystery sdn bhd");
     } finally {
       cleanupFixtureRoot(root);
+    }
+  });
+});
+
+describe("mergeMetrologyScannerKeywords", () => {
+  it("rejoins 3d + 扫描仪 so the metrology synonym group can fire", () => {
+    expect(mergeMetrologyScannerKeywords(["3d", "扫描仪", "销售"])).toEqual(["3d扫描仪", "销售"]);
+  });
+});
+
+const TEST_SKILLS_MD_METROLOGY = `---
+version: 1
+updated_at: '2026-10-05'
+description: Test skills knowledge file with metrology synonyms
+---
+
+# Skills Knowledge
+
+## Domain Taxonomy
+
+### metrology
+- displayName: 测量
+- keywords: 三维扫描, 3d, metrology
+
+## Synonym Table
+
+- 三维扫描: 3D扫描, 3D扫描仪, 3d 扫描, 3d 扫描仪, ATOS
+`;
+
+describe("UnifiedSearchService metrology 3D expansion", () => {
+  it("expands 3D扫描仪 into the 三维扫描 group including ATOS", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unified-search-metrology-"));
+    fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
+    fs.writeFileSync(path.join(root, "config", "resume", "skills.md"), TEST_SKILLS_MD_METROLOGY, "utf8");
+    fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+    fs.mkdirSync(path.join(root, "output"), { recursive: true });
+
+    try {
+      const service = new UnifiedSearchService(new SkillsKnowledgeService(root));
+      const expansion = service.expandKeyword("3D扫描仪 销售");
+      const scannerGroup = expansion.groups.find((group) => group.original === "3d扫描仪");
+      expect(scannerGroup?.variants).toEqual(expect.arrayContaining(["3d扫描仪", "三维扫描", "atos"]));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 });

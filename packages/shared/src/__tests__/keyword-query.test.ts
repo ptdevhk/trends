@@ -221,4 +221,11 @@ describe("formatQuickStartSearchQuery", () => {
       roleFilterType: "sales",
     })).toBe("三坐标 or 3D扫描 销售");
   });
+
+  it("formats MY CNC + Service Engineer as AND, not OR", () => {
+    expect(formatQuickStartSearchQuery({
+      keywords: ["CNC", "Service Engineer"],
+      roleFilterType: "engineer",
+    })).toBe('"CNC" "Service Engineer"');
+  });
 });

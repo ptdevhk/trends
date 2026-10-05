@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, formatLocationHierarchySearchText, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
+import { buildWorkHistoryEntryText, compareCurrentCncMachineSalesRank, formatLocationHierarchySearchText, isCncLikeSalesSearch, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
 
 import { parseSearchQuery, type ParsedQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -42,6 +42,24 @@ export interface UnifiedKeywordExpansion {
 
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
+}
+
+const METROLOGY_SCANNER_TAILS = new Set(["扫描", "扫描仪", "scanner", "scanning", "scan"]);
+
+/** Rejoin CJK↔ASCII splits like 3D扫描仪 → 3d + 扫描仪 so the metrology synonym group can fire. */
+export function mergeMetrologyScannerKeywords(keywords: string[]): string[] {
+  const merged: string[] = [];
+  for (let index = 0; index < keywords.length; index += 1) {
+    const current = keywords[index];
+    const next = keywords[index + 1];
+    if (current === "3d" && next && METROLOGY_SCANNER_TAILS.has(next)) {
+      merged.push(next === "扫描" || next === "扫描仪" ? `3d${next}` : `3d ${next}`);
+      index += 1;
+      continue;
+    }
+    merged.push(current);
+  }
+  return merged;
 }
 
 // BFF-side narrow haystack — same logic as resume-service.ts buildBffSearchText.
@@ -169,7 +187,7 @@ export class UnifiedSearchService {
       parseSearchQuery(segment)
     );
     const parsedQuery: ParsedQuery = {
-      keywords: parsedSegments.flatMap((segment) => segment.keywords),
+      keywords: mergeMetrologyScannerKeywords(parsedSegments.flatMap((segment) => segment.keywords)),
       mode: parsedSegments.some((segment) => segment.mode === "OR") ? "OR" : "AND",
     };
     const groups: KeywordGroup[] = [];
@@ -355,9 +373,18 @@ export class UnifiedSearchService {
       });
     }
 
+    const cncSalesQuery = isCncLikeSalesSearch(query, undefined);
     return {
       expansion,
-      results: results.sort((left, right) => right.resume.relevanceScore - left.resume.relevanceScore),
+      results: results.sort((left, right) => {
+        if (cncSalesQuery) {
+          const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory);
+          if (rankDiff !== 0) {
+            return rankDiff;
+          }
+        }
+        return right.resume.relevanceScore - left.resume.relevanceScore;
+      }),
     };
   }
 }

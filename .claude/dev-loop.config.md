@@ -218,6 +218,18 @@ preflight:
 > Per CLAUDE.md feedback memory: every browser-facing change MUST be
 > verified against the running `make dev` stack via `/playwright-cli`.
 > Localhost URL is `http://localhost:5173` — never the external hostname.
+>
+> **Preview is RETIRED (2026-10-05)** — it is no longer a live UAT target.
+> UAT runs against **dev** (`make dev` → `http://localhost:5173`) and, when
+> explicitly operator-gated, **prod** (`https://trends.pt-mes.com`). Prod deploy
+> is **human-only** — agents never deploy to production. Runbook:
+> `docs/runbooks/resume-search-uat.md`.
+>
+> **This cycle's smoke routes are the five golden searches** (CN CNC sales,
+> CN 3D scanner sales, CN CMM sales, MY CNC AND Service Engineer, TH CNC Service
+> Engineer) — see `docs/runbooks/resume-search-uat.md`. **Out of this cycle:**
+> collect, CMM/3D, and TH work (no collect retries, no CMM/3D recall changes,
+> no TH ingest) and **no search-ranking code changes**.
 
 ```yaml
 browser_verification:
@@ -232,12 +244,22 @@ browser_verification:
     - "make dev"
   driver: playwright-cli
   base_url: http://localhost:5173
-  smoke_routes:
-    - /
-    - /resumes
-    - /search-profiles
-    - /scoring
-    - /dev/resumes?location=Malaysia&q=CNC+Sales  # MY industry_db floor verification
+  uat_targets:
+    dev: http://localhost:5173        # make dev
+    prod: https://trends.pt-mes.com   # human gate; agents never deploy
+    preview: retired                  # no longer a UAT target (2026-10-05)
+  smoke_routes:                        # five golden searches (hr-demo, workspace hr)
+    - /hr/resumes?q=CNC+Sales&market=cn&minAge=25&maxAge=40&minRoleYears=1
+    - /hr/resumes?q=3D+scanner+sales&market=cn
+    - /hr/resumes?q=CMM+sales&market=cn
+    - /hr/resumes?q=%22CNC%22+%22Service+Engineer%22&market=my
+    - /hr/resumes?q=CNC+Service+Engineer&market=th
+  uat_runbook: docs/runbooks/resume-search-uat.md
+  out_of_cycle:
+    - collect
+    - CMM/3D recall
+    - TH ingest
+    - search-ranking code changes
   reviser_workflow:
     - take_snapshot
     - list_console_messages
@@ -338,9 +360,9 @@ e2e_scripts:
 ```yaml
 bump_script: scripts/bump-version.sh
 publish_via: none
-# Production only — never run against /home/ubuntu/trends-preview.
-# Preview upgrades: cd /home/ubuntu/trends-preview && make deploy  (→ deploy/preview-upgrade.sh)
-# Full preview runbook: docs/preview-upgrade-runbook.md
+# Production only — human-only gate; agents never deploy to prod.
+# Preview is RETIRED (2026-10-05): /home/ubuntu/trends-preview is no longer a
+# UAT target. Historical runbook (reference only): docs/preview-upgrade-runbook.md
 deploy_script: bash scripts/install.sh upgrade
 # Version-carrying package manifests (plus root `version` file used by bump-version.sh):
 # package.json, packages/convex, apps/api, apps/web, apps/browser-extension, apps/worker/pyproject.toml

@@ -619,6 +619,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     filteredResults: [] as ResumeSearchResultItem[],
     hasActiveAnalysisTask: false,
     hasMore: false,
+    verifiedWorkingSetTotal: undefined as number | undefined,
     headerLoading: false,
     isLanding: true,
     loading: false,
@@ -746,6 +747,21 @@ describe('ResumeSearchPage', () => {
 
     await user.click(screen.getByRole('switch', { name: 'AI Mode' }))
     expect(state.setAiModeEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('shows verified working-set total in the header instead of painted list length', () => {
+    const state = createResumeSearchState({
+      activeQuery: 'CNC 销售',
+      filteredResults: [createResult(1), createResult(2)],
+      isLanding: false,
+      queryInput: 'CNC 销售',
+      verifiedWorkingSetTotal: 214,
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText(/Header CNC 销售 214/)).toBeInTheDocument()
   })
 
   it('wires profile quick-start and hot keyword handlers into the landing hero', async () => {
