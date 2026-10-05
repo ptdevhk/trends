@@ -5,6 +5,12 @@
  * matching search text against keyword groups, and collecting
  * search provenance for UI display.
  */
+import {
+    expandLatinPhraseIndexTerms,
+    isLatinMultiWordPhrase,
+    latinPhraseTokens,
+    matchesKeywordGroupSoft,
+} from "@trends/shared";
 import { MAX_SEARCH_INDEX_TERMS } from "./resumes_pagination.js";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +35,7 @@ export type SearchProvenance = {
 // ---------------------------------------------------------------------------
 
 function matchesTagExpansionGroup(searchText: string, group: TagExpansionKeywordGroup): boolean {
-    return group.variants.some((variant) => searchText.includes(variant));
+    return matchesKeywordGroupSoft(searchText, group);
 }
 
 export function selectTagExpansionAnchorGroup(keywordGroups: TagExpansionKeywordGroup[]): TagExpansionKeywordGroup {
@@ -47,7 +53,7 @@ export function selectTagExpansionAnchorGroup(keywordGroups: TagExpansionKeyword
 }
 
 export function collectExpandedTerms(keywordGroups: TagExpansionKeywordGroup[]): string[] {
-    return Array.from(new Set(keywordGroups.flatMap((group) => group.variants)));
+    return expandLatinPhraseIndexTerms(keywordGroups.flatMap((group) => group.variants));
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +99,9 @@ export function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] 
  * both call sites so neither can emit an over-limit query string.
  */
 export function buildAnchorScanSearchQuery(anchor: TagExpansionKeywordGroup): string {
-    return anchor.variants.slice(0, MAX_SEARCH_INDEX_TERMS).join(" ");
+    return expandLatinPhraseIndexTerms(anchor.variants)
+        .slice(0, MAX_SEARCH_INDEX_TERMS)
+        .join(" ");
 }
 
 export function buildTagExpansionSearchQuery(
@@ -133,21 +141,49 @@ export function collectSearchTextProvenance(
 ): SearchProvenance[] {
     const matches: SearchProvenance[] = [];
     const seen = new Set<string>();
+    const normalizedText = searchText.toLowerCase();
 
     for (const group of keywordGroups) {
+        let groupHit = false;
         for (const term of group.variants) {
-            if (!searchText.includes(term)) {
+            if (!normalizedText.includes(term)) {
                 continue;
             }
             if (seen.has(term)) {
+                groupHit = true;
                 continue;
             }
             seen.add(term);
+            groupHit = true;
             matches.push({
                 term,
                 source: "searchText",
                 expandedFrom: sourceMapping[term],
             });
+        }
+
+        if (groupHit) {
+            continue;
+        }
+
+        const softSources = [group.original, ...group.variants].filter(isLatinMultiWordPhrase);
+        for (const phrase of softSources) {
+            const tokens = latinPhraseTokens(phrase);
+            if (tokens.length < 2 || !tokens.every((token) => normalizedText.includes(token))) {
+                continue;
+            }
+            for (const token of tokens) {
+                if (seen.has(token)) {
+                    continue;
+                }
+                seen.add(token);
+                matches.push({
+                    term: token,
+                    source: "searchText",
+                    expandedFrom: sourceMapping[phrase] ?? phrase,
+                });
+            }
+            break;
         }
     }
 

@@ -121,10 +121,11 @@ describe("collectExpandedTerms", () => {
             { original: "machining", variants: ["machining", "cnc milling"] },
         ];
         const result = collectExpandedTerms(groups);
-        expect(result).toHaveLength(3);
         expect(result).toContain("cnc");
         expect(result).toContain("cnc milling");
+        expect(result).toContain("milling");
         expect(result).toContain("machining");
+        expect(result).toHaveLength(4);
     });
 });
 
@@ -194,6 +195,27 @@ describe("matchesTagExpansionSearchText", () => {
     it("OR mode requires at least one group to match", () => {
         expect(matchesTagExpansionSearchText("cnc expert", groups, "OR")).toBe(true);
         expect(matchesTagExpansionSearchText("welding expert", groups, "OR")).toBe(false);
+    });
+
+    it("soft-matches Latin multi-word Service Engineer without contiguous phrase", () => {
+        const serviceGroups = [
+            { original: "cnc", variants: ["cnc"] },
+            { original: "service engineer", variants: ["service engineer"] },
+        ];
+        expect(
+            matchesTagExpansionSearchText(
+                "services engineer promote cnc equipment tooling",
+                serviceGroups,
+                "AND",
+            ),
+        ).toBe(true);
+        expect(
+            matchesTagExpansionSearchText(
+                "cnc sales manager machine tools",
+                serviceGroups,
+                "AND",
+            ),
+        ).toBe(false);
     });
 });
 

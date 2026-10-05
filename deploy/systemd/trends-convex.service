@@ -25,13 +25,15 @@ Environment=UDF_CACHE_MAX_SIZE=50000000
 Environment=DOCUMENT_RETENTION_DELAY=172800
 UnsetEnvironment=TZ
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
-# Warm the cached backend so the subsequent `convex dev --local` boot is faster.
+# Warm the cached backend so the subsequent `convex dev` boot is faster.
 # The prewarm script exits cleanly and releases port 3210 before ExecStart runs.
 # CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS overrides the CLI's default startup
 # deadline (available in Convex CLI >= 1.36.0); prewarm remains useful to
 # reduce perceived startup latency from ~30s to ~5s.
+# CLI 1.46+ treats `--local` as a fatal error (`deployment select local` first).
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/convex-prewarm.sh
-ExecStart=/usr/bin/npx convex dev --local
+ExecStartPre=-/usr/bin/npx convex deployment select local
+ExecStart=/usr/bin/npx convex dev --tail-logs disable
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

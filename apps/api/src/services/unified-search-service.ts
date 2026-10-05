@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, compareCurrentCncMachineSalesRank, formatLocationHierarchySearchText, isCncLikeSalesSearch, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
+import { buildWorkHistoryEntryText, compareCurrentCncMachineSalesRank, formatLocationHierarchySearchText, isCncLikeSalesSearch, matchesKeywordGroupSoft, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
 
 import { parseSearchQuery, type ParsedQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -327,6 +327,17 @@ export class UnifiedSearchService {
           if (companies.some((company) => normalizeToken(company).includes(term))) {
             groupMatches.push({ term, source: "companyHits", expandedFrom });
           }
+        }
+
+        if (
+          groupMatches.length === 0 &&
+          matchesKeywordGroupSoft(searchText, group)
+        ) {
+          groupMatches.push({
+            term: group.original,
+            source: "searchText",
+            expandedFrom: undefined,
+          });
         }
 
         if (groupMatches.length > 0) {
