@@ -7,11 +7,12 @@ import { initWebVitals } from './lib/web-vitals'
 import { initSentry } from './lib/sentry'
 
 import { ConvexProvider, ConvexReactClient } from 'convex/react'
+import { resolveBrowserConvexUrl } from './lib/convex-url'
 
 initSentry()
 initWebVitals()
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL
+const convexUrl = resolveBrowserConvexUrl(import.meta.env.VITE_CONVEX_URL)
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null
 const enableStrictMode = import.meta.env.PROD || import.meta.env.VITE_ENABLE_STRICT_MODE === 'true'
 

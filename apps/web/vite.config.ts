@@ -4,6 +4,13 @@ import path from 'path'
 
 const apiPort = process.env.API_PORT || '3000'
 const mcpPort = process.env.MCP_PORT || '3333'
+const convexProxyTarget = (
+  process.env.CONVEX_URL ||
+  process.env.VITE_CONVEX_URL ||
+  'http://127.0.0.1:3210'
+)
+  .replace(/\/$/, '')
+  .replace(/\/convex$/, '')
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -96,6 +103,14 @@ export default defineConfig({
       server.httpServer.headersTimeout = 70_000
     },
     proxy: {
+      // HTTPS public port URLs cannot open ws:// to :3210. Same-origin
+      // /convex is rewritten onto the local Convex HTTP+WS backend.
+      '/convex': {
+        target: convexProxyTarget,
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/convex/, '') || '/',
+      },
       '/api': {
         target: `http://localhost:${apiPort}`,
         changeOrigin: true,
