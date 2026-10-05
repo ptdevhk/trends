@@ -329,14 +329,22 @@ describe("non-Docker Convex startup safety", () => {
   });
 
   it("does not force-upgrade the production Convex systemd service", () => {
-    expect(productionConvexService).toContain("ExecStart=/usr/bin/npx convex dev --local");
+    // CLI 1.46+ rejects `convex dev --local`; select deployment then run without --local.
+    expect(productionConvexService).toContain(
+      "ExecStart=/usr/bin/npx convex dev --tail-logs disable",
+    );
+    expect(productionConvexService).not.toMatch(
+      /^ExecStart=.*convex dev --local/m,
+    );
     expect(productionConvexService).not.toContain("--local-force-upgrade");
   });
 
   it("does not force-upgrade the install-time Convex schema push", () => {
     const setupConvexLocal = extractShellFunction(installScript, "setup_convex_local");
 
-    expect(setupConvexLocal).toContain("npx convex dev --local --once");
+    expect(setupConvexLocal).toContain("npx convex deployment select local");
+    expect(setupConvexLocal).toContain("npx convex dev --once");
+    expect(setupConvexLocal).not.toContain("npx convex dev --local --once");
     expect(setupConvexLocal).not.toContain("--local-force-upgrade");
   });
 

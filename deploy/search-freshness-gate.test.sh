@@ -52,6 +52,8 @@ grep -q 'run_search_freshness_gate_production' "$ROOT/scripts/install.sh" && pas
 grep -q 'BFF_API_URL' "$ROOT/deploy/sync-preview-convex-env.sh" && pass "sync-preview-convex-env syncs BFF" || fail "sync missing BFF"
 grep -q 'BFF_API_URL' "$ROOT/deploy/preview-doctor.sh" && pass "preview-doctor checks BFF" || fail "doctor missing BFF check"
 grep -q 'BFF_API_URL' "$ROOT/deploy/systemd/trends-convex.service" && pass "prod systemd BFF default" || fail "systemd BFF missing"
+grep -qE '^ExecStart=/usr/bin/npx convex dev --tail-logs disable$' "$ROOT/deploy/systemd/trends-convex.service" && pass "prod systemd convex CLI 1.46 ExecStart" || fail "systemd ExecStart still uses deprecated --local"
+! grep -qE '^ExecStart=.*convex dev --local' "$ROOT/deploy/systemd/trends-convex.service" && pass "prod systemd ExecStart has no --local" || fail "systemd ExecStart still passes --local"
 grep -q 'lib-bff-defaults' "$ROOT/deploy/search-freshness-gate.sh" && pass "gate sources lib-bff-defaults" || fail "gate missing lib-bff-defaults"
 grep -q 'default_bff_api_url_for_role\|preview_public_bff_url\|ensure_bff_env_lines' "$ROOT/deploy/preview-upgrade.sh" && pass "preview-upgrade uses bff helpers" || fail "preview-upgrade hardcodes BFF"
 grep -q 'lib-bff-defaults\|default_bff_api_url_for_role\|ensure_bff_env_lines' "$ROOT/scripts/install.sh" && pass "install uses bff helpers" || fail "install hardcodes BFF"

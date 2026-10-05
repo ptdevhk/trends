@@ -432,6 +432,50 @@ describe("UnifiedSearchService", () => {
     }
   });
 
+  it("soft-matches quoted Service Engineer when tokens are split (MY AND)", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const splitTitle: ResumeItem = {
+        name: "Split service title",
+        profileUrl: "https://example.com/my-1",
+        activityStatus: "active",
+        age: "32",
+        experience: "6年",
+        education: "Degree",
+        location: "Penang MY",
+        selfIntro: "",
+        jobIntention: "",
+        expectedSalary: "",
+        workHistory: [{
+          raw: "Services Engineer · Promote CNC equipment and tooling at Fanuc partner",
+        }],
+        extractedAt: "2026-03-11T00:00:00.000Z",
+        resumeId: "resume-my-split",
+      };
+      const cncOnly: ResumeItem = {
+        ...splitTitle,
+        name: "CNC sales only",
+        workHistory: [{ raw: "CNC Sales Manager for machine tools" }],
+        resumeId: "resume-my-cnc-only",
+      };
+
+      const results = service.searchUnified(
+        [splitTitle, cncOnly],
+        '"CNC" "Service Engineer"',
+      );
+
+      expect(results.expansion.mode).toBe("AND");
+      expect(results.results.map((entry) => entry.resume.resumeId)).toEqual([
+        "resume-my-split",
+      ]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("does not match job intention text when no index searchText is available", () => {
     const root = createFixtureRoot();
 

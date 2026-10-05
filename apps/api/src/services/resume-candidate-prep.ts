@@ -14,6 +14,7 @@ import {
   formatKeywordQuery,
   isCncLikeSalesSearch,
   compareCurrentCncMachineSalesRank,
+  matchesKeywordGroupSoft,
   normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
   buildWorkHistoryEntryText,
@@ -268,14 +269,29 @@ export function collectBffAndModeProvenance(
   const provenance: ResumeSearchProvenance[] = [];
   const seen = new Set<string>();
   for (const group of groups) {
+    let groupHit = false;
     for (const variant of group.variants) {
       const normalized = variant.toLowerCase();
       if (searchText.includes(normalized) && !seen.has(normalized)) {
         seen.add(normalized);
+        groupHit = true;
         provenance.push({
           term: variant,
           source: "searchText",
           expandedFrom: sourceMapping[variant],
+        });
+      } else if (searchText.includes(normalized)) {
+        groupHit = true;
+      }
+    }
+    if (!groupHit && matchesKeywordGroupSoft(searchText, group)) {
+      const term = group.original.toLowerCase();
+      if (!seen.has(term)) {
+        seen.add(term);
+        provenance.push({
+          term: group.original,
+          source: "searchText",
+          expandedFrom: sourceMapping[group.original],
         });
       }
     }
@@ -799,12 +815,8 @@ export async function prepareConvexCandidates(params: {
       }));
       const groupMatchesMode = (searchText: string): boolean =>
         mode === "AND"
-          ? loweredGroups.every((group) =>
-            group.loweredVariants.some((lv: string) => searchText.includes(lv))
-          )
-          : loweredGroups.some((group) =>
-            group.loweredVariants.some((lv: string) => searchText.includes(lv))
-          );
+          ? loweredGroups.every((group) => matchesKeywordGroupSoft(searchText, group))
+          : loweredGroups.some((group) => matchesKeywordGroupSoft(searchText, group));
 
       // Phase 1: Scan digest pages (lightweight, <1KB per row) for candidate
       // discovery. Digest rows are pre-built from resume fields at ingest and

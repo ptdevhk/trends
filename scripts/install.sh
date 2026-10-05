@@ -1173,12 +1173,13 @@ setup_convex_local() {
     systemctl enable trends-convex.service
 
     # Stop existing backend to free port 3210 before pushing schema.
-    # `convex dev --local --once` starts its own backend subprocess, pushes
+    # `convex dev --once` starts its own backend subprocess, pushes
     # schema/functions, then exits (backend subprocess also exits).
+    # CLI 1.46+ rejects `--local`; select the anonymous local deployment first.
     systemctl stop trends-convex.service 2>/dev/null || true
 
     log_info "Pushing Convex schema/functions to local backend..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && export CONVEX_AGENT_MODE=anonymous && env -u TZ npx convex dev --local --once"
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && export CONVEX_AGENT_MODE=anonymous && env -u TZ npx convex deployment select local >/dev/null 2>&1 || true && env -u TZ npx convex dev --once"
 
     # Now start the persistent backend service.
     log_info "Starting Convex local backend service..."
