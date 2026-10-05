@@ -28,7 +28,7 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { StarRating } from '@/components/StarRating'
 import { CandidateNotesDialog } from '@/components/CandidateNotesDialog'
-import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getResumeSourceLabel, getExperienceBadge, getRoleRelevantYears, formatRoleYears, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
 import { toast } from 'sonner'
 import { highlightTerms } from '@/lib/highlight'
@@ -126,6 +126,20 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   const ok = document.execCommand('copy')
   document.body.removeChild(textarea)
   return ok
+}
+
+function formatSnippetExperience(item: ResumeSearchResultItem, locale: string): string {
+  const signals = item.resume.ingestData?.roleSignals ?? []
+  const preferred = signals.find((signal) => signal.type.trim().toLowerCase() === 'sales')
+    ?? signals.find((signal) => signal.type.trim().toLowerCase() === 'engineer')
+    ?? signals[0]
+  if (preferred) {
+    const years = getRoleRelevantYears(preferred)
+    if (years > 0) {
+      return formatRoleYears(years, locale)
+    }
+  }
+  return item.resume.experience || '--'
 }
 
 function getPrimaryHeadline(
@@ -561,7 +575,7 @@ export const SnippetCard = memo(function SnippetCard({
 
           {/* Demographics row */}
           <div className="text-sm text-muted-foreground">
-            {item.resume.age || '--'} | {item.resume.experience || '--'} | {highlightTerms(item.resume.education || '--', searchTerms)} | {highlightTerms(item.resume.location || '--', searchTerms)}
+            {item.resume.age || '--'} | {formatSnippetExperience(item, contentLocale)} | {highlightTerms(item.resume.education || '--', searchTerms)} | {highlightTerms(item.resume.location || '--', searchTerms)}
           </div>
 
           {/* Headline / self-intro snippet */}

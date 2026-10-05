@@ -494,7 +494,7 @@ describe('useResumeSearchState', () => {
     expect(useQueryMock).not.toHaveBeenCalledWith('analysis-tasks-list-query', expect.anything())
     expect(useMutationMock).not.toHaveBeenCalledWith('analysis-tasks-dispatch-mutation')
     expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', 'skip')
-    expect(useQueryMock).toHaveBeenCalledWith('resumes:countResumesByStatus', 'skip')
+    expect(useQueryMock).not.toHaveBeenCalledWith('resumes:countResumesByStatus', expect.anything())
     expect(result.current.searchHistoryLoading).toBe(false)
   })
 
@@ -2781,7 +2781,7 @@ describe('useResumeSearchState', () => {
     expect(useFacetCountsMock.mock.calls[0]?.[0].map((item: { key: string }) => item.key)).toEqual(['resume-2'])
   })
 
-  it('uses server status totals for status facets instead of the loaded client slice', () => {
+  it('uses painted-list status facets instead of a competing server status total', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',
       keywords: ['CNC', '销售'],
@@ -2817,13 +2817,17 @@ describe('useResumeSearchState', () => {
     const { result } = renderHook(() => useResumeSearchState())
 
     expect(result.current.facetCounts.statuses).toEqual([
-      { value: 'new', count: 797, label: 'New candidate' },
-      { value: 'interviewed_pass', count: 3 },
-      { value: 'rejected', count: 1 },
+      { value: 'new', count: 2, label: 'New candidate' },
     ])
+    expect(result.current.statusSummary).toEqual({
+      new: 2,
+      shortlisted: 0,
+      rejected: 0,
+      total: 2,
+    })
   })
 
-  it('uses BFF status totals for AND-mode status facets', () => {
+  it('keeps AND-mode chips on the painted list even when BFF status totals differ', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',
       keywords: ['CNC', '销售'],
@@ -2849,14 +2853,70 @@ describe('useResumeSearchState', () => {
       loadingMore: false,
       isAndModeBff: true,
       bffStatusCounts: { new: 797, shortlisted: 0, rejected: 1, interviewed_pass: 3 },
+      verifiedWorkingSetTotal: 214,
     }))
 
     const { result } = renderHook(() => useResumeSearchState())
 
     expect(result.current.facetCounts.statuses).toEqual([
-      { value: 'new', count: 797, label: 'New candidate' },
-      { value: 'interviewed_pass', count: 3 },
-      { value: 'rejected', count: 1 },
+      { value: 'new', count: 2, label: 'New candidate' },
+    ])
+    expect(result.current.verifiedWorkingSetTotal).toBe(214)
+  })
+
+  it('does not enable the unverified-lane extra GET without minRoleYears', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        minRoleYears: 1,
+        roleFilterType: 'sales',
+      },
+    }))
+    resumesMock.push(createResume(1, { primaryRuleScore: 95 }))
+
+    renderHook(() => useResumeSearchState())
+
+    const options = useConvexResumesMock.mock.calls.at(-1)?.[3] as {
+      unverifiedLane?: { countEnabled?: boolean }
+    }
+    expect(options.unverifiedLane?.countEnabled).toBe(false)
+  })
+
+  it('ranks current CNC/机床 sales above historic-sales QA without dropping QA', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        roleFilterType: 'sales',
+      },
+    }))
+    resumesMock.push(
+      createResume(1, {
+        primaryRuleScore: 99,
+        workHistory: [{
+          jobTitle: '品质工程师',
+          companyName: '某机械厂',
+          description: '质量检验 QA',
+          startDate: '2024-01',
+        }],
+      }),
+      createResume(2, {
+        primaryRuleScore: 40,
+        workHistory: [{
+          jobTitle: '机床销售工程师',
+          companyName: '创世纪',
+          description: '负责CNC机床销售',
+          startDate: '2024-01',
+        }],
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-2',
+      'resume-1',
     ])
   })
 

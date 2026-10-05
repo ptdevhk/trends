@@ -101,6 +101,7 @@ export function ResumeSearchPage() {
     convexSearchFailed,
     convexRetrySearch,
     unverifiedLane,
+    verifiedWorkingSetTotal,
     toggleUnverifiedLane,
     loadMore,
     parsedState,
@@ -589,8 +590,8 @@ export function ResumeSearchPage() {
           <ErrorBoundary fallback={<InlineErrorFallback message={errorSearchBarLabel} retryLabel={reloadPageLabel} onRetry={() => window.location.reload()} />}>
             <SearchHeader
               activeQuery={activeQuery}
-              activeResultCount={policyVisibleResults.length}
-              activeResultCountIsLowerBound={hasMore}
+              activeResultCount={verifiedWorkingSetTotal ?? policyVisibleResults.length}
+              activeResultCountIsLowerBound={verifiedWorkingSetTotal === undefined && hasMore}
               collectedTodayCount={loadedCollectedTodayCount}
               jobDescriptionId={parsedState.jobDescriptionId}
               loading={headerLoading}

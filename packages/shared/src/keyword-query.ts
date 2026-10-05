@@ -256,7 +256,9 @@ export function formatQuickStartSearchQuery(input: {
     return formatResumeSearchBoxQuery({ keywords: core, mode: "OR", salesDuty: true });
   }
 
-  return formatKeywordQuery(normalized);
+  // Default in-app / quick-start queries are AND, including MY
+  // "CNC" + "Service Engineer". User-typed OR still parses via parseKeywordQuery.
+  return formatKeywordQuery(normalized, "AND");
 }
 
 export function resolveSalesDutyFilters(

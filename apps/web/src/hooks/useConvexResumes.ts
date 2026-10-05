@@ -1774,6 +1774,7 @@ export function useConvexResumes(
     expansion: resolvedExpansion,
     isAndModeBff: isAndModeBffActive,
     bffStatusCounts: bffAndModeResult.statusCounts,
+    verifiedWorkingSetTotal: isAndModeBffActive ? bffAndModeResult.total : undefined,
     // The lane only means something where the verified-only gate is enforced:
     // the BFF AND-mode path. The Convex OR path accepts minRoleYears in args
     // but ignores it, so showing the lane there would be a phantom gate.

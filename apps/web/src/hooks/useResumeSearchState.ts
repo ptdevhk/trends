@@ -1,4 +1,4 @@
-import { DEFAULT_RESUME_AI_PROMPT_LOCALE, compareCompanyRankingEffects, deriveMarketFromSourceKey, formatKeywordQuery, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
+import { DEFAULT_RESUME_AI_PROMPT_LOCALE, compareCompanyRankingEffects, compareCurrentCncMachineSalesRank, deriveMarketFromSourceKey, formatKeywordQuery, isCncLikeSalesSearch, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -23,7 +23,6 @@ import {
   type ConvexResumeItem,
 } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
-import { useStatusCounts, type StatusCounts } from '@/hooks/useStatusCounts'
 import {
   useUrlSearchState,
   type ExperienceLevelFilter,
@@ -61,10 +60,9 @@ import { parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { getCollectionSourceMarket, resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import {
-  CANDIDATE_STATUS_VALUES,
-  type CandidateActionType,
-  type CandidateStatus,
+import type {
+  CandidateActionType,
+  CandidateStatus,
   type MatchingResult,
   type ResumeExportFormat,
   type ResumeFilters,
@@ -80,7 +78,6 @@ import type {
 const INITIAL_RESUME_LIMIT = 200
 const RESUME_PAGE_INCREMENT = 200
 const SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
-const SERVER_STATUS_FACET_VALUES = CANDIDATE_STATUS_VALUES
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -435,8 +432,17 @@ function currentRankingScore(item: ResumeSearchResultItem, whenMissing = -1): nu
 function sortResults(
   results: ResumeSearchResultItem[],
   sortValue: SearchSortValue,
+  query?: string,
+  roleFilterType?: string,
 ): ResumeSearchResultItem[] {
+  const cncSalesQuery = isCncLikeSalesSearch(query, roleFilterType)
   const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
+    if (cncSalesQuery) {
+      const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory)
+      if (rankDiff !== 0) {
+        return rankDiff
+      }
+    }
     if (sortValue === 'score') {
       return currentRankingScore(right) - currentRankingScore(left)
     }
@@ -543,40 +549,6 @@ function matchesBlockVisibility(
   filters: Partial<ResumeFilters>,
 ): boolean {
   return filters.showBlocked === true || !item.blocked
-}
-
-function mergeServerStatusFacetCounts(
-  facetCounts: FacetCounts,
-  statusCounts: StatusCounts,
-): FacetCounts {
-  if (statusCounts.loading) {
-    return facetCounts
-  }
-
-  const labelsByValue = new Map(
-    facetCounts.statuses.map((item) => [item.value, item.label]),
-  )
-  const statuses = SERVER_STATUS_FACET_VALUES
-    .map((value) => {
-      const label = labelsByValue.get(value)
-      return {
-        value,
-        count: statusCounts[value],
-        ...(label ? { label } : {}),
-      }
-    })
-    .filter((item) => item.count > 0)
-    .sort((left, right) => {
-      if (right.count !== left.count) {
-        return right.count - left.count
-      }
-      return left.value.localeCompare(right.value)
-    })
-
-  return {
-    ...facetCounts,
-    statuses,
-  }
 }
 
 function matchesLocalFilters(
@@ -980,7 +952,9 @@ export function useResumeSearchState() {
         : {}),
       showBlocked: parsedState.filters.showBlocked === true,
       unverifiedLane: {
-        countEnabled: unverifiedLaneGateActive,
+        // Extra GET without minRoleYears was the unverified-evidence lane
+        // count query. Keep the lane collapsed unless the operator expands it.
+        countEnabled: false,
         expanded: unverifiedLaneGateActive && unverifiedLaneExpanded,
       },
     },
@@ -1151,6 +1125,8 @@ export function useResumeSearchState() {
           ),
         ),
         activeSort,
+        parsedState.query,
+        effectiveRoleFilterType,
       ),
     [
       activeSort,
@@ -1165,40 +1141,22 @@ export function useResumeSearchState() {
 
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
-  const facetCounts: FacetCounts = useFacetCounts(blockVisibleResults, taxonomyClusters)
-  const statusCounts = useStatusCounts({
-    enabled: !isLanding && canLoadOperationalState,
-    filters: {
-      ...backendFilters,
-      showBlocked: parsedState.filters.showBlocked === true,
-    },
-    workspaceSlug: slug,
-    useAndModeBff: resumeQuery.isAndModeBff === true,
-    bffStatusCounts: resumeQuery.bffStatusCounts,
-  })
-  const facetCountsWithServerStatuses: FacetCounts = mergeServerStatusFacetCounts(facetCounts, statusCounts)
+  const facetCounts: FacetCounts = useFacetCounts(deferredFilteredResults, taxonomyClusters)
   const loadedCollectedTodayCount = useMemo(
     () => blockVisibleResults.filter((item) => isExtractedToday(item.resume.extractedAt)).length,
     [blockVisibleResults],
   )
   const statusSummary = useMemo(() => {
-    if (statusCounts.loading) {
-      return undefined
-    }
-
+    const countFor = (value: string) =>
+      facetCounts.statuses.find((entry) => entry.value === value)?.count ?? 0
+    const total = facetCounts.statuses.reduce((sum, entry) => sum + entry.count, 0)
     return {
-      new: statusCounts.new,
-      shortlisted: statusCounts.shortlisted,
-      rejected: statusCounts.rejected,
-      total: statusCounts.total,
+      new: countFor('new'),
+      shortlisted: countFor('shortlisted'),
+      rejected: countFor('rejected'),
+      total,
     }
-  }, [
-    statusCounts.loading,
-    statusCounts.new,
-    statusCounts.rejected,
-    statusCounts.shortlisted,
-    statusCounts.total,
-  ])
+  }, [facetCounts.statuses])
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
@@ -2275,7 +2233,7 @@ export function useResumeSearchState() {
     exportFormat,
     exportingResults,
     exportResults,
-    facetCounts: facetCountsWithServerStatuses,
+    facetCounts,
     filterCount,
     filteredResults: deferredFilteredResults,
     hasMore,
@@ -2289,6 +2247,7 @@ export function useResumeSearchState() {
     convexRetrySearch,
     isFiltering,
     unverifiedLane: resumeQuery.unverifiedLane,
+    verifiedWorkingSetTotal: resumeQuery.verifiedWorkingSetTotal,
     toggleUnverifiedLane,
     parsedState,
     queryInput,

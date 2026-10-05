@@ -12,6 +12,7 @@ export * from "./resume-normalization.js";
 export * from "./resume-id.js";
 export * from "./system-debug-metadata.js";
 export * from "./keyword-query.js";
+export * from "./cnc-sales-rank.js";
 export * from "./summaries.js";
 export * from "./salary.js";
 export * from "./market.js";

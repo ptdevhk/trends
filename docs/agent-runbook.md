@@ -58,6 +58,12 @@ make on-prod-refresh-env
 ```
 
 ### Preview deployment
+**Preview is RETIRED (2026-10-05)** — it is no longer a live UAT target. The
+commands below are retained for historical reference only; do not walk preview
+as a UAT/verification target. Current UAT targets are dev (`make dev` →
+`http://localhost:5173`) and prod (`https://trends.pt-mes.com`); see
+`docs/runbooks/resume-search-uat.md`. Prod deploy is a human gate.
+
 Preview uses separate ports and paths. **Complete CLI runbook:**
 - `docs/preview-upgrade-runbook.md`
 
