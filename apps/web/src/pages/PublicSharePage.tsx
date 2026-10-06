@@ -47,7 +47,7 @@ import {
 } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveResumeRefreshState } from '@/lib/resume-freshness'
-import { recommendationFromScore } from '@/lib/resume-scoring'
+import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
 import { getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import { normalizeOptionalString, normalizeStringList } from '@/lib/taxonomy'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -878,10 +878,25 @@ function MemberPublicShareResults({
   const snapshotByKey = useMemo(() => {
     const map = new Map<string, PublicShareResult>()
     results.forEach((result) => {
-      map.set(result.resumeKey, result)
+      if (result.resumeKey) {
+        map.set(result.resumeKey, result)
+        // Also map stripped externalId or URL if present
+        if (result.resumeKey.startsWith('externalId:')) {
+          map.set(result.resumeKey.replace(/^externalId:/, ''), result)
+        }
+      }
     })
     return map
   }, [results])
+
+  const findSnapshot = useCallback((resume: ConvexResumeItem, identityKey: string) => {
+    return snapshotByKey.get(identityKey)
+      ?? snapshotByKey.get(String(resume.resumeId))
+      ?? (resume.externalId ? snapshotByKey.get(resume.externalId) : undefined)
+      ?? (resume.externalId ? snapshotByKey.get(`externalId:${resume.externalId}`) : undefined)
+      ?? (resume.identityKey ? snapshotByKey.get(resume.identityKey) : undefined)
+      ?? (resume.profileUrl ? snapshotByKey.get(resume.profileUrl) : undefined)
+  }, [snapshotByKey])
 
   const items = useMemo<ResumeSearchResultItem[]>(() => {
     if (!docs) {
@@ -891,7 +906,7 @@ function MemberPublicShareResults({
     return docs.map((doc) => {
       const resume = mapResumeDoc(doc)
       const identityKey = resume.identityKey?.trim() || String(resume.resumeId)
-      const snapshot = snapshotByKey.get(identityKey) ?? snapshotByKey.get(String(resume.resumeId))
+      const snapshot = findSnapshot(resume, identityKey)
       const statusMeta = statusByIdentity[identityKey]
       const block = blocksByIdentity[identityKey]
       const analysis = buildSnapshotAnalysis(snapshot) ?? resume.analysis
@@ -912,12 +927,31 @@ function MemberPublicShareResults({
           ? analysis.score
           : resume.primaryRuleScore
 
+      const match: MatchingResult | undefined = analysis
+        ? {
+          resumeId: String(resume.resumeId),
+          score: analysis.score,
+          summary: analysis.summary,
+          highlights: analysis.highlights,
+          recommendation: (analysis.recommendation || recommendationFromScore(analysis.score)) as MatchingResult['recommendation'],
+          concerns: analysis.concerns ?? [],
+          breakdown: toDisplayMatchBreakdown(analysis.breakdown),
+          scoreSource: 'ai',
+          matchedAt: new Date().toISOString(),
+          jobDescriptionId: analysis.jobDescriptionId,
+          promptVersion: analysis.promptVersion,
+          locale: analysis.locale,
+          screeningChecklist: analysis.screeningChecklist,
+        }
+        : undefined
+
       return {
         key: identityKey,
         identityKey,
         resume,
         blocked: Boolean(block),
         analysis,
+        match,
         score,
         scoreSource: typeof snapshot?.score === 'number' || analysis ? 'ai' : 'rule',
         status: statusMeta?.status ?? 'new',
@@ -925,7 +959,7 @@ function MemberPublicShareResults({
         refreshState,
       }
     })
-  }, [analysisKeywords, blocksByIdentity, docs, jobDescriptionId, location, snapshotByKey, statusByIdentity])
+  }, [analysisKeywords, blocksByIdentity, docs, findSnapshot, jobDescriptionId, location, statusByIdentity])
   const facetCounts = useFacetCounts(items)
   const statusFacetCounts = useMemo(() => getStatusFacetCounts(items), [items])
   const statusSummary = useMemo(() => getStatusSummary(items), [items])
