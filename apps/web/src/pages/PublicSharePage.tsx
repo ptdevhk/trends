@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { buttonVariants } from '@/components/ui/button'
-import { AlertTriangle, Clock, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, Clock, Search } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -18,10 +18,8 @@ import { BulkActionBar } from '@/components/BulkActionBar'
 import { FacetBadge } from '@/components/search/FacetBadge'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
 import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
-import { ModeToggle } from '@/components/ModeToggle'
 import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
-import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
@@ -29,10 +27,12 @@ import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { mapResumeDoc } from '@/hooks/useConvexResumes'
+import { mapResumeDoc, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
 import { apiBaseUrl } from '@/lib/api-client'
 import { rawApiClient } from '@/lib/api-helpers'
+import { isReviewPacketsEnabled } from '@/lib/feature-flags'
+import { writeReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import {
   getRoleYears,
@@ -53,9 +53,9 @@ import { normalizeOptionalString, normalizeStringList } from '@/lib/taxonomy'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import {
-  CANDIDATE_STATUS_VALUES,
   type CandidateActionType,
   type CandidateStatus,
+  type MatchingResult,
   type ResumeExportFormat,
 } from '@/types/resume'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -135,7 +135,7 @@ type SearchSessionResponse = {
 type ResumeExportEntryMatch =
   NonNullable<ResumeExportRequestBody['entries'][number]['match']>
 
-const ALL_CANDIDATE_STATUSES = [...CANDIDATE_STATUS_VALUES]
+const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
 
 function formatDate(value: string | undefined): string | null {
   if (!value) {
@@ -460,7 +460,7 @@ function countActiveSnapshotFilters(params: {
   if (params.selectedExperienceLevel) count += 1
   if (params.selectedSources.length > 0) count += 1
   if (params.selectedTags.length > 0) count += 1
-  if (params.selectedStatuses.length !== ALL_CANDIDATE_STATUSES.length) count += 1
+  if (params.selectedStatuses.length > 0 && (params.selectedStatuses.length !== 1 || params.selectedStatuses[0] !== DEFAULT_STATUS_WHEN_EMPTY)) count += 1
   return count
 }
 
@@ -828,7 +828,7 @@ function MemberPublicShareResults({
   shareTitle?: string
   token: string
 }) {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
@@ -847,7 +847,11 @@ function MemberPublicShareResults({
   const [selectedEducation, setSelectedEducation] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [selectedSources, setSelectedSources] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<CandidateStatus[]>(ALL_CANDIDATE_STATUSES)
+  const [selectedStatuses, setSelectedStatuses] = useState<CandidateStatus[]>(
+    member.searchRun.filters?.status && Array.isArray(member.searchRun.filters.status) && member.searchRun.filters.status.length > 0
+      ? (member.searchRun.filters.status as CandidateStatus[])
+      : [DEFAULT_STATUS_WHEN_EMPTY]
+  )
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const selectedClusters: string[] = []
   const location = resolveReviewSessionLocation(member.searchRun.filters)
@@ -1076,22 +1080,6 @@ function MemberPublicShareResults({
       selectedTags,
     ],
   )
-  const shareState = useMemo(() => ({
-    location,
-    keywords: parseKeywordQuery(searchQuery ?? '').keywords,
-    filters: member.searchRun.filters,
-    jobDescriptionId,
-  }), [jobDescriptionId, location, member.searchRun.filters, searchQuery])
-  const analysisTitle = t('resumes.searchPage.analysis.title', {
-    defaultValue: 'Resume AI analysis',
-  })
-  const analysisDescription = t('resumes.searchPage.analysis.description', {
-    defaultValue: 'Generate per-resume AI summaries and breakdowns for the loaded search results.',
-  })
-  const analyzeLoadedLabel = t('resumes.searchPage.analysis.analyzeLoaded', {
-    count: displayItems.length,
-    defaultValue: 'Analyze loaded {{count}}',
-  })
 
   const handleToggleExpanded = useCallback((key: string) => {
     setExpandedIds((current) => {
@@ -1130,6 +1118,11 @@ function MemberPublicShareResults({
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set())
   }, [])
+
+  const handleOpenReviewPacket = useCallback(() => {
+    writeReviewPacketHandoff(Array.from(selectedIds))
+    navigate(`/${member.workspaceSlug}/review-packets`)
+  }, [member.workspaceSlug, navigate, selectedIds])
 
   const handleAction = useCallback(
     (resumeId: string, actionType: CandidateActionType) => {
@@ -1187,19 +1180,17 @@ function MemberPublicShareResults({
     setSelectedEducation([])
     setSelectedExperienceLevel(undefined)
     setSelectedSources([])
-    setSelectedStatuses(ALL_CANDIDATE_STATUSES)
+    setSelectedStatuses([DEFAULT_STATUS_WHEN_EMPTY])
     setSelectedTags([])
   }, [])
 
   const handleStatusFilterChange = useCallback((statuses: CandidateStatus[] | undefined) => {
-    setSelectedStatuses(statuses && statuses.length > 0 ? statuses : ALL_CANDIDATE_STATUSES)
+    setSelectedStatuses(statuses && statuses.length > 0 ? statuses : [DEFAULT_STATUS_WHEN_EMPTY])
   }, [])
 
   const toggleStatus = useCallback((status: CandidateStatus) => {
     setSelectedStatuses((current) => toggleStatusValue(current, status))
   }, [])
-
-  const ensureShareSession = useCallback(async () => reviewSessionId, [reviewSessionId])
 
   const applyExtractedKeywords = useCallback((keywords: string[]) => {
     setQueryInput(formatKeywordQuery(keywords))
@@ -1375,42 +1366,7 @@ function MemberPublicShareResults({
         </div>
 
         <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-slate-900">
-                {analysisTitle}
-              </div>
-              <p className="text-sm text-slate-600">
-                {analysisDescription}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <ModeToggle
-                mode="ai"
-                onModeChange={() => {}}
-                disabled
-              />
-              <Button
-                type="button"
-                size="sm"
-                data-testid="resume-analyze-button"
-                className="h-10 gap-2 rounded-full px-4"
-                disabled
-              >
-                <RefreshCw className="h-4 w-4" />
-                {analyzeLoadedLabel}
-              </Button>
-              <ShareLinkButton
-                shareTitle={shareTitle ?? 'Shared resume search'}
-                state={shareState}
-                ensureApiSession={ensureShareSession}
-                // Match ResumeSearchPage: do not mint/copy a share of unsettled docs.
-                disabled={resultsLoading}
-              />
-            </div>
-          </div>
-
-          <div className="sticky top-14 z-20 -mx-1 bg-background/95 px-1 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
             <BulkActionBar
               totalCount={displayItems.length}
               selectedCount={selectedIds.size}
@@ -1427,6 +1383,7 @@ function MemberPublicShareResults({
               onStatusFilterChange={handleStatusFilterChange}
               onStatusToggle={toggleStatus}
               statusFacetCounts={statusFacetCounts}
+              onOpenReviewPacket={isReviewPacketsEnabled() ? handleOpenReviewPacket : undefined}
             />
           </div>
 

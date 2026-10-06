@@ -354,10 +354,10 @@ describe('PublicSharePage', () => {
     renderPublicShare()
 
     expect(await screen.findByRole('heading', { name: 'China CNC sales snapshot' })).toBeInTheDocument()
-    expect(await screen.findByText('Shared Results List 2 action:true rating:true status:true block:true select:true')).toBeInTheDocument()
-    expect(screen.getByText('First shared candidate Candidate A')).toBeInTheDocument()
-    expect(screen.getByText('First action star')).toBeInTheDocument()
-    expect(screen.getByText('First rating 4')).toBeInTheDocument()
+    expect(await screen.findByText('Shared Results List 1 action:true rating:true status:true block:true select:true')).toBeInTheDocument()
+    expect(screen.getByText('First shared candidate Candidate B')).toBeInTheDocument()
+    expect(screen.getByText('First action none')).toBeInTheDocument()
+    expect(screen.getByText('First rating none')).toBeInTheDocument()
     expect(workspaceRef.get()).toBe('hr')
     await waitFor(() => {
       expect(apiPostMock).toHaveBeenCalledWith('/api/sessions', {
@@ -395,19 +395,19 @@ describe('PublicSharePage', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Select first' }))
-    expect(screen.getByText('Selected identity-1')).toBeInTheDocument()
+    expect(screen.getByText('Selected identity-2')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Star first' }))
-    expect(saveActionMock).toHaveBeenCalledWith({ resumeId: 'resume-1', actionType: 'star' })
+    expect(saveActionMock).toHaveBeenCalledWith({ resumeId: 'resume-2', actionType: 'star' })
 
     await user.click(screen.getByRole('button', { name: 'Rate first' }))
-    expect(saveActionMock).toHaveBeenCalledWith({ resumeId: 'resume-1', actionType: 'rating', actionData: { rating: 5 } })
+    expect(saveActionMock).toHaveBeenCalledWith({ resumeId: 'resume-2', actionType: 'rating', actionData: { rating: 5 } })
 
     await user.click(screen.getByRole('button', { name: 'Status first' }))
-    expect(updateStatusMock).toHaveBeenCalledWith('identity-1', 'shortlisted', 'Shared note')
+    expect(updateStatusMock).toHaveBeenCalledWith('identity-2', 'shortlisted', 'Shared note')
 
     await user.click(screen.getByRole('button', { name: 'Block first' }))
-    expect(blockCandidatesMock).toHaveBeenCalledWith(['identity-1'], 'Duplicate')
+    expect(blockCandidatesMock).toHaveBeenCalledWith(['identity-2'], 'Duplicate')
   })
 
   it('renders the member bulk action bar and exports selected snapshot resumes', async () => {
@@ -519,17 +519,6 @@ describe('PublicSharePage', () => {
       sessionId: 'member-review-session-1',
       jobDescriptionId: 'jd-1',
       entries: [
-        expect.objectContaining({
-          resumeId: 'identity-1',
-          status: 'contacted',
-          userComment: 'Existing note',
-          userRating: 4,
-          match: expect.objectContaining({
-            score: 91,
-            scoreSource: 'ai',
-            summary: 'Strong CNC sales background',
-          }),
-        }),
         expect.objectContaining({
           resumeId: 'identity-2',
           status: 'new',
@@ -643,10 +632,8 @@ describe('PublicSharePage', () => {
 
     renderPublicShare()
 
-    expect(await screen.findByText('Shared Results List 2 action:true rating:true status:true block:true select:true')).toBeInTheDocument()
+    expect(await screen.findByText('Shared Results List 1 action:true rating:true status:true block:true select:true')).toBeInTheDocument()
     expect(screen.getAllByText('Filters').length).toBeGreaterThan(0)
-    expect(screen.getByText('Resume AI analysis')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Share/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /复制搜索链接|Copy link/i })).toBeInTheDocument()
     expect(useSearchPreloadMock).toHaveBeenCalledWith('CNC 销售 China', false)
     expect(screen.queryByText('Snapshot')).not.toBeInTheDocument()
