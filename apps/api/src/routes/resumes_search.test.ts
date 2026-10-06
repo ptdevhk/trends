@@ -391,7 +391,7 @@ describe("keyword default sort reorders CNC service-engineer queries", () => {
 
   function mockSample(items: unknown[]) {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
-      items,
+      items: items as any,
       sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
       metadata: undefined,
       indexes: new Map(),
