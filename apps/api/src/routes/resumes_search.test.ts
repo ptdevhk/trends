@@ -364,3 +364,76 @@ describe("source=sample role-filter parity", () => {
     expect(filterSpy.mock.calls[0][2]).toBe(verifiedProfilesMap);
   });
 });
+
+describe("keyword default sort reorders CNC service-engineer queries", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const makeItem = (name: string, jobTitle: string, description: string, relevanceScore: number) => ({
+    name,
+    profileUrl: `https://example.com/${name}`,
+    activityStatus: "Active",
+    age: "30",
+    experience: "6 years",
+    education: "Bachelor",
+    location: "Bangkok",
+    selfIntro: "",
+    jobIntention: "Service Engineer",
+    expectedSalary: "",
+    relevanceScore,
+    workHistory: [
+      { jobTitle, companyName: "Example Co", description, startDate: "2024-01" },
+    ],
+    ingestData: {},
+    extractedAt: "2026-03-20T00:00:00.000Z",
+  });
+
+  function mockSample(items: unknown[]) {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items,
+      sample: { name: "sample-initial", filename: "sample-initial.json", size: 0, updatedAt: "2026-04-01" },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+    vi.spyOn(ResumeService.prototype, "expandSearchQuery").mockReturnValue(undefined as any);
+    vi.spyOn(ResumeService.prototype, "searchResumes").mockImplementation((rows) => rows as any);
+    vi.spyOn(ResumeService.prototype, "filterResumes").mockImplementation((rows) => rows);
+  }
+
+  it("ranks a CNC service engineer above a higher-relevance accountant", async () => {
+    const items = [
+      makeItem("accountant", "Accountant", "负责公司账务", 90),
+      makeItem("service-engineer", "CNC Service Engineer", "CNC机床售后维修", 10),
+    ];
+    mockSample(items);
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request(
+      '/api/resumes?source=sample&q=%22CNC%22%20%22Service%20Engineer%22&roleFilterType=engineer',
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ data: { name: string }[] }>(response);
+    expect(payload.data.map((item) => item.name)[0]).toBe("service-engineer");
+  });
+
+  it("does not reorder a CN CNC sales query into the service-engineer lane", async () => {
+    const items = [
+      makeItem("service-engineer", "CNC Service Engineer", "CNC机床售后维修", 10),
+      makeItem("sales-manager", "Sales Manager", "CNC机床销售", 90),
+    ];
+    mockSample(items);
+
+    const app = createTestApp(createAuthContext({ workspaceSlug: "hr", role: "user" }));
+    const response = await app.request(
+      "/api/resumes?source=sample&q=CNC%20销售&roleFilterType=sales",
+      { headers: { "X-Workspace-Slug": "hr" } },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await parseJsonBody<{ data: { name: string }[] }>(response);
+    expect(payload.data.map((item) => item.name)[0]).toBe("sales-manager");
+  });
+});

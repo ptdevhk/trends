@@ -524,6 +524,32 @@ export const list = query({
     },
 });
 
+export const get = query({
+    args: {
+        taskId: v.id("analysis_tasks"),
+        workspaceSlug: v.string(),
+        writeSecret: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        requireAnalysisReadSecret(args.writeSecret);
+        const workspaceSlug = requireNonblankWorkspaceSlug(
+            args.workspaceSlug,
+            "Analysis task get requires a workspaceSlug",
+        );
+        const task = await ctx.db.get(args.taskId);
+        if (!task) {
+            return null;
+        }
+        const taskWorkspace = task.workspaceSlug?.trim();
+        const visibleToCaller = taskWorkspace === workspaceSlug
+            || (workspaceSlug === DEFAULT_WORKSPACE_SLUG && !taskWorkspace);
+        if (!visibleToCaller) {
+            return null;
+        }
+        return projectAnalysisTaskForList(task);
+    },
+});
+
 /**
  * Count analysis_tasks currently in "processing" status.
  * Used by the restore quiesce helper to detect drain completion.

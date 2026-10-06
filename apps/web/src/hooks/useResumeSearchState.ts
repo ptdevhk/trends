@@ -1,4 +1,4 @@
-import { DEFAULT_RESUME_AI_PROMPT_LOCALE, compareCompanyRankingEffects, compareCurrentCncMachineSalesRank, deriveMarketFromSourceKey, formatKeywordQuery, isCncLikeSalesSearch, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
+import { DEFAULT_RESUME_AI_PROMPT_LOCALE, compareCompanyRankingEffects, compareCurrentCncMachineSalesRank, compareCurrentCncServiceEngineerRank, deriveMarketFromSourceKey, formatKeywordQuery, isCncLikeSalesSearch, isCncLikeServiceEngineerSearch, isCompanyWorkflowBlocked, isSalesRequiredContext, parseKeywordQuery, primaryCompanyPolicyHit, resolveLocationHierarchy, resolveSalesDutyFilters } from '@trends/shared'
 import { matchesSalaryFilter } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -63,10 +63,10 @@ import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
   CandidateActionType,
   CandidateStatus,
-  type MatchingResult,
-  type ResumeExportFormat,
-  type ResumeFilters,
-  type ResumeMachineOrigin,
+  MatchingResult,
+  ResumeExportFormat,
+  ResumeFilters,
+  ResumeMachineOrigin,
 } from '@/types/resume'
 import type {
   FacetCounts,
@@ -436,7 +436,14 @@ function sortResults(
   roleFilterType?: string,
 ): ResumeSearchResultItem[] {
   const cncSalesQuery = isCncLikeSalesSearch(query, roleFilterType)
+  const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(query, roleFilterType)
   const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
+    if (cncServiceEngineerQuery) {
+      const serviceRankDiff = compareCurrentCncServiceEngineerRank(left.resume.workHistory, right.resume.workHistory)
+      if (serviceRankDiff !== 0) {
+        return serviceRankDiff
+      }
+    }
     if (cncSalesQuery) {
       const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory)
       if (rankDiff !== 0) {

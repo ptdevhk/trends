@@ -1749,7 +1749,7 @@ export const ExactAnalysisVerificationSchema = z.object({
 
 export const AnalysisTaskDetailSchema = z.object({
   task: AnalysisTaskSchema,
-  verification: ExactAnalysisVerificationSchema,
+  verification: ExactAnalysisVerificationSchema.optional(),
 });
 
 export const AnalysisTaskDetailResponseSchema = AnalysisTaskDetailSchema.extend({

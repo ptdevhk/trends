@@ -27,8 +27,10 @@ import { callConvexAction, callConvexQuery, isConvexPaginatedQueryPage } from ".
 import { requireWorkspacePermission } from "../services/workspace-permissions.js";
 import {
   compareCurrentCncMachineSalesRank,
+  compareCurrentCncServiceEngineerRank,
   formatKeywordQuery,
   isCncLikeSalesSearch,
+  isCncLikeServiceEngineerSearch,
   normalizeSearchRoleFilterType,
   parseKeywordQuery,
   resolveSalesDutyFilters,
@@ -1155,6 +1157,31 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
+        if (!usesPrePagedMatchResults && !effectiveSortBy && keyword) {
+          // Default sort by relevance when a keyword is present but no explicit
+          // sortBy. CNC service-engineer / sales queries get a current-job rank
+          // pre-pass (reorder only, never drop).
+          const cncSalesQuery = isCncLikeSalesSearch(keyword, effectiveRoleFilterType);
+          const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(keyword, effectiveRoleFilterType);
+          if (cncServiceEngineerQuery || cncSalesQuery) {
+            working = [...working].sort((a, b) => {
+              if (cncServiceEngineerQuery) {
+                const serviceRankDiff = compareCurrentCncServiceEngineerRank(a.resume.workHistory, b.resume.workHistory);
+                if (serviceRankDiff !== 0) {
+                  return serviceRankDiff;
+                }
+              }
+              if (cncSalesQuery) {
+                const rankDiff = compareCurrentCncMachineSalesRank(a.resume.workHistory, b.resume.workHistory);
+                if (rankDiff !== 0) {
+                  return rankDiff;
+                }
+              }
+              return 0;
+            });
+          }
+        }
+
         // Compute operational status overlays only after authentication. Anonymous
         // HR search returns base resume/search data and ignores status filters
         // because status is part of the HR decision trail.
@@ -1337,7 +1364,14 @@ app.openapi(getResumesRoute, (c) => {
       } else if (keyword) {
         // Default sort by relevance if keyword is present but no explicit sortBy
         const cncSalesQuery = isCncLikeSalesSearch(keyword, effectiveRoleFilterType);
+        const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(keyword, effectiveRoleFilterType);
         working = [...working].sort((a, b) => {
+          if (cncServiceEngineerQuery) {
+            const serviceRankDiff = compareCurrentCncServiceEngineerRank(a.resume.workHistory, b.resume.workHistory);
+            if (serviceRankDiff !== 0) {
+              return serviceRankDiff;
+            }
+          }
           if (cncSalesQuery) {
             const rankDiff = compareCurrentCncMachineSalesRank(a.resume.workHistory, b.resume.workHistory);
             if (rankDiff !== 0) {

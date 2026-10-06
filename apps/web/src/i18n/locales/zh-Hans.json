@@ -656,6 +656,7 @@
         "disabledRulesOnly": "切换到 AI 模式以分析",
         "disabledNoInput": "添加 JD 或关键词以启用分析",
         "disabledNoPermission": "无权限分析候选人",
+        "disabledUnauthenticated": "登录后分析",
         "disabledGeneric": "请选择要分析的候选人"
       },
       "readOnly": {

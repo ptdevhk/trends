@@ -481,12 +481,12 @@ const getAnalysisTaskRoute = createRoute({
   method: "get",
   path: "/api/resumes/analysis-tasks/{taskId}",
   tags: ["resumes"],
-  summary: "Get exact analysis task status",
+  summary: "Get analysis task status",
   request: {
     params: z.object({ taskId: z.string().min(1) }),
   },
   responses: {
-    200: { content: { "application/json": { schema: AnalysisTaskDetailResponseSchema } }, description: "Exact analysis task status" },
+    200: { content: { "application/json": { schema: AnalysisTaskDetailResponseSchema } }, description: "Analysis task status; exact tasks include verification" },
     404: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Analysis task not found" },
     500: { content: { "application/json": { schema: SimpleErrorSchema } }, description: "Internal error" },
   },
@@ -494,17 +494,41 @@ const getAnalysisTaskRoute = createRoute({
 app.openapi(getAnalysisTaskRoute, async (c) => {
   const { taskId } = c.req.valid("param");
   try {
-    const value = await callConvexQuery("analysis_tasks:getExactStatus", {
-      taskId,
-      workspaceSlug: c.var.workspaceSlug,
-      writeSecret: config.auth.convexWriteSecret,
-    });
+    let value: unknown;
+    try {
+      value = await callConvexQuery("analysis_tasks:getExactStatus", {
+        taskId,
+        workspaceSlug: c.var.workspaceSlug,
+        writeSecret: config.auth.convexWriteSecret,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("is not an exact dispatch")) {
+        throw error;
+      }
+      const searchTask = await callConvexQuery("analysis_tasks:get", {
+        taskId,
+        workspaceSlug: c.var.workspaceSlug,
+        writeSecret: config.auth.convexWriteSecret,
+      });
+      if (searchTask === null) {
+        return c.json({ success: false as const, error: "Analysis task not found" }, 404);
+      }
+      return c.json(AnalysisTaskDetailResponseSchema.parse({
+        success: true as const,
+        task: searchTask,
+      }), 200);
+    }
     if (value === null) {
       return c.json({ success: false as const, error: "Analysis task not found" }, 404);
     }
 
     const detail = AnalysisTaskDetailSchema.parse(value);
-    const stateCounts = detail.verification.targets.reduce(
+    if (!detail.verification) {
+      throw new Error("Exact analysis status returned without verification");
+    }
+    const verification = detail.verification;
+    const stateCounts = verification.targets.reduce(
       (counts, target) => {
         counts[target.state] += 1;
         return counts;
@@ -512,22 +536,22 @@ app.openapi(getAnalysisTaskRoute, async (c) => {
       { ready: 0, pending: 0, invalid: 0 },
     );
     const targetResumeIds = detail.task.targetResumeIds ?? [];
-    const targetIdsMatch = targetResumeIds.length === detail.verification.targets.length
+    const targetIdsMatch = targetResumeIds.length === verification.targets.length
       && targetResumeIds.every(
-        (resumeId, index) => resumeId === detail.verification.targets[index].currentResumeId,
+        (resumeId, index) => resumeId === verification.targets[index].currentResumeId,
       );
     const expectedAllReady = detail.task.status === "completed"
-      && stateCounts.ready === detail.verification.targets.length
+      && stateCounts.ready === verification.targets.length
       && stateCounts.pending === 0
       && stateCounts.invalid === 0;
-    if (detail.verification.ready !== stateCounts.ready
-      || detail.verification.pending !== stateCounts.pending
-      || detail.verification.invalid !== stateCounts.invalid
-      || detail.verification.ready + detail.verification.pending + detail.verification.invalid
-        !== detail.verification.targets.length
-      || detail.verification.allReady !== expectedAllReady
-      || detail.task.dispatchedAt !== detail.verification.dispatchedAt
-      || detail.task.config?.resumeCount !== detail.verification.targets.length
+    if (verification.ready !== stateCounts.ready
+      || verification.pending !== stateCounts.pending
+      || verification.invalid !== stateCounts.invalid
+      || verification.ready + verification.pending + verification.invalid
+        !== verification.targets.length
+      || verification.allReady !== expectedAllReady
+      || detail.task.dispatchedAt !== verification.dispatchedAt
+      || detail.task.config?.resumeCount !== verification.targets.length
       || !targetIdsMatch) {
       throw new Error("Exact analysis status returned inconsistent target counts or IDs");
     }
@@ -537,7 +561,7 @@ app.openapi(getAnalysisTaskRoute, async (c) => {
       ...detail,
     }), 200);
   } catch (error) {
-    logger.error("Failed to get exact analysis task status", error, { route: "resumes_diagnostics", taskId });
+    logger.error("Failed to get analysis task status", error, { route: "resumes_diagnostics", taskId });
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false as const, error: message }, 500);
   }

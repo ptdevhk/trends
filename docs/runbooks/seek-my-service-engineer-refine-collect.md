@@ -80,5 +80,7 @@ Do **not** invent fixtures. Escalate in this order:
 ## Related
 
 - Work item: `projects/trends/work/2026-10-05-my-service-engineer-phrase-soft-match/spec.md`
+- Rank-then-collect (approach C): `projects/trends/work/2026-10-06-my-th-service-engineer-rank-then-collect/spec.md`
+- Local TH ingest + AI UAT 2026-10-06: `docs/runbooks/seek-th-my-service-engineer-rank-collect-uat-2026-10-06.md`
 - UAT: `queries/2026-10-05-prod-five-search-uat-hr-demo-rev2.md`
 - Local walk: `/tmp/goldens-2-5-local-uat.md`
