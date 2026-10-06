@@ -2612,7 +2612,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get exact analysis task status */
+        /** Get analysis task status */
         get: {
             parameters: {
                 query?: never;
@@ -2624,7 +2624,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Exact analysis task status */
+                /** @description Analysis task status; exact tasks include verification */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -21653,7 +21653,7 @@ export interface components {
                 lastStatus?: string;
                 error?: string;
             };
-            verification: {
+            verification?: {
                 allReady: boolean;
                 ready: number;
                 pending: number;
