@@ -107,14 +107,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "job5156",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 10
         },
         {
@@ -163,14 +163,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "job5156",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 10
         },
         {
@@ -218,14 +218,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -273,14 +273,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -323,7 +323,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -331,7 +331,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 5,
           "mode": "recommended"
         },
@@ -340,7 +340,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 2,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         },
@@ -391,7 +391,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -399,7 +399,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 5,
           "mode": "recommended"
         },
@@ -408,7 +408,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 2,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         },
@@ -460,7 +460,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -468,7 +468,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         }
@@ -515,7 +515,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -523,7 +523,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         }
@@ -570,7 +570,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -625,7 +625,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Kuala_Lumpur",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -680,7 +680,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Bangkok",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -688,7 +688,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         }
@@ -735,7 +735,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       "schedule": {
         "enabled": false,
         "timezone": "Asia/Bangkok",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -743,7 +743,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           "enabled": true,
           "priority": 1,
           "jobUrl": "https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE",
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 25,
           "mode": "talentsearch"
         }
@@ -795,14 +795,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -851,14 +851,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -907,14 +907,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -963,14 +963,14 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
           "type": "51job",
           "enabled": true,
           "priority": 1,
-          "collectLimit": 50,
+          "collectLimit": 200,
           "maxPages": 1
         },
         {
@@ -1019,7 +1019,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {
@@ -1081,7 +1081,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "enabled": false,
         "cron": "0 9 * * 1-5",
         "timezone": "Asia/Shanghai",
-        "maxCandidates": 50
+        "maxCandidates": 200
       },
       "sources": [
         {

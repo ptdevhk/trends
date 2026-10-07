@@ -735,6 +735,30 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('clamps Limit and Max Candidates to 1..2000 on save (accepts the 2000 ceiling)', () => {
+    const form = toSourcesFormState([
+      {
+        type: 'seek' as const,
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch' as const,
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&keywords=CNC',
+        collectLimit: 2000,
+        maxPages: 25,
+      },
+    ])
+
+    // 2001 clamps down to the ceiling; 0/negative clamps up to 1.
+    const over = buildSourcesPayload({ ...form, seekCollectLimit: '2001' }, [])
+    expect(over.find((source) => source.type === 'seek')?.collectLimit).toBe(2000)
+
+    const under = buildSourcesPayload({ ...form, seekCollectLimit: '0' }, [])
+    expect(under.find((source) => source.type === 'seek')?.collectLimit).toBe(1)
+
+    const atCeiling = buildSourcesPayload({ ...form, seekCollectLimit: '2000' }, [])
+    expect(atCeiling.find((source) => source.type === 'seek')?.collectLimit).toBe(2000)
+  })
+
   it('hydrates talentsearch-only profile with Job5156/51job unchecked and Seek checked', () => {
     const talentOnlySources = [
       {
@@ -961,5 +985,53 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     // Layout classes live on the real DialogContent; verify via module source contract
     // is covered by the committed className strings in SearchProfileEditorDialog.tsx.
     expect(container.textContent).toContain('Save')
+  })
+
+  it('clamps collect-count fields to the 1..2000 ceiling on save', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId={null}
+      />
+    )
+
+    await user.type(screen.getByLabelText('Name'), 'clamp profile')
+    await user.type(screen.getByLabelText('关键词:'), 'CNC')
+    await user.click(screen.getByLabelText('51job eHire'))
+
+    // Raise each collect-count field above the ceiling; save must clamp to 2000.
+    fireEvent.change(screen.getByLabelText('Max Candidates'), { target: { value: '9999' } })
+    fireEvent.change(screen.getByLabelText('Limit'), { target: { value: '9999' } })
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(postMock).toHaveBeenCalled())
+
+    const payload = postMock.mock.calls[0]?.[1] as {
+      body?: { schedule?: { maxCandidates?: number }; sources?: Array<{ type: string; job51CollectLimit?: number }> }
+    }
+    expect(payload.body?.schedule?.maxCandidates).toBe(2000)
+    expect(payload.body?.sources?.find((source) => source.type === '51job')?.job51CollectLimit).toBe(2000)
+  })
+
+  it('clamps a collect-count field below 1 up to the floor', () => {
+    const form = toSourcesFormState([
+      {
+        type: 'seek',
+        enabled: true,
+        priority: 1,
+        mode: 'talentsearch',
+        jobUrl: 'https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&keywords=CNC',
+        collectLimit: 200,
+        maxPages: 25,
+      },
+    ])
+    form.seekCollectLimit = '0'
+
+    const payload = buildSourcesPayload(form, [])
+    expect(payload.find((source) => source.type === 'seek')?.collectLimit).toBe(1)
   })
 })

@@ -575,6 +575,8 @@ describe('SearchProfilesPage run behavior', () => {
     expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
     expect(openedUrl.searchParams.get('keyword')).toBe('CNC 销售')
     expect(openedUrl.searchParams.get('location')).toBe('东莞')
+    // Profile omits schedule.maxCandidates -> falls back to the install default
+    // (200); the 51job safe-launch clamp still caps the emitted tr_limit at 50.
     expect(openedUrl.searchParams.get('tr_limit')).toBe('50')
     expect(openedUrl.searchParams.get('tr_max_pages')).toBe('1')
     expect(openedUrl.searchParams.get('tr_min_age')).toBe('25')
@@ -759,7 +761,8 @@ describe('SearchProfilesPage run behavior', () => {
     expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hr.job5156.com/search')
     expect(openedUrl.searchParams.get('keyword')).toBe('招聘 简历')
     expect(openedUrl.searchParams.get('location')).toBe('东莞')
-    expect(openedUrl.searchParams.get('tr_limit')).toBe('120')
+    // Profile omits schedule.maxCandidates -> falls back to the install default (200).
+    expect(openedUrl.searchParams.get('tr_limit')).toBe('200')
     expect(openedUrl.searchParams.get('tr_max_pages')).toBe('10')
     expect(postMock).not.toHaveBeenCalled()
     expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')

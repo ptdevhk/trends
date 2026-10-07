@@ -26,13 +26,13 @@ schedule:
   enabled: false
   cron: "0 9 * * 1-5"
   timezone: Asia/Shanghai
-  maxCandidates: 50
+  maxCandidates: 200
 
 sources:
   - type: 51job
     enabled: true
     priority: 1
-    collectLimit: 50
+    collectLimit: 200
     maxPages: 1
   - type: job5156
     enabled: false

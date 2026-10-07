@@ -97,7 +97,7 @@ describe("seek MY/TH service-engineer profile contract", () => {
   it("pins worker-side collect limits and the landing launch tr_* contract", () => {
     for (const profile of seekMyThServiceProfileFixtures()) {
       const seek = profile.sources[0];
-      const expectedLimit = profile.id.includes("malaysia") ? 200 : 50;
+      const expectedLimit = 200;
       expect(seek?.collectLimit).toBe(expectedLimit);
       expect(seek?.maxPages).toBe(25);
 
