@@ -84,3 +84,24 @@ Do **not** invent fixtures. Escalate in this order:
 - Local TH ingest + AI UAT 2026-10-06: `docs/runbooks/seek-th-my-service-engineer-rank-collect-uat-2026-10-06.md`
 - UAT: `queries/2026-10-05-prod-five-search-uat-hr-demo-rev2.md`
 - Local walk: `/tmp/goldens-2-5-local-uat.md`
+
+## Collect-limit layers (how a stop count is decided)
+
+A profile's stop count passes through four layers; only the first two are
+operator-editable in the Search Profile editor.
+
+| Layer | Where | Default | Notes |
+|-------|-------|---------|-------|
+| YAML seed | `config/search-profiles/*.yaml` → `sources[].collectLimit` + `schedule.maxCandidates` | **200** (was 50) | Install default. `51job-cn-cmm-3d-scanning-sales` keeps `collectLimit: 2000`. Regenerate with `make sync-search-profile-templates`. |
+| Profile Limit / Max Candidates | `/hr/settings/profiles` editor | 200 | Clamped 1..2000 in the editor (`MAX_COLLECT_LIMIT`). Saving mirrors Max Candidates into mirrored source limits. |
+| `tr_limit` | Run Now launch URL | = profile Limit | What the extension actually receives. `tr_limit` is a **stop count for this run**, not a backend ingest cap — the worker/ingest path does not truncate at this number. |
+| Extension Options | extension settings | — | **Do not override `tr_limit`.** Options only supply a fallback when the launch URL carries no `tr_limit`. |
+
+Implications:
+
+- Raising the profile Limit to 2000 does not by itself ingest 2000 rows; it
+  only lets the extension keep paginating until it hits that count or the
+  source is exhausted.
+- Lowering the YAML default does not retroactively change already-seeded
+  profiles in a workspace — re-seed or edit the profile to pick up 200.
+- Never lower the `51job-cn-cmm-3d-scanning-sales` YAML `collectLimit: 2000`.

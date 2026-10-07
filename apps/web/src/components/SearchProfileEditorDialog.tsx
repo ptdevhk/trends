@@ -25,6 +25,13 @@ import {
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { reportUiError } from '@/lib/ui-error-reporting'
 
+/**
+ * Upper bound for every collect-count field in this editor (Limit / Max
+ * Candidates). The install-seeded YAML default is 200; operators may raise a
+ * profile up to this ceiling (the 51job CMM 3D-scanning profile seeds 2000).
+ */
+export const MAX_COLLECT_LIMIT = 2000
+
 export type SearchProfileFilters = {
     maxExperience?: number | null
     minRoleYears?: number
@@ -223,6 +230,12 @@ function parseOptionalNumber(value: string): number | undefined {
     return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
 }
 
+function parseOptionalLimit(value: string): number | undefined {
+    const parsed = parseOptionalNumber(value)
+    if (typeof parsed !== 'number') return undefined
+    return Math.min(Math.max(parsed, 1), MAX_COLLECT_LIMIT)
+}
+
 function parseKeywords(value: string): string[] {
     const parsed = parseKeywordQuery(value)
     const keywords = normalizeKeywordPhrases(parsed.keywords)
@@ -404,7 +417,7 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
 export function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
     const sources: SearchProfileSource[] = [...additionalSources]
 
-    const job5156CollectLimit = parseOptionalNumber(sourceForm.job5156CollectLimit)
+    const job5156CollectLimit = parseOptionalLimit(sourceForm.job5156CollectLimit)
     const job5156MaxPages = parseOptionalNumber(sourceForm.job5156MaxPages)
 
     sources.push({
@@ -415,9 +428,9 @@ export function buildSourcesPayload(sourceForm: SourceFormState, additionalSourc
         ...(typeof job5156MaxPages === 'number' ? { maxPages: job5156MaxPages } : {}),
     })
 
-    const job51CollectLimit = parseOptionalNumber(sourceForm.job51CollectLimit)
+    const job51CollectLimit = parseOptionalLimit(sourceForm.job51CollectLimit)
     const job51MaxPages = parseOptionalNumber(sourceForm.job51MaxPages)
-    const job51GenericCollectLimit = parseOptionalNumber(sourceForm.job51GenericCollectLimit)
+    const job51GenericCollectLimit = parseOptionalLimit(sourceForm.job51GenericCollectLimit)
     const job51GenericMaxPages = parseOptionalNumber(sourceForm.job51GenericMaxPages)
     const derivedUnsafeLimits = sourceForm.job51UnsafeLimits
       || (typeof job51CollectLimit === 'number' && job51CollectLimit > 50)
@@ -439,7 +452,7 @@ export function buildSourcesPayload(sourceForm: SourceFormState, additionalSourc
         ...(sourceForm.job51OnlyCurWorkFunc ? { job51OnlyCurWorkFunc: true } : {}),
     })
 
-    const seekCollectLimit = parseOptionalNumber(sourceForm.seekCollectLimit)
+    const seekCollectLimit = parseOptionalLimit(sourceForm.seekCollectLimit)
     const seekMaxPages = parseOptionalNumber(sourceForm.seekMaxPages)
     // Derive seek mode from the URL when possible so a talent-search URL keeps
     // mode='talentsearch' through edit + save. Fall back to 'recommended' for
@@ -753,7 +766,7 @@ export function SearchProfileEditorDialog({
             schedule: {
                 enabled: form.scheduleEnabled,
                 cron: form.cron.trim() || undefined,
-                maxCandidates: parseOptionalNumber(form.maxCandidates),
+                maxCandidates: parseOptionalLimit(form.maxCandidates),
             },
             sources,
             quickStart: { enabled: form.quickStartEnabled },
@@ -948,12 +961,16 @@ export function SearchProfileEditorDialog({
                             id="profile-maxCandidates"
                             type="number"
                             min={1}
+                            max={MAX_COLLECT_LIMIT}
                             step={1}
                             inputMode="numeric"
                             value={form.maxCandidates}
                             onChange={(event) => setForm((previous) => ({ ...previous, maxCandidates: event.target.value }))}
                             placeholder="120"
                         />
+                        <span className="text-xs text-muted-foreground">
+                            {t('searchProfiles.fields.collectLimitHint', { defaultValue: 'Run Now sends tr_limit to the extension; it is not a backend ingest cap, and extension Options do not override tr_limit.' })}
+                        </span>
                     </div>
 
                     <div className="grid gap-3">
@@ -1001,6 +1018,7 @@ export function SearchProfileEditorDialog({
                                                 id="profile-source-job5156-limit"
                                                 type="number"
                                                 min={1}
+                                                max={MAX_COLLECT_LIMIT}
                                                 step={1}
                                                 inputMode="numeric"
                                                 value={sourceForm.job5156CollectLimit}
@@ -1100,6 +1118,7 @@ export function SearchProfileEditorDialog({
                                                 id="profile-source-job51-limit"
                                                 type="number"
                                                 min={1}
+                                                max={MAX_COLLECT_LIMIT}
                                                 step={1}
                                                 inputMode="numeric"
                                                 value={sourceForm.job51CollectLimit}
@@ -1225,6 +1244,7 @@ export function SearchProfileEditorDialog({
                                                 id="profile-source-seek-limit"
                                                 type="number"
                                                 min={1}
+                                                max={MAX_COLLECT_LIMIT}
                                                 step={1}
                                                 inputMode="numeric"
                                                 value={sourceForm.seekCollectLimit}

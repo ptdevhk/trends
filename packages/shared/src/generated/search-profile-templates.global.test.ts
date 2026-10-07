@@ -25,14 +25,14 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
     expect(SEARCH_PROFILE_TEMPLATES.some((t) => t.workspaceSlug === 'demotest')).toBe(false)
   })
 
-  it('keeps seeded quick-start collection defaults at top50', () => {
+  it('keeps seeded quick-start collection defaults at 200', () => {
     const dev = getWorkspaceSearchProfileTemplates('dev')
     const quickStarts = dev.filter((template) => template.profile.quickStart?.enabled)
 
     expect(quickStarts.length).toBeGreaterThan(0)
 
     for (const template of quickStarts) {
-      expect(template.profile.schedule?.maxCandidates).toBe(50)
+      expect(template.profile.schedule?.maxCandidates).toBe(200)
 
       const enabledSources = (template.profile.sources ?? []).filter((source) => source.enabled)
       expect(enabledSources.length).toBeGreaterThan(0)
@@ -42,11 +42,7 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
           expect(source.collectLimit).toBe(2000)
           continue
         }
-        if (template.profile.id === 'seek-malaysia-talent-search-service-engineer') {
-          expect(source.collectLimit).toBe(200)
-          continue
-        }
-        expect(source.collectLimit).toBe(50)
+        expect(source.collectLimit).toBe(200)
       }
     }
   })
@@ -144,7 +140,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
       expect(template?.profile.keywords).not.toContain('CNC')
       expect(template?.profile.quickStart?.label).not.toContain('CNC')
       expect(template?.profile.quickStart?.description).not.toContain('CNC')
-      expect(template?.profile.schedule?.maxCandidates).toBe(50)
+      expect(template?.profile.schedule?.maxCandidates).toBe(200)
 
       const enabled51job = template?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
       expect(enabled51job?.jobUrl).toBeUndefined()
@@ -157,7 +153,7 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
 
     for (const template of [cmm, scanning]) {
       const enabled51job = template?.profile.sources?.find((source) => source.type === '51job' && source.enabled)
-      expect(enabled51job?.collectLimit).toBe(50)
+      expect(enabled51job?.collectLimit).toBe(200)
     }
 
     expect(combined?.profile.keywords).toEqual(['三坐标', '3D扫描'])

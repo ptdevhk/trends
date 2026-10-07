@@ -50,7 +50,11 @@ type ProfileStatusResponse = {
 }
 
 const TERMINAL_STATUSES: Array<SearchProfileRunStatus['taskStatus']> = ['completed', 'failed', 'cancelled', 'unknown']
-const DEFAULT_PROFILE_RUN_LIMIT = 120
+// Install-seeded YAML profiles default their schedule.maxCandidates to 200 (see
+// config/search-profiles/*.yaml). When a profile predates that default (or omits
+// maxCandidates entirely), Run Now should still request the same 200 so the
+// tr_limit it sends matches the seeded profile limit.
+const DEFAULT_PROFILE_RUN_LIMIT = 200
 const DEFAULT_PROFILE_RUN_MAX_PAGES = 10
 
 type ProfileStatusFilter = 'all' | 'active' | 'paused' | 'archived'

@@ -24,7 +24,7 @@ filters:
 schedule:
   enabled: false
   timezone: Asia/Kuala_Lumpur
-  maxCandidates: 50
+  maxCandidates: 200
 
 sources:
   - type: seek
@@ -32,7 +32,7 @@ sources:
     enabled: true
     priority: 1
     jobUrl: https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=MY&pageNumber=1&roleTitles=Sales+and+Marketing+Staff%2CSales+Supervisor%2CSales+Consultant%2CSales+Engineer%2CSales+Representative%2CSales+Associate%2CSales+Assistant%2CSales+Manager%2CSales+Executive%2CSales+Role&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE
-    collectLimit: 50
+    collectLimit: 200
     maxPages: 25
 
 session:

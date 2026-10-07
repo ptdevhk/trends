@@ -24,7 +24,7 @@ filters:
 schedule:
   enabled: false
   timezone: Asia/Kuala_Lumpur
-  maxCandidates: 50
+  maxCandidates: 200
 
 sources:
   - type: seek

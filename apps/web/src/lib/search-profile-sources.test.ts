@@ -389,6 +389,8 @@ describe('search-profile-sources', () => {
 
     expect(collectUrl).not.toBeNull()
     const url = new URL(collectUrl as string)
+    // No limit supplied -> safe-launch default is 50; the >1 page count still
+    // flips extended mode, so the default limit is emitted verbatim.
     expect(url.searchParams.get('tr_limit')).toBe('50')
     expect(url.searchParams.get('tr_max_pages')).toBe('5')
     expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
@@ -398,15 +400,15 @@ describe('search-profile-sources', () => {
     const collectUrl = buildJob51CollectUrl({
       location: '东莞',
       keywords: ['CNC'],
-      job51CollectLimit: 50,
+      job51CollectLimit: 200,
       job51MaxPages: 1,
     })
 
     expect(collectUrl).not.toBeNull()
     const url = new URL(collectUrl as string)
-    expect(url.searchParams.get('tr_limit')).toBe('50')
+    expect(url.searchParams.get('tr_limit')).toBe('200')
     expect(url.searchParams.get('tr_max_pages')).toBe('1')
-    expect(url.searchParams.get('tr_unsafe_limits')).toBeNull()
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
   })
 
   it('passes source-level limits through buildCollectionLaunchUrl', () => {

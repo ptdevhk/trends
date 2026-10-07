@@ -964,6 +964,7 @@
       "job51CollectLimit": "上限",
       "job51MaxPages": "頁數",
       "maxCandidates": "最大候選人數",
+      "collectLimitHint": "Run Now 會將 tr_limit 傳送給擴充功能；它不是後端擷取上限，擴充功能 Options 不會覆寫 tr_limit。",
       "priority": "優先級",
       "quickStart": "在快捷入口顯示",
       "seekCollectLimit": "Seek 上限",

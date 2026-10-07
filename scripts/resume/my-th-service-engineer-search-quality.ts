@@ -159,7 +159,7 @@ function validateProfileShape(profile: JsonRecord, market: Market, prefix: strin
   check(filters.roleFilterType === "engineer", "filters.roleFilterType must be engineer");
   check(stringArray(filters.locations).join("|") === expectedLocation, `filters.locations must be ${expectedLocation}`);
   check(schedule.enabled === false, "schedule.enabled must be false");
-  check(schedule.maxCandidates === 50, "schedule.maxCandidates must be 50");
+  check(schedule.maxCandidates === 200, "schedule.maxCandidates must be 200");
   check(quickStart.enabled === true, "quickStart.enabled must be true");
   check(quickStart.rank === expectedRank, `quickStart.rank must be ${expectedRank}`);
   check(Boolean(source), "enabled SEEK source is required");
@@ -167,7 +167,7 @@ function validateProfileShape(profile: JsonRecord, market: Market, prefix: strin
   if (source) {
     check(source.enabled === true, "SEEK source must be enabled");
     check(source.mode === "talentsearch", "SEEK source mode must be talentsearch");
-    check(source.collectLimit === 50, "SEEK collectLimit must be 50");
+    check(source.collectLimit === 200, "SEEK collectLimit must be 200");
     check(source.maxPages === 25, "SEEK maxPages must be 25");
     try {
       const url = new URL(stringValue(source.jobUrl));

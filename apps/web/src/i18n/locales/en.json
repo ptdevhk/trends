@@ -964,6 +964,7 @@
       "job51CollectLimit": "Limit",
       "job51MaxPages": "Pages",
       "maxCandidates": "Max Candidates",
+      "collectLimitHint": "Run Now sends tr_limit to the extension; it is not a backend ingest cap, and extension Options do not override tr_limit.",
       "priority": "Priority",
       "quickStart": "Show in QuickStart",
       "seekCollectLimit": "Seek Limit",

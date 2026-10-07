@@ -1869,6 +1869,7 @@
       "job51CollectLimit": "上限",
       "job51MaxPages": "页数",
       "maxCandidates": "最大候选人数",
+      "collectLimitHint": "Run Now 会将 tr_limit 发送给扩展；它不是后端采集上限，扩展 Options 不会覆盖 tr_limit。",
       "priority": "优先级",
       "quickStart": "在快捷入口显示",
       "seekCollectLimit": "Seek 上限",
