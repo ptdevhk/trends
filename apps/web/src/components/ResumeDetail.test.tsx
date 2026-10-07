@@ -346,11 +346,8 @@ describe('ResumeDetail work history', () => {
           summary: 'Strong overall fit.',
           matchedAt: '2026-03-13T00:00:00.000Z',
           breakdown: {
-            skills: 90,
-            experience: 88,
-            industry: 85,
-            stability: 70,
-            location: 65,
+            related_exp: 78,
+            industry_db: 40,
           },
         }}
       />,
@@ -371,9 +368,44 @@ describe('ResumeDetail work history', () => {
     expect(screen.getByTestId('resume-detail-expanded-grid')).toHaveAttribute('id', 'resume-detail-expanded-grid')
     expect(screen.getByTestId('resume-detail-primary-grid').className).toContain('sm:grid-cols-2')
     expect(screen.getByTestId('resume-detail-expanded-grid').className).toContain('sm:grid-cols-2')
-    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('grid-cols-2')
-    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('md:grid-cols-3')
-    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('xl:grid-cols-5')
+    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('sm:grid-cols-2')
+    expect(screen.getByTestId('analysis-breakdown-bar')).toBeInTheDocument()
+  })
+
+  it('shows weighted related_exp once (same as expanded card), not double-halved', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Breakdown Candidate',
+          resumeId: 'resume-breakdown-1',
+          profileUrl: 'https://example.com/breakdown',
+          workHistory: [],
+        } as never}
+        matchResult={{
+          resumeId: 'resume-breakdown-1',
+          score: 79,
+          recommendation: 'match',
+          highlights: [],
+          concerns: [],
+          summary: 'Weighted scoring display candidate',
+          matchedAt: '2026-10-07T00:00:00.000Z',
+          // Raw audit factors (same as analysis.breakdown on the card)
+          breakdown: {
+            related_exp: 78,
+            industry_db: 40,
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByTestId('analysis-breakdown-panel')).toBeInTheDocument()
+    expect(screen.getByText('39')).toBeInTheDocument()
+    expect(screen.getByText('40')).toBeInTheDocument()
+    expect(screen.queryByText('78')).not.toBeInTheDocument()
+    // Double-applied toDisplayMatchBreakdown would show 20 (round(39*0.5))
+    expect(screen.queryByText('20')).not.toBeInTheDocument()
   })
 
   it('keeps repeated-title work-history evidence attached to the correct employer', () => {

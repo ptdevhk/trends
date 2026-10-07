@@ -8,11 +8,12 @@ import { toast } from 'sonner'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useResumeWorkHistoryLimit } from '@/contexts/ResumeWorkHistoryLimitContext'
 import { cn } from '@/lib/utils'
-import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useCompanyPolicyIndex } from '@/hooks/useCompanyPolicyIndex'
 import { getResumeCompanyPolicyState, toastCompanyPolicyWorkflowBlocked } from '@/lib/company-policy-runtime'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
+import { AnalysisBreakdownPanel } from '@/components/AnalysisBreakdownPanel'
 
 import type { CandidateStatus } from '@/types/resume'
 import { IndustryEvidenceSummary, VerifiedCompanyBadge } from '@/components/industry-evidence/IndustryEvidenceSummary'
@@ -33,45 +34,6 @@ type SnippetCardExpandedProps = {
   analysisCardLabel?: string
   policyOverrides?: CandidatePolicyOverride[]
   resumeIdentity?: string
-}
-
-function formatSnakeCaseLabel(value: string): string {
-  return value.replace(/_/g, ' ')
-}
-
-function BreakdownBar({ breakdown }: { breakdown: Record<string, number> }) {
-  const relatedExp = breakdown.related_exp ?? 0
-  const industryDb = breakdown.industry_db ?? 0
-  const total = relatedExp + industryDb
-  if (total <= 0) return null
-  const relatedPct = Math.round((relatedExp / total) * 100)
-  const industryPct = 100 - relatedPct
-  return (
-    <div className="space-y-1.5">
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full bg-blue-500 transition-all"
-          style={{ width: `${relatedPct}%` }}
-          title={`${formatSnakeCaseLabel('related_exp')}: ${relatedExp}`}
-        />
-        <div
-          className="h-full bg-emerald-500 transition-all"
-          style={{ width: `${industryPct}%` }}
-          title={`${formatSnakeCaseLabel('industry_db')}: ${industryDb}`}
-        />
-      </div>
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
-          {formatSnakeCaseLabel('related_exp')}
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-          {formatSnakeCaseLabel('industry_db')}
-        </span>
-      </div>
-    </div>
-  )
 }
 
 function buildWorkHistorySupplement(entry: {
@@ -149,7 +111,6 @@ export function SnippetCardExpanded({
     toast.error(toastCompanyPolicyWorkflowBlocked(t, companyPolicyState.primary?.displayName))
   }
   const analysis = item.analysis
-  const displayBreakdown = toDisplayMatchBreakdown(analysis?.breakdown)
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
   const scoreSourceLabel = hasAiAnalysis
@@ -191,6 +152,7 @@ export function SnippetCardExpanded({
   const noDetailedBreakdownLabel = t('resumes.searchPage.card.noDetailedBreakdown', {
     defaultValue: '暂无详细分数拆解',
   })
+  const formatSnakeCaseLabel = (value: string) => value.replace(/_/g, ' ')
   const noSummaryLabel = t('resumes.searchPage.card.noSummary', {
     defaultValue: '该简历暂无AI摘要。',
   })
@@ -417,26 +379,11 @@ export function SnippetCardExpanded({
                   </div>
                 ) : null}
 
-                {displayBreakdown ? (
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                      {analysisBreakdownLabel}
-                    </div>
-                    <BreakdownBar
-                      breakdown={displayBreakdown}
-                    />
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {Object.entries(displayBreakdown).map(([label, value]) => (
-                        <div
-                          key={label}
-                          className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border bg-slate-50 px-3 py-2"
-                        >
-                          <span className="min-w-0 flex-1 break-words capitalize text-slate-600">{formatSnakeCaseLabel(label)}</span>
-                          <span className="shrink-0 font-semibold text-slate-900">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {analysis?.breakdown ? (
+                  <AnalysisBreakdownPanel
+                    breakdown={analysis.breakdown}
+                    title={analysisBreakdownLabel}
+                  />
                 ) : (
                   <p className="opacity-70 italic">{noDetailedBreakdownLabel}</p>
                 )}

@@ -47,7 +47,7 @@ import {
 } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveResumeRefreshState } from '@/lib/resume-freshness'
-import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { recommendationFromScore } from '@/lib/resume-scoring'
 import { getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import { normalizeOptionalString, normalizeStringList } from '@/lib/taxonomy'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -939,7 +939,8 @@ function MemberPublicShareResults({
           highlights: analysis.highlights,
           recommendation: (analysis.recommendation || recommendationFromScore(analysis.score)) as MatchingResult['recommendation'],
           concerns: analysis.concerns ?? [],
-          breakdown: toDisplayMatchBreakdown(analysis.breakdown),
+          // Raw audit factors; display conversion happens once in AnalysisBreakdownPanel / ResumeDetail.
+          breakdown: analysis.breakdown,
           scoreSource: 'ai',
           matchedAt: new Date().toISOString(),
           jobDescriptionId: analysis.jobDescriptionId,

@@ -14,7 +14,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useConvexConnectionGuard } from '@/hooks/useConvexConnectionGuard'
 import { useConvexResumeDetail, type ConvexResumeItem, type UnverifiedLaneItem, type UnverifiedLaneState } from '@/hooks/useConvexResumes'
 import { getResumeIdentityKey } from '@/hooks/resume-filter-helpers'
-import { recommendationFromScore, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { recommendationFromScore } from '@/lib/resume-scoring'
 import { hasSystemAdminAccess, hasWorkspaceIndustryReviewAccess, SYSTEM_ROUTE_PREFIX } from '@/lib/workspace-access'
 import { ChevronDown, ExternalLink, SearchCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -243,7 +243,7 @@ export function SearchResultsList({
           highlights: analysis.highlights,
           recommendation: recommendationFromScore(analysis.score),
           concerns: analysis.concerns ?? [],
-          breakdown: toDisplayMatchBreakdown(analysis.breakdown),
+          breakdown: analysis.breakdown,
           scoreSource: 'ai',
           matchedAt: new Date().toISOString(),
           jobDescriptionId: analysis.jobDescriptionId,

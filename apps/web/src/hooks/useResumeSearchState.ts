@@ -48,7 +48,6 @@ import {
   collectResumeAdjacentProductEvidenceText,
   overrideIndustryDbBreakdown,
   recommendationFromScore,
-  toDisplayMatchBreakdown,
   toIndustryDbV2Stats,
 } from '@/lib/resume-scoring'
 import {
@@ -1068,7 +1067,9 @@ export function useResumeSearchState() {
           highlights: normalizedAnalysis.highlights,
           recommendation: recommendationFromScore(normalizedAnalysis.score),
           concerns: normalizedAnalysis.concerns ?? [],
-          breakdown: toDisplayMatchBreakdown(normalizedAnalysis.breakdown),
+          // Keep audit-factor breakdown raw; UI converts once via AnalysisBreakdownPanel /
+          // toDisplayMatchBreakdown at render (avoids double-halving related_exp in 查看).
+          breakdown: normalizedAnalysis.breakdown,
           scoreSource: 'ai',
           matchedAt: new Date().toISOString(),
           jobDescriptionId: normalizedAnalysis.jobDescriptionId,
