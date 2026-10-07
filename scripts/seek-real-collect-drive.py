@@ -81,7 +81,7 @@ def terminal_auto_sync(value: str | None) -> bool:
     return value in ("done", "failed", "cancelled", "skipped")
 
 
-async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool, market: str) -> int:
+async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool, market: str, limit: int) -> int:
     job_url = build_job_url(market)
     targets = fetch_cdp_json(port, "/json")
     pages = [t for t in targets if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
@@ -106,7 +106,8 @@ async def run(port: int, timeout_s: float, poll_s: float, launch_new: bool, mark
 
         # Force full reload with the auto-sync launch URL so the content script
         # captures tr_auto_sync=true at document_start (sessionStorage handshake).
-        launch_url = job_url + ("&" if "?" in job_url else "?") + "tr_auto_sync=true"
+        extra = f"tr_auto_sync=true&tr_limit={limit}"
+        launch_url = job_url + ("&" if "?" in job_url else "?") + extra
         print(f"[{market}] Launching:", launch_url[:160], "...")
         await client.call("Page.navigate", {"url": launch_url})
         await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
@@ -197,9 +198,10 @@ def main() -> int:
     parser.add_argument("--poll", type=float, default=5.0, help="Status poll interval seconds")
     parser.add_argument("--launch-new", action="store_true", help="Open a new tab if no SEEK tab exists")
     parser.add_argument("--market", default="TH", choices=["MY", "TH"], help="SEEK market (default TH)")
+    parser.add_argument("--limit", type=int, default=50, help="tr_limit collect cap (profile collectLimit)")
     args = parser.parse_args()
     try:
-        return asyncio.run(run(args.port, args.timeout, args.poll, args.launch_new, args.market))
+        return asyncio.run(run(args.port, args.timeout, args.poll, args.launch_new, args.market, args.limit))
     except CDPError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

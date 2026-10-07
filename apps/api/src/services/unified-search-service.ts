@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, compareCurrentCncMachineSalesRank, formatLocationHierarchySearchText, isCncLikeSalesSearch, matchesKeywordGroupSoft, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
+import { buildWorkHistoryEntryText, compareCurrentCncMachineSalesRank, compareCurrentCncServiceEngineerRank, formatLocationHierarchySearchText, isCncLikeSalesSearch, isCncLikeServiceEngineerSearch, matchesKeywordGroupSoft, normalizeSearchQuery, selectLatestWorkHistory } from "@trends/shared";
 
 import { parseSearchQuery, type ParsedQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -288,6 +288,7 @@ export class UnifiedSearchService {
     options?: {
       indexMap?: Map<string, ResumeIndex>;
       ruleScoreMap?: Map<string, number>;
+      roleFilterType?: string;
     }
   ): {
     expansion: UnifiedKeywordExpansion;
@@ -384,10 +385,17 @@ export class UnifiedSearchService {
       });
     }
 
-    const cncSalesQuery = isCncLikeSalesSearch(query, undefined);
+    const cncSalesQuery = isCncLikeSalesSearch(query, options?.roleFilterType);
+    const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(query, options?.roleFilterType);
     return {
       expansion,
       results: results.sort((left, right) => {
+        if (cncServiceEngineerQuery) {
+          const serviceRankDiff = compareCurrentCncServiceEngineerRank(left.resume.workHistory, right.resume.workHistory);
+          if (serviceRankDiff !== 0) {
+            return serviceRankDiff;
+          }
+        }
         if (cncSalesQuery) {
           const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory);
           if (rankDiff !== 0) {

@@ -21,7 +21,8 @@ const SELECTORS = {
   pagination: ".el-pagination",
   nextPageBtn: ".el-pagination .btn-next",
   seekPagination: 'nav[aria-label="Pagination of results"]',
-  seekTalentSearchPagination: 'nav[aria-label="PAGINATION_OF_RESULTS"]',
+  seekTalentSearchPagination:
+    'nav[aria-label="Pagination of results" i], nav[aria-label="PAGINATION_OF_RESULTS" i]',
   searchInput: ".el-autocomplete input.el-input__inner",
   searchButton: ".resume-search-item-search-input-block__input-button",
   // 51job eHire selectors

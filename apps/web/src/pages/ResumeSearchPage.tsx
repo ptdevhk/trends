@@ -289,6 +289,14 @@ export function ResumeSearchPage() {
         highlights: analysis?.highlights ?? [],
         concerns: analysis?.concerns ?? [],
         skills: item.resume.skills ?? item.resume.tags ?? [],
+        experience: item.resume.experience,
+        education: item.resume.education,
+        age: item.resume.age,
+        workHistory: item.resume.workHistory,
+        screeningChecklist: analysis?.screeningChecklist,
+        breakdown: analysis?.breakdown,
+        keyFactors: (analysis as unknown as { keyFactors?: unknown[] })?.keyFactors,
+        analysis: analysis ? { ...analysis } : undefined,
       }
     })
 
@@ -512,7 +520,7 @@ export function ResumeSearchPage() {
       return undefined
     }
     if (!canManageCandidateData) {
-      return t('resumes.searchPage.analysis.disabledNoPermission', { defaultValue: 'No permission to analyze candidates' })
+      return t('resumes.searchPage.analysis.disabledUnauthenticated', { defaultValue: 'Sign in to analyze' })
     }
     if (!aiModeEnabled) {
       return t('resumes.searchPage.analysis.disabledRulesOnly', { defaultValue: 'Switch to AI Mode to analyze' })

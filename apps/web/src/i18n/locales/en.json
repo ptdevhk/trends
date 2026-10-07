@@ -657,6 +657,7 @@
         "disabledRulesOnly": "Switch to AI Mode to analyze",
         "disabledNoInput": "Add a JD or keywords to enable analysis",
         "disabledNoPermission": "No permission to analyze candidates",
+        "disabledUnauthenticated": "Sign in to analyze",
         "disabledGeneric": "Select candidates to analyze"
       },
       "readOnly": {

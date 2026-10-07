@@ -13,7 +13,9 @@ import {
   formatLocationHierarchySearchText,
   formatKeywordQuery,
   isCncLikeSalesSearch,
+  isCncLikeServiceEngineerSearch,
   compareCurrentCncMachineSalesRank,
+  compareCurrentCncServiceEngineerRank,
   matchesKeywordGroupSoft,
   normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
@@ -920,11 +922,21 @@ export async function prepareConvexCandidates(params: {
       }
 
       const hasActiveFiltersForReturn = filters ? hasResumeListFilters(filters) : false;
-      const rankedResults = isCncLikeSalesSearch(canonicalKeywordQuery, filters?.roleFilterType)
+      const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(canonicalKeywordQuery, filters?.roleFilterType);
+      const cncSalesQuery = isCncLikeSalesSearch(canonicalKeywordQuery, filters?.roleFilterType);
+      const rankedResults = (cncServiceEngineerQuery || cncSalesQuery)
         ? [...allResults].sort((left, right) => {
-          const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory);
-          if (rankDiff !== 0) {
-            return rankDiff;
+          if (cncServiceEngineerQuery) {
+            const serviceRankDiff = compareCurrentCncServiceEngineerRank(left.resume.workHistory, right.resume.workHistory);
+            if (serviceRankDiff !== 0) {
+              return serviceRankDiff;
+            }
+          }
+          if (cncSalesQuery) {
+            const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory);
+            if (rankDiff !== 0) {
+              return rankDiff;
+            }
           }
           return (right.primaryRuleScore ?? 0) - (left.primaryRuleScore ?? 0);
         })

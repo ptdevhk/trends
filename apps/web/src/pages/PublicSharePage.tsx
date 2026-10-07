@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { buttonVariants } from '@/components/ui/button'
-import { AlertTriangle, Clock, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, Clock, Search } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { formatKeywordQuery, parseKeywordQuery, type WorkspaceSlug } from '@trends/shared'
+import { cn } from '@/lib/utils'
+
+const loadResumeDetail = () => import('@/components/ResumeDetail')
+const ResumeDetail = lazy(async () => {
+  const module = await loadResumeDetail()
+  return { default: module.ResumeDetail }
+})
 
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { FacetBadge } from '@/components/search/FacetBadge'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
 import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
-import { ModeToggle } from '@/components/ModeToggle'
 import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
-import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
@@ -22,10 +27,12 @@ import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { mapResumeDoc } from '@/hooks/useConvexResumes'
+import { mapResumeDoc, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
 import { apiBaseUrl } from '@/lib/api-client'
 import { rawApiClient } from '@/lib/api-helpers'
+import { isReviewPacketsEnabled } from '@/lib/feature-flags'
+import { writeReviewPacketHandoff } from '@/lib/review-packets-handoff'
 import { resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import {
   getRoleYears,
@@ -46,9 +53,9 @@ import { normalizeOptionalString, normalizeStringList } from '@/lib/taxonomy'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import {
-  CANDIDATE_STATUS_VALUES,
   type CandidateActionType,
   type CandidateStatus,
+  type MatchingResult,
   type ResumeExportFormat,
 } from '@/types/resume'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -64,6 +71,14 @@ type PublicShareResult = {
   highlights?: string[]
   concerns?: string[]
   skills?: string[]
+  experience?: string
+  education?: string
+  age?: string
+  workHistory?: unknown[]
+  screeningChecklist?: Record<string, unknown>
+  breakdown?: Record<string, number>
+  keyFactors?: unknown[]
+  analysis?: Record<string, unknown>
 }
 
 type PublicShareResponse = {
@@ -120,7 +135,7 @@ type SearchSessionResponse = {
 type ResumeExportEntryMatch =
   NonNullable<ResumeExportRequestBody['entries'][number]['match']>
 
-const ALL_CANDIDATE_STATUSES = [...CANDIDATE_STATUS_VALUES]
+const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
 
 function formatDate(value: string | undefined): string | null {
   if (!value) {
@@ -350,12 +365,19 @@ function buildSnapshotAnalysis(result: PublicShareResult | undefined): ResumeSea
     return undefined
   }
 
+  const baseAnalysis = result.analysis as unknown as ResumeSearchResultItem['analysis'] | undefined
+
   return {
     score: result.score ?? 0,
     summary: result.summary ?? '',
     highlights: result.highlights ?? [],
     recommendation: result.recommendation ?? '',
     concerns: result.concerns,
+    breakdown: (result.breakdown as Record<string, number> | undefined) ?? baseAnalysis?.breakdown,
+    screeningChecklist: (result.screeningChecklist as ResumeSearchResultItem['analysis'] extends { screeningChecklist?: infer T } ? T : undefined) ?? baseAnalysis?.screeningChecklist,
+    jobDescriptionId: baseAnalysis?.jobDescriptionId,
+    promptVersion: baseAnalysis?.promptVersion,
+    locale: baseAnalysis?.locale,
   }
 }
 
@@ -438,7 +460,7 @@ function countActiveSnapshotFilters(params: {
   if (params.selectedExperienceLevel) count += 1
   if (params.selectedSources.length > 0) count += 1
   if (params.selectedTags.length > 0) count += 1
-  if (params.selectedStatuses.length !== ALL_CANDIDATE_STATUSES.length) count += 1
+  if (params.selectedStatuses.length > 0 && (params.selectedStatuses.length !== 1 || params.selectedStatuses[0] !== DEFAULT_STATUS_WHEN_EMPTY)) count += 1
   return count
 }
 
@@ -594,6 +616,62 @@ function PublicSnapshotSearchShell({
 }
 
 function StaticPublicShareResults({ results }: { results: PublicShareResult[] }) {
+  const { t } = useTranslation()
+  const [detailItem, setDetailItem] = useState<PublicShareResult | null>(null)
+
+  const handleOpenDetail = (result: PublicShareResult) => {
+    setDetailItem(result)
+  }
+
+  const handleCloseDetail = () => {
+    setDetailItem(null)
+  }
+
+  const detailResume = useMemo<ResumeSearchResultItem['resume'] | null>(() => {
+    if (!detailItem) return null
+    return {
+      name: detailItem.displayName ?? detailItem.resumeKey,
+      resumeId: detailItem.resumeKey as unknown as ResumeSearchResultItem['resume']['resumeId'],
+      externalId: detailItem.resumeKey,
+      identityKey: detailItem.resumeKey,
+      jobIntention: detailItem.headline,
+      experience: detailItem.experience ?? detailItem.headline,
+      education: detailItem.education,
+      age: detailItem.age,
+      location: detailItem.location,
+      selfIntro: detailItem.summary,
+      skills: detailItem.skills,
+      workHistory: (detailItem.workHistory as ResumeSearchResultItem['resume']['workHistory']) ?? [],
+      source: 'seek',
+      tags: detailItem.skills ?? [],
+      crawledAt: 0,
+    } as unknown as ResumeSearchResultItem['resume']
+  }, [detailItem])
+
+  const detailAnalysis = useMemo(() => {
+    if (!detailItem) return undefined
+    return buildSnapshotAnalysis(detailItem)
+  }, [detailItem])
+
+  const detailMatch = useMemo<ResumeSearchResultItem['match'] | undefined>(() => {
+    if (!detailItem || !detailAnalysis) return undefined
+    const rec = (detailAnalysis.recommendation || recommendationFromScore(detailAnalysis.score)) as ResumeSearchResultItem['match'] extends { recommendation?: infer R } ? R : never
+    return {
+      resumeId: detailItem.resumeKey,
+      score: detailAnalysis.score,
+      summary: detailAnalysis.summary,
+      highlights: detailAnalysis.highlights,
+      recommendation: rec,
+      concerns: detailAnalysis.concerns ?? [],
+      breakdown: detailAnalysis.breakdown,
+      scoreSource: 'ai',
+      matchedAt: new Date().toISOString(),
+      promptVersion: detailAnalysis.promptVersion,
+      locale: detailAnalysis.locale,
+      screeningChecklist: detailAnalysis.screeningChecklist,
+    }
+  }, [detailAnalysis, detailItem])
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -610,56 +688,128 @@ function StaticPublicShareResults({ results }: { results: PublicShareResult[] })
         </div>
       ) : (
         <div className="space-y-4">
-          {results.map((result, index) => (
-            <article
-              key={result.resumeKey}
-              className="rounded-[1.5rem] border bg-white/80 p-4 shadow-sm"
-              data-result-index={index}
-            >
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="min-w-0 space-y-3">
-                  <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-foreground">
-                      {result.displayName ?? result.resumeKey}
-                    </h2>
-                    {result.headline && <p className="text-sm text-muted-foreground">{result.headline}</p>}
-                    {result.location && <p className="text-xs text-muted-foreground">{result.location}</p>}
+          {results.map((result, index) => {
+            const checklist = result.screeningChecklist as Record<string, { verdict?: string; evidence?: string }> | undefined
+            return (
+              <article
+                key={result.resumeKey}
+                className="rounded-[1.5rem] border bg-white/80 p-4 shadow-sm hover:border-slate-300 transition-colors cursor-pointer"
+                data-result-index={index}
+                onClick={() => handleOpenDetail(result)}
+              >
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="min-w-0 space-y-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-semibold text-foreground hover:text-primary transition-colors">
+                          {result.displayName ?? result.resumeKey}
+                        </h2>
+                      </div>
+                      {result.headline && <p className="text-sm text-muted-foreground">{result.headline}</p>}
+                      {result.location && <p className="text-xs text-muted-foreground">{result.location}</p>}
+                    </div>
+
+                    {checklist ? (
+                      <div className="flex flex-wrap items-center gap-1.5" data-testid="screening-checklist-chips">
+                        {(
+                          [
+                            { key: 'sellsMachines', item: checklist.sellsMachines },
+                            { key: 'machineOrigin', item: checklist.machineOrigin },
+                            { key: 'channel', item: checklist.channel },
+                          ] as const
+                        ).map(({ key, item: checklistItem }) => {
+                          const verdict = checklistItem?.verdict?.trim().toLowerCase() ?? ''
+                          const label = verdict
+                            ? t(`resumes.detail.screeningChecklist.verdicts.${key}.${verdict}`, { defaultValue: checklistItem?.verdict ?? '' })
+                            : t(`resumes.detail.screeningChecklist.verdicts.${key}.unclear`, { defaultValue: '不明' })
+                          let colorClass = 'border-slate-200 bg-slate-50 text-slate-600'
+                          if (['yes', 'international', 'direct', 'valid'].includes(verdict)) {
+                            colorClass = 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          } else if (['no', 'domestic', 'distributor'].includes(verdict)) {
+                            colorClass = 'border-amber-200 bg-amber-50 text-amber-700'
+                          } else if (verdict === 'problem') {
+                            colorClass = 'border-red-200 bg-red-50 text-red-700'
+                          }
+                          return (
+                            <Badge key={key} variant="outline" className={cn('text-[10px]', colorClass)}>
+                              {label}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+
+                    {result.summary && <p className="text-sm leading-6 text-foreground">{result.summary}</p>}
+                    {result.highlights && result.highlights.length > 0 ? (
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                          亮点:
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.highlights.map((highlight) => (
+                            <span key={highlight} className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs text-emerald-800">
+                              {highlight}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {result.concerns && result.concerns.length > 0 ? (
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
+                          关注点:
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.concerns.map((concern) => (
+                            <span key={concern} className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs text-amber-800">
+                              {concern}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {result.skills && result.skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {result.skills.slice(0, 8).map((skill) => (
+                          <span key={skill} className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                  {result.summary && <p className="text-sm leading-6 text-foreground">{result.summary}</p>}
-                  {result.highlights && result.highlights.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {result.highlights.map((highlight) => (
-                        <span key={highlight} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                          {highlight}
-                        </span>
-                      ))}
+                  {typeof result.score === 'number' && (
+                    <div className="min-w-20 rounded-2xl border bg-background px-3 py-2 text-left md:text-center self-start">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        Score
+                      </div>
+                      <div className="text-2xl font-semibold text-foreground">{result.score}</div>
+                      {result.recommendation && (
+                        <div className="text-xs text-muted-foreground">
+                          {t(`resumes.matching.recommendations.${result.recommendation}`, { defaultValue: result.recommendation })}
+                        </div>
+                      )}
                     </div>
-                  ) : null}
-                  {result.skills && result.skills.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {result.skills.slice(0, 8).map((skill) => (
-                        <span key={skill} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
+                  )}
                 </div>
-                {typeof result.score === 'number' && (
-                  <div className="min-w-20 rounded-2xl border bg-background px-3 py-2 text-left md:text-center">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      Score
-                    </div>
-                    <div className="text-2xl font-semibold text-foreground">{result.score}</div>
-                    {result.recommendation && (
-                      <div className="text-xs text-muted-foreground">{result.recommendation}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
+              </article>
+            )
+          })}
         </div>
+      )}
+
+      {detailItem && (
+        <Suspense fallback={null}>
+          <ResumeDetail
+            resume={detailResume}
+            matchResult={detailMatch}
+            open={Boolean(detailItem)}
+            onOpenChange={(open) => {
+              if (!open) handleCloseDetail()
+            }}
+            resumeIdentity={detailItem.resumeKey}
+          />
+        </Suspense>
       )}
     </section>
   )
@@ -678,7 +828,7 @@ function MemberPublicShareResults({
   shareTitle?: string
   token: string
 }) {
-  const { t } = useTranslation()
+  const navigate = useNavigate()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
@@ -697,7 +847,11 @@ function MemberPublicShareResults({
   const [selectedEducation, setSelectedEducation] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [selectedSources, setSelectedSources] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<CandidateStatus[]>(ALL_CANDIDATE_STATUSES)
+  const [selectedStatuses, setSelectedStatuses] = useState<CandidateStatus[]>(
+    member.searchRun.filters?.status && Array.isArray(member.searchRun.filters.status) && member.searchRun.filters.status.length > 0
+      ? (member.searchRun.filters.status as CandidateStatus[])
+      : [DEFAULT_STATUS_WHEN_EMPTY]
+  )
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const selectedClusters: string[] = []
   const location = resolveReviewSessionLocation(member.searchRun.filters)
@@ -728,10 +882,25 @@ function MemberPublicShareResults({
   const snapshotByKey = useMemo(() => {
     const map = new Map<string, PublicShareResult>()
     results.forEach((result) => {
-      map.set(result.resumeKey, result)
+      if (result.resumeKey) {
+        map.set(result.resumeKey, result)
+        // Also map stripped externalId or URL if present
+        if (result.resumeKey.startsWith('externalId:')) {
+          map.set(result.resumeKey.replace(/^externalId:/, ''), result)
+        }
+      }
     })
     return map
   }, [results])
+
+  const findSnapshot = useCallback((resume: ConvexResumeItem, identityKey: string) => {
+    return snapshotByKey.get(identityKey)
+      ?? snapshotByKey.get(String(resume.resumeId))
+      ?? (resume.externalId ? snapshotByKey.get(resume.externalId) : undefined)
+      ?? (resume.externalId ? snapshotByKey.get(`externalId:${resume.externalId}`) : undefined)
+      ?? (resume.identityKey ? snapshotByKey.get(resume.identityKey) : undefined)
+      ?? (resume.profileUrl ? snapshotByKey.get(resume.profileUrl) : undefined)
+  }, [snapshotByKey])
 
   const items = useMemo<ResumeSearchResultItem[]>(() => {
     if (!docs) {
@@ -741,7 +910,7 @@ function MemberPublicShareResults({
     return docs.map((doc) => {
       const resume = mapResumeDoc(doc)
       const identityKey = resume.identityKey?.trim() || String(resume.resumeId)
-      const snapshot = snapshotByKey.get(identityKey) ?? snapshotByKey.get(String(resume.resumeId))
+      const snapshot = findSnapshot(resume, identityKey)
       const statusMeta = statusByIdentity[identityKey]
       const block = blocksByIdentity[identityKey]
       const analysis = buildSnapshotAnalysis(snapshot) ?? resume.analysis
@@ -762,12 +931,32 @@ function MemberPublicShareResults({
           ? analysis.score
           : resume.primaryRuleScore
 
+      const match: MatchingResult | undefined = analysis
+        ? {
+          resumeId: String(resume.resumeId),
+          score: analysis.score,
+          summary: analysis.summary,
+          highlights: analysis.highlights,
+          recommendation: (analysis.recommendation || recommendationFromScore(analysis.score)) as MatchingResult['recommendation'],
+          concerns: analysis.concerns ?? [],
+          // Raw audit factors; display conversion happens once in AnalysisBreakdownPanel / ResumeDetail.
+          breakdown: analysis.breakdown,
+          scoreSource: 'ai',
+          matchedAt: new Date().toISOString(),
+          jobDescriptionId: analysis.jobDescriptionId,
+          promptVersion: analysis.promptVersion,
+          locale: analysis.locale,
+          screeningChecklist: analysis.screeningChecklist,
+        }
+        : undefined
+
       return {
         key: identityKey,
         identityKey,
         resume,
         blocked: Boolean(block),
         analysis,
+        match,
         score,
         scoreSource: typeof snapshot?.score === 'number' || analysis ? 'ai' : 'rule',
         status: statusMeta?.status ?? 'new',
@@ -775,7 +964,7 @@ function MemberPublicShareResults({
         refreshState,
       }
     })
-  }, [analysisKeywords, blocksByIdentity, docs, jobDescriptionId, location, snapshotByKey, statusByIdentity])
+  }, [analysisKeywords, blocksByIdentity, docs, findSnapshot, jobDescriptionId, location, statusByIdentity])
   const facetCounts = useFacetCounts(items)
   const statusFacetCounts = useMemo(() => getStatusFacetCounts(items), [items])
   const statusSummary = useMemo(() => getStatusSummary(items), [items])
@@ -892,22 +1081,6 @@ function MemberPublicShareResults({
       selectedTags,
     ],
   )
-  const shareState = useMemo(() => ({
-    location,
-    keywords: parseKeywordQuery(searchQuery ?? '').keywords,
-    filters: member.searchRun.filters,
-    jobDescriptionId,
-  }), [jobDescriptionId, location, member.searchRun.filters, searchQuery])
-  const analysisTitle = t('resumes.searchPage.analysis.title', {
-    defaultValue: 'Resume AI analysis',
-  })
-  const analysisDescription = t('resumes.searchPage.analysis.description', {
-    defaultValue: 'Generate per-resume AI summaries and breakdowns for the loaded search results.',
-  })
-  const analyzeLoadedLabel = t('resumes.searchPage.analysis.analyzeLoaded', {
-    count: displayItems.length,
-    defaultValue: 'Analyze loaded {{count}}',
-  })
 
   const handleToggleExpanded = useCallback((key: string) => {
     setExpandedIds((current) => {
@@ -946,6 +1119,11 @@ function MemberPublicShareResults({
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set())
   }, [])
+
+  const handleOpenReviewPacket = useCallback(() => {
+    writeReviewPacketHandoff(Array.from(selectedIds))
+    navigate(`/${member.workspaceSlug}/review-packets`)
+  }, [member.workspaceSlug, navigate, selectedIds])
 
   const handleAction = useCallback(
     (resumeId: string, actionType: CandidateActionType) => {
@@ -1003,19 +1181,17 @@ function MemberPublicShareResults({
     setSelectedEducation([])
     setSelectedExperienceLevel(undefined)
     setSelectedSources([])
-    setSelectedStatuses(ALL_CANDIDATE_STATUSES)
+    setSelectedStatuses([DEFAULT_STATUS_WHEN_EMPTY])
     setSelectedTags([])
   }, [])
 
   const handleStatusFilterChange = useCallback((statuses: CandidateStatus[] | undefined) => {
-    setSelectedStatuses(statuses && statuses.length > 0 ? statuses : ALL_CANDIDATE_STATUSES)
+    setSelectedStatuses(statuses && statuses.length > 0 ? statuses : [DEFAULT_STATUS_WHEN_EMPTY])
   }, [])
 
   const toggleStatus = useCallback((status: CandidateStatus) => {
     setSelectedStatuses((current) => toggleStatusValue(current, status))
   }, [])
-
-  const ensureShareSession = useCallback(async () => reviewSessionId, [reviewSessionId])
 
   const applyExtractedKeywords = useCallback((keywords: string[]) => {
     setQueryInput(formatKeywordQuery(keywords))
@@ -1191,42 +1367,7 @@ function MemberPublicShareResults({
         </div>
 
         <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-slate-900">
-                {analysisTitle}
-              </div>
-              <p className="text-sm text-slate-600">
-                {analysisDescription}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <ModeToggle
-                mode="ai"
-                onModeChange={() => {}}
-                disabled
-              />
-              <Button
-                type="button"
-                size="sm"
-                data-testid="resume-analyze-button"
-                className="h-10 gap-2 rounded-full px-4"
-                disabled
-              >
-                <RefreshCw className="h-4 w-4" />
-                {analyzeLoadedLabel}
-              </Button>
-              <ShareLinkButton
-                shareTitle={shareTitle ?? 'Shared resume search'}
-                state={shareState}
-                ensureApiSession={ensureShareSession}
-                // Match ResumeSearchPage: do not mint/copy a share of unsettled docs.
-                disabled={resultsLoading}
-              />
-            </div>
-          </div>
-
-          <div className="sticky top-14 z-20 -mx-1 bg-background/95 px-1 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="sticky top-14 z-20 -mx-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-1 py-1">
             <BulkActionBar
               totalCount={displayItems.length}
               selectedCount={selectedIds.size}
@@ -1243,6 +1384,7 @@ function MemberPublicShareResults({
               onStatusFilterChange={handleStatusFilterChange}
               onStatusToggle={toggleStatus}
               statusFacetCounts={statusFacetCounts}
+              onOpenReviewPacket={isReviewPacketsEnabled() ? handleOpenReviewPacket : undefined}
             />
           </div>
 

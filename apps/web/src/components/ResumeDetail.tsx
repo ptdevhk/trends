@@ -21,7 +21,8 @@ import { StarRating } from '@/components/StarRating'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { ResumeRefreshState } from '@/lib/resume-freshness'
-import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits, toDisplayMatchBreakdown } from '@/lib/resume-scoring'
+import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { AnalysisBreakdownPanel } from '@/components/AnalysisBreakdownPanel'
 import { getScoreClassName } from '@/lib/score-classes'
 import { cn, isImeComposition } from '@/lib/utils'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
@@ -453,8 +454,6 @@ export function ResumeDetail({
         defaultValue: matchResult.recommendation.replace(/_/g, ' '),
       })
     : ''
-  const displayBreakdown = toDisplayMatchBreakdown(matchResult?.breakdown)
-
   if (!resume || !presentationResume) {
     return null
   }
@@ -844,22 +843,15 @@ export function ResumeDetail({
                 )}
               </div>
 
-              {displayBreakdown && (
+              {matchResult?.breakdown ? (
                 <div className="bg-background rounded p-2 border">
-                  <h4 className="text-xs font-semibold mb-2">{t('resumes.detail.detailedBreakdown', { defaultValue: 'Detailed Breakdown' })}</h4>
-                  <div
-                    data-testid="resume-detail-breakdown-grid"
-                    className="grid grid-cols-2 gap-2 text-center md:grid-cols-3 xl:grid-cols-5"
-                  >
-                    {Object.entries(displayBreakdown).map(([k, v]) => (
-                      <div key={k} className="flex flex-col">
-                        <span className="text-[10px] text-muted-foreground uppercase truncate" title={k}>{k.replace('_', ' ')}</span>
-                        <span className="text-sm font-mono font-bold">{v}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <AnalysisBreakdownPanel
+                    breakdown={matchResult.breakdown}
+                    title={t('resumes.detail.detailedBreakdown', { defaultValue: 'Detailed Breakdown' })}
+                    gridTestId="resume-detail-breakdown-grid"
+                  />
                 </div>
-              )}
+              ) : null}
               {onAiFeedback ? (
                 <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-end">
                   <span className="text-xs text-muted-foreground sm:mr-3">{t('resumes.detail.summaryFeedback', { defaultValue: 'Summary Feedback' })}</span>

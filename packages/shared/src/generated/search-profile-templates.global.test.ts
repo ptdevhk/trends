@@ -42,6 +42,10 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
           expect(source.collectLimit).toBe(2000)
           continue
         }
+        if (template.profile.id === 'seek-malaysia-talent-search-service-engineer') {
+          expect(source.collectLimit).toBe(200)
+          continue
+        }
         expect(source.collectLimit).toBe(50)
       }
     }

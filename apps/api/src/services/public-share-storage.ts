@@ -32,6 +32,14 @@ export type PublicShareSnapshotResult = {
   highlights?: string[];
   concerns?: string[];
   skills?: string[];
+  screeningChecklist?: JsonRecord;
+  breakdown?: JsonRecord;
+  keyFactors?: unknown[];
+  experience?: string;
+  education?: string;
+  age?: string;
+  workHistory?: unknown[];
+  analysis?: JsonRecord;
   [key: string]: unknown;
 };
 
@@ -221,6 +229,9 @@ function sanitizeSnapshotResult(value: unknown): PublicShareSnapshotResult | nul
   const highlights = normalizeStringArray(value.highlights);
   const concerns = normalizeStringArray(value.concerns);
   const skills = normalizeStringArray(value.skills);
+  const experience = normalizeOptionalString(value.experience);
+  const education = normalizeOptionalString(value.education);
+  const age = normalizeOptionalString(value.age);
 
   if (displayName) result.displayName = displayName;
   if (headline) result.headline = headline;
@@ -231,6 +242,14 @@ function sanitizeSnapshotResult(value: unknown): PublicShareSnapshotResult | nul
   if (highlights) result.highlights = highlights;
   if (concerns) result.concerns = concerns;
   if (skills) result.skills = skills;
+  if (experience) result.experience = experience;
+  if (education) result.education = education;
+  if (age) result.age = age;
+  if (isRecord(value.screeningChecklist)) result.screeningChecklist = value.screeningChecklist;
+  if (isRecord(value.breakdown)) result.breakdown = value.breakdown;
+  if (Array.isArray(value.keyFactors)) result.keyFactors = value.keyFactors;
+  if (Array.isArray(value.workHistory)) result.workHistory = value.workHistory;
+  if (isRecord(value.analysis)) result.analysis = value.analysis;
   return result;
 }
 

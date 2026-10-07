@@ -255,16 +255,6 @@ describe('shouldShowSearchHeaderLoading', () => {
     expect(page).toMatch(/resultsLoading=\{resultsLoading\}/)
   })
 
-  it('documents that PublicShare ShareLink stays disabled while resultsLoading', () => {
-    const page = readFileSync(
-      path.join(process.cwd(), 'src/pages/PublicSharePage.tsx'),
-      'utf8',
-    )
-    expect(page).toMatch(
-      /<ShareLinkButton[\s\S]*?disabled=\{resultsLoading\}/,
-    )
-  })
-
   it('documents that SearchHero ModeToggle and remutators gate on loading', () => {
     const hero = readFileSync(
       path.join(process.cwd(), 'src/components/search/SearchHero.tsx'),

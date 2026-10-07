@@ -41,6 +41,7 @@ const mockT = (key: string, options?: string | Record<string, unknown>) => {
     'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
     'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
     'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+    'resumes.searchPage.analysis.disabledUnauthenticated': 'Sign in to analyze',
     'resumes.searchPage.readOnly.loginRequired': 'Sign in to rate, update status, add notes, block, export, or run bulk actions.',
   }
   const text = englishTexts[key] ?? key
@@ -1334,6 +1335,35 @@ describe('ResumeSearchPage', () => {
 
     expect(state.setAiModeEnabled).toHaveBeenCalledWith(true)
     expect(state.analyzeResults).not.toHaveBeenCalled()
+  })
+
+  it('shows "Sign in to analyze" tooltip when unauthenticated', async () => {
+    authMock.value = {
+      user: null,
+      workspaceRole: null,
+      memberships: [],
+      isAuthenticated: false,
+      isLoading: false,
+      login: vi.fn(async () => false),
+      logout: vi.fn(async () => {}),
+      refresh: vi.fn(async () => {}),
+    }
+
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      analysisCandidateCount: 2,
+      aiModeEnabled: true,
+      disableAnalyzeResults: false,
+      filteredResults: [createResult(1)],
+      isLanding: false,
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    const analyzeButton = screen.getByTestId('resume-analyze-button')
+    expect(analyzeButton).toBeDisabled()
+    expect(analyzeButton).toHaveAttribute('title', 'Sign in to analyze')
   })
 
   it('passes the verified-only notice props when a role gate filter is active and the count loads', async () => {

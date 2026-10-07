@@ -315,17 +315,28 @@ export function ResumeList() {
   const createPublicShare = useCallback(async (
     options: CreatePublicShareOptions
   ): Promise<PublicShareCreateResult | undefined> => {
-    const results = displayedResumes.map((entry, index) => ({
-      resumeKey: entry.identityKey || entry.key || buildResumeKey(entry.resume, index),
-      displayName: entry.resume.name,
-      headline: entry.resume.jobIntention || entry.resume.experience,
-      location: entry.resume.location,
-      summary: entry.match?.summary || entry.resume.selfIntro,
-      score: entry.match?.score ?? entry.ruleScore,
-      recommendation: entry.match?.recommendation,
-      highlights: entry.match?.highlights ?? [],
-      concerns: entry.match?.concerns ?? [],
-    }))
+    const results = displayedResumes.map((entry, index) => {
+      const analysis = entry.match
+      return {
+        resumeKey: entry.identityKey || entry.key || buildResumeKey(entry.resume, index),
+        displayName: entry.resume.name,
+        headline: entry.resume.jobIntention || entry.resume.experience,
+        location: entry.resume.location,
+        summary: entry.match?.summary || entry.resume.selfIntro,
+        score: entry.match?.score ?? entry.ruleScore,
+        recommendation: entry.match?.recommendation,
+        highlights: entry.match?.highlights ?? [],
+        concerns: entry.match?.concerns ?? [],
+        experience: entry.resume.experience,
+        education: entry.resume.education,
+        age: entry.resume.age,
+        workHistory: entry.resume.workHistory,
+        screeningChecklist: analysis?.screeningChecklist,
+        breakdown: analysis?.breakdown,
+        keyFactors: (analysis as unknown as { keyFactors?: unknown[] })?.keyFactors,
+        analysis: analysis ? { ...analysis } : undefined,
+      }
+    })
 
     const query = [
       ...(options.searchState.keywords ?? []),

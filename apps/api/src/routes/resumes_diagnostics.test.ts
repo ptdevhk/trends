@@ -586,6 +586,52 @@ describe("resumes_diagnostics", () => {
       });
     });
 
+    it("falls back to search-task get when Convex says the id is not an exact dispatch", async () => {
+      const searchTask = {
+        _id: "task-search-1",
+        _creationTime: 1_750_000_000_000,
+        status: "completed",
+        dispatchMode: "search",
+        workspaceSlug: "dev",
+        config: { resumeCount: 32, keywords: ["CNC", "Service Engineer"] },
+        progress: { current: 32, total: 32, skipped: 0 },
+        results: { analyzed: 32, failed: 0, avgScore: 58, highScoreCount: 3 },
+      };
+      const calls: Array<{ path: string; args: Record<string, unknown> }> = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+        const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+          path: string;
+          args: Record<string, unknown>;
+        };
+        calls.push(body);
+        if (body.path === "analysis_tasks:getExactStatus") {
+          return new Response(
+            JSON.stringify({
+              status: "error",
+              errorMessage: "Analysis task task-search-1 is not an exact dispatch",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        if (body.path === "analysis_tasks:get") {
+          return convexSuccess(searchTask);
+        }
+        throw new Error(`unexpected path ${body.path}`);
+      });
+
+      const response = await createTestApp().request("/api/resumes/analysis-tasks/task-search-1");
+
+      expect(response.status).toBe(200);
+      expect(await parseJsonBody(response)).toEqual({
+        success: true,
+        task: searchTask,
+      });
+      expect(calls.map((call) => call.path)).toEqual([
+        "analysis_tasks:getExactStatus",
+        "analysis_tasks:get",
+      ]);
+    });
+
     it("rejects a malformed Convex verification target", async () => {
       const payload = exactTaskStatusPayload();
       payload.verification.targets[0].state = "unknown";
