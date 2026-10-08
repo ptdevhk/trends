@@ -6,7 +6,6 @@
  */
 import {
     applyAdjacentProductScoreCap,
-    applyMarketIndustryDbFloor,
     collectAdjacentProductEvidenceText,
     computeIndustryDbDirectHitScore,
     deriveMarketFromSourceKey,
@@ -15,6 +14,7 @@ import {
     evaluateRelatedExpEvidence,
     computeFinalAiScore,
     recommendationFromFinalAiScore,
+    resolveIndustryDbWithMarketFloor,
     resolveResumeAnalysisSourceKey,
     aggregateBrandOrigin,
     aggregateProductClass,
@@ -744,7 +744,6 @@ export function normalizeAnalysisResult(
     const llmRelatedExp = toNumber(breakdown?.related_exp);
     const directIndustryDb = computeDirectIndustryDbScoreFromResume(resume);
     const market = resolveResumeMarket(resume);
-    const industryDb = applyMarketIndustryDbFloor(market, directIndustryDb);
 
     if (llmRelatedExp === undefined) {
         console.warn("LLM related_exp invalid, falling back to related_exp=0");
@@ -790,6 +789,11 @@ export function normalizeAnalysisResult(
         }
     }
 
+    const industryDb = resolveIndustryDbWithMarketFloor(market, directIndustryDb, {
+        llmRecommendation: llmRecommendation ?? "no_match",
+        coverage: relatedExpEvidence?.coverage,
+    });
+
     const adjacentCap = applyAdjacentProductScoreCap({
         relatedExp: clamp(effectiveRelatedExp, 0, 100),
         industryDb,
@@ -814,10 +818,9 @@ export function normalizeAnalysisResult(
     // Final AI Score = round(relatedExp * 0.5) + industryDb
     let score = computeFinalAiScore(relatedExpAuditFactor, cappedIndustryDb);
 
-    // Gate: preserve LLM no_match — prevent industryDb from overriding a semantic rejection.
-    // A candidate explicitly rejected by the LLM must not be elevated to potential/match
-    // even when they have recognized employer brand hits.
-    if (llmRecommendation === "no_match" && market !== "MY" && market !== "TH") {
+    // Gate: preserve LLM no_match — prevent industryDb (including the MY/TH
+    // floor) from overriding a semantic rejection.
+    if (llmRecommendation === "no_match") {
         score = Math.min(score, 39);
     }
 

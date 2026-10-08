@@ -159,7 +159,7 @@ describe("resumes_match", () => {
       expect(payload.error).toContain("Session not found");
     });
 
-    it("applies MY industry_db floor on ai_only match for seek sourceKey", async () => {
+    it("does not apply the MY industry_db floor on ai_only match when seek coverage is none", async () => {
       const resumeId = "resume-my-seek-route";
       const llmResponse = JSON.stringify({
         score: 30,
@@ -292,12 +292,12 @@ describe("resumes_match", () => {
       expect(payload.results).toHaveLength(1);
       expect(payload.results[0]).toMatchObject({
         resumeId,
-        score: 70,
-        recommendation: "match",
+        score: 15,
+        recommendation: "no_match",
         scoreSource: "ai",
         breakdown: {
-          related_exp: 60,
-          industry_db: 40,
+          related_exp: 30,
+          industry_db: 0,
         },
       });
     });

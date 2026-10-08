@@ -162,6 +162,8 @@ function validateProfileShape(profile: JsonRecord, market: Market, prefix: strin
   check(schedule.maxCandidates === 200, "schedule.maxCandidates must be 200");
   check(quickStart.enabled === true, "quickStart.enabled must be true");
   check(quickStart.rank === expectedRank, `quickStart.rank must be ${expectedRank}`);
+  // Keyword quick-search goldens: no JD link, so blob keys stay keyword-search:*.
+  check(profile.jobDescription === undefined, "jobDescription must be omitted (keyword-search golden)");
   check(Boolean(source), "enabled SEEK source is required");
 
   if (source) {

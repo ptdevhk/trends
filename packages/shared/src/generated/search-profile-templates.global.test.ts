@@ -78,8 +78,8 @@ describe('MY/TH CNC Service Engineer talent-search profiles', () => {
       expect(th?.profile.location).toBe('Thailand')
       expect(my?.profile.filters?.locations).toEqual(['Malaysia'])
       expect(th?.profile.filters?.locations).toEqual(['Thailand'])
-      expect(my?.profile.jobDescription).toBe('seek-malaysia-service-engineer')
-      expect(th?.profile.jobDescription).toBe('seek-thailand-service-engineer')
+      expect(my?.profile.jobDescription).toBeUndefined()
+      expect(th?.profile.jobDescription).toBeUndefined()
       expect(my?.profile.filters?.roleFilterType).toBe('engineer')
       expect(th?.profile.filters?.roleFilterType).toBe('engineer')
       expect(my?.profile.keywords).not.toContain('Sales')
@@ -178,8 +178,8 @@ describe('51job CN CMM and 3D scanning sales profiles', () => {
 
     expect(cmm?.profile.keywords).toEqual(['三坐标测量机', '销售'])
     expect(scanning?.profile.keywords).toEqual(['3D扫描仪', '销售'])
-    expect(cmm?.profile.jobDescription).toBe('cmm-sales')
-    expect(scanning?.profile.jobDescription).toBe('3d-scanner-sales')
+    expect(cmm?.profile.jobDescription).toBeUndefined()
+    expect(scanning?.profile.jobDescription).toBeUndefined()
     expect(cmm?.profile.quickStart?.enabled).toBe(true)
     expect(scanning?.profile.quickStart?.enabled).toBe(true)
 

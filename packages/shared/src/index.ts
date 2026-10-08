@@ -37,6 +37,7 @@ export * from "./collection-guards.js";
 export * from "./export-fields-config.js";
 export * from "./scoring/related-exp-evaluator.js";
 export * from "./scoring/resume-score-semantics.js";
+export * from "./scoring/my-th-unverified-hatch.js";
 export * from "./scoring/brand-signals.js";
 export * from "./scoring/score-cap-rules.js";
 export * from "./scoring/adjacent-product-cap.js";

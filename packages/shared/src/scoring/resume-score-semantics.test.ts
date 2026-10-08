@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyMarketIndustryDbFloor,
+  resolveIndustryDbWithMarketFloor,
   computeIndustryDbDirectHitScore,
   computeRelatedExpContribution,
   computeFinalAiScore,
@@ -83,6 +84,11 @@ describe("applyMarketIndustryDbFloor", () => {
 
   it("leaves CN scores untouched", () => {
     expect(applyMarketIndustryDbFloor("CN", 0)).toBe(0);
+  });
+
+  it("withholds the MY floor when coverage is none", () => {
+    expect(resolveIndustryDbWithMarketFloor("MY", 0, { coverage: "none", llmRecommendation: "match" })).toBe(0);
+    expect(resolveIndustryDbWithMarketFloor("MY", 50, { coverage: "none", llmRecommendation: "match" })).toBe(0);
   });
 });
 

@@ -436,19 +436,7 @@ function sortResults(
 ): ResumeSearchResultItem[] {
   const cncSalesQuery = isCncLikeSalesSearch(query, roleFilterType)
   const cncServiceEngineerQuery = isCncLikeServiceEngineerSearch(query, roleFilterType)
-  const tiebreak = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
-    if (cncServiceEngineerQuery) {
-      const serviceRankDiff = compareCurrentCncServiceEngineerRank(left.resume.workHistory, right.resume.workHistory)
-      if (serviceRankDiff !== 0) {
-        return serviceRankDiff
-      }
-    }
-    if (cncSalesQuery) {
-      const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory)
-      if (rankDiff !== 0) {
-        return rankDiff
-      }
-    }
+  const selectedSortDiff = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
     if (sortValue === 'score') {
       return currentRankingScore(right) - currentRankingScore(left)
     }
@@ -467,6 +455,21 @@ function sortResults(
       parseExperienceYears(left.resume.experience)
     )
   }
+  const cncLaneDiff = (left: ResumeSearchResultItem, right: ResumeSearchResultItem): number => {
+    if (cncServiceEngineerQuery) {
+      const serviceRankDiff = compareCurrentCncServiceEngineerRank(left.resume.workHistory, right.resume.workHistory)
+      if (serviceRankDiff !== 0) {
+        return serviceRankDiff
+      }
+    }
+    if (cncSalesQuery) {
+      const rankDiff = compareCurrentCncMachineSalesRank(left.resume.workHistory, right.resume.workHistory)
+      if (rankDiff !== 0) {
+        return rankDiff
+      }
+    }
+    return 0
+  }
 
   return [...results].sort((left, right) => {
     // Company-policy ranking tier is the primary key for every sort mode:
@@ -478,7 +481,13 @@ function sortResults(
     if (tierDiff !== 0) {
       return tierDiff
     }
-    return tiebreak(left, right)
+    // The sort dropdown is next (AI score / newest / experience). CNC current-job
+    // lanes only break ties inside that selected key.
+    const sortDiff = selectedSortDiff(left, right)
+    if (sortDiff !== 0) {
+      return sortDiff
+    }
+    return cncLaneDiff(left, right)
   })
 }
 
@@ -1385,6 +1394,10 @@ export function useResumeSearchState() {
         query: resolvedQuery,
         keywords: nextKeywords,
         location: options?.location ?? parsedState.location,
+        // A fresh search starts a new keyword-search context: drop any JD left
+        // over from the previous search so the cards read keyword-search:*
+        // blobs instead of a stale JD-scored write-up.
+        jobDescriptionId: undefined,
         filters: {
           ...clearedFilters,
           ...salesDutyFilters,

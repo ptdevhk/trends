@@ -1,6 +1,5 @@
 import {
   applyAdjacentProductScoreCap,
-  applyMarketIndustryDbFloor,
   collectAdjacentProductEvidenceText,
   computeIndustryDbDirectHitScore,
   buildLatestWorkHistoryEvidence,
@@ -10,6 +9,7 @@ import {
   isRecord,
   normalizeOptionalString,
   recommendationFromFinalAiScore,
+  resolveIndustryDbWithMarketFloor,
   resolveResumeId,
 } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
@@ -574,7 +574,10 @@ export function overrideIndustryDbBreakdown(
   market?: string,
   evidenceText?: string,
 ): ConvexResumeAnalysis {
-  const flooredIndustryDb = applyMarketIndustryDbFloor(market, industryDb)
+  const flooredIndustryDb = resolveIndustryDbWithMarketFloor(market, industryDb, {
+    llmRecommendation: analysis.recommendation,
+    coverage: analysis.relatedExpEvidence?.coverage,
+  })
   const recommendationCeiling = RELATED_EXP_CEILING_BY_RECOMMENDATION[analysis.recommendation ?? ''] ?? 30
   const rawRelatedExp = typeof analysis.breakdown?.related_exp === 'number' ? analysis.breakdown.related_exp : 0
   // effectiveRelatedExp = factor after recommendation ceiling (and evidence ceiling if stored)
@@ -597,7 +600,7 @@ export function overrideIndustryDbBreakdown(
   }
 
   let score = computeFinalAiScore(cappedRelatedExp, effectiveIndustryDb)
-  if (analysis.recommendation === 'no_match' && market !== 'MY' && market !== 'TH') {
+  if (analysis.recommendation === 'no_match') {
     score = Math.min(score, 39)
   }
 

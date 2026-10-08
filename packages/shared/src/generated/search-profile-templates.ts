@@ -558,7 +558,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Service Engineer"
       ],
-      "jobDescription": "seek-malaysia-service-engineer",
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
@@ -613,7 +612,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Service Engineer"
       ],
-      "jobDescription": "seek-malaysia-service-engineer",
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
@@ -668,7 +666,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Service Engineer"
       ],
-      "jobDescription": "seek-thailand-service-engineer",
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
@@ -723,7 +720,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "CNC",
         "Service Engineer"
       ],
-      "jobDescription": "seek-thailand-service-engineer",
       "filters": {
         "maxExperience": null,
         "minRoleYears": 1,
@@ -778,7 +774,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "三坐标测量机",
         "销售"
       ],
-      "jobDescription": "cmm-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -834,7 +829,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "三坐标测量机",
         "销售"
       ],
-      "jobDescription": "cmm-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -890,7 +884,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "3D扫描仪",
         "销售"
       ],
-      "jobDescription": "3d-scanner-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",
@@ -946,7 +939,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
         "3D扫描仪",
         "销售"
       ],
-      "jobDescription": "3d-scanner-sales",
       "filters": {
         "minRoleYears": 1,
         "roleFilterType": "sales",

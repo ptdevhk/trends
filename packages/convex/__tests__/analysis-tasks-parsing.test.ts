@@ -221,6 +221,165 @@ describe("buildRelatedExpCtxArg", () => {
     });
   });
 
+  it("flags narrow MY domain-relevant unverified CNC service-engineer evidence", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          roleSignals: [
+            {
+              type: "engineer",
+              matchedSignals: ["engineer", "cnc"],
+              signalCount: 2,
+              occurrences: 2,
+              years: 9,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "Mysyntec Technology",
+                  jobTitle: "Technical Team Leader",
+                  years: 9,
+                  industryVerified: false,
+                  matchedSignals: ["engineer", "cnc"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "engineer",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result?.ingestEvidence).toEqual({
+      directRoleMatch: true,
+      industryVerifiedRelevantYears: 0,
+      matchedWorkEntries: ["Technical Team Leader @ Mysyntec Technology (9y)"],
+      domainRelevantUnverified: true,
+    });
+  });
+
+  it("does not flag MY unverified CNC machinist titles as engineer hatch evidence", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          roleSignals: [
+            {
+              type: "engineer",
+              matchedSignals: ["cnc", "machinist"],
+              signalCount: 2,
+              occurrences: 1,
+              years: 4,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "Airfoil Services",
+                  jobTitle: "CNC Milling Machinist",
+                  years: 4,
+                  industryVerified: false,
+                  matchedSignals: ["cnc", "machinist"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "engineer",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result?.ingestEvidence.domainRelevantUnverified).toBe(false);
+  });
+
+  it("flags an unverified service manager when CNC is only in ingest evidenceText", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          evidenceText: "Service Manager at Vintec. Troubleshoot CNC machine breakdown and FANUC servo parameters.",
+          roleSignals: [
+            {
+              type: "engineer",
+              matchedSignals: ["engineer"],
+              signalCount: 1,
+              occurrences: 1,
+              years: 5,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "Vintec enterprise",
+                  jobTitle: "Service Manager",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["engineer"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "engineer",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result?.ingestEvidence.domainRelevantUnverified).toBe(true);
+  });
+
+  it("does not let signal-level CNC tokens hatch a customer-service title", () => {
+    const result = buildRelatedExpCtxArg(
+      {
+        ingestData: {
+          evidenceText: "Customer Service Representative at SATS. Profile also mentions CNC Service Engineer.",
+          roleSignals: [
+            {
+              type: "engineer",
+              matchedSignals: ["engineer", "cnc"],
+              signalCount: 2,
+              occurrences: 2,
+              years: 3,
+              industryVerifiedRelevantYears: 0,
+              matchedWorkEntries: [
+                {
+                  companyName: "SATS GTRSG",
+                  jobTitle: "Customer Service Representative",
+                  years: 3,
+                  industryVerified: false,
+                  matchedSignals: ["engineer"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      },
+      {
+        roleFilterType: "engineer",
+        minRoleYears: 1,
+        market: "MY",
+        locale: "en",
+      },
+    );
+
+    expect(result?.ingestEvidence.domainRelevantUnverified).toBe(false);
+  });
+
   it("does not flag MY domain-relevant unverified evidence for cross-industry sales companies", () => {
     const result = buildRelatedExpCtxArg(
       {
