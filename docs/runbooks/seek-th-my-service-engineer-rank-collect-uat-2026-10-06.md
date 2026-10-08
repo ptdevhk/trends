@@ -4,7 +4,8 @@ Local (pvelxc + Mac `:9222`) findings after quoted-phrase soft-match on prod
 and approach C (engineer ranker, then owner-gated TH Seek collect).
 
 > No fixtures. No candidate-status writes. MY ~500 and prod TH ingest remain
-> human gates. Ranker code is uncommitted on `feat/my-th-service-engineer-ranker`.
+> human gates. Ranker later merged as PR #1429 and deployed on prod `3b4adfeb`
+> (2026-10-08); this page is the 2026-10-06 session record.
 
 ## Goldens (quoted AND must stay quoted)
 
@@ -25,7 +26,7 @@ Prod MY (order still the bug; ranker not on prod):
 | Piece | State |
 |-------|--------|
 | Quoted Latin AND soft-match | Prod `4530a569` (PR #1423). MY AND 26→163. |
-| Engineer-lane ranker | Uncommitted. Tests 31/31. Local BFF still 0.4.23 without it. |
+| Engineer-lane ranker | Uncommitted **on 2026-10-06**. Shipped PR #1429; on prod `3b4adfeb` as of 2026-10-08. |
 | TH Seek collect | Approved 2026-10-06, `collectLimit: 50`. Ingested to **local** BFF only. |
 
 ## Collect (Phase B)
