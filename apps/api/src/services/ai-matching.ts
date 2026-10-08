@@ -11,14 +11,15 @@ import path from "node:path";
 import JSON5 from "json5";
 
 import {
-    applyMarketIndustryDbFloor,
-    FALLBACK_INDUSTRY_KEYWORDS,
     buildBrandHitsPromptSegments,
     computeFinalAiScore,
     deriveMarketFromSourceKey,
     evaluateRelatedExpEvidence,
     getResumeAiLocaleText,
+    isMyThDomainRelevantUnverifiedEntry,
+    normalizeSearchRoleFilterType,
     recommendationFromFinalAiScore,
+    resolveIndustryDbWithMarketFloor,
     sanitizeResumeRecordForSurface,
     type RelatedExpContextInput,
     type ResumeFieldUsagePolicy,
@@ -206,16 +207,16 @@ const SALES_ROLE_KEYWORDS = [
     "业务",
     "商务",
 ];
-const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
-    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
-    "房地产", "地产", "置业", "房产",
-    "教育", "培训", "学校",
-    "医疗", "医院", "医药",
-    "insurance", "assurance", "takaful",
-    "finance", "financial", "investment", "bank",
-    "real estate", "property",
+const ENGINEER_ROLE_KEYWORDS = [
+    "service engineer",
+    "field service",
+    "engineer",
+    "technician",
+    "工程师",
+    "维修",
+    "售后",
+    "售後",
 ];
-const MACHINERY_DOMAIN_KEYWORDS = FALLBACK_INDUSTRY_KEYWORDS.machinery.map((keyword) => keyword.toLowerCase());
 
 function compactWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();
@@ -279,14 +280,12 @@ function resolveResumeMarket(resume: MatchingRequest["resume"]): "CN" | "MY" | "
     return deriveMarketFromSourceKey(resume.sourceKey);
 }
 
-function computeDeterministicIndustryDb(resume: MatchingRequest["resume"]): number {
-    const directIndustryDb = computeDirectIndustryDbScore({
+function computeDirectIndustryDb(resume: MatchingRequest["resume"]): number {
+    return computeDirectIndustryDbScore({
         brandHits: resume.brandHits,
         companyHits: resume.companyHits,
         industryDbV2Raw: resume.industryDbV2Raw,
     });
-    const market = resolveResumeMarket(resume);
-    return applyMarketIndustryDbFloor(market, directIndustryDb);
 }
 
 function inferRoleFilterType(jobDescription: MatchingRequest["jobDescription"]): string | undefined {
@@ -298,7 +297,13 @@ function inferRoleFilterType(jobDescription: MatchingRequest["jobDescription"]):
         .join(" ")
         .toLowerCase();
 
-    return SALES_ROLE_KEYWORDS.some((keyword) => haystack.includes(keyword)) ? "sales" : undefined;
+    if (SALES_ROLE_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+        return "sales";
+    }
+    if (ENGINEER_ROLE_KEYWORDS.some((keyword) => haystack.includes(keyword))) {
+        return "engineer";
+    }
+    return undefined;
 }
 
 function inferMinRoleYears(jobDescription: MatchingRequest["jobDescription"]): number | undefined {
@@ -318,7 +323,7 @@ function roleTypeMatches(signalType: string, roleFilterType: string | undefined)
     if (!roleFilterType || roleFilterType.trim().toLowerCase() === "any") {
         return true;
     }
-    return signalType.trim().toLowerCase() === roleFilterType.trim().toLowerCase();
+    return normalizeSearchRoleFilterType(signalType) === normalizeSearchRoleFilterType(roleFilterType);
 }
 
 function formatMatchedWorkEntry(entry: MatchingResumeWorkEntry): string | undefined {
@@ -329,37 +334,6 @@ function formatMatchedWorkEntry(entry: MatchingResumeWorkEntry): string | undefi
     ].filter((item): item is string => Boolean(item));
 
     return parts.length > 0 ? parts.join(" ") : undefined;
-}
-
-function buildSalesEntryDomainText(signal: MatchingResumeRoleSignal, entries: MatchingResumeWorkEntry[]): string {
-    const signalMatchedSignals = signal.matchedSignals.filter((value) => value.trim().length > 0);
-    const entryParts = entries.flatMap((entry) => {
-        const parts: string[] = [];
-        if (entry.companyName?.trim()) {
-            parts.push(entry.companyName.trim());
-        }
-        if (entry.jobTitle?.trim()) {
-            parts.push(entry.jobTitle.trim());
-        }
-        parts.push(...entry.matchedSignals.filter((value) => value.trim().length > 0));
-        return parts;
-    });
-
-    return [...signalMatchedSignals, ...entryParts].join(" ").toLowerCase();
-}
-
-function isDomainIrrelevantSalesEntry(entry: MatchingResumeWorkEntry): boolean {
-    const text = [
-        entry.companyName?.trim(),
-        entry.jobTitle?.trim(),
-        ...entry.matchedSignals.filter((value) => value.trim().length > 0),
-    ].filter((item): item is string => Boolean(item)).join(" ").toLowerCase();
-
-    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((keyword) => text.includes(keyword));
-}
-
-function hasMachineryDomainText(text: string): boolean {
-    return MACHINERY_DOMAIN_KEYWORDS.some((keyword) => text.includes(keyword));
 }
 
 function buildRelatedExpNormalizeArg(
@@ -385,6 +359,8 @@ function buildRelatedExpNormalizeArg(
     let directRoleMatch = false;
     let industryVerifiedRelevantYears = 0;
     const matchedWorkEntries: string[] = [];
+    const roleKey = normalizeSearchRoleFilterType(relatedExpContext.roleFilterType);
+    const hatchRoleContext = roleKey === "sales" || roleKey === "engineer";
     const myMarketContext = relatedExpContext.market === "MY" || relatedExpContext.market === "TH";
     let domainRelevantUnverified = false;
 
@@ -412,19 +388,19 @@ function buildRelatedExpNormalizeArg(
             }
         }
 
-        if (!myMarketContext || industryVerifiedRelevantYears > 0) {
+        if (!hatchRoleContext || !myMarketContext || industryVerifiedRelevantYears > 0) {
             continue;
         }
 
-        const hasDirectSalesEntry = rawEntries.some((entry) => entry.directRoleMatch === true);
-        const hasDomainIrrelevantEntry = rawEntries.some((entry) => isDomainIrrelevantSalesEntry(entry));
-        const salesEntryText = buildSalesEntryDomainText(signal, rawEntries);
-        const hasMachineryEvidence = hasMachineryDomainText(salesEntryText);
-        domainRelevantUnverified = domainRelevantUnverified || (
-            hasDirectSalesEntry
-            && hasMachineryEvidence
-            && !hasDomainIrrelevantEntry
-        );
+        domainRelevantUnverified = domainRelevantUnverified || rawEntries.some((entry) => (
+            isMyThDomainRelevantUnverifiedEntry({
+                directRoleMatch: entry.directRoleMatch === true,
+                companyName: entry.companyName,
+                jobTitle: entry.jobTitle,
+                matchedSignals: entry.matchedSignals.filter((value) => value.trim().length > 0),
+                extraText: typeof resume.workHistory === "string" ? resume.workHistory : "",
+            })
+        ));
     }
 
     return {
@@ -433,7 +409,7 @@ function buildRelatedExpNormalizeArg(
             directRoleMatch,
             industryVerifiedRelevantYears,
             matchedWorkEntries,
-            ...(myMarketContext ? { domainRelevantUnverified } : {}),
+            ...(hatchRoleContext && myMarketContext ? { domainRelevantUnverified } : {}),
         },
     };
 }
@@ -928,7 +904,7 @@ Return strictly valid JSON:
             let effectiveRecommendation = recommendation;
 
             if ((market === "MY" || market === "TH") && llmRelatedExp !== undefined) {
-                const industryDb = computeDeterministicIndustryDb(request.resume);
+                const directIndustryDb = computeDirectIndustryDb(request.resume);
                 let effectiveRelatedExp = clamp(
                     llmRelatedExp,
                     0,
@@ -939,6 +915,7 @@ Return strictly valid JSON:
                     request.jobDescription,
                     prompt?.normalized.locale,
                 );
+                let coverage: string | undefined;
 
                 if (relatedExpArg) {
                     const relatedExpEvidence = evaluateRelatedExpEvidence({
@@ -948,10 +925,16 @@ Return strictly valid JSON:
                         ingestEvidence: relatedExpArg.ingestEvidence,
                     });
                     effectiveRelatedExp = relatedExpEvidence.effectiveRaw;
+                    coverage = relatedExpEvidence.coverage;
                 }
 
+                const industryDb = resolveIndustryDbWithMarketFloor(market, directIndustryDb, {
+                    llmRecommendation: recommendation,
+                    coverage,
+                });
+
                 effectiveScore = computeFinalAiScore(effectiveRelatedExp, industryDb);
-                if (recommendation === "no_match" && market !== "MY" && market !== "TH") {
+                if (recommendation === "no_match") {
                     effectiveScore = Math.min(effectiveScore, 39);
                 }
                 effectiveRecommendation = recommendationFromFinalAiScore(effectiveScore);

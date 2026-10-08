@@ -96,6 +96,9 @@ export type ConvexResumeAnalysis = {
   breakdown?: Record<string, number>
   jobDescriptionId?: string
   screeningChecklist?: ScreeningChecklist
+  relatedExpEvidence?: {
+    coverage?: string
+  }
 }
 
 export type ConvexIngestData = {

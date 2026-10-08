@@ -566,6 +566,42 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults[0]?.analysis?.summary).toBe('Best AI match')
   })
 
+  it('honors AI 分 over the CNC service-engineer current-job lane', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: '"CNC" "Service Engineer"',
+      keywords: ['CNC', 'Service Engineer'],
+      filters: { roleFilterType: 'engineer' },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        primaryRuleScore: 54,
+        workHistory: [{
+          jobTitle: 'service engineer',
+          companyName: 'cnc control',
+          startDate: '2024-01',
+        }],
+      }),
+      createResume(2, {
+        primaryRuleScore: 84,
+        workHistory: [{
+          jobTitle: 'Service Engineer',
+          companyName: 'Yamazaki Mazak',
+          startDate: '2024-01',
+        }],
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('score')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-2',
+      'resume-1',
+    ])
+    expect(result.current.filteredResults[0]?.score).toBe(84)
+  })
+
   it('does not reuse another search analysis write-up (CNC 销售 blob hidden under CMM query)', () => {
     // 三坐标 or 3D扫描 销售 → OR mode; 销售 is peeled as a sales-duty role filter,
     // so analysisKeywords = [三坐标, 3D扫描].
@@ -1933,7 +1969,7 @@ describe('useResumeSearchState', () => {
       location: 'Malaysia',
       keywords: ['servo', 'automation'],
       requiredKeywords: ['CNC'],
-      jobDescriptionId: 'jd-123',
+      jobDescriptionId: undefined,
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
       selectedSources: [],
@@ -2889,12 +2925,16 @@ describe('useResumeSearchState', () => {
       keywords: ['CNC', '销售'],
       filters: {
         roleFilterType: 'sales',
+        sortBy: 'experience',
+        sortOrder: 'desc',
       },
     }))
     resumesMock.push(
       createResume(1, {
         primaryRuleScore: 99,
+        experience: '9 years',
         workHistory: [{
+          raw: '品质工程师 · 某机械厂 · 2024-01 - Present',
           jobTitle: '品质工程师',
           companyName: '某机械厂',
           description: '质量检验 QA',
@@ -2903,7 +2943,51 @@ describe('useResumeSearchState', () => {
       }),
       createResume(2, {
         primaryRuleScore: 40,
+        experience: '3 years',
         workHistory: [{
+          raw: '机床销售工程师 · 创世纪 · 2024-01 - Present',
+          jobTitle: '机床销售工程师',
+          companyName: '创世纪',
+          description: '负责CNC机床销售',
+          startDate: '2024-01',
+        }],
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    // Score sort (the default) is the selected key; the CNC current-job lane is
+    // only a tiebreak inside it, so the 99 QA row stays above the 40 CNC-sales
+    // row. QA is not dropped, only ordered.
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
+      'resume-2',
+    ])
+  })
+
+  it('breaks score ties with the CNC current-job lane', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        roleFilterType: 'sales',
+      },
+    }))
+    resumesMock.push(
+      createResume(1, {
+        primaryRuleScore: 70,
+        workHistory: [{
+          raw: '品质工程师 · 某机械厂 · 2024-01 - Present',
+          jobTitle: '品质工程师',
+          companyName: '某机械厂',
+          description: '质量检验 QA',
+          startDate: '2024-01',
+        }],
+      }),
+      createResume(2, {
+        primaryRuleScore: 70,
+        workHistory: [{
+          raw: '机床销售工程师 · 创世纪 · 2024-01 - Present',
           jobTitle: '机床销售工程师',
           companyName: '创世纪',
           description: '负责CNC机床销售',

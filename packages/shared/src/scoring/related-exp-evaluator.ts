@@ -37,8 +37,9 @@ export interface RelatedExpIngestEvidence {
     /** Text evidence snippets from matched work entries (for missingReasons) */
     matchedWorkEntries?: string[];
     /**
-     * Narrow MY-market escape hatch for direct-sales resumes whose company/title
-     * text is domain-relevant even though industry verification years are zero.
+     * Narrow MY/TH escape hatch for direct sales or engineer resumes whose
+     * company/title text is machine-tool/CNC relevant even though industry
+     * verification years are zero.
      */
     domainRelevantUnverified?: boolean;
 }

@@ -698,16 +698,16 @@ describe("normalizeAnalysisResult", () => {
             expect(result.recommendation).toBe("no_match");
         });
 
-        it("does not apply the legacy no_match cap to MY floor-scored resumes", () => {
+        it("does not let the MY floor lift LLM no_match into potential", () => {
             const result = normalizeAnalysisResult(
                 { recommendation: "no_match", breakdown: { related_exp: 35 } },
                 { ingestData: { market: "MY", brandHits: [], companyHits: [], industryDbV2Raw: 0 } },
             );
-            expect(result.score).toBe(55);
-            expect(result.recommendation).toBe("potential");
+            expect(result.score).toBe(15);
+            expect(result.recommendation).toBe("no_match");
             expect(result.breakdown).toMatchObject({
                 related_exp: 30,
-                industry_db: 40,
+                industry_db: 0,
             });
         });
 
@@ -807,6 +807,63 @@ describe("normalizeAnalysisResult with relatedExpContext (P1)", () => {
         // final score = round(60*0.5) + 30 = 60
         expect(result.score).toBe(60);
         expect(result.breakdown.related_exp).toBe(60);
+    });
+
+    it("skips the MY floor when related-exp coverage is none", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            { ingestData: { market: "MY", brandHits: [], companyHits: [], industryDbV2Raw: 0 } },
+            {
+                context: { roleFilterType: "engineer", minRoleYears: 1, market: "MY" },
+                ingestEvidence: { directRoleMatch: false, industryVerifiedRelevantYears: 0 },
+            },
+        );
+        expect(result.relatedExpEvidence?.coverage).toBe("none");
+        expect(result.breakdown.related_exp).toBe(30);
+        expect(result.breakdown.industry_db).toBe(0);
+        expect(result.score).toBe(15);
+        expect(result.recommendation).toBe("no_match");
+    });
+
+    it("drops leftover brand/company hits when MY engineer coverage is none", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            {
+                ingestData: {
+                    market: "MY",
+                    brandHits: [{ brand: "makino", context: "equipment" }],
+                    companyHits: ["fanuc"],
+                    industryDbV2Raw: 0,
+                },
+            },
+            {
+                context: { roleFilterType: "engineer", minRoleYears: 1, market: "MY" },
+                ingestEvidence: { directRoleMatch: false, industryVerifiedRelevantYears: 0 },
+            },
+        );
+        expect(result.relatedExpEvidence?.coverage).toBe("none");
+        expect(result.breakdown.industry_db).toBe(0);
+        expect(result.score).toBe(15);
+    });
+
+    it("keeps the MY floor for unverified CNC engineer hatch (partial coverage)", () => {
+        const result = normalizeAnalysisResult(
+            { recommendation: "match", breakdown: { related_exp: 84 } },
+            { ingestData: { market: "MY", brandHits: [], companyHits: [], industryDbV2Raw: 0 } },
+            {
+                context: { roleFilterType: "engineer", minRoleYears: 1, market: "MY" },
+                ingestEvidence: {
+                    directRoleMatch: true,
+                    industryVerifiedRelevantYears: 0,
+                    domainRelevantUnverified: true,
+                },
+            },
+        );
+        expect(result.relatedExpEvidence?.coverage).toBe("partial");
+        expect(result.breakdown.related_exp).toBe(65);
+        expect(result.breakdown.industry_db).toBe(40);
+        expect(result.score).toBe(73);
+        expect(result.recommendation).toBe("match");
     });
 
     it("relatedExpEvidence missingReasons is populated for partial/weak/none coverage", () => {

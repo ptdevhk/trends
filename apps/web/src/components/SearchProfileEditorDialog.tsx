@@ -178,7 +178,11 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
 const SEEDED_PROFILES_WITHOUT_JD = new Set([
     'job5156-cn-cnc-sales',
     '51job-cn-cnc-sales',
+    '51job-cn-cmm-sales',
+    '51job-cn-3d-scanning-sales',
     'seek-malaysia-sales',
+    'seek-malaysia-talent-search-service-engineer',
+    'seek-thailand-talent-search-service-engineer',
 ])
 
 function normalizeStringArray(values: string[] | undefined): string[] {

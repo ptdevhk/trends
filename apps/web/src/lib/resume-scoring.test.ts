@@ -651,7 +651,7 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
     expect(result.score).toBeLessThan(85)
   })
 
-  it('lets the MY floor lift no_match analyses into the canonical 40+ range', () => {
+  it('does not let the MY floor lift no_match analyses into potential', () => {
     const analysis = {
       score: 18,
       recommendation: 'no_match' as const,
@@ -661,10 +661,28 @@ describe('overrideIndustryDbBreakdown — score/recommendation coherence', () =>
       concerns: [],
     }
     const result = overrideIndustryDbBreakdown(analysis, 0, 'MY')
-    expect(result.score).toBe(55)
+    expect(result.score).toBe(15)
     expect(result.breakdown).toEqual({
       related_exp: 30,
-      industry_db: 40,
+      industry_db: 0,
+    })
+  })
+
+  it('skips the MY floor on render when related-exp coverage is none', () => {
+    const analysis = {
+      score: 55,
+      recommendation: 'match' as const,
+      breakdown: { related_exp: 30, industry_db: 40 },
+      summary: 'No CNC service evidence',
+      highlights: [],
+      concerns: [],
+      relatedExpEvidence: { coverage: 'none' },
+    }
+    const result = overrideIndustryDbBreakdown(analysis, 0, 'MY')
+    expect(result.score).toBe(15)
+    expect(result.breakdown).toEqual({
+      related_exp: 30,
+      industry_db: 0,
     })
   })
 

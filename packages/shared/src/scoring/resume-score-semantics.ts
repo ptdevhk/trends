@@ -62,6 +62,37 @@ export function applyMarketIndustryDbFloor(
 }
 
 /**
+ * Skip the MY/TH +40 industry_db floor when the LLM rejected the resume, or
+ * when related-exp evidence coverage is `none` (no role+domain match).
+ * Coverage `none` also drops brand/company hits so a leftover FANUC/Makino
+ * mention on a cashier or machinist CV cannot keep the score at 55.
+ */
+export function shouldSkipMarketIndustryDbFloor(input: {
+  llmRecommendation?: string | null;
+  coverage?: string | null;
+}): boolean {
+  if (input.llmRecommendation === "no_match") {
+    return true;
+  }
+  return input.coverage === "none";
+}
+
+export function resolveIndustryDbWithMarketFloor(
+  market: string | undefined,
+  industryDb: number | undefined,
+  options?: {
+    llmRecommendation?: string | null;
+    coverage?: string | null;
+  },
+): number {
+  const direct = industryDb !== undefined && Number.isFinite(industryDb) ? Math.max(0, industryDb) : 0;
+  if (options && shouldSkipMarketIndustryDbFloor(options)) {
+    return 0;
+  }
+  return applyMarketIndustryDbFloor(market, industryDb);
+}
+
+/**
  * Convert a related-exp audit factor (0-100) into its weighted 0-50
  * contribution for normal UI display and final-score computation.
  */

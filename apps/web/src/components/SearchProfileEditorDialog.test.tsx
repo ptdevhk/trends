@@ -600,6 +600,41 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it.each([
+    'job5156-cn-cnc-sales',
+    '51job-cn-cnc-sales',
+    '51job-cn-cmm-sales',
+    '51job-cn-3d-scanning-sales',
+    'seek-malaysia-talent-search-service-engineer',
+    'seek-thailand-talent-search-service-engineer',
+  ])('hides the JD select for seeded quick-search profile %s', (profileId) => {
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId={profileId}
+        initialData={{
+          id: profileId,
+          name: profileId,
+          status: 'active',
+          location: 'China',
+          keywords: ['CNC', '销售'],
+          jobDescription: 'stale-jd',
+          filters: {
+            minRoleYears: 1,
+            roleFilterType: 'sales',
+          },
+          schedule: {
+            enabled: true,
+            cron: '0 9 * * 1-5',
+          },
+        }}
+      />
+    )
+
+    expect(screen.queryByTestId('job-description-select')).not.toBeInTheDocument()
+  })
+
   it('hides the JD select for seeded profiles and clears stale JD on save', async () => {
     const user = userEvent.setup()
 

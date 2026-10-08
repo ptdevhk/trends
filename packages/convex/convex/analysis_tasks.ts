@@ -5,8 +5,9 @@ import { v } from "convex/values";
 import { api } from "./_generated/api";
 import {
     getCurrentResumeAiPromptVersion,
-    FALLBACK_INDUSTRY_KEYWORDS,
+    isMyThDomainRelevantUnverifiedEntry,
     isSystemWorkspace,
+    normalizeSearchRoleFilterType,
     type RelatedExpContextInput,
     type RelatedExpIngestEvidence,
 } from "@trends/shared";
@@ -216,7 +217,10 @@ function roleTypeMatches(signalType: unknown, roleFilterType: string | undefined
     if (!roleFilterType || roleFilterType.trim().length === 0 || roleFilterType.trim().toLowerCase() === "any") {
         return true;
     }
-    return typeof signalType === "string" && signalType.trim().toLowerCase() === roleFilterType.trim().toLowerCase();
+    if (typeof signalType !== "string") {
+        return false;
+    }
+    return normalizeSearchRoleFilterType(signalType) === normalizeSearchRoleFilterType(roleFilterType);
 }
 
 function readFiniteNumber(value: unknown): number | undefined {
@@ -242,55 +246,11 @@ function formatMatchedWorkEntry(entry: Record<string, unknown>): string | undefi
     return `${titlePart}${companyPart}${yearsPart}`;
 }
 
-const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
-    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
-    "房地产", "地产", "置业", "房产",
-    "教育", "培训", "学校",
-    "医疗", "医院", "医药",
-    "insurance", "assurance", "takaful",
-    "finance", "financial", "investment", "bank",
-    "real estate", "property",
-];
-
-const MACHINERY_DOMAIN_KEYWORDS = FALLBACK_INDUSTRY_KEYWORDS.machinery.map((keyword) => keyword.toLowerCase());
-
-function buildSalesEntryDomainText(
-    signal: Record<string, unknown>,
-    entries: Record<string, unknown>[],
-): string {
-    const signalMatchedSignals = Array.isArray(signal.matchedSignals)
-        ? signal.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-        : [];
-    const entryParts = entries.flatMap((entry) => {
-        const parts: string[] = [];
-        if (typeof entry.companyName === "string" && entry.companyName.trim().length > 0) {
-            parts.push(entry.companyName.trim());
-        }
-        if (typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0) {
-            parts.push(entry.jobTitle.trim());
-        }
-        if (Array.isArray(entry.matchedSignals)) {
-            parts.push(...entry.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0));
-        }
-        return parts;
-    });
-
-    return [...signalMatchedSignals, ...entryParts].join(" ").toLowerCase();
-}
-
-function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
-    const companyName = typeof entry.companyName === "string" ? entry.companyName.trim() : "";
-    const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle.trim() : "";
-    const matchedSignals = Array.isArray(entry.matchedSignals)
-        ? entry.matchedSignals.filter((value): value is string => typeof value === "string" && value.trim().length > 0).join(" ")
-        : "";
-    const text = `${companyName} ${jobTitle} ${matchedSignals}`.toLowerCase();
-
-    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((keyword) => text.includes(keyword));
-}
-
-function hasMachineryDomainText(text: string): boolean {
-    return MACHINERY_DOMAIN_KEYWORDS.some((keyword) => text.includes(keyword));
+function readHatchStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
 export function buildRelatedExpCtxArg(
@@ -301,10 +261,12 @@ export function buildRelatedExpCtxArg(
         return undefined;
     }
 
-    const roleSignals = isObject(resume)
-        && isObject(resume.ingestData)
-        && Array.isArray(resume.ingestData.roleSignals)
-        ? resume.ingestData.roleSignals
+    const ingestData = isObject(resume) && isObject(resume.ingestData) ? resume.ingestData : undefined;
+    const evidenceText = ingestData && typeof ingestData.evidenceText === "string"
+        ? ingestData.evidenceText
+        : "";
+    const roleSignals = ingestData && Array.isArray(ingestData.roleSignals)
+        ? ingestData.roleSignals
         : [];
     const matchingSignals = roleSignals
         .filter(isObject)
@@ -313,9 +275,10 @@ export function buildRelatedExpCtxArg(
     let directRoleMatch = false;
     let industryVerifiedRelevantYears = 0;
     const matchedWorkEntries: string[] = [];
-    const salesRoleContext = relatedExpContext.roleFilterType?.trim().toLowerCase() === "sales";
+    const roleKey = normalizeSearchRoleFilterType(relatedExpContext.roleFilterType);
+    const hatchRoleContext = roleKey === "sales" || roleKey === "engineer";
     const normalizedMarket = relatedExpContext.market?.trim().toUpperCase();
-    // MY/TH share the unverified sales-experience escape hatch (see ai-matching.ts).
+    // MY/TH share the unverified sales/engineer escape hatch (see ai-matching.ts).
     const myMarketContext = normalizedMarket === "MY" || normalizedMarket === "TH";
     let domainRelevantUnverified = false;
 
@@ -341,20 +304,19 @@ export function buildRelatedExpCtxArg(
             }
         }
 
-        if (!salesRoleContext || !myMarketContext || industryVerifiedRelevantYears > 0) {
+        if (!hatchRoleContext || !myMarketContext || industryVerifiedRelevantYears > 0) {
             continue;
         }
 
-        const hasDirectSalesEntry = rawEntries.some((entry) => entry.directRoleMatch === true);
-        const hasDomainIrrelevantEntry = rawEntries.some((entry) => isDomainIrrelevantSalesEntry(entry));
-        const salesEntryText = buildSalesEntryDomainText(signal, rawEntries);
-        const hasMachineryEvidence = hasMachineryDomainText(salesEntryText);
-
-        domainRelevantUnverified = domainRelevantUnverified || (
-            hasDirectSalesEntry
-            && hasMachineryEvidence
-            && !hasDomainIrrelevantEntry
-        );
+        domainRelevantUnverified = domainRelevantUnverified || rawEntries.some((entry) => (
+            isMyThDomainRelevantUnverifiedEntry({
+                directRoleMatch: entry.directRoleMatch === true,
+                companyName: typeof entry.companyName === "string" ? entry.companyName : undefined,
+                jobTitle: typeof entry.jobTitle === "string" ? entry.jobTitle : undefined,
+                matchedSignals: readHatchStringList(entry.matchedSignals),
+                extraText: evidenceText,
+            })
+        ));
     }
 
     return {
@@ -363,7 +325,7 @@ export function buildRelatedExpCtxArg(
             directRoleMatch,
             industryVerifiedRelevantYears,
             matchedWorkEntries,
-            ...(salesRoleContext && myMarketContext ? { domainRelevantUnverified } : {}),
+            ...(hatchRoleContext && myMarketContext ? { domainRelevantUnverified } : {}),
         },
     };
 }

@@ -354,7 +354,7 @@ describe("AIMatchingService", () => {
       expect(result.rawResponse!.length).toBeLessThanOrEqual(4000);
     });
 
-    it("recomputes MY final score from related_exp and source-derived industry_db floor", async () => {
+    it("does not apply the MY floor when engineer coverage is none", async () => {
       const llmResponse = JSON.stringify({
         score: 30,
         recommendation: "potential",
@@ -374,16 +374,16 @@ describe("AIMatchingService", () => {
       }));
 
       expect(result).toMatchObject({
-        score: 70,
-        recommendation: "match",
+        score: 15,
+        recommendation: "no_match",
         breakdown: {
-          related_exp: 60,
-          industry_db: 40,
+          related_exp: 30,
+          industry_db: 0,
         },
       });
     });
 
-    it("recomputes MY final score with the 40-point single-hit baseline", async () => {
+    it("does not keep a lone brand/company hit when engineer coverage is none", async () => {
       const llmResponse = JSON.stringify({
         score: 30,
         recommendation: "potential",
@@ -403,16 +403,16 @@ describe("AIMatchingService", () => {
       }));
 
       expect(result).toMatchObject({
-        score: 70,
-        recommendation: "match",
+        score: 15,
+        recommendation: "no_match",
         breakdown: {
-          related_exp: 60,
-          industry_db: 40,
+          related_exp: 30,
+          industry_db: 0,
         },
       });
     });
 
-    it("lets the MY floor lift legacy no_match outputs into the canonical 40+ range", async () => {
+    it("does not let the MY floor lift legacy no_match outputs into potential", async () => {
       const llmResponse = JSON.stringify({
         score: 18,
         recommendation: "no_match",
@@ -432,11 +432,11 @@ describe("AIMatchingService", () => {
       }));
 
       expect(result).toMatchObject({
-        score: 55,
-        recommendation: "potential",
+        score: 15,
+        recommendation: "no_match",
         breakdown: {
           related_exp: 30,
-          industry_db: 40,
+          industry_db: 0,
         },
       });
     });
