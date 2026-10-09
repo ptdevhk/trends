@@ -32,7 +32,9 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
     expect(quickStarts.length).toBeGreaterThan(0)
 
     for (const template of quickStarts) {
-      expect(template.profile.schedule?.maxCandidates).toBe(200)
+      const isMyThServiceEngineer = template.profile.id === 'seek-malaysia-talent-search-service-engineer'
+        || template.profile.id === 'seek-thailand-talent-search-service-engineer'
+      expect(template.profile.schedule?.maxCandidates).toBe(isMyThServiceEngineer ? 2000 : 200)
 
       const enabledSources = (template.profile.sources ?? []).filter((source) => source.enabled)
       expect(enabledSources.length).toBeGreaterThan(0)
@@ -42,7 +44,7 @@ describe('getWorkspaceSearchProfileTemplates global defaults', () => {
           expect(source.collectLimit).toBe(2000)
           continue
         }
-        expect(source.collectLimit).toBe(200)
+        expect(source.collectLimit).toBe(isMyThServiceEngineer ? 2000 : 200)
       }
     }
   })

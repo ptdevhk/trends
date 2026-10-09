@@ -22,7 +22,7 @@ filters:
 schedule:
   enabled: false
   timezone: Asia/Bangkok
-  maxCandidates: 200
+  maxCandidates: 2000
 
 sources:
   - type: seek
@@ -30,7 +30,7 @@ sources:
     enabled: true
     priority: 1
     jobUrl: https://hk.employer.seek.com/talentsearch?searchQuery=CNC&market=TH&pageNumber=1&roleTitles=Services+Engineer%2CService+Technician%2CService+Manager%2CService+Coordinator%2CService+Supervisor&salaryType=MONTHLY&minSalary=0&salaryUnspecified=true&keywords=CNC&matchAll=false&sortBy=RELEVANCE
-    collectLimit: 200
+    collectLimit: 2000
     maxPages: 25
 
 session:
