@@ -412,6 +412,161 @@ describe("search-profiles legacy adoption", () => {
         expect(byId.get("51job-cn-cmm-sales")?.quickStart?.enabled).toBe(true);
         expect(byId.get("51job-cn-3d-scanning-sales")?.quickStart?.enabled).toBe(true);
     });
+
+    it("backfills missing Quick Start label/rank/description from YAML without full reseed", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
+            profile: {
+                id: "51job-cn-cnc-sales",
+                name: "China 51job CNC Sales",
+                status: "active" as const,
+                location: "China",
+                keywords: ["CNC", "销售"],
+                filters: { minRoleYears: 1, roleFilterType: "sales", minAge: 25, maxAge: 40 },
+                quickStart: {
+                    enabled: true,
+                    rank: 2,
+                    label: "China · 51job · CNC 销售",
+                    description: "CNC, 销售 · China",
+                },
+            },
+        }]);
+
+        const calls = mockConvexListAndUpdate([{
+            _id: "storage-cnc-hero",
+            profileId: "51job-cn-cnc-sales",
+            name: "China 51job CNC Sales",
+            profile: {
+                id: "51job-cn-cnc-sales",
+                seedSource: "config/search-profiles",
+                templateHash: "prod-hash-null-label",
+                filters: { minRoleYears: 1, roleFilterType: "sales", minAge: 25, maxAge: 40 },
+                quickStart: { enabled: true },
+            },
+            criteria: { keywords: ["CNC", "销售"], locations: ["China"] },
+        }]);
+
+        const response = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        const quickStart = payloads[0]!.quickStart as Record<string, unknown>;
+        expect(quickStart.enabled).toBe(true);
+        expect(quickStart.rank).toBe(2);
+        expect(quickStart.label).toBe("China · 51job · CNC 销售");
+        expect(quickStart.description).toBe("CNC, 销售 · China");
+        const filters = payloads[0]!.filters as Record<string, unknown>;
+        expect(filters.minAge).toBe(25);
+        expect(filters.maxAge).toBe(40);
+        expect(filters.roleFilterType).toBe("sales");
+    });
+
+    it("backfills missing hero age filters from YAML without clobbering a stored label", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
+            profile: {
+                id: "51job-cn-cmm-sales",
+                name: "China 51job CMM & Metrology Sales",
+                status: "active" as const,
+                location: "China",
+                keywords: ["三坐标测量机", "销售"],
+                filters: { minRoleYears: 1, roleFilterType: "sales", minAge: 25, maxAge: 40 },
+                quickStart: {
+                    enabled: true,
+                    rank: 7,
+                    label: "China · 51job · CMM 销售",
+                    description: "三坐标测量机, 销售 · China",
+                },
+            },
+        }]);
+
+        const calls = mockConvexListAndUpdate([{
+            _id: "storage-cmm-hero",
+            profileId: "51job-cn-cmm-sales",
+            name: "China 51job CMM & Metrology Sales",
+            profile: {
+                id: "51job-cn-cmm-sales",
+                seedSource: "config/search-profiles",
+                templateHash: "prod-hash-missing-age",
+                filters: { minRoleYears: 1, roleFilterType: "sales" },
+                quickStart: {
+                    enabled: true,
+                    rank: 7,
+                    label: "China · 51job · CMM 销售",
+                    description: "三坐标测量机, 销售 · China",
+                },
+            },
+            criteria: { keywords: ["三坐标测量机", "销售"], locations: ["China"] },
+        }]);
+
+        const response = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        const payloads = updatePayloads(calls);
+        expect(payloads).toHaveLength(1);
+        const quickStart = payloads[0]!.quickStart as Record<string, unknown>;
+        expect(quickStart.label).toBe("China · 51job · CMM 销售");
+        expect(quickStart.rank).toBe(7);
+        const filters = payloads[0]!.filters as Record<string, unknown>;
+        expect(filters.minAge).toBe(25);
+        expect(filters.maxAge).toBe(40);
+        expect(filters.roleFilterType).toBe("sales");
+        expect(filters.minRoleYears).toBe(1);
+    });
+
+    it("does not overwrite a stored Quick Start label or rank", async () => {
+        delete process.env.SEARCH_PROFILES_RESEED_ON_DRIFT;
+
+        vi.mocked(shared.getWorkspaceSearchProfileTemplates).mockReturnValue([{
+            profile: {
+                id: "seek-malaysia-talent-search-service-engineer",
+                name: "SEEK Malaysia CNC Service Engineer — Talent Search",
+                status: "active" as const,
+                location: "Malaysia",
+                keywords: ["CNC", "Service Engineer"],
+                filters: { minRoleYears: 1, roleFilterType: "engineer" },
+                quickStart: {
+                    enabled: true,
+                    rank: 5,
+                    label: "Malaysia · SEEK · CNC Service Engineer (Talent Search)",
+                    description: "CNC, Service Engineer · Malaysia · Talent Search lane",
+                },
+            },
+        }]);
+
+        const calls = mockConvexListAndUpdate([{
+            _id: "storage-my-se",
+            profileId: "seek-malaysia-talent-search-service-engineer",
+            name: "SEEK Malaysia CNC Service Engineer — Talent Search",
+            profile: {
+                id: "seek-malaysia-talent-search-service-engineer",
+                seedSource: "config/search-profiles",
+                templateHash: "prod-hash-custom-label",
+                filters: { minRoleYears: 1, roleFilterType: "engineer" },
+                quickStart: {
+                    enabled: true,
+                    rank: 5,
+                    label: "Custom MY engineer card",
+                    description: "CNC, Service Engineer · Malaysia · Talent Search lane",
+                },
+            },
+            criteria: { keywords: ["CNC", "Service Engineer"], locations: ["Malaysia"] },
+        }]);
+
+        const response = await createApp().request("/api/search-profiles", {
+            headers: { "X-Workspace-Slug": "hr" },
+        });
+
+        expect(response.status).toBe(200);
+        expect(updatePayloads(calls)).toHaveLength(0);
+    });
 });
 
 describe("search-profiles seeded edits", () => {
