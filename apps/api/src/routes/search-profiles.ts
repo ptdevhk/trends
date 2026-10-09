@@ -469,6 +469,90 @@ function isReseedOnDriftEnabled(): boolean {
     return value === "true" || value === "1" || value === "yes";
 }
 
+function trimPresentText(value: unknown): string | undefined {
+    const text = readString(value)?.trim();
+    return text ? text : undefined;
+}
+
+function hasNumericFilter(value: unknown): boolean {
+    return typeof readNumber(value) === "number";
+}
+
+/**
+ * Hero Quick Start reads label/rank (card title + grid order) and minAge /
+ * maxAge / minRoleYears (click → search URL). Prod stamped rows often keep
+ * enabled=true with null label/rank after YAML grew those fields; landing then
+ * falls back to profile.name and sorts by MAX_SAFE_INTEGER. Fill only missing
+ * YAML-defined values — never clobber a stored label, rank, or age filter.
+ */
+function needsHeroQuickStartBackfill(
+    existing: SearchProfile,
+    template: SearchProfile,
+): boolean {
+    const templateQuickStart = template.quickStart;
+    const existingQuickStart = existing.quickStart;
+    if (templateQuickStart?.enabled === true) {
+        if (trimPresentText(templateQuickStart.label) && !trimPresentText(existingQuickStart?.label)) {
+            return true;
+        }
+        if (trimPresentText(templateQuickStart.description) && !trimPresentText(existingQuickStart?.description)) {
+            return true;
+        }
+        if (typeof templateQuickStart.rank === "number" && typeof existingQuickStart?.rank !== "number") {
+            return true;
+        }
+    }
+
+    const templateFilters = template.filters ?? {};
+    const existingFilters = existing.filters ?? {};
+    if (typeof templateFilters.minAge === "number" && !hasNumericFilter(existingFilters.minAge)) {
+        return true;
+    }
+    if (typeof templateFilters.maxAge === "number" && !hasNumericFilter(existingFilters.maxAge)) {
+        return true;
+    }
+    if (typeof templateFilters.minRoleYears === "number" && !hasNumericFilter(existingFilters.minRoleYears)) {
+        return true;
+    }
+    return false;
+}
+
+function mergeHeroQuickStartFromTemplate(
+    existing: SearchProfile,
+    template: SearchProfile,
+): { quickStart: SearchProfile["quickStart"]; filters: SearchProfile["filters"] } {
+    const templateQuickStart = template.quickStart;
+    const existingQuickStart = existing.quickStart;
+    const quickStart = templateQuickStart?.enabled === true
+        ? {
+            enabled: existingQuickStart?.enabled === true || templateQuickStart.enabled === true,
+            rank: typeof existingQuickStart?.rank === "number"
+                ? existingQuickStart.rank
+                : templateQuickStart.rank,
+            label: trimPresentText(existingQuickStart?.label) ?? trimPresentText(templateQuickStart.label),
+            description: trimPresentText(existingQuickStart?.description)
+                ?? trimPresentText(templateQuickStart.description),
+        }
+        : existingQuickStart;
+
+    const templateFilters = template.filters ?? {};
+    const existingFilters = existing.filters ?? {};
+    const filters = {
+        ...existingFilters,
+        ...(hasNumericFilter(existingFilters.minAge) || typeof templateFilters.minAge !== "number"
+            ? {}
+            : { minAge: templateFilters.minAge }),
+        ...(hasNumericFilter(existingFilters.maxAge) || typeof templateFilters.maxAge !== "number"
+            ? {}
+            : { maxAge: templateFilters.maxAge }),
+        ...(hasNumericFilter(existingFilters.minRoleYears) || typeof templateFilters.minRoleYears !== "number"
+            ? {}
+            : { minRoleYears: templateFilters.minRoleYears }),
+    };
+
+    return { quickStart, filters };
+}
+
 /**
  * Full YAML refresh for a stored row: normalize template over existing id,
  * stamp seedSource + templateHash, and persist. Used by legacy/half-stamped
@@ -605,6 +689,39 @@ async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void>
             logger.warn(
                 `reconciled quickStart.enabled on "${logicalId}" (workspace=${workspaceSlug}) ` +
                 `from YAML template (${existingQuickStartEnabled} → ${templateQuickStartEnabled}).`,
+                { route: "search-profiles" },
+            );
+            continue;
+        }
+
+        // Safe additive migrate: missing hero Quick Start display + click filters.
+        // enabled already matches (otherwise the block above copied full YAML
+        // quickStart). Prod landing showed profile.name and shuffled rank because
+        // label/rank stayed null. Do not wait on RESEED_ON_DRIFT; do not copy
+        // sources / keywords / jobDescription.
+        if (needsHeroQuickStartBackfill(existing.profile, profile)) {
+            const merged = mergeHeroQuickStartFromTemplate(existing.profile, profile);
+            const patchedProfile = searchProfileService.normalizeProfileInput(
+                {
+                    ...existing.profile,
+                    id: existing.profile.id,
+                    quickStart: merged.quickStart,
+                    filters: merged.filters,
+                },
+                existing.profile,
+            );
+            patchedProfile.id = existing.profile.id;
+            await updateCustomProfile(
+                existing.storageId,
+                toStoredProfilePayload(patchedProfile, {
+                    seededFromConfig: true,
+                    templateHash: existing.templateHash ?? currentHash,
+                }),
+                workspaceSlug,
+            );
+            logger.warn(
+                `backfilled missing Quick Start label/rank/filters on "${logicalId}" ` +
+                `(workspace=${workspaceSlug}) from YAML template.`,
                 { route: "search-profiles" },
             );
             continue;
