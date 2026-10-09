@@ -59,13 +59,14 @@ import { parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveResumeRefreshState } from '@/lib/resume-freshness'
 import { getCollectionSourceMarket, resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import type {
-  CandidateActionType,
-  CandidateStatus,
-  MatchingResult,
-  ResumeExportFormat,
-  ResumeFilters,
-  ResumeMachineOrigin,
+import {
+  CANDIDATE_STATUS_VALUES,
+  type CandidateActionType,
+  type CandidateStatus,
+  type MatchingResult,
+  type ResumeExportFormat,
+  type ResumeFilters,
+  type ResumeMachineOrigin,
 } from '@/types/resume'
 import type {
   FacetCounts,
@@ -534,6 +535,34 @@ function buildSearchExportEntry(
 }
 
 const DEFAULT_STATUS_WHEN_EMPTY: CandidateStatus = 'new'
+
+function overlayAndModeStatusFacets(
+  painted: FacetCounts,
+  isAndModeBff: boolean,
+  bffStatusCounts: Partial<Record<CandidateStatus, number>> | undefined,
+): FacetCounts {
+  // AND-mode header total comes from BFF `summary.total`. Status chips must
+  // use the same search-scoped `summary.statusCounts` — not the painted
+  // new-only list — or 全部状态 collapses to 新候选人 and 已拒绝 goes blank.
+  if (!isAndModeBff || !bffStatusCounts) {
+    return painted
+  }
+  const labelByValue = new Map(painted.statuses.map((entry) => [entry.value, entry.label]))
+  const statuses = CANDIDATE_STATUS_VALUES
+    .map((value) => ({
+      value,
+      count: bffStatusCounts[value] ?? 0,
+      label: labelByValue.get(value),
+    }))
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count
+      }
+      return left.value.localeCompare(right.value)
+    })
+  return { ...painted, statuses }
+}
 
 const ACTION_TO_STATUS: Partial<Record<CandidateActionType, CandidateStatus>> = {
   shortlist: 'shortlisted',
@@ -1158,7 +1187,16 @@ export function useResumeSearchState() {
 
   const deferredFilteredResults = useDeferredValue(filteredResults)
 
-  const facetCounts: FacetCounts = useFacetCounts(deferredFilteredResults, taxonomyClusters)
+  const paintedFacetCounts: FacetCounts = useFacetCounts(deferredFilteredResults, taxonomyClusters)
+  const facetCounts: FacetCounts = useMemo(
+    () =>
+      overlayAndModeStatusFacets(
+        paintedFacetCounts,
+        resumeQuery.isAndModeBff === true,
+        resumeQuery.bffStatusCounts,
+      ),
+    [paintedFacetCounts, resumeQuery.bffStatusCounts, resumeQuery.isAndModeBff],
+  )
   const loadedCollectedTodayCount = useMemo(
     () => blockVisibleResults.filter((item) => isExtractedToday(item.resume.extractedAt)).length,
     [blockVisibleResults],

@@ -2863,10 +2863,10 @@ describe('useResumeSearchState', () => {
     })
   })
 
-  it('keeps AND-mode chips on the painted list even when BFF status totals differ', () => {
+  it('uses AND-mode BFF search statusCounts for chips so 全部状态 matches the header total', () => {
     Object.assign(parsedStateMock, createParsedState({
-      query: 'CNC 销售',
-      keywords: ['CNC', '销售'],
+      query: '"CNC" "Service Engineer"',
+      keywords: ['CNC', 'Service Engineer'],
     }))
     useFacetCountsMock.mockReturnValue({
       clusters: [],
@@ -2874,7 +2874,7 @@ describe('useResumeSearchState', () => {
       companies: [],
       experienceLevels: [],
       education: [],
-      statuses: [{ value: 'new', count: 2, label: 'New candidate' }],
+      statuses: [{ value: 'new', count: 34, label: 'New candidate' }],
       minScoreOptions: [],
       sources: [],
     })
@@ -2884,20 +2884,27 @@ describe('useResumeSearchState', () => {
     )
     useConvexResumesMock.mockImplementation(() => ({
       resumes: resumesMock,
-      hasMore: false,
+      hasMore: true,
       loading: false,
       loadingMore: false,
       isAndModeBff: true,
-      bffStatusCounts: { new: 797, shortlisted: 0, rejected: 1, interviewed_pass: 3 },
-      verifiedWorkingSetTotal: 214,
+      bffStatusCounts: { new: 34, shortlisted: 0, rejected: 129 },
+      verifiedWorkingSetTotal: 163,
     }))
 
     const { result } = renderHook(() => useResumeSearchState())
 
+    expect(result.current.verifiedWorkingSetTotal).toBe(163)
     expect(result.current.facetCounts.statuses).toEqual([
-      { value: 'new', count: 2, label: 'New candidate' },
+      { value: 'rejected', count: 129, label: undefined },
+      { value: 'new', count: 34, label: 'New candidate' },
     ])
-    expect(result.current.verifiedWorkingSetTotal).toBe(214)
+    expect(result.current.statusSummary).toEqual({
+      new: 34,
+      shortlisted: 0,
+      rejected: 129,
+      total: 163,
+    })
   })
 
   it('does not enable the unverified-lane extra GET without minRoleYears', () => {
