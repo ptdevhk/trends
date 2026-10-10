@@ -218,6 +218,14 @@ describe("resume-import-service", () => {
         expect(result.convexResumes[0].externalId).toBe("hr.job5156.com:user:u-101");
       });
 
+      it("keys 51job on resumeId even when profileId is present (stable re-collect)", () => {
+        const result = normalizeResumeImportPayload({
+          metadata: makeMetadata({ sourceKey: "51job", sourceHost: "ehire.51job.com" }),
+          resumes: [makeResume({ resumeId: "979890519", profileId: "p-456" })],
+        });
+        expect(result.convexResumes[0].externalId).toBe("ehire.51job.com:resume:979890519");
+      });
+
       it("falls back to hash-based ID", () => {
         const result = normalizeResumeImportPayload({
           metadata: makeMetadata(),

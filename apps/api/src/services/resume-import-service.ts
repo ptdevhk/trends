@@ -271,6 +271,20 @@ function buildResumeExternalId(resume: ResumeImportItem, source: string, hash: s
     return explicitExternalId;
   }
 
+  // 51job re-collects must key on the stable candidate id (the resumeid= in the
+  // detail URL), never on the content hash. The hash changes whenever the
+  // scraped payload differs (detail enrichment, field ordering, a re-collected
+  // page), and `submitResumes` matches on identityKey/externalId — so a
+  // hash-keyed row fails to match on re-collect, gets re-inserted/re-keyed and
+  // the per-profile tagged counts shift down instead of accumulating. Prefer
+  // resumeId for 51job before falling back to the hash.
+  if (source === EHIRE_51JOB_HOST) {
+    const job51ResumeId = normalizeCandidateId(resume.resumeId);
+    if (job51ResumeId) {
+      return `${source}:resume:${job51ResumeId}`;
+    }
+  }
+
   const profileId = normalizeCandidateId(resume.profileId);
   if (profileId) {
     return `${source}:profile:${profileId}`;
