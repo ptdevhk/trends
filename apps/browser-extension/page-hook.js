@@ -924,6 +924,21 @@
     if (!data || data.source !== 'tr-resume-content-script') return;
     if (data.action === 'trJob51NextPageRequest') {
       try {
+        // 51job talent search is an infinite-scroll list. The reliable trigger
+        // is a native scroll of the results container to the bottom, which the
+        // Vue component's scroll listener turns into a page_index increment.
+        // Calling vm.listToBottom() directly is a no-op: it is gated on the
+        // component's internal scroll/loading state, so auto-sync stalled at
+        // page 1 (50 rows) even though the pager reported 200 pages. Scroll
+        // first, then fall back to listToBottom() only if no scroll container
+        // is present (older layouts).
+        const scrollContainer = /** @type {HTMLElement | null} */ (
+          document.querySelector('.main_container.eh-talent-search')
+        );
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          return;
+        }
         const container = /** @type {HTMLElement & {__vue__?: {listToBottom: Function}} } */ (
           document.querySelector('.talent-search-container')
         );
