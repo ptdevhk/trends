@@ -4512,7 +4512,11 @@
         }
         const response = await syncCurrentPageToServer2(enrichedResumes);
         if (!response?.success) {
-          throw response?.error || response || "51job detail backfill failed";
+          // Transient submit conflicts (e.g. Convex sync_events contention)
+          // must not abort the backfill chain. Log and let the next page/run
+          // re-cover this page.
+          console.warn("51job detail backfill submit failed (non-fatal)", response?.error || response);
+          return null;
         }
         console.log("51job detail backfill synced", {
           submitted: typeof response.submitted === "number" ? response.submitted : enrichedResumes.length,
@@ -6114,11 +6118,33 @@
       const metadata = buildSubmitMetadata2({
         seekCaptureMode: Array.isArray(resumesOverride) && win.location.pathname.includes("/candidates/recommended") ? "graphql-list" : void 0
       });
-      return chrome.runtime.sendMessage({
-        action: "syncToServer",
-        metadata,
-        resumes
-      });
+      // The content→background message hop can silently break (stale content
+      // context after an extension reload, or a dead SW port), which surfaces
+      // as "Failed to fetch"/"Bridge timeout" and drops every page. Retry once
+      // and surface chrome.runtime.lastError so the failure is diagnosable
+      // instead of an opaque rejection.
+      let lastError = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "syncToServer",
+            metadata,
+            resumes
+          });
+          const runtimeError = chrome.runtime.lastError;
+          if (runtimeError) {
+            lastError = new Error(runtimeError.message || "runtime.lastError");
+          } else {
+            return response;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+      throw lastError || new Error("syncToServer message failed");
     }
     __name(syncCurrentPageToServer2, "syncCurrentPageToServer");
     function resolveAutoSyncErrorStatus2(errorLike) {
@@ -7854,31 +7880,48 @@
             }
           }
           if (!response?.success) {
-            throw submitError || "Auto sync failed";
+            // Do not abort the whole run on a page-submit failure. The 51job
+            // per-page submit races the detail-backfill submit on the same
+            // Convex `sync_events` document, so a transient 500
+            // (OptimisticConcurrencyControlFailure) is expected. Skip this
+            // page and keep advancing; the next run re-covers it. Only a
+            // hard rate-limit stop should end the run.
+            const submitFailureText = typeof submitError === "string" ? submitError : submitError?.error || submitError?.message || "";
+            if (submitFailureText.includes("搜索访问太快") || submitFailureText.includes("60分钟后再试")) {
+              throw submitError || "Auto sync failed";
+            }
+            console.warn("[tr-auto-sync]", "page submit failed, skipping page", currentPage, submitFailureText);
+            SyncStatusWidget2.show({
+              state: "progress",
+              message: `第 ${currentPage} 页提交失败，跳过并继续翻页...`,
+              hint: "暂时性服务端冲突，后续重跑会补齐本页"
+            });
           }
-          const submitted = typeof response.submitted === "number" ? response.submitted : resumes.length;
-          const inserted = typeof response.inserted === "number" ? response.inserted : 0;
-          const updated = typeof response.updated === "number" ? response.updated : 0;
+          const submitted = response?.success && typeof response.submitted === "number" ? response.submitted : 0;
+          const inserted = response?.success && typeof response.inserted === "number" ? response.inserted : 0;
+          const updated = response?.success && typeof response.updated === "number" ? response.updated : 0;
           totalSubmitted += submitted;
           totalInserted += inserted;
           totalUpdated += updated;
           setAutoSyncAttributes2("running", totalSubmitted, pagesVisited);
-          if (isJob51ListPage && resumes.length > 0) {
+          if (isJob51ListPage && resumes.length > 0 && response?.success) {
             const waitMode = resolveCurrentJob51AutoSyncDetailWaitMode2();
             if (waitMode !== "off") {
               const detailBackfillPromise = queueJob51DetailBackfill2(resumes, {
                 currentPage,
                 totalPages: Math.max(totalPages, currentPage)
               });
-              const shouldWaitForDetails = waitMode === "all" || waitMode === "page1" && currentPage === 1;
-              if (shouldWaitForDetails) {
-                SyncStatusWidget2.show({
-                  state: "progress",
-                  message: `\u6B63\u5728\u8865\u5145\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u8BE6\u60C5...`,
-                  hint: "\u7B49\u5F85 51job \u8BE6\u60C5\u8865\u5145\u540E\u518D\u5B8C\u6210\u672C\u9875\u540C\u6B65"
-                });
-                await detailBackfillPromise;
-              }
+              // Always await the detail-backfill submit before advancing. The
+              // page submit and the detail-backfill submit both write the same
+              // Convex `sync_events` document; letting them run concurrently
+              // produces OptimisticConcurrencyControlFailure (HTTP 500) on
+              // every page. Serializing them (await here) removes the conflict.
+              SyncStatusWidget2.show({
+                state: "progress",
+                message: `\u6B63\u5728\u8865\u5145\u7B2C ${currentPage}/${Math.max(totalPages, currentPage)} \u9875\u8BE6\u60C5...`,
+                hint: "\u7B49\u5F85 51job \u8BE6\u60C5\u8865\u5145\u540E\u518D\u5B8C\u6210\u672C\u9875\u540C\u6B65"
+              });
+              await detailBackfillPromise;
             } else {
               SyncStatusWidget2.show({
                 state: "progress",
