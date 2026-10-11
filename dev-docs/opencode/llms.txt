@@ -1,12 +1,37 @@
 ### Install dependencies and start development server
 
-Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/desktop/README.md
 
-Requires Bun 1.3 or higher. Installs project dependencies and starts the local development server from the repository root.
+Installs dependencies and starts OpenCode Desktop in development mode. Uses local renderer and server mode with dev app identity by default.
 
 ```bash
 bun install
 bun dev
+```
+
+--------------------------------
+
+### Install dependencies and start development CLI/TUI
+
+Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
+
+Installs dependencies and runs the V2 CLI and TUI. Pass a directory path to target another project or . for the current repository.
+
+```bash
+bun install
+bun dev [directory]
+```
+
+--------------------------------
+
+### Start web and API server with opencode serve
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/cli/commands.mdx
+
+Starts the OpenCode API and web server.
+
+```bash
+$ opencode serve
 ```
 
 --------------------------------
@@ -26,102 +51,119 @@ npm run dev -- --open
 
 --------------------------------
 
-### Install OpenCode using the install script
+### Install @opencode/sdk
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/sdk/cloudflare.mdx
 
-Download and install OpenCode using the official automated install script via curl.
+Installs the OpenCode SDK package via Bun.
 
-```bash
-curl -fsSL https://opencode.ai/install | bash
+```sh
+bun add @opencode/sdk
 ```
 
 --------------------------------
 
-### Install OpenCode on Windows using Scoop
+### Define Extension Setup Function with Context
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/gui-extensions/README.md
 
-Install OpenCode on Windows using the Scoop command-line installer.
+Access optional dependencies, persisted store values, and register UI commands within the synchronous setup callback. Declared persistent stores are loaded prior to setup execution.
 
-```bash
-scoop install opencode
+```ts
+const setup: Setup<typeof definition> = (ctx) => {
+  const changes = ctx.uses.changes // Accessor<Live<Changes>>
+  const prefs = ctx.stores.prefs.value // loaded before setup
+  ctx.add(Command, { id: "open", title: ctx.t("open"), run: () => ctx.layout.settings(ctx.id) })
+}
 ```
 
 --------------------------------
 
-### Install @opencode-ai/sdk via npm
+### Install @opencode/client and effect
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/client/effect.mdx
 
-Installer OpenCode SDK-pakken fra npm.
+Install the OpenCode client and Effect packages via Bun.
 
-```bash
-npm install @opencode-ai/sdk
+```sh
+bun add @opencode/client effect
 ```
 
 --------------------------------
 
-### Run custom setup and return extra data with init
+### Install the Effect SDK
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/AGENTS.md
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/sdk/effect.mdx
 
-Provide an `init` function to perform custom directory setup. The returned value is accessible via `tmp.extra`.
+Install `@opencode/sdk` and `effect` dependencies using Bun.
 
-```typescript
-await using tmp = await tmpdir<string>({
-  init: async (dir) => {
-    await Bun.write(path.join(dir, "file.txt"), "content")
-    return "extra data"
+```sh
+bun add @opencode/sdk effect
+```
+
+--------------------------------
+
+### Install a plugin with opencode plugin
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+
+Install a plugin module and update configuration.
+
+```bash
+opencode plugin <module>
+```
+
+--------------------------------
+
+### Install OpenCode CLI using Homebrew
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/index.mdx
+
+Installs the OpenCode v2 tap via Homebrew.
+
+```bash
+brew install anomalyco/tap/opencode-v2
+```
+
+--------------------------------
+
+### Manage plugin lifecycle with setup and cleanup
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/plugins/index.mdx
+
+The `setup` hook runs when the plugin loads and can return a teardown function that executes when the plugin is unloaded.
+
+```ts
+import { Plugin } from "@opencode/plugin"
+
+export default Plugin.define({
+  id: "example",
+  setup(ctx) {
+    console.log(`loaded in OpenCode ${ctx.app.version}`)
+    return () => console.log("unloaded")
   },
 })
-// Access extra data via tmp.extra
-console.log(tmp.extra) // "extra data"
 ```
 
 --------------------------------
 
-### Install OpenCode on Windows using NPM
+### View serve help with --help
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/cli/commands.mdx
 
-Install OpenCode globally on Windows through npm.
+Displays all available subcommands and options for the serve command.
 
 ```bash
-npm install -g opencode-ai
+$ opencode serve --help
 ```
 
 --------------------------------
 
-### Start OpenCode server for desktop app connection
+### Install GitHub agent with opencode github install
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
 
-Starts the server in WSL listening on 0.0.0.0 at port 4096 to allow external desktop app connections.
-
-```bash
-opencode serve --hostname 0.0.0.0 --port 4096
-```
-
---------------------------------
-
-### Install OpenCode on Windows using Mise
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Install and manage OpenCode globally on Windows via Mise.
-
-```bash
-mise use -g github:anomalyco/opencode
-```
-
---------------------------------
-
-### opencode github install
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/cli.mdx
-
-Sets up a GitHub Actions workflow and installs the GitHub agent into the current repository.
+Sets up the necessary GitHub Actions workflow and guides configuration in your repository.
 
 ```bash
 opencode github install
@@ -129,90 +171,34 @@ opencode github install
 
 --------------------------------
 
-### Install a plugin using the opencode plug alias
+### Initial load and background plugin boot flow
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/catalog-config-plugin-lifecycle.md
 
-Install a plugin module using the shorthand alias plug command.
+Illustrates building a baseline catalog from immediate sources while background fibers activate slower plugins asynchronously.
 
-```bash
-opencode plug <module>
-```
+```ts
+LocationServiceMap.get(ref)
+  → build location layer
+    → Catalog.layer creates empty catalog state
+    → PluginBoot.layer activates immediately available plugins
+      → ConfigProviderPlugin installs Catalog.transform()
+      → ModelsDevPlugin installs Catalog.transform()
+      → AuthPlugin installs Catalog.transform()
+    → Catalog.layer applies active transforms during boot
+    → apply policy
+    → materialize baseline provider/model catalog
+  → PluginBoot baseline ready
+    → Frontend.fetchCatalog()
 
---------------------------------
-
-### Start web interface with opencode web
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-Start a headless OpenCode HTTP server and open a web browser to access the interface. Set OPENCODE_SERVER_PASSWORD to enable HTTP basic authentication.
-
-```bash
-opencode web
-```
-
---------------------------------
-
-### Install OpenCode Desktop app via Homebrew or Scoop
-
-Source: https://github.com/anomalyco/opencode/blob/dev/README.md
-
-Installs the OpenCode Desktop beta application using Homebrew on macOS or Scoop on Windows.
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
-# Windows (Scoop)
-scoop bucket add extras; scoop install extras/opencode-desktop
-```
-
---------------------------------
-
-### opencode import examples
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/bs/cli.mdx
-
-Primjeri uvoza sesije iz lokalne JSON datoteke ili preko dijeljenog URL-a.
-
-```bash
-opencode import session.json
-opencode import https://opncd.ai/s/abc123
-```
-
---------------------------------
-
-### Start local development preview server
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/README.md
-
-Execute at the root of your documentation where docs.json is located to launch the local preview server at http://localhost:3000.
-
-```shell
-mint dev
-```
-
---------------------------------
-
-### Port conflict fallback message
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/docs/development.mdx
-
-Example message displayed when Mintlify attempts to start on an unavailable port and falls back to the next available port.
-
-```md
-Port 3000 is already in use. Trying 3001 instead.
-```
-
---------------------------------
-
-### Start new session with /new
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
-
-เริ่มเซสชันใหม่ มีนามแฝงคือ /clear หรือใช้คีย์ลัด ctrl+x n
-
-```bash
-/new
+PluginBoot background fiber
+  → install/update plugin packages concurrently
+  → activate completed plugins
+    → Catalog.transform()
+      → transform(updateCatalog)
+        → Catalog internally rebuilds
+          → Catalog.Event.Updated
+            → Frontend.refetchCatalog()
 ```
 
 --------------------------------
@@ -228,6 +214,18 @@ apt install -y xvfb
 # and run:
 Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 export DISPLAY=:99.0
+```
+
+--------------------------------
+
+### View service help with --help
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/cli/commands.mdx
+
+Displays all available subcommands and configuration flags for managing the service.
+
+```bash
+$ opencode service --help
 ```
 
 --------------------------------
@@ -255,59 +253,70 @@ Applies a wildcard pattern using * to match zero or more characters in the resou
 
 --------------------------------
 
-### POST /project/init
+### Run desktop development startup benchmark
 
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/project.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/app/e2e/performance/README.md
 
-Initializes a new project.
+Runs five serial samples of the bun dev:desktop startup sequence from the repository root.
 
-```APIDOC
-## POST /project/init
-
-### Description
-Initializes a new project instance.
-
-### Method
-POST
-
-### Endpoint
-/project/init
-
-### Response
-#### Success Response
-- Returns `Project`
+```sh
+bun run bench:devex
 ```
 
 --------------------------------
 
-### Install Agents SDK
+### Launch Vite TUI live development session with bun
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/fixture/skills/agents-sdk/SKILL.md
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/cli/dev/README.md
 
-Installs the `agents` package using npm if it is not already installed.
+Starts the CLI and its TUI via Vite and solid-refresh from the repository root, connecting directly to the installed server. Component edits trigger hot updates while the backend remains active across syntax error retries and full reloads.
 
-```bash
-npm install agents
+```sh
+bun run dev:vite:live /path/to/project
 ```
 
 --------------------------------
 
-### Enter API Key in /connect CLI
+### Build and run packaged startup benchmarks with bench:startup
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/it/providers.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/desktop/README.md
 
-Inserisci la chiave API per salvare le credenziali del provider. Richiede comunque la configurazione manuale in `opencode.json`.
+Builds an unpacked directory distribution and benchmarks startup performance from process spawn to renderer idle. Supports warm/cold service runs, A/B build comparison, CPU profiling, and profile seeding.
 
 ```bash
-$ /connect
+OPENCODE_CHANNEL=dev bun run build && bunx electron-builder --win --dir --config electron-builder.config.ts
+bun run bench:startup -- --runs 5                                  # warm service (started once, reused by every launch)
+bun run bench:startup -- --runs 5 --compare dist/other/OpenCode\ Dev.exe   # A/B: alternate launches of two builds
+bun run bench:startup -- --service cold                            # each launch spawns the service
+bun run bench:startup -- --fresh                                   # first launch after an install (profile wiped each time)
+bun run bench:startup -- --profile-main --profile-renderer --trace # CPU profiles and a Chromium startup trace
+bun run bench:startup -- --seed "%APPDATA%\ai.opencode.desktop.dev"   # restore tabs and drafts from an existing profile
+```
 
-┌  Add credential
-│
-▲  This only stores a credential for myprovider - you will need to configure it in opencode.json, check the docs for examples.
-│
-◇  Enter your API key
-│  sk-...
-└
+--------------------------------
+
+### Initialize client with createOpencode
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Create an instance of opencode to start both a server and a client.
+
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
+
+const { client } = await createOpencode()
+```
+
+--------------------------------
+
+### Install OpenCode using the install script
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Installs OpenCode 1 binary directly via curl script. May conflict with or replace an existing OpenCode 2 installation.
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
 ```
 
 --------------------------------
@@ -336,6 +345,259 @@ nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev
 
 --------------------------------
 
+### Start OpenCode web interface using opencode pair
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/index.mdx
+
+Launches the web interface server and displays the local URL alongside generated authentication credentials.
+
+```bash
+$ opencode pair
+
+  URLs      http://127.0.0.1:49374
+  Username  opencode
+  Password  ********
+```
+
+--------------------------------
+
+### Define extension setup function with settings page and command
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/gui-extensions/README.md
+
+Configures extension entry logic by registering a desktop settings page and an associated command using the SDK context.
+
+```tsx
+import { lazy, onCleanup, Suspense } from "solid-js"
+import { onIdle, Command, SettingsPage, type Setup } from "../sdk"
+import type definition from "./index"
+
+const setup: Setup<typeof definition> = (ctx) => {
+  if (!ctx.desktop) return
+  const layout = ctx.layout
+  const servers = ctx.servers
+  const pairing = ctx.uses.pairing
+  const Page = lazy(() => import("./page"))
+  // Settings rows are small; load them while idle so settings opens without a blank row.
+  onCleanup(onIdle(() => void Page.preload()))
+
+  // The desktop's own server. Its ref is already authenticated in this window, so codes need no main process.
+  const local = () =>
+    servers
+      .list()
+      .map((id) => servers.get(id))
+      .find((server) => server?.builtin)
+
+  ctx.add(SettingsPage, {
+    id: "pairing",
+    icon: "server",
+    available: "desktop",
+    get title() {
+      return ctx.t("title")
+    },
+    get entries() {
+      const pairingEntry = { id: "pairing", title: ctx.t("title"), keywords: "pair device qr local" }
+
+      // The display setting exists only while pairing's main side answers.
+      if (pairing().status !== "active") return [pairingEntry]
+
+      return [
+        pairingEntry,
+        {
+          id: "settings-keep-screen-active",
+          title: ctx.t("screenActive.title"),
+          description: ctx.t("screenActive.description"),
+          keywords: "display sleep awake local",
+        },
+      ]
+    },
+    render: () => (
+      <Suspense>
+        <Page server={local} pairing={pairing} />
+      </Suspense>
+    ),
+  })
+
+  ctx.add(Command, {
+    id: "open",
+    get title() {
+      return ctx.t("command.title")
+    },
+    get group() {
+      return ctx.t("command.category.server")
+    },
+    run: () => layout.settings("pairing"),
+  })
+}
+
+export default setup
+```
+
+--------------------------------
+
+### Start new session with /new
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
+
+เริ่มเซสชันใหม่ มีนามแฝงคือ /clear หรือใช้คีย์ลัด ctrl+x n
+
+```bash
+/new
+```
+
+--------------------------------
+
+### GET /global/health
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/server.mdx
+
+Get server health status and version information.
+
+```APIDOC
+## GET /global/health
+
+### Description
+Get server health and version.
+
+### Method
+GET
+
+### Endpoint
+/global/health
+
+### Response
+#### Success Response (200)
+- **healthy** (boolean) - Whether the server is healthy
+- **version** (string) - Server version string
+```
+
+--------------------------------
+
+### Create an OpenCode client and start a session
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/client/index.mdx
+
+Instantiate an OpenCode client with OpenCode.make and invoke resource methods like session.create and session.prompt.
+
+```ts
+import { OpenCode } from "@opencode/client"
+
+const client = OpenCode.make({
+  baseUrl: "http://localhost:4096",
+})
+
+const session = await client.session.create({
+  location: { directory: "/workspace" },
+})
+
+await client.session.prompt({
+  sessionID: session.id,
+  text: "Review the current changes",
+})
+```
+
+--------------------------------
+
+### Display help and available flags with --help
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/cli/commands.mdx
+
+Shows all supported subcommands, options, and flags for opencode run.
+
+```bash
+$ opencode run --help
+```
+
+--------------------------------
+
+### Add a custom LSP server with command and extensions
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/lsp.mdx
+
+Define a new LSP entry by specifying the startup `command` array and the file `extensions` the server should handle.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "custom-lsp": {
+      "command": ["custom-lsp-server", "--stdio"],
+      "extensions": [".custom"]
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Install @opencode-ai/sdk via npm
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
+
+Install the opencode JavaScript/TypeScript SDK package from npm.
+
+```bash
+npm install @opencode-ai/sdk
+```
+
+--------------------------------
+
+### Install OpenCode on Windows using npm
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Installs OpenCode globally on Windows through npm.
+
+```bash
+npm install -g opencode-ai
+```
+
+--------------------------------
+
+### Start OpenCode server for desktop app connection
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/windows-wsl.mdx
+
+Starts the server in WSL listening on 0.0.0.0 at port 4096 to allow external desktop app connections.
+
+```bash
+opencode serve --hostname 0.0.0.0 --port 4096
+```
+
+--------------------------------
+
+### Install OpenCode CLI using Yarn
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/index.mdx
+
+Installs the OpenCode CLI globally using Yarn.
+
+```bash
+yarn global add @opencode/cli
+```
+
+--------------------------------
+
+### Enter API Key in /connect CLI
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/it/providers.mdx
+
+Inserisci la chiave API per salvare le credenziali del provider. Richiede comunque la configurazione manuale in `opencode.json`.
+
+```bash
+$ /connect
+
+┌  Add credential
+│
+▲  This only stores a credential for myprovider - you will need to configure it in opencode.json, check the docs for examples.
+│
+◇  Enter your API key
+│  sk-...
+└
+```
+
+--------------------------------
+
 ### Select Other Provider in /connect CLI
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/it/providers.mdx
@@ -355,62 +617,6 @@ $ /connect
 
 --------------------------------
 
-### Sequence catalog initial load and background plugin boot
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/v2/catalog-config-plugin-lifecycle.md
-
-Builds a baseline catalog immediately from available plugins to avoid blocking readiness, then loads slower plugins asynchronously in a background fiber.
-
-```ts
-LocationServiceMap.get(ref)
-  → build location layer
-    → Catalog.layer creates empty catalog state
-    → PluginBoot.layer activates immediately available plugins
-      → ConfigProviderPlugin installs Catalog.transform()
-      → ModelsDevPlugin installs Catalog.transform()
-      → AuthPlugin installs Catalog.transform()
-    → Catalog.layer applies active transforms during boot
-    → apply policy
-    → materialize baseline provider/model catalog
-  → PluginBoot baseline ready
-    → Frontend.fetchCatalog()
-
-PluginBoot background fiber
-  → install/update plugin packages concurrently
-  → activate completed plugins
-    → Catalog.transform()
-      → transform(updateCatalog)
-        → Catalog internally rebuilds
-          → Catalog.Event.Updated
-            → Frontend.refetchCatalog()
-```
-
---------------------------------
-
-### Install dependencies with Bun
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/README.md
-
-Installs project dependencies using the Bun CLI.
-
-```bash
-bun install
-```
-
---------------------------------
-
-### Initialize Project Configuration with /init
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
-
-Analyzes the codebase and creates an AGENTS.md file in the root directory to guide OpenCode's understanding.
-
-```bash
-/init
-```
-
---------------------------------
-
 ### Initialize AGENTS.md with /init
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
@@ -423,168 +629,47 @@ Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/
 
 --------------------------------
 
-### Install a plugin with opencode plugin
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/cli.mdx
-
-Install a plugin module and update your OpenCode configuration.
-
-```bash
-opencode plugin <module>
-```
-
---------------------------------
-
-### Kør /connect for OpenCode Go
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/providers.mdx
-
-Start forbindelsesprocessen i OpenCode TUI og vælg OpenCode Go.
-
-```txt
-/connect
-```
-
---------------------------------
-
-### List available themes with /themes
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
-
-แสดงรายการธีมที่มีอยู่ หรือใช้คีย์ลัด ctrl+x t
-
-```bash
-/themes
-```
-
---------------------------------
-
-### GET /project/:projectID/session/:sessionID/file
-
-Source: https://github.com/anomalyco/opencode/blob/dev/specs/project.md
-
-Gets the content or patch of a file within a session.
-
-```APIDOC
-## GET /project/:projectID/session/:sessionID/file
-
-### Description
-Retrieves raw or patch file content for a session.
-
-### Method
-GET
-
-### Endpoint
-/project/:projectID/session/:sessionID/file
-
-### Parameters
-#### Path Parameters
-- **projectID** (string) - Required - Identifier of the project
-- **sessionID** (string) - Required - Identifier of the session
-
-### Response
-#### Success Response
-- Returns `{ type: "raw" | "patch", content: string }`
-```
-
---------------------------------
-
-### Navigate to Project Directory
+### Install OpenCode using Mise
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Change into the target project folder before launching OpenCode.
+Installs and activates OpenCode globally via the Mise version manager.
 
 ```bash
-cd /path/to/project
+mise use -g github:anomalyco/opencode
 ```
 
 --------------------------------
 
-### Install dependencies
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/app/README.md
-
-Installs project dependencies using npm, pnpm, or yarn after cloning the template.
-
-```bash
-$ npm install # or pnpm install or yarn install
-```
-
---------------------------------
-
-### Créer un thème spécifique au projet
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/fr/themes.mdx
-
-Crée le dossier .opencode/themes à la racine du projet et initialise un fichier de thème local.
-
-```bash
-mkdir -p .opencode/themes
-vim .opencode/themes/my-theme.json
-```
-
---------------------------------
-
-### Create a new SolidStart project
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/console/app/README.md
-
-Initialize a new SolidStart project in the current working directory or a specified folder using npm init.
-
-```bash
-# create a new project in the current directory
-npm init solid@latest
-
-# create a new project in my-app
-npm init solid@latest my-app
-```
-
---------------------------------
-
-### Install OpenCode on Windows using Chocolatey
+### Initialize project using /init
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Install OpenCode on Windows using the Chocolatey package manager.
+Analyzes the project and creates an AGENTS.md file in the root directory to help OpenCode understand the structure and coding patterns.
 
 ```bash
-choco install opencode
+/init
 ```
 
 --------------------------------
 
-### Create opencode client with createOpencode
+### Install OpenCode on Windows using Scoop
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
+
+Installs OpenCode on Windows using the Scoop package manager.
+
+```bash
+scoop install opencode
+```
+
+--------------------------------
+
+### Configure and start opencode server instance
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
 
-Initializes and starts both an opencode server instance and a client.
-
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
-
-const { client } = await createOpencode()
-```
-
---------------------------------
-
-### Verify Agents SDK Installation
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/test/fixture/skills/agents-sdk/SKILL.md
-
-Run this command to check if the `agents` package is already installed in your project.
-
-```bash
-npm ls agents  # Should show agents package
-```
-
---------------------------------
-
-### Configure and start createOpencode instance with custom options
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/sdk.mdx
-
-Tilpasser vertsnavn, port og konfigurasjonsmodell ved opprettelse av en OpenCode-forekomst, og lukker serveren etter bruk.
+Pass custom configuration options such as hostname, port, and model settings inline to override defaults or opencode.json.
 
 ```javascript
 import { createOpencode } from "@opencode-ai/sdk"
@@ -604,100 +689,146 @@ opencode.server.close()
 
 --------------------------------
 
-### Install @opencode-ai/sdk via npm
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/sdk.mdx
-
-Install the opencode JS/TS SDK package from npm to use the client in your project.
-
-```bash
-npm install @opencode-ai/sdk
-```
-
---------------------------------
-
-### Create an agent with opencode agent create
-
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/agents.mdx
-
-Runs an interactive prompt to configure agent scope, description, system prompt, and permissions, saving the result to a markdown file.
-
-```bash
-opencode agent create
-```
-
---------------------------------
-
-### Start headless API server on default port
-
-Source: https://github.com/anomalyco/opencode/blob/dev/CONTRIBUTING.md
-
-Starts the headless API server on the default port 4096.
-
-```bash
-bun dev serve
-```
-
---------------------------------
-
-### Install OpenCode using Homebrew
+### Install OpenCode on Windows using Chocolatey
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/index.mdx
 
-Install OpenCode on macOS and Linux using the official OpenCode tap for the most up-to-date releases.
+Installs OpenCode on Windows via the Chocolatey package manager.
 
 ```bash
-brew install anomalyco/tap/opencode
+choco install opencode
 ```
 
 --------------------------------
 
-### Initialize opencode client with createOpencode
+### GET /session/:id/diff
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/sdk.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/server.mdx
 
-Initializes both the opencode server and client instance using default settings.
+Get file diffs for a given session, optionally filtered by message ID.
 
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
+```APIDOC
+## GET /session/:id/diff
 
-const { client } = await createOpencode()
+### Description
+Get the diff for this session.
+
+### Method
+GET
+
+### Endpoint
+`/session/:id/diff`
+
+### Parameters
+#### Path Parameters
+- **id** (string) - Required - The ID of the session
+
+#### Query Parameters
+- **messageID** - Optional
+
+### Response
+#### Success Response (200)
+- Returns `FileDiff[]`
 ```
 
 --------------------------------
 
-### Install Clipboard Utility for Wayland on Linux
+### Declare Store.main from desktop settings file
 
-Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/bs/troubleshooting.mdx
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/gui-extensions/README.md
 
-Installs wl-clipboard on Wayland Linux systems to enable copy and paste operations.
+Defines a main-process synchronous store imported from a desktop settings file key.
+
+```ts
+// The saved hosts, which main keeps; stored before in the desktop settings file.
+servers: Store.main(Schema.Array(SshConfig), [], { settings: "ssh.servers" }),
+```
+
+--------------------------------
+
+### Kør /connect for OpenCode Go
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/da/providers.mdx
+
+Start forbindelsesprocessen i OpenCode TUI og vælg OpenCode Go.
+
+```txt
+/connect
+```
+
+--------------------------------
+
+### Start an OpenCode session
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/cli/tui.mdx
+
+Navigate to the project directory and launch OpenCode to start a new TUI session.
 
 ```bash
-apt install -y wl-clipboard
+cd ~/code/my-project
+opencode
 ```
 
 --------------------------------
 
-### Set custom installation directory for OpenCode
+### Install OpenCode CLI using curl
 
-Source: https://github.com/anomalyco/opencode/blob/dev/README.md
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/index.mdx
 
-Specifies a custom target path such as OPENCODE_INSTALL_DIR or XDG_BIN_DIR when executing the install script.
+Installs the OpenCode CLI directly via shell script execution.
 
 ```bash
-# Examples
-OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
-XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
+curl -fsSL https://opencode.ai/v2/install | bash
 ```
 
 --------------------------------
 
-### List and switch sessions with /sessions
+### Return a cleanup function from setup
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/plugins/cli.mdx
+
+Return a cleanup function from setup to dispose of subscriptions or resources owned by the plugin.
+
+```typescript
+setup(context) {
+  const stop = context.data.on("session.execution.succeeded", () => {})
+  return () => stop()
+}
+```
+
+--------------------------------
+
+### List available themes with /themes
 
 Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/th/tui.mdx
 
-รายการและสลับระหว่างเซสชัน มีนามแฝงคือ /resume, /continue หรือใช้คีย์ลัด ctrl+x l
+แสดงรายการธีมที่มีอยู่ หรือใช้คีย์ลัด ctrl+x t
 
 ```bash
-/sessions
+/themes
+```
+
+--------------------------------
+
+### Install @effect/platform-node dependency
+
+Source: https://github.com/anomalyco/opencode/blob/dev/services/www/src/docs/content/build/client/effect.mdx
+
+Install the required Node platform package for Effect when running local background service operations.
+
+```sh
+bun add @effect/platform-node
+```
+
+--------------------------------
+
+### Créer un thème spécifique au projet
+
+Source: https://github.com/anomalyco/opencode/blob/dev/packages/web/src/content/docs/fr/themes.mdx
+
+Crée le dossier .opencode/themes à la racine du projet et initialise un fichier de thème local.
+
+```bash
+mkdir -p .opencode/themes
+vim .opencode/themes/my-theme.json
 ```
